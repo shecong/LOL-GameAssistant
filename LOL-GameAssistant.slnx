@@ -1,0 +1,13 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="LOL-Demo-Test/LOL-Demo-Test.csproj" />
+  <Project Path="LOL-GameApi/LOL-GameApi.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+  </Project>
+  <Project Path="LOL-GameAssistant/LOL-GameGUI.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+  </Project>
+</Solution>
