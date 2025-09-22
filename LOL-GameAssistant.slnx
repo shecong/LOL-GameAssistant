@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="LOL-GameApi/LOL-GameApi.csproj" />
+  <Project Path="LOL-GameAssistant/LOL-GameGUI.csproj" />
+</Solution>
