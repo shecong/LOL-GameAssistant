@@ -32,19 +32,22 @@
             tabs1 = new AntdUI.Tabs();
             tabPage1 = new AntdUI.TabPage();
             gridPanel1 = new AntdUI.GridPanel();
+            play_next = new AntdUI.Label();
+            play_dj = new AntdUI.Label();
+            play_jd = new AntdUI.Progress();
+            PlayInfo = new AntdUI.Button();
+            refeash = new AntdUI.Button();
+            btn_back = new AntdUI.Button();
+            play_QF = new AntdUI.Label();
+            play_number = new AntdUI.Label();
+            play_name = new AntdUI.Label();
+            play_HeadIcon = new AntdUI.Avatar();
+            divider1 = new AntdUI.Divider();
             tabPage2 = new AntdUI.TabPage();
             tabPage3 = new AntdUI.TabPage();
             tabPage4 = new AntdUI.TabPage();
             tabPage5 = new AntdUI.TabPage();
             HeadContent = new AntdUI.PageHeader();
-            divider1 = new AntdUI.Divider();
-            play_HeadIcon = new AntdUI.Avatar();
-            play_name = new AntdUI.Label();
-            play_number = new AntdUI.Label();
-            play_QF = new AntdUI.Label();
-            btn_back = new AntdUI.Button();
-            refeash = new AntdUI.Button();
-            PlayInfo = new AntdUI.Button();
             tabs1.SuspendLayout();
             tabPage1.SuspendLayout();
             gridPanel1.SuspendLayout();
@@ -82,6 +85,9 @@
             // 
             // gridPanel1
             // 
+            gridPanel1.Controls.Add(play_next);
+            gridPanel1.Controls.Add(play_dj);
+            gridPanel1.Controls.Add(play_jd);
             gridPanel1.Controls.Add(PlayInfo);
             gridPanel1.Controls.Add(refeash);
             gridPanel1.Controls.Add(btn_back);
@@ -97,6 +103,113 @@
             gridPanel1.Span = "";
             gridPanel1.TabIndex = 0;
             gridPanel1.Text = "gridPanel1";
+            // 
+            // play_next
+            // 
+            play_next.ColorExtend = "135,#FF0000,#00FF00";
+            play_next.Location = new Point(342, 35);
+            play_next.Name = "play_next";
+            play_next.Prefix = "当前经验：";
+            play_next.Size = new Size(180, 26);
+            play_next.TabIndex = 10;
+            play_next.Text = "";
+            // 
+            // play_dj
+            // 
+            play_dj.ColorExtend = "135,#FF0000,#00FF00";
+            play_dj.Location = new Point(342, 3);
+            play_dj.Name = "play_dj";
+            play_dj.Prefix = "当前等级：";
+            play_dj.Size = new Size(180, 26);
+            play_dj.TabIndex = 9;
+            play_dj.Text = "";
+            // 
+            // play_jd
+            // 
+            play_jd.Location = new Point(342, 60);
+            play_jd.Name = "play_jd";
+            play_jd.ShowTextDot = 2;
+            play_jd.Size = new Size(353, 23);
+            play_jd.TabIndex = 8;
+            play_jd.Text = "";
+            play_jd.TextUnit = "%(升级进度)";
+            // 
+            // PlayInfo
+            // 
+            PlayInfo.Location = new Point(729, 56);
+            PlayInfo.Name = "PlayInfo";
+            PlayInfo.Size = new Size(82, 26);
+            PlayInfo.TabIndex = 7;
+            PlayInfo.Text = "详细信息";
+            PlayInfo.Type = AntdUI.TTypeMini.Warn;
+            // 
+            // refeash
+            // 
+            refeash.Location = new Point(729, 28);
+            refeash.Name = "refeash";
+            refeash.Size = new Size(82, 26);
+            refeash.TabIndex = 6;
+            refeash.Text = "刷新";
+            refeash.Type = AntdUI.TTypeMini.Primary;
+            // 
+            // btn_back
+            // 
+            btn_back.Location = new Point(729, 3);
+            btn_back.Name = "btn_back";
+            btn_back.Size = new Size(82, 26);
+            btn_back.TabIndex = 5;
+            btn_back.Text = "重置";
+            btn_back.Type = AntdUI.TTypeMini.Success;
+            // 
+            // play_QF
+            // 
+            play_QF.ColorExtend = "135,#FF0000,#00FF00";
+            play_QF.Location = new Point(222, 43);
+            play_QF.Name = "play_QF";
+            play_QF.Prefix = "区服：";
+            play_QF.PrefixSvg = "RocketOutlined";
+            play_QF.Size = new Size(96, 26);
+            play_QF.SuffixSvg = "";
+            play_QF.TabIndex = 4;
+            play_QF.Text = "区服";
+            // 
+            // play_number
+            // 
+            play_number.ColorExtend = "135,#FF0000,#00FF00";
+            play_number.Location = new Point(93, 43);
+            play_number.Name = "play_number";
+            play_number.Prefix = "编号：";
+            play_number.Size = new Size(123, 26);
+            play_number.TabIndex = 3;
+            play_number.Text = "编号";
+            // 
+            // play_name
+            // 
+            play_name.ColorExtend = "135,#FF0000,#00FF00";
+            play_name.Location = new Point(93, 10);
+            play_name.Name = "play_name";
+            play_name.Prefix = "名称：";
+            play_name.Size = new Size(225, 26);
+            play_name.TabIndex = 2;
+            play_name.Text = "名称";
+            // 
+            // play_HeadIcon
+            // 
+            play_HeadIcon.Location = new Point(6, 10);
+            play_HeadIcon.Name = "play_HeadIcon";
+            play_HeadIcon.Size = new Size(81, 85);
+            play_HeadIcon.TabIndex = 1;
+            play_HeadIcon.Text = "无";
+            // 
+            // divider1
+            // 
+            divider1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            divider1.BadgeSvg = "BarChartOutlined";
+            divider1.Location = new Point(3, 87);
+            divider1.Name = "divider1";
+            divider1.Size = new Size(808, 23);
+            divider1.TabIndex = 0;
+            divider1.Text = "战绩区";
             // 
             // tabPage2
             // 
@@ -145,80 +258,6 @@
             HeadContent.TabIndex = 1;
             HeadContent.Text = "sc";
             // 
-            // divider1
-            // 
-            divider1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            divider1.BadgeSvg = "BarChartOutlined";
-            divider1.Location = new Point(3, 87);
-            divider1.Name = "divider1";
-            divider1.Size = new Size(808, 23);
-            divider1.TabIndex = 0;
-            divider1.Text = "战绩区";
-            // 
-            // play_HeadIcon
-            // 
-            play_HeadIcon.Location = new Point(12, 10);
-            play_HeadIcon.Name = "play_HeadIcon";
-            play_HeadIcon.Size = new Size(75, 67);
-            play_HeadIcon.TabIndex = 1;
-            play_HeadIcon.Text = "无";
-            // 
-            // play_name
-            // 
-            play_name.ColorExtend = "135,#FF0000,#00FF00";
-            play_name.Location = new Point(93, 10);
-            play_name.Name = "play_name";
-            play_name.Size = new Size(180, 26);
-            play_name.TabIndex = 2;
-            play_name.Text = "召唤师名称";
-            // 
-            // play_number
-            // 
-            play_number.ColorExtend = "135,#FF0000,#00FF00";
-            play_number.Location = new Point(93, 43);
-            play_number.Name = "play_number";
-            play_number.Size = new Size(78, 26);
-            play_number.TabIndex = 3;
-            play_number.Text = "召唤师编号";
-            // 
-            // play_QF
-            // 
-            play_QF.ColorExtend = "135,#FF0000,#00FF00";
-            play_QF.Location = new Point(177, 43);
-            play_QF.Name = "play_QF";
-            play_QF.PrefixSvg = "RocketOutlined";
-            play_QF.Size = new Size(96, 26);
-            play_QF.SuffixSvg = "";
-            play_QF.TabIndex = 4;
-            play_QF.Text = "当前区服";
-            // 
-            // btn_back
-            // 
-            btn_back.Location = new Point(729, 3);
-            btn_back.Name = "btn_back";
-            btn_back.Size = new Size(82, 26);
-            btn_back.TabIndex = 5;
-            btn_back.Text = "重置";
-            btn_back.Type = AntdUI.TTypeMini.Success;
-            // 
-            // refeash
-            // 
-            refeash.Location = new Point(729, 28);
-            refeash.Name = "refeash";
-            refeash.Size = new Size(82, 26);
-            refeash.TabIndex = 6;
-            refeash.Text = "刷新";
-            refeash.Type = AntdUI.TTypeMini.Primary;
-            // 
-            // PlayInfo
-            // 
-            PlayInfo.Location = new Point(729, 56);
-            PlayInfo.Name = "PlayInfo";
-            PlayInfo.Size = new Size(82, 26);
-            PlayInfo.TabIndex = 7;
-            PlayInfo.Text = "详细信息";
-            PlayInfo.Type = AntdUI.TTypeMini.Warn;
-            // 
             // GameMain
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
@@ -255,5 +294,8 @@
         private AntdUI.Button btn_back;
         private AntdUI.Button PlayInfo;
         private AntdUI.Button refeash;
+        private AntdUI.Label play_next;
+        private AntdUI.Label play_dj;
+        private AntdUI.Progress play_jd;
     }
 }
