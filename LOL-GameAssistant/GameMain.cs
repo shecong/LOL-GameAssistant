@@ -1,7 +1,7 @@
 using LOL_GameAssistant.LoLApi;
+using LOL_GameAssistant.Model;
 using Newtonsoft.Json;
-using System.Linq;
-using System.Text.Json.Serialization;
+using static LOL_GameAssistant.Model.LolRankedDataParser;
 using static LOL_GameAssistant.Model.PlayerModel;
 
 namespace LOL_GameAssistant
@@ -11,10 +11,12 @@ namespace LOL_GameAssistant
         public GameMain()
         {
             InitializeComponent();
+            log4net.ILog log = log4net.LogManager.GetLogger("testApp.Logging");//获取一个日志记录器
 
+            log.Info(DateTime.Now.ToString() + "1111");//写入一条新log
         }
 
-        private void GameMain_Load(object sender, EventArgs e)
+        public void GameMain_Load(object sender, EventArgs e)
         {
             //获取客户端登陆
             (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
@@ -44,8 +46,85 @@ namespace LOL_GameAssistant
                 this.play_QF.Text = "";
                 this.play_dj.Text = userinfo.summonerLevel;
                 this.play_next.Text = Convert.ToString(userinfo.xpSinceLastLevel);
-                this.play_jd.Value =  (float)userinfo.xpUntilNextLevel   / (float)(userinfo.xpSinceLastLevel + userinfo.xpUntilNextLevel);
+                this.play_jd.Value = (float)userinfo.xpUntilNextLevel / (float)(userinfo.xpSinceLastLevel + userinfo.xpUntilNextLevel);
 
+                //获取当前召唤师游戏赛季信息
+                GetGameSJ(userinfo);
+            }
+        }
+
+        /// <summary>
+        /// 获取玩家赛季信息
+        /// </summary>
+        /// <param name="plyaer"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        private void GetGameSJ(Plyaer userinfo = null)
+        {
+            if (userinfo == null) return;
+            LolRankedDataParser lolparser = new LolRankedDataParser();
+            LolRankedDataParser.RankedData gameinfo = Game_Api.GetUserGame(userinfo.puuid);
+            if (gameinfo == null) return;
+            //获取单双排信息
+            LolRankedDataParser.RankedEntry solo = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_SOLO_5x5);
+            //获取灵活5v5信息
+            LolRankedDataParser.RankedEntry flex = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_FLEX_SR);
+            //计算信息
+            if (solo != null)
+            {
+                this.pic_dsp.Image = CheckTier(solo.Tier);
+                this.game_dspT.Text = solo.Division;
+                this.game_dsp_sl.Text = Convert.ToString(solo.WinRate);
+                this.game_dsp_win.Text = Convert.ToString(solo.CurrentSeasonWinsForRewards);
+                this.game_dsp_loss.Text = Convert.ToString(solo.Losses);
+            }
+            else
+            {
+                this.pic_lhp.Image = CheckTier(flex.Tier);
+                this.game_lhpT.Text = flex.Division;
+                this.game_lhp_sl.Text = Convert.ToString(flex.WinRate);
+                this.game_lhp_win.Text = Convert.ToString(flex.CurrentSeasonWinsForRewards);
+                this.game_lhp_loss.Text = Convert.ToString(flex.Losses);
+            }
+        }
+
+        /// <summary>
+        /// 根据段位返回对应图片
+        /// </summary>
+        /// <param name="tier"></param>
+        /// <returns></returns>
+        private Image CheckTier(string tier)
+        {
+            switch (tier)
+            {
+                case "IRON":
+                    return Properties.Resources._01;
+
+                case "BRONZE":
+                    return Properties.Resources._02;
+
+                case "SILVER":
+                    return Properties.Resources._03;
+
+                case "GOLD":
+                    return Properties.Resources._04;
+
+                case "PLATINUM":
+                    return Properties.Resources._05;
+
+                case "DIAMOND":
+                    return Properties.Resources._06;
+
+                case "MASTER":
+                    return Properties.Resources._07;
+
+                case "GRANDMASTER":
+                    return Properties.Resources._08;
+
+                case "CHALLENGER":
+                    return Properties.Resources._09;
+
+                default:
+                    return Properties.Resources._09;
             }
         }
     }

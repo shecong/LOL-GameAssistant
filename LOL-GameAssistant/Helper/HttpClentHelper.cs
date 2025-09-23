@@ -1,15 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Text;
-using System.Threading.Tasks;
 using System.Web;
 
 public class HttpClentHelper
 {
     public static string? Port;
     public static string? Token;
+
     public async Task<string> SendRequestAsync(string httpMethod, string endpoint, Dictionary<string, string>? queryParams = null, string? body = null)
     {
         HttpClient _httpClient;

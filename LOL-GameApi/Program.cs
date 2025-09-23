@@ -1,4 +1,3 @@
-
 namespace LOL_GameApi
 {
     public class Program
@@ -24,7 +23,6 @@ namespace LOL_GameApi
             }
 
             app.UseAuthorization();
-
 
             app.MapControllers();
 

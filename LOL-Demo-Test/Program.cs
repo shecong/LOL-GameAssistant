@@ -1,20 +1,14 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Security;
-using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace LOL_Demo_Test
 {
     internal class Program
     {
-        static async Task Main(string[] args)
+        private static async Task Main(string[] args)
         {
-
             await GetlolInfoAsync();
         }
 
@@ -36,7 +30,7 @@ namespace LOL_Demo_Test
             {
                 // 设置基础地址和超时
                 client.BaseAddress = new Uri($"https://127.0.0.1:{port}/");
-                client.Timeout = TimeSpan.FromSeconds(10); 
+                client.Timeout = TimeSpan.FromSeconds(10);
 
                 // 设置认证头
                 client.DefaultRequestHeaders.Authorization =
@@ -89,7 +83,7 @@ namespace LOL_Demo_Test
             }
         }
 
-        static (string port, string token) GetLcuCredentials()
+        private static (string port, string token) GetLcuCredentials()
         {
             try
             {
@@ -129,7 +123,7 @@ namespace LOL_Demo_Test
         }
 
         // 获取进程命令行参数的辅助方法
-        static string GetCommandLine(int processId)
+        private static string GetCommandLine(int processId)
         {
             try
             {
@@ -157,7 +151,7 @@ namespace LOL_Demo_Test
         }
 
         // 忽略SSL证书验证（仅用于开发环境）
-        static void IgnoreCertificateValidation()
+        private static void IgnoreCertificateValidation()
         {
             ServicePointManager.ServerCertificateValidationCallback +=
                 (sender, certificate, chain, sslPolicyErrors) => true;

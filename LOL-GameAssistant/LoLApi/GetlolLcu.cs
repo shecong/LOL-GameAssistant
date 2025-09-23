@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
+﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace LOL_GameAssistant.LoLApi
 {
@@ -47,10 +42,10 @@ namespace LOL_GameAssistant.LoLApi
                 Console.WriteLine($"获取认证信息时出错: {ex.Message}");
                 return (null, null);
             }
-
         }
+
         // 获取进程命令行参数的辅助方法
-        static string? GetCommandLine(int processId)
+        private static string? GetCommandLine(int processId)
         {
             try
             {

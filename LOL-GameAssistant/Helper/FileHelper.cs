@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.AccessControl;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Security.AccessControl;
 
 namespace LOL_GameAssistant.Helper
 {
@@ -45,7 +40,7 @@ namespace LOL_GameAssistant.Helper
             public static void StoreEntry(string key, ResourceEntry entry)
             {
                 // 添加到内存缓存
-                ResourceCache[key] = entry; 
+                ResourceCache[key] = entry;
                 // 保存到文件系统
                 string filePath = GetFilePath(key);
                 File.WriteAllBytes(filePath, entry.BinaryData);
