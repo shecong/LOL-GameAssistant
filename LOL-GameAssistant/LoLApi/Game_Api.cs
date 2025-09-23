@@ -18,7 +18,7 @@ namespace LOL_GameAssistant.LoLApi
         public static LolRankedDataParser.RankedData GetUserGame(String puuid)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"/lol-match-history/v1/products/lol/{puuid}/matches");
+            var result = client.GetAsync($"/lol-ranked/v1/ranked-stats/{puuid}");
 
             LolRankedDataParser parser = new LolRankedDataParser();
             return parser.ParseRankedData(Encoding.UTF8.GetString(Convert.FromBase64String(result.Result)));

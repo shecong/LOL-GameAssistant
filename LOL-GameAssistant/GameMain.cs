@@ -71,20 +71,21 @@ namespace LOL_GameAssistant
             //计算信息
             if (solo != null)
             {
-                this.pic_dsp.Image = CheckTier(solo.Tier);
-                this.game_dspT.Text = solo.Division;
+                this.pic_dsp.Image = CheckTierImg(solo.Tier);
+                this.game_dspT.Text = CheckTierName(solo.Tier) + solo.Division;
                 this.game_dsp_sl.Text = Convert.ToString(solo.WinRate);
                 this.game_dsp_win.Text = Convert.ToString(solo.CurrentSeasonWinsForRewards);
                 this.game_dsp_loss.Text = Convert.ToString(solo.Losses);
             }
-            else
+             if (flex != null)
             {
-                this.pic_lhp.Image = CheckTier(flex.Tier);
-                this.game_lhpT.Text = flex.Division;
+                this.pic_lhp.Image = CheckTierImg(flex.Tier);
+                this.game_lhpT.Text = CheckTierName(flex.Tier) + flex.Division;
                 this.game_lhp_sl.Text = Convert.ToString(flex.WinRate);
                 this.game_lhp_win.Text = Convert.ToString(flex.CurrentSeasonWinsForRewards);
                 this.game_lhp_loss.Text = Convert.ToString(flex.Losses);
             }
+            //
         }
 
         /// <summary>
@@ -92,7 +93,7 @@ namespace LOL_GameAssistant
         /// </summary>
         /// <param name="tier"></param>
         /// <returns></returns>
-        private Image CheckTier(string tier)
+        private Image CheckTierImg(string tier)
         {
             switch (tier)
             {
@@ -124,7 +125,47 @@ namespace LOL_GameAssistant
                     return Properties.Resources._09;
 
                 default:
-                    return Properties.Resources._09;
+                    return Properties.Resources.下载;
+            }
+        }
+        /// <summary>
+        /// 根据段位返回对应文字
+        /// </summary>
+        /// <param name="tier"></param>
+        /// <returns></returns>
+        private String CheckTierName(string tier)
+        {
+            switch (tier)
+            {
+                case "IRON":
+                    return "青铜";
+
+                case "BRONZE":
+                    return "黑铁";
+
+                case "SILVER":
+                    return "白银";
+
+                case "GOLD":
+                    return "黄金";
+
+                case "PLATINUM":
+                    return "铂金";
+
+                case "DIAMOND":
+                    return "砖石";
+
+                case "MASTER":
+                    return "超凡大师";
+
+                case "GRANDMASTER":
+                    return "宗师";
+
+                case "CHALLENGER":
+                    return "最强王者";
+
+                default:
+                    return "无段位";
             }
         }
     }

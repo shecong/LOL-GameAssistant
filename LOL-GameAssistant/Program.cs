@@ -10,6 +10,13 @@ namespace LOL_GameAssistant
         [STAThread]
         private static void Main()
         {
+            if (Environment.OSVersion.Version >= new Version(6, 3))
+            {
+                //Application.SetHighDpiMode(HighDpiMode.SystemAware);
+                // 或者使用 PerMonitorV2，这是目前最好的模式
+                 Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+            }
+
             // 设置全局异常处理
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += Application_ThreadException;
