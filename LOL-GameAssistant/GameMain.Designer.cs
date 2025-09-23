@@ -28,7 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
-            AntdUI.Tabs.StyleLine styleLine1 = new AntdUI.Tabs.StyleLine();
+            AntdUI.Tabs.StyleLine styleLine2 = new AntdUI.Tabs.StyleLine();
             tabs1 = new AntdUI.Tabs();
             tabPage1 = new AntdUI.TabPage();
             gridPanel1 = new AntdUI.GridPanel();
@@ -43,7 +43,7 @@
             game_dspT = new AntdUI.Label();
             pic_lhp = new PictureBox();
             pic_dsp = new PictureBox();
-            label1 = new AntdUI.Label();
+            game_ycf = new AntdUI.Label();
             game_sjend = new AntdUI.Label();
             game_dqsd = new AntdUI.Label();
             game_jjscount = new AntdUI.Label();
@@ -96,7 +96,7 @@
             tabs1.Pages.Add(tabPage4);
             tabs1.Pages.Add(tabPage5);
             tabs1.Size = new Size(1131, 699);
-            tabs1.Style = styleLine1;
+            tabs1.Style = styleLine2;
             tabs1.TabIndex = 2;
             tabs1.Text = "tabs1";
             // 
@@ -150,7 +150,7 @@
             splitter1.Panel1.Controls.Add(game_dspT);
             splitter1.Panel1.Controls.Add(pic_lhp);
             splitter1.Panel1.Controls.Add(pic_dsp);
-            splitter1.Panel1.Controls.Add(label1);
+            splitter1.Panel1.Controls.Add(game_ycf);
             splitter1.Panel1.Controls.Add(game_sjend);
             splitter1.Panel1.Controls.Add(game_dqsd);
             splitter1.Panel1.Controls.Add(game_jjscount);
@@ -277,16 +277,16 @@
             pic_dsp.TabIndex = 9;
             pic_dsp.TabStop = false;
             // 
-            // label1
+            // game_ycf
             // 
-            label1.ColorExtend = "135,#FF0000,#00FF00";
-            label1.Font = new Font("Microsoft YaHei UI", 12F);
-            label1.Location = new Point(210, 476);
-            label1.Name = "label1";
-            label1.Prefix = "隐藏分评分：";
-            label1.Size = new Size(154, 41);
-            label1.TabIndex = 8;
-            label1.Text = "未知";
+            game_ycf.ColorExtend = "135,#FF0000,#00FF00";
+            game_ycf.Font = new Font("Microsoft YaHei UI", 12F);
+            game_ycf.Location = new Point(210, 476);
+            game_ycf.Name = "game_ycf";
+            game_ycf.Prefix = "隐藏分评分：";
+            game_ycf.Size = new Size(154, 41);
+            game_ycf.TabIndex = 8;
+            game_ycf.Text = "未知";
             // 
             // game_sjend
             // 
@@ -596,7 +596,7 @@
         private AntdUI.Label game_sjend;
         private PictureBox pic_lhp;
         private PictureBox pic_dsp;
-        private AntdUI.Label label1;
+        private AntdUI.Label game_ycf;
         private AntdUI.Label game_dspT;
         private AntdUI.Label game_lhpT;
         private AntdUI.Label game_dsp_sl;

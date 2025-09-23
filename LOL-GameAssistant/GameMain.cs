@@ -77,7 +77,7 @@ namespace LOL_GameAssistant
                 this.game_dsp_win.Text = Convert.ToString(solo.CurrentSeasonWinsForRewards);
                 this.game_dsp_loss.Text = Convert.ToString(solo.Losses);
             }
-             if (flex != null)
+            if (flex != null)
             {
                 this.pic_lhp.Image = CheckTierImg(flex.Tier);
                 this.game_lhpT.Text = CheckTierName(flex.Tier) + flex.Division;
@@ -85,7 +85,17 @@ namespace LOL_GameAssistant
                 this.game_lhp_win.Text = Convert.ToString(flex.CurrentSeasonWinsForRewards);
                 this.game_lhp_loss.Text = Convert.ToString(flex.Losses);
             }
-            //
+            //获取赛点信息
+            this.game_dws.Text = solo.ProvisionalGamesRemaining >= 10 ? "是" : "否";
+            this.game_jjs.Text = solo.MiniSeriesProgress;
+            this.game_jjscount.Text = "";
+            this.game_dqsd.Text = Convert.ToString(solo?.LeaguePoints);
+            if (gameinfo.Seasons.TryGetValue("", out SeasonInfo? value))
+            {
+                this.game_sjend.Text = Convert.ToString(value.SeasonEndDateTime);
+            }
+
+            this.game_ycf.Text = Convert.ToString(solo?.RatedRating);
         }
 
         /// <summary>
@@ -128,6 +138,7 @@ namespace LOL_GameAssistant
                     return Properties.Resources.下载;
             }
         }
+
         /// <summary>
         /// 根据段位返回对应文字
         /// </summary>
