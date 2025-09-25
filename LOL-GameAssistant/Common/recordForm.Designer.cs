@@ -206,7 +206,6 @@
             Controls.Add(game_type);
             Controls.Add(game_win);
             Controls.Add(game_pic);
-            DoubleBuffered = true;
             Name = "recordForm";
             Size = new Size(813, 94);
             game_pic.ResumeLayout(false);
