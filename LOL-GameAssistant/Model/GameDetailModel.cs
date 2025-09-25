@@ -57,7 +57,7 @@ namespace LOL_GameAssistant.Models
             /// <summary>
             /// 召唤师ID。
             /// </summary>
-            public int summonerId { get; set; }
+            public long summonerId { get; set; }
 
             /// <summary>
             /// 召唤师名称（在此数据中通常为空，名称在 gameName 中）。
@@ -669,9 +669,8 @@ namespace LOL_GameAssistant.Models
 
             /// <summary>
             /// 是否获胜。
-            /// </summary>
-            [JsonConverter(typeof(JsonStringBoolConverter))]
-            public bool win { get; set; }
+            /// </summary> 
+            public String win { get; set; }
         }
 
         // <summary>
@@ -874,9 +873,8 @@ namespace LOL_GameAssistant.Models
 
             /// <summary>
             /// 队伍是否获胜。
-            /// </summary>
-            [JsonConverter(typeof(JsonStringBoolConverter))]
-            public bool win { get; set; }
+            /// </summary> 
+            public String win { get; set; }
         }
 
         // <summary>

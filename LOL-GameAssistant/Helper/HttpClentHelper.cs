@@ -8,7 +8,7 @@ public class HttpClentHelper
     public static string? Token;
 
     public async Task<string> SendRequestAsync(string httpMethod, string endpoint, Dictionary<string, string>? queryParams = null, string? body = null)
-    {
+     {
         HttpClient _httpClient;
         var handler = new HttpClientHandler();
         handler.ServerCertificateCustomValidationCallback = delegate { return true; };
@@ -31,7 +31,7 @@ public class HttpClentHelper
             var requestUrl = BuildRequestUrl(baseUrl, endpoint, queryParams);
 
             // 每次请求时创建新的 HttpRequestMessage 实例
-            var request = new HttpRequestMessage(new HttpMethod(httpMethod), requestUrl);
+             var request = new HttpRequestMessage(new HttpMethod(httpMethod), requestUrl);
 
             // 设置认证头
             request.Headers.Authorization = new AuthenticationHeaderValue(

@@ -15,6 +15,7 @@ namespace LOL_GameAssistant
         public GameMain()
         {
             InitializeComponent();
+            
         }
 
         public void GameMain_Load(object sender, EventArgs e)
@@ -31,6 +32,8 @@ namespace LOL_GameAssistant
                 HttpClentHelper.Token = token;
                 Console.WriteLine($"{port}:{token}");
             }
+            //获取游戏版本号
+            Game_Api.GetGameversion();
             //获取当前召唤师信息
             userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser());
             if (userinfo != null)

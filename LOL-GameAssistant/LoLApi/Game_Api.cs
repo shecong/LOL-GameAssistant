@@ -7,6 +7,8 @@ namespace LOL_GameAssistant.LoLApi
 {
     public static class Game_Api
     {
+        public static string gameversion= "15.19.1";
+
         /// <summary>
         /// LOL排位数据
         /// </summary>
@@ -20,7 +22,21 @@ namespace LOL_GameAssistant.LoLApi
             LolRankedDataParser parser = new LolRankedDataParser();
             return parser.ParseRankedData(Encoding.UTF8.GetString(Convert.FromBase64String(result.Result)));
         }
-
+        /// <summary>
+        /// 获取游戏最新版本
+        /// </summary>
+        /// <param name="puuid"></param>
+        /// <returns></returns>
+        public static  void  GetGameversion()
+        {
+            HttpClentHelper client = new HttpClentHelper();
+            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/api/versions.json");
+            List<string>? version=JsonConvert.DeserializeObject<List<String>>(Encoding.UTF8.GetString(Convert.FromBase64String(result.Result)));
+            if (version != null)
+            {
+                gameversion= version[0];
+            }
+        }
         /// <summary>
         /// 获取指定召唤师比赛记录
         /// </summary>
@@ -38,10 +54,10 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static Stream GetGameUserImg(String version, String Key)
-        {
+        public static Stream GetGameUserImg(String Key)
+        { 
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{version}/img/profileicon/{Key}.png");
+            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/profileicon/{Key}.png");
             return new MemoryStream(Convert.FromBase64String(result.Result));
         }
 
@@ -50,10 +66,10 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static Stream GetGameZBImg(String version, String Key)
+        public static Stream GetGameZBImg(String Key)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{version}/img/item/{Key}.png");
+            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/item/{Key}.png");
             return new MemoryStream(Convert.FromBase64String(result.Result));
         }
 
@@ -62,10 +78,10 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static Stream GetGameZHSJNImg(String version, String Key)
+        public static Stream GetGameZHSJNImg(String Key)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{version}/img/spell/{Key}.png");
+            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/spell/{Key}.png");
             return new MemoryStream(Convert.FromBase64String(result.Result));
         }
 
