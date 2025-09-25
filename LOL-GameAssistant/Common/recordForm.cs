@@ -1,4 +1,6 @@
-﻿using System;
+﻿using LOL_GameAssistant.LoLApi;
+using LOL_GameAssistant.Models;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -24,8 +26,15 @@ namespace LOL_GameAssistant
         /// <summary>
         /// 加载信息
         /// </summary>
-        public void setInfo()
+        public void setInfo(GameHeadModel.GameInfo head)
         {
+            if (head == null) return;
+            //根据表头获取明细信息
+            GameDetailModel.GameInfo gameInfo = new GameDetailModel.GameInfo();
+            gameInfo = Game_Api.GetGameDetail(Convert.ToString(head.GameId));
+            //处理信息
+
+            //加载信息
         }
     }
 }

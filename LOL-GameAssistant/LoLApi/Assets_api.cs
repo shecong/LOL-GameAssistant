@@ -14,8 +14,9 @@ namespace LOL_GameAssistant.LoLApi
             return Encoding.UTF8.GetString(Convert.FromBase64String(result.Result));
         }
 
-        public static string GetUser(String puuid)
+        public static string GetUser(String? puuid)
         {
+            if (puuid == null) return String.Empty;
             Dictionary<string, String> dic = new Dictionary<string, string>();
             dic.Add("puuid", puuid);
             HttpClentHelper client = new HttpClentHelper();
@@ -23,7 +24,7 @@ namespace LOL_GameAssistant.LoLApi
             return Encoding.UTF8.GetString(Convert.FromBase64String(result.Result));
         }
 
-        public static Stream GetImg(String id)
+        public static Stream GetImg(String? id)
         {
             HttpClentHelper client = new HttpClentHelper();
             var result = client.GetAsync($@"/lol-game-data/assets/v1/profile-icons/{id}.jpg");

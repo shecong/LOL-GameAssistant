@@ -45,17 +45,17 @@
             /// <summary>
             /// 封觉九灵奇楠天
             /// </summary>
-            public string gameName { get; set; }
+            public string? gameName { get; set; }
 
             /// <summary>
             ///
             /// </summary>
-            public string internalName { get; set; }
+            public string? internalName { get; set; }
 
             /// <summary>
             ///
             /// </summary>
-            public string nameChangeFlag { get; set; }
+            public string? nameChangeFlag { get; set; }
 
             /// <summary>
             ///
@@ -65,7 +65,7 @@
             /// <summary>
             ///
             /// </summary>
-            public string privacy { get; set; }
+            public string? privacy { get; set; }
 
             /// <summary>
             ///
@@ -75,12 +75,12 @@
             /// <summary>
             ///
             /// </summary>
-            public string puuid { get; set; }
+            public string? puuid { get; set; }
 
             /// <summary>
             ///
             /// </summary>
-            public RerollPoints rerollPoints { get; set; }
+            public RerollPoints? rerollPoints { get; set; }
 
             /// <summary>
             ///
@@ -95,12 +95,12 @@
             /// <summary>
             ///
             /// </summary>
-            public string tagLine { get; set; }
+            public string? tagLine { get; set; }
 
             /// <summary>
             ///
             /// </summary>
-            public string unnamed { get; set; }
+            public string? unnamed { get; set; }
 
             /// <summary>
             ///

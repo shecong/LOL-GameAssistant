@@ -92,7 +92,7 @@ namespace LOL_Demo_Test
                 if (processes.Length == 0)
                 {
                     Console.WriteLine("未找到LeagueClientUx进程");
-                    return (null, null);
+                    return ("", "");
                 }
 
                 // 获取第一个匹配进程的命令行参数
@@ -100,7 +100,7 @@ namespace LOL_Demo_Test
                 if (string.IsNullOrEmpty(commandLine))
                 {
                     Console.WriteLine("无法获取进程命令行参数");
-                    return (null, null);
+                    return ("", "");
                 }
 
                 // 从命令行参数中提取端口和令牌
@@ -110,7 +110,7 @@ namespace LOL_Demo_Test
                 if (!portMatch.Success || !tokenMatch.Success)
                 {
                     Console.WriteLine("无法从命令行参数中解析端口和令牌");
-                    return (null, null);
+                    return ("", "");
                 }
 
                 return (portMatch.Groups[1].Value, tokenMatch.Groups[1].Value);
@@ -118,12 +118,12 @@ namespace LOL_Demo_Test
             catch (Exception ex)
             {
                 Console.WriteLine($"获取认证信息时出错: {ex.Message}");
-                return (null, null);
+                return ("", "");
             }
         }
 
         // 获取进程命令行参数的辅助方法
-        private static string GetCommandLine(int processId)
+        private static string? GetCommandLine(int processId)
         {
             try
             {

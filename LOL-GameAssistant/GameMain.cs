@@ -14,9 +14,6 @@ namespace LOL_GameAssistant
         public GameMain()
         {
             InitializeComponent();
-            log4net.ILog log = log4net.LogManager.GetLogger("testApp.Logging");//获取一个日志记录器
-
-            log.Info(DateTime.Now.ToString() + "1111");//写入一条新log
         }
 
         public void GameMain_Load(object sender, EventArgs e)
@@ -70,8 +67,14 @@ namespace LOL_GameAssistant
             String begIndex = "1";
             String endIndex = "3";
 
-            MatchHistoryResponse? matchlists = Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            GameHeadModel.MatchHistoryResponse? matchlists = Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
             //加载数据到界面
+            for (int i = 0; i < matchlists?.Games?.Games?.Count; i++)
+            {
+                recordForm record = new recordForm();
+                record.setInfo(matchlists.Games.Games[i]);
+                this.stackPanel1.Controls.Add(record);
+            }
         }
 
         /// <summary>
@@ -79,7 +82,7 @@ namespace LOL_GameAssistant
         /// </summary>
         /// <param name="plyaer"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private void GetGameSJ(Plyaer userinfo = null)
+        private void GetGameSJ(Plyaer? userinfo = null)
         {
             if (userinfo == null) return;
             LolRankedDataParser lolparser = new LolRankedDataParser();
@@ -107,8 +110,8 @@ namespace LOL_GameAssistant
                 this.game_lhp_loss.Text = Convert.ToString(flex.Losses);
             }
             //获取赛点信息
-            this.game_dws.Text = solo.ProvisionalGamesRemaining >= 10 ? "是" : "否";
-            this.game_jjs.Text = string.IsNullOrEmpty(solo.MiniSeriesProgress) ? "非定级赛" : "solo.MiniSeriesProgress";
+            this.game_dws.Text = solo?.ProvisionalGamesRemaining >= 10 ? "是" : "否";
+            this.game_jjs.Text = string.IsNullOrEmpty(solo?.MiniSeriesProgress) ? "非定级赛" : "solo.MiniSeriesProgress";
             this.game_jjscount.Text = "未知";
             this.game_dqsd.Text = Convert.ToString(solo?.LeaguePoints);
             if (gameinfo.Seasons.TryGetValue("RANKED_SOLO_5x5", out SeasonInfo? value))
@@ -209,7 +212,7 @@ namespace LOL_GameAssistant
         private void refeash_Click(object sender, EventArgs e)
         {
             //获取当前召唤师信息
-            userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser(userinfo.puuid));
+            userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser(userinfo?.puuid));
             if (userinfo != null)
             {
                 //获取头像

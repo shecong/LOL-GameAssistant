@@ -37,7 +37,7 @@ namespace LOL_GameAssistant.Helper
             }
 
             // 存储资源条目
-            public static void StoreEntry(string key, ResourceEntry entry)
+            public static void StoreEntry(string key, ResourceEntry? entry)
             {
                 // 添加到内存缓存
                 ResourceCache[key] = entry;

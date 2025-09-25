@@ -92,7 +92,7 @@
             // 
             game_type.Location = new Point(114, 32);
             game_type.Name = "game_type";
-            game_type.Prefix = "";
+            game_type.Prefix = "类型：";
             game_type.Size = new Size(121, 29);
             game_type.TabIndex = 2;
             game_type.Text = "未知";
@@ -101,7 +101,7 @@
             // 
             game_time.Location = new Point(114, 61);
             game_time.Name = "game_time";
-            game_time.Prefix = "";
+            game_time.Prefix = "时间：";
             game_time.Size = new Size(121, 29);
             game_time.TabIndex = 3;
             game_time.Text = "未知";
@@ -110,7 +110,7 @@
             // 
             game_msg.Location = new Point(302, 3);
             game_msg.Name = "game_msg";
-            game_msg.Prefix = "";
+            game_msg.Prefix = "KDA：";
             game_msg.Size = new Size(121, 29);
             game_msg.TabIndex = 4;
             game_msg.Text = "未知";
@@ -165,7 +165,7 @@
             // 
             // pic_5
             // 
-            pic_5.Location = new Point(466, 59);
+            pic_5.Location = new Point(466, 58);
             pic_5.Name = "pic_5";
             pic_5.Size = new Size(43, 32);
             pic_5.TabIndex = 11;

@@ -23,7 +23,10 @@ public class HttpClentHelper
         {
             // 构建基础URL
             var baseUrl = $"https://127.0.0.1:{Port}";
-
+            if (endpoint.StartsWith("http") || endpoint.StartsWith("https"))
+            {
+                baseUrl = "";
+            }
             // 构建完整URL（包含查询参数）
             var requestUrl = BuildRequestUrl(baseUrl, endpoint, queryParams);
 

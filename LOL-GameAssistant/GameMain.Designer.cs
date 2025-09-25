@@ -270,7 +270,7 @@
             // 
             // pic_lhp
             // 
-            pic_lhp.Image = Properties.Resources._09;
+            pic_lhp.Image = Properties.Resources.unranked;
             pic_lhp.Location = new Point(8, 197);
             pic_lhp.Name = "pic_lhp";
             pic_lhp.Size = new Size(130, 127);
@@ -280,7 +280,7 @@
             // 
             // pic_dsp
             // 
-            pic_dsp.Image = Properties.Resources._01;
+            pic_dsp.Image = Properties.Resources.unranked;
             pic_dsp.Location = new Point(7, 26);
             pic_dsp.Name = "pic_dsp";
             pic_dsp.Size = new Size(131, 136);
