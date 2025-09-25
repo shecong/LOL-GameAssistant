@@ -19,7 +19,7 @@ namespace LOL_GameAssistant.LoLApi
             Dictionary<string, String> dic = new Dictionary<string, string>();
             dic.Add("puuid", puuid);
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync("/lol-summoner/v2/summoners/puuid", dic);
+            var result = client.GetAsync($"/lol-summoner/v2/summoners/puuid/{puuid}");
             return Encoding.UTF8.GetString(Convert.FromBase64String(result.Result));
         }
 

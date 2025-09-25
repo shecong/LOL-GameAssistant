@@ -8,6 +8,7 @@ namespace LOL_GameAssistant
 {
     public partial class GameMain : AntdUI.Window
     {
+        public Plyaer? userinfo=new Plyaer();
         public GameMain()
         {
             InitializeComponent();
@@ -30,7 +31,7 @@ namespace LOL_GameAssistant
                 HttpClentHelper.Token = token;
             }
             //获取当前召唤师信息
-            Plyaer? userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser());
+             userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser());
             if (userinfo != null)
             {
                 //获取头像
@@ -87,10 +88,10 @@ namespace LOL_GameAssistant
             }
             //获取赛点信息
             this.game_dws.Text = solo.ProvisionalGamesRemaining >= 10 ? "是" : "否";
-            this.game_jjs.Text = solo.MiniSeriesProgress;
-            this.game_jjscount.Text = "";
+            this.game_jjs.Text = string.IsNullOrEmpty(solo.MiniSeriesProgress) ? "非定级赛" : "solo.MiniSeriesProgress";
+            this.game_jjscount.Text = "未知";
             this.game_dqsd.Text = Convert.ToString(solo?.LeaguePoints);
-            if (gameinfo.Seasons.TryGetValue("", out SeasonInfo? value))
+            if (gameinfo.Seasons.TryGetValue("RANKED_SOLO_5x5", out SeasonInfo? value))
             {
                 this.game_sjend.Text = Convert.ToString(value.SeasonEndDateTime);
             }
@@ -138,7 +139,6 @@ namespace LOL_GameAssistant
                     return Properties.Resources.下载;
             }
         }
-
         /// <summary>
         /// 根据段位返回对应文字
         /// </summary>
@@ -177,6 +177,36 @@ namespace LOL_GameAssistant
 
                 default:
                     return "无段位";
+            }
+        }
+        /// <summary>
+        /// 刷新数据
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void refeash_Click(object sender, EventArgs e)
+        {
+            //获取当前召唤师信息
+             userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser(userinfo.puuid));
+            if (userinfo != null)
+            {
+                //获取头像
+                Stream headicon = Assets_api.GetImg(userinfo.profileIconId);
+                if (headicon != null)
+                {
+                    // 使用 Image.FromStream() 方法将 Stream 转换为 Image
+                    Image profileImage = Image.FromStream(headicon);
+                    this.play_HeadIcon.Image = profileImage;
+                }
+                this.play_name.Text = userinfo.gameName;
+                this.play_number.Text = $"#{userinfo.tagLine}";
+                this.play_QF.Text = "";
+                this.play_dj.Text = userinfo.summonerLevel;
+                this.play_next.Text = Convert.ToString(userinfo.xpSinceLastLevel);
+                this.play_jd.Value = (float)userinfo.xpUntilNextLevel / (float)(userinfo.xpSinceLastLevel + userinfo.xpUntilNextLevel);
+
+                //获取当前召唤师游戏赛季信息
+                GetGameSJ(userinfo);
             }
         }
     }

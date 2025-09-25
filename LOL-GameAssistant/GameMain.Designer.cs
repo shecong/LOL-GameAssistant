@@ -28,11 +28,12 @@
         /// </summary>
         private void InitializeComponent()
         {
-            AntdUI.Tabs.StyleLine styleLine2 = new AntdUI.Tabs.StyleLine();
+            AntdUI.Tabs.StyleLine styleLine1 = new AntdUI.Tabs.StyleLine();
             tabs1 = new AntdUI.Tabs();
             tabPage1 = new AntdUI.TabPage();
             gridPanel1 = new AntdUI.GridPanel();
             splitter1 = new AntdUI.Splitter();
+            game_sjend = new AntdUI.Label();
             game_lhp_loss = new AntdUI.Label();
             game_lhp_win = new AntdUI.Label();
             game_lhp_sl = new AntdUI.Label();
@@ -44,7 +45,6 @@
             pic_lhp = new PictureBox();
             pic_dsp = new PictureBox();
             game_ycf = new AntdUI.Label();
-            game_sjend = new AntdUI.Label();
             game_dqsd = new AntdUI.Label();
             game_jjscount = new AntdUI.Label();
             game_jjs = new AntdUI.Label();
@@ -96,7 +96,7 @@
             tabs1.Pages.Add(tabPage4);
             tabs1.Pages.Add(tabPage5);
             tabs1.Size = new Size(1131, 699);
-            tabs1.Style = styleLine2;
+            tabs1.Style = styleLine1;
             tabs1.TabIndex = 2;
             tabs1.Text = "tabs1";
             // 
@@ -140,6 +140,7 @@
             // 
             // splitter1.Panel1
             // 
+            splitter1.Panel1.Controls.Add(game_sjend);
             splitter1.Panel1.Controls.Add(game_lhp_loss);
             splitter1.Panel1.Controls.Add(game_lhp_win);
             splitter1.Panel1.Controls.Add(game_lhp_sl);
@@ -151,7 +152,6 @@
             splitter1.Panel1.Controls.Add(pic_lhp);
             splitter1.Panel1.Controls.Add(pic_dsp);
             splitter1.Panel1.Controls.Add(game_ycf);
-            splitter1.Panel1.Controls.Add(game_sjend);
             splitter1.Panel1.Controls.Add(game_dqsd);
             splitter1.Panel1.Controls.Add(game_jjscount);
             splitter1.Panel1.Controls.Add(game_jjs);
@@ -166,6 +166,17 @@
             splitter1.Size = new Size(1107, 521);
             splitter1.SplitterDistance = 367;
             splitter1.TabIndex = 11;
+            // 
+            // game_sjend
+            // 
+            game_sjend.ColorExtend = "135,#FF0000,#00FF00";
+            game_sjend.Font = new Font("Microsoft YaHei UI", 12F);
+            game_sjend.Location = new Point(7, 476);
+            game_sjend.Name = "game_sjend";
+            game_sjend.Prefix = "赛季结束日期：";
+            game_sjend.Size = new Size(296, 41);
+            game_sjend.TabIndex = 7;
+            game_sjend.Text = "未知";
             // 
             // game_lhp_loss
             // 
@@ -284,20 +295,9 @@
             game_ycf.Location = new Point(210, 476);
             game_ycf.Name = "game_ycf";
             game_ycf.Prefix = "隐藏分评分：";
-            game_ycf.Size = new Size(154, 41);
+            game_ycf.Size = new Size(135, 41);
             game_ycf.TabIndex = 8;
             game_ycf.Text = "未知";
-            // 
-            // game_sjend
-            // 
-            game_sjend.ColorExtend = "135,#FF0000,#00FF00";
-            game_sjend.Font = new Font("Microsoft YaHei UI", 12F);
-            game_sjend.Location = new Point(7, 476);
-            game_sjend.Name = "game_sjend";
-            game_sjend.Prefix = "赛季结束日期：";
-            game_sjend.Size = new Size(197, 41);
-            game_sjend.TabIndex = 7;
-            game_sjend.Text = "未知";
             // 
             // game_dqsd
             // 
@@ -428,6 +428,7 @@
             refeash.TabIndex = 6;
             refeash.Text = "刷新";
             refeash.Type = AntdUI.TTypeMini.Primary;
+            refeash.Click += refeash_Click;
             // 
             // btn_back
             // 
