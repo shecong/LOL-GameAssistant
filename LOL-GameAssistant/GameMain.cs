@@ -1,3 +1,4 @@
+using AntdUI;
 using LOL_GameAssistant.LoLApi;
 using LOL_GameAssistant.Model;
 using LOL_GameAssistant.Models;
@@ -73,7 +74,7 @@ namespace LOL_GameAssistant
             {
                 recordForm record = new recordForm();
                 record.setInfo(matchlists.Games.Games[i]);
-                this.stackPanel1.Controls.Add(record);
+                this.stackPanel1.Controls.Add(record); 
             }
         }
 

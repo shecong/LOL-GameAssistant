@@ -374,12 +374,14 @@
             // 
             // stackPanel1
             // 
+            stackPanel1.AutoScroll = true;
             stackPanel1.Dock = DockStyle.Fill;
             stackPanel1.Location = new Point(0, 0);
             stackPanel1.Name = "stackPanel1";
             stackPanel1.Size = new Size(736, 521);
             stackPanel1.TabIndex = 11;
             stackPanel1.Text = "stackPanel1";
+            stackPanel1.Vertical = true;
             // 
             // play_next
             // 
