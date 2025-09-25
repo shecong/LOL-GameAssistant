@@ -72,12 +72,23 @@ namespace LOL_GameAssistant
             String endIndex = "3";
 
             GameHeadModel.MatchHistoryResponse? matchlists = Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
-            //加载数据到界面
-            for (int i = 0; i < matchlists?.Games?.Games?.Count; i++)
+            matchlists.Games.Games.OrderByDescending(p => p.GameCreation);
+            //加载数据到界面matchlists?.Games?.Games?.Count
+            for (int i = 0; i < 3; i++)
             {
-                recordForm record = new recordForm();
-                record.setInfo(matchlists.Games.Games[i]);
-                this.stackPanel1.Controls.Add(record); 
+                try
+                {
+                    recordForm record = new recordForm();
+                    record.setInfo(matchlists.Games.Games[i], userinfo.puuid);
+                    this.stackPanel1.Controls.Add(record);
+                }
+                catch (Exception)
+                {
+                    i -= i;
+                    continue;
+
+                }
+              
             }
         }
 

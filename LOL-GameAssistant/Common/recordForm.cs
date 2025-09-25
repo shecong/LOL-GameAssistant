@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using static log4net.Appender.RollingFileAppender;
+using static LOL_GameAssistant.Models.GameDetailModel;
 
 namespace LOL_GameAssistant
 {
@@ -27,29 +28,30 @@ namespace LOL_GameAssistant
         /// <summary>
         /// 加载信息
         /// </summary>
-        public void setInfo(GameHeadModel.GameInfo head)
+        public void setInfo(GameHeadModel.GameInfo head,String? puuid)
         {
             if (head == null) return;
             //根据表头获取明细信息
             GameDetailModel.GameInfo? gameInfo = new GameDetailModel.GameInfo();
             gameInfo = Game_Api.GetGameDetail(Convert.ToString(head.GameId));
             if (gameInfo == null) return;
-            //头像
-            this.game_pic.Image = Image.FromStream(Game_Api.GetGameUserImg(gameInfo.participantIdentities[0].player.profileIcon.ToString()));
-            //技能
+            
 
             //游戏数据
-            GameDetailModel.ParticipantsItem? gamer = gameInfo.participants.Where(p => p.participantId == 1).FirstOrDefault<GameDetailModel.ParticipantsItem>();
+            GameDetailModel.ParticipantsItem? gamer = gameInfo.participants.Where(p => p.participantId == gameInfo.participantIdentities.Where(p => p.player.puuid == puuid).FirstOrDefault().participantId).FirstOrDefault<GameDetailModel.ParticipantsItem>();
             if (gamer == null) return;
 
             //游戏详情
+            //头像
+            this.game_pic.Image = Image.FromStream(Game_Api.GetGameYXImg(gamer.championId));
             this.game_win.Text = gamer.stats.win == "true" ? "胜利" : "失败";
             this.game_type.Text = gameInfo.gameMode;
-            this.game_time.Text = gameInfo.gameCreationDate;
+            this.game_time.Text = gameInfo.gameCreationDate.Substring(0,10);
             this.game_dj.Text = Convert.ToString(gamer.stats.champLevel);
-            this.game_msg.Text = $"K:{gamer.stats.kills}D:{gamer.stats.deaths}A:{gamer.stats.assists}";
-            this.pic_D.Image = Image.FromStream(Game_Api.GetGameZHSJNImg(gamer.spell1Id.ToString()));
-            this.pic_F.Image = Image.FromStream(Game_Api.GetGameZHSJNImg(gamer.spell2Id.ToString()));
+            this.game_name.Text= gameInfo.participantIdentities.Where(p => p.player.puuid == puuid).FirstOrDefault().player.gameName;
+            this.game_msg.Text = $"{gamer.stats.kills}/{gamer.stats.deaths}/{gamer.stats.assists}";
+            this.pic_D.Image = Image.FromStream(Game_Api.GetGameZHSJNImg(gamer.Spell1Id.ToString()));
+            this.pic_F.Image = Image.FromStream(Game_Api.GetGameZHSJNImg(gamer.Spell2Id.ToString()));
             //游戏装备
             this.pic_1.Image = Image.FromStream(Game_Api.GetGameZBImg(gamer.stats.item0.ToString()));
             this.pic_2.Image = Image.FromStream(Game_Api.GetGameZBImg(gamer.stats.item1.ToString()));

@@ -747,40 +747,16 @@ namespace LOL_GameAssistant.Models
             /// <summary>
             /// 召唤师技能1的ID（D键技能）。
             /// </summary>
-            public String spell1Id
-            {
-                get
-                {
-                    return spell1Id switch
-                    {
-                        "21" => "SummonerBarrier",
-                        "1" => "SummonerBoost",
-                        "2202" => "SummonerCherryFlash",
-                        "2201" => "SummonerCherryHold",
-                        "14" => "SummonerDot",
-                        "3" => "SummonerExhaust",
-                        "4" => "SummonerFlash",
-                        "6" => "SummonerHaste",
-                        "7" => "SummonerHeal",
-                        "13" => "SummonerMana",
-                        "30" => "SummonerPoroRecall",
-                        "31" => "SummonerPoroThrow",
-                        "11" => "SummonerSmite",
-                        "39" => "SummonerSnowURFSnowball_Mark",
-                        "32" => "SummonerSnowball",
-                        "12" => "SummonerTeleport",
-                        "54" => "Summoner_UltBookPlaceholder",
-                        "55" => "Summoner_UltBookSmitePlaceholder",
-                        _ => spell1Id // 默认返回原值
-                    };
-                }
-                set => spell1Id = value;
-            }
+            public string Spell1Id;
+
+            
 
             /// <summary>
             /// 召唤师技能2的ID（F键技能）。
             /// </summary>
-            public int spell2Id { get; set; }
+            public string Spell2Id;
+
+             
 
             /// <summary>
             /// 该参与者的详细游戏统计数据。
@@ -938,8 +914,29 @@ namespace LOL_GameAssistant.Models
             /// <summary>
             /// 游戏模式，例如 "CHERRY" 代表“终极魔典”模式。
             /// </summary>
-            public string gameMode { get; set; }
-
+            public string _gameMode { get; set; }
+            public string gameMode
+            {
+                get => _gameMode switch
+                {
+                    "CLASSIC" => "经典模式",
+                    "ARAM" => "极地大乱斗",
+                    "RANKED" => "排位赛模式",
+                    "TUTORIAL" => "新手教学模式",
+                    "CUSTOM" => "自定义模式",
+                    "ONEFORALL" => "克隆大作战",
+                    "SINGLE PLAYER" => "单人对抗模式",
+                    "TFT" => "云顶之奕",
+                    "CHERRY" => "终极魔典",
+                    "URF" => "极限闪击",
+                    "ASCENSION" => "飞升模式",
+                    "KINGPORO" => "嗨皮魄罗娱乐模式",
+                    "SIEGE" => "攻城战",
+                    "DOOMBOTSTEEMO" => "末日人机",
+                    _ => _gameMode
+                };
+                set => _gameMode = value;
+            }
             /// <summary>
             /// 游戏模式修饰符列表，通常为空。
             /// </summary>
@@ -1018,5 +1015,8 @@ namespace LOL_GameAssistant.Models
                 writer.WriteStringValue(value.ToString().ToLower());
             }
         }
+        
+             
     }
+    
 }
