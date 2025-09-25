@@ -34,14 +34,38 @@ namespace LOL_GameAssistant.LoLApi
         }
 
         /// <summary>
+        /// 获取召唤师图标
+        /// </summary>
+        /// <param name="puuid"></param>
+        /// <returns></returns>
+        public static Stream GetGameUserImg(String version, String Key)
+        {
+            HttpClentHelper client = new HttpClentHelper();
+            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{version}/img/profileicon/{Key}.png");
+            return new MemoryStream(Convert.FromBase64String(result.Result));
+        }
+
+        /// <summary>
         /// 获取装备图标
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static Stream GetGameImg(String version, String Key)
+        public static Stream GetGameZBImg(String version, String Key)
         {
             HttpClentHelper client = new HttpClentHelper();
             var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{version}/img/item/{Key}.png");
+            return new MemoryStream(Convert.FromBase64String(result.Result));
+        }
+
+        /// <summary>
+        /// 获取召唤师技能图标
+        /// </summary>
+        /// <param name="puuid"></param>
+        /// <returns></returns>
+        public static Stream GetGameZHSJNImg(String version, String Key)
+        {
+            HttpClentHelper client = new HttpClentHelper();
+            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{version}/img/spell/{Key}.png");
             return new MemoryStream(Convert.FromBase64String(result.Result));
         }
 

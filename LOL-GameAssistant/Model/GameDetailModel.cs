@@ -1,481 +1,996 @@
 ﻿using LOL_GameAssistant.Models;
+using System.ComponentModel;
+using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Windows.Forms;
 
 namespace LOL_GameAssistant.Models
 {
     public class GameDetailModel
     {
-        /// <summary>
-        /// 单场游戏完整信息（CHERRY模式）
-        /// </summary>
+        // <summary>
+        // 代表一个玩家（召唤师）的基本信息。
+        // </summary>
+        public class Player
+        {
+            /// <summary>
+            /// 账号ID (旧版系统，通常为0)。
+            /// </summary>
+            public int accountId { get; set; }
+
+            /// <summary>
+            /// 当前账号ID (旧版系统，通常为0)。
+            /// </summary>
+            public int currentAccountId { get; set; }
+
+            /// <summary>
+            /// 当前平台ID，例如 "HN1" 代表诺克萨斯服务器。
+            /// </summary>
+            public string currentPlatformId { get; set; }
+
+            /// <summary>
+            /// 玩家的游戏名称（不含标签）。
+            /// </summary>
+            public string gameName { get; set; }
+
+            /// <summary>
+            /// 对战历史记录的URI路径（在此数据中通常为空）。
+            /// </summary>
+            public string matchHistoryUri { get; set; }
+
+            /// <summary>
+            /// 平台ID，例如 "HN1"。
+            /// </summary>
+            public string platformId { get; set; }
+
+            /// <summary>
+            /// 玩家的头像图标ID。
+            /// </summary>
+            public int profileIcon { get; set; }
+
+            /// <summary>
+            /// 玩家的PUUID (Universally Unique Identifier)，一个全球唯一的玩家标识符。
+            /// </summary>
+            public string puuid { get; set; }
+
+            /// <summary>
+            /// 召唤师ID。
+            /// </summary>
+            public int summonerId { get; set; }
+
+            /// <summary>
+            /// 召唤师名称（在此数据中通常为空，名称在 gameName 中）。
+            /// </summary>
+            public string summonerName { get; set; }
+
+            /// <summary>
+            /// 玩家名后的标签线，例如 "83580"。
+            /// </summary>
+            public string tagLine { get; set; }
+        }
+
+        // <summary>
+        // 参与者身份信息，将 participantId 与 Player 对象关联起来。
+        // </summary>
+        public class ParticipantIdentitiesItem
+        {
+            /// <summary>
+            /// 参与者ID，用于在 participants 数组中索引该玩家的详细数据。
+            /// </summary>
+            public int participantId { get; set; }
+
+            /// <summary>
+            /// 该参与者对应的玩家详细信息。
+            /// </summary>
+            public Player player { get; set; }
+        }
+
+        // <summary>
+        // 玩家在一局游戏中的详细统计数据。
+        // </summary>
+        public class Stats
+        {
+            /// <summary>
+            /// 助攻数。
+            /// </summary>
+            public int assists { get; set; }
+
+            /// <summary>
+            /// 是否导致了提前投降。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool causedEarlySurrender { get; set; }
+
+            /// <summary>
+            /// 游戏结束时的英雄等级。
+            /// </summary>
+            public int champLevel { get; set; }
+
+            /// <summary>
+            /// 战斗玩家得分。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int combatPlayerScore { get; set; }
+
+            /// <summary>
+            /// 对目标（如防御塔、史诗野怪）造成的伤害。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int damageDealtToObjectives { get; set; }
+
+            /// <summary>
+            /// 对防御塔造成的伤害。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int damageDealtToTurrets { get; set; }
+
+            /// <summary>
+            /// 自我减免的伤害量（通过护甲、魔抗、技能减伤等）。
+            /// </summary>
+            public int damageSelfMitigated { get; set; }
+
+            /// <summary>
+            /// 死亡次数。
+            /// </summary>
+            public int deaths { get; set; }
+
+            /// <summary>
+            /// 双杀次数。
+            /// </summary>
+            public int doubleKills { get; set; }
+
+            /// <summary>
+            /// 是否是提前投降的帮凶。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool earlySurrenderAccomplice { get; set; }
+
+            /// <summary>
+            /// 是否参与第一滴血（助攻）。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstBloodAssist { get; set; }
+
+            /// <summary>
+            /// 是否获得第一滴血。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstBloodKill { get; set; }
+
+            /// <summary>
+            /// 是否参与摧毁第一个水晶（助攻）。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstInhibitorAssist { get; set; }
+
+            /// <summary>
+            /// 是否摧毁第一个水晶。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstInhibitorKill { get; set; }
+
+            /// <summary>
+            /// 是否参与摧毁第一座防御塔（助攻）。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstTowerAssist { get; set; }
+
+            /// <summary>
+            /// 是否摧毁第一座防御塔。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstTowerKill { get; set; }
+
+            /// <summary>
+            /// 游戏是否因提前投降而结束。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool gameEndedInEarlySurrender { get; set; }
+
+            /// <summary>
+            /// 游戏是否因投降而结束。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool gameEndedInSurrender { get; set; }
+
+            /// <summary>
+            /// 赚取的总金币。
+            /// </summary>
+            public int goldEarned { get; set; }
+
+            /// <summary>
+            /// 花费的总金币。
+            /// </summary>
+            public int goldSpent { get; set; }
+
+            /// <summary>
+            /// 摧毁的水晶数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int inhibitorKills { get; set; }
+
+            /// <summary>
+            /// 物品栏第1个物品的ID。
+            /// </summary>
+            public int item0 { get; set; }
+
+            /// <summary>
+            /// 物品栏第2个物品的ID。
+            /// </summary>
+            public int item1 { get; set; }
+
+            /// <summary>
+            /// 物品栏第3个物品的ID。
+            /// </summary>
+            public int item2 { get; set; }
+
+            /// <summary>
+            /// 物品栏第4个物品的ID。
+            /// </summary>
+            public int item3 { get; set; }
+
+            /// <summary>
+            /// 物品栏第5个物品的ID。
+            /// </summary>
+            public int item4 { get; set; }
+
+            /// <summary>
+            /// 物品栏第6个物品的ID。
+            /// </summary>
+            public int item5 { get; set; }
+
+            /// <summary>
+            /// 饰品槽的物品ID。
+            /// </summary>
+            public int item6 { get; set; }
+
+            /// <summary>
+            /// 连杀次数。
+            /// </summary>
+            public int killingSprees { get; set; }
+
+            /// <summary>
+            /// 击杀数。
+            /// </summary>
+            public int kills { get; set; }
+
+            /// <summary>
+            /// 最大的暴击伤害值。
+            /// </summary>
+            public int largestCriticalStrike { get; set; }
+
+            /// <summary>
+            /// 最长的连杀人次。
+            /// </summary>
+            public int largestKillingSpree { get; set; }
+
+            /// <summary>
+            /// 最大的多杀次数（如双杀、三杀等）。
+            /// </summary>
+            public int largestMultiKill { get; set; }
+
+            /// <summary>
+            /// 最长存活时间（秒）。
+            /// </summary>
+            public int longestTimeSpentLiving { get; set; }
+
+            /// <summary>
+            /// 造成的魔法伤害总量。
+            /// </summary>
+            public int magicDamageDealt { get; set; }
+
+            /// <summary>
+            /// 对英雄造成的魔法伤害。
+            /// </summary>
+            public int magicDamageDealtToChampions { get; set; }
+
+            /// <summary>
+            /// 受到的魔法伤害。
+            /// </summary>
+            public int magicalDamageTaken { get; set; }
+
+            /// <summary>
+            /// 击杀的野怪总数。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int neutralMinionsKilled { get; set; }
+
+            /// <summary>
+            /// 在敌方野区击杀的野怪数。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int neutralMinionsKilledEnemyJungle { get; set; }
+
+            /// <summary>
+            /// 在我方野区击杀的野怪数。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int neutralMinionsKilledTeamJungle { get; set; }
+
+            /// <summary>
+            /// 目标玩家得分。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int objectivePlayerScore { get; set; }
+
+            /// <summary>
+            /// 参与者ID。
+            /// </summary>
+            public int participantId { get; set; }
+
+            /// <summary>
+            /// 五杀次数。
+            /// </summary>
+            public int pentaKills { get; set; }
+
+            /// <summary>
+            /// 符文0的ID。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk0 { get; set; }
+
+            /// <summary>
+            /// 符文0的变量1。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk0Var1 { get; set; }
+
+            /// <summary>
+            /// 符文0的变量2。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk0Var2 { get; set; }
+
+            /// <summary>
+            /// 符文0的变量3。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk0Var3 { get; set; }
+
+            /// <summary>
+            /// 符文1的ID。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk1 { get; set; }
+
+            /// <summary>
+            /// 符文1的变量1。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk1Var1 { get; set; }
+
+            /// <summary>
+            /// 符文1的变量2。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk1Var2 { get; set; }
+
+            /// <summary>
+            /// 符文1的变量3。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk1Var3 { get; set; }
+
+            /// <summary>
+            /// 符文2的ID。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk2 { get; set; }
+
+            /// <summary>
+            /// 符文2的变量1。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk2Var1 { get; set; }
+
+            /// <summary>
+            /// 符文2的变量2。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk2Var2 { get; set; }
+
+            /// <summary>
+            /// 符文2的变量3。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk2Var3 { get; set; }
+
+            /// <summary>
+            /// 符文3的ID。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk3 { get; set; }
+
+            /// <summary>
+            /// 符文3的变量1。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk3Var1 { get; set; }
+
+            /// <summary>
+            /// 符文3的变量2。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk3Var2 { get; set; }
+
+            /// <summary>
+            /// 符文3的变量3。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk3Var3 { get; set; }
+
+            /// <summary>
+            /// 符文4的ID。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk4 { get; set; }
+
+            /// <summary>
+            /// 符文4的变量1。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk4Var1 { get; set; }
+
+            /// <summary>
+            /// 符文4的变量2。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk4Var2 { get; set; }
+
+            /// <summary>
+            /// 符文4的变量3。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk4Var3 { get; set; }
+
+            /// <summary>
+            /// 符文5的ID。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk5 { get; set; }
+
+            /// <summary>
+            /// 符文5的变量1。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk5Var1 { get; set; }
+
+            /// <summary>
+            /// 符文5的变量2。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk5Var2 { get; set; }
+
+            /// <summary>
+            /// 符文5的变量3。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perk5Var3 { get; set; }
+
+            /// <summary>
+            /// 主系符文风格ID。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perkPrimaryStyle { get; set; }
+
+            /// <summary>
+            /// 副系符文风格ID。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int perkSubStyle { get; set; }
+
+            /// <summary>
+            /// 造成的物理伤害总量。
+            /// </summary>
+            public int physicalDamageDealt { get; set; }
+
+            /// <summary>
+            /// 对英雄造成的物理伤害。
+            /// </summary>
+            public int physicalDamageDealtToChampions { get; set; }
+
+            /// <summary>
+            /// 受到的物理伤害。
+            /// </summary>
+            public int physicalDamageTaken { get; set; }
+
+            /// <summary>
+            /// 玩家选择的第一个强化（终极魔典模式核心机制）。
+            /// </summary>
+            public int playerAugment1 { get; set; }
+
+            /// <summary>
+            /// 玩家选择的第二个强化。
+            /// </summary>
+            public int playerAugment2 { get; set; }
+
+            /// <summary>
+            /// 玩家选择的第三个强化。
+            /// </summary>
+            public int playerAugment3 { get; set; }
+
+            /// <summary>
+            /// 玩家选择的第四个强化（如果达到足够等级）。
+            /// </summary>
+            public int playerAugment4 { get; set; }
+
+            /// <summary>
+            /// 玩家选择的第五个强化（如果达到足够等级，通常为0）。
+            /// </summary>
+            public int playerAugment5 { get; set; }
+
+            /// <summary>
+            /// 玩家选择的第六个强化（如果达到足够等级，通常为0）。
+            /// </summary>
+            public int playerAugment6 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分0。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore0 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分1。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore1 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分2。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore2 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分3。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore3 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分4。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore4 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分5。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore5 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分6。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore6 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分7。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore7 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分8。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore8 { get; set; }
+
+            /// <summary>
+            /// 玩家自定义得分9。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int playerScore9 { get; set; }
+
+            /// <summary>
+            /// 玩家所在的子团队ID（用于大乱斗、终极魔典等模式区分队伍）。
+            /// </summary>
+            public int playerSubteamId { get; set; }
+
+            /// <summary>
+            /// 四杀次数。
+            /// </summary>
+            public int quadraKills { get; set; }
+
+            /// <summary>
+            /// 购买的守卫数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int sightWardsBoughtInGame { get; set; }
+
+            /// <summary>
+            /// 子团队排名（1为第一名，2为第二名，以此类推）。
+            /// </summary>
+            public int subteamPlacement { get; set; }
+
+            /// <summary>
+            /// 玩家所在队伍是否提前投降。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool teamEarlySurrendered { get; set; }
+
+            /// <summary>
+            /// 控制其他英雄的总时间（秒）。
+            /// </summary>
+            public int timeCCingOthers { get; set; }
+
+            /// <summary>
+            /// 造成的总伤害量。
+            /// </summary>
+            public int totalDamageDealt { get; set; }
+
+            /// <summary>
+            /// 对英雄造成的总伤害量。
+            /// </summary>
+            public int totalDamageDealtToChampions { get; set; }
+
+            /// <summary>
+            /// 受到的总伤害量。
+            /// </summary>
+            public int totalDamageTaken { get; set; }
+
+            /// <summary>
+            /// 总治疗量（包括自我治疗和受到的治疗）。
+            /// </summary>
+            public int totalHeal { get; set; }
+
+            /// <summary>
+            /// 击杀的小兵总数。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int totalMinionsKilled { get; set; }
+
+            /// <summary>
+            /// 玩家总得分。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int totalPlayerScore { get; set; }
+
+            /// <summary>
+            /// 玩家得分排名。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int totalScoreRank { get; set; }
+
+            /// <summary>
+            /// 施加的总控制时间（秒）。
+            /// </summary>
+            public int totalTimeCrowdControlDealt { get; set; }
+
+            /// <summary>
+            /// 治疗的单位总数。
+            /// </summary>
+            public int totalUnitsHealed { get; set; }
+
+            /// <summary>
+            /// 三杀次数。
+            /// </summary>
+            public int tripleKills { get; set; }
+
+            /// <summary>
+            /// 造成的真实伤害总量。
+            /// </summary>
+            public int trueDamageDealt { get; set; }
+
+            /// <summary>
+            /// 对英雄造成的真实伤害。
+            /// </summary>
+            public int trueDamageDealtToChampions { get; set; }
+
+            /// <summary>
+            /// 受到的真实伤害。
+            /// </summary>
+            public int trueDamageTaken { get; set; }
+
+            /// <summary>
+            /// 摧毁的防御塔数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int turretKills { get; set; }
+
+            /// <summary>
+            /// 神话杀次数（非常罕见）。
+            /// </summary>
+            public int unrealKills { get; set; }
+
+            /// <summary>
+            /// 视野得分。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int visionScore { get; set; }
+
+            /// <summary>
+            /// 购买的真视守卫数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int visionWardsBoughtInGame { get; set; }
+
+            /// <summary>
+            /// 摧毁的守卫数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int wardsKilled { get; set; }
+
+            /// <summary>
+            /// 放置的守卫数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int wardsPlaced { get; set; }
+
+            /// <summary>
+            /// 是否获胜。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool win { get; set; }
+        }
+
+        // <summary>
+        // 玩家对局时间线数据，包含分路、角色和每分钟数据增量（在此数据中为空）。
+        // </summary>
+        public class Timeline
+        {
+            /// <summary>
+            /// 每分钟补刀数增量。在“终极魔典”模式数据中通常为空对象。
+            /// </summary>
+            public object creepsPerMinDeltas { get; set; }
+
+            /// <summary>
+            /// 每分钟补刀差增量。在“终极魔典”模式数据中通常为空对象。
+            /// </summary>
+            public object csDiffPerMinDeltas { get; set; }
+
+            /// <summary>
+            /// 每分钟承受伤害差增量。在“终极魔典”模式数据中通常为空对象。
+            /// </summary>
+            public object damageTakenDiffPerMinDeltas { get; set; }
+
+            /// <summary>
+            /// 每分钟承受伤害增量。在“终极魔典”模式数据中通常为空对象。
+            /// </summary>
+            public object damageTakenPerMinDeltas { get; set; }
+
+            /// <summary>
+            /// 每分钟金币增量。在“终极魔典”模式数据中通常为空对象。
+            /// </summary>
+            public object goldPerMinDeltas { get; set; }
+
+            /// <summary>
+            /// 玩家的分路，例如 "TOP", "BOTTOM"。在“终极魔典”模式中，这可能是系统分配的，不一定代表实际分路。
+            /// </summary>
+            public string lane { get; set; }
+
+            /// <summary>
+            /// 玩者的角色，例如 "SUPPORT"。在“终极魔典”模式中，这可能是系统分配的，不一定代表实际角色。
+            /// </summary>
+            public string role { get; set; }
+
+            /// <summary>
+            /// 每分钟经验差增量。在“终极魔典”模式数据中通常为空对象。
+            /// </summary>
+            public object xpDiffPerMinDeltas { get; set; }
+
+            /// <summary>
+            /// 每分钟经验增量。在“终极魔典”模式数据中通常为空对象。
+            /// </summary>
+            public object xpPerMinDeltas { get; set; }
+        }
+
+        // <summary>
+        // 参与者信息，包含玩家选择的英雄、召唤师技能、统计数据和时间线。
+        // </summary>
+        public class ParticipantsItem
+        {
+            /// <summary>
+            /// 玩家选择的英雄ID。
+            /// </summary>
+            public int championId { get; set; }
+
+            /// <summary>
+            /// 玩家在过往赛季中达到的最高段位（在此数据中通常为空字符串）。
+            /// </summary>
+            public string highestAchievedSeasonTier { get; set; }
+
+            /// <summary>
+            /// 参与者ID。
+            /// </summary>
+            public int participantId { get; set; }
+
+            /// <summary>
+            /// 召唤师技能1的ID（D键技能）。
+            /// </summary>
+            public int spell1Id { get; set; }
+
+            /// <summary>
+            /// 召唤师技能2的ID（F键技能）。
+            /// </summary>
+            public int spell2Id { get; set; }
+
+            /// <summary>
+            /// 该参与者的详细游戏统计数据。
+            /// </summary>
+            public Stats stats { get; set; }
+
+            /// <summary>
+            /// 玩家所在的队伍ID (100 或 200)。
+            /// </summary>
+            public int teamId { get; set; }
+
+            /// <summary>
+            /// 该参与者的游戏时间线数据。
+            /// </summary>
+            public Timeline timeline { get; set; }
+        }
+
+        // <summary>
+        // 禁用英雄的信息。
+        // </summary>
+        public class BansItem
+        {
+            /// <summary>
+            /// 被禁用英雄的ID。
+            /// </summary>
+            public int championId { get; set; }
+
+            /// <summary>
+            /// 禁用的顺序（第几手禁用）。
+            /// </summary>
+            public int pickTurn { get; set; }
+        }
+
+        // <summary>
+        // 队伍信息，包含队伍的整体统计数据。
+        // </summary>
+        public class TeamsItem
+        {
+            /// <summary>
+            /// 本局游戏中该队伍禁用的英雄列表。
+            /// </summary>
+            public List<BansItem> bans { get; set; }
+
+            /// <summary>
+            /// 击杀的男爵数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int baronKills { get; set; }
+
+            /// <summary>
+            /// 统治战场得分。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int dominionVictoryScore { get; set; }
+
+            /// <summary>
+            /// 击杀的元素亚龙数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int dragonKills { get; set; }
+
+            /// <summary>
+            /// 是否率先击杀男爵。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstBaron { get; set; }
+
+            /// <summary>
+            /// 是否率先获得第一滴血。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstBlood { get; set; }
+
+            /// <summary>
+            /// 是否率先击杀第一条龙（属性名有拼写错误，应为 firstDragon）。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstDargon { get; set; }
+
+            /// <summary>
+            /// 是否率先摧毁水晶。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstInhibitor { get; set; }
+
+            /// <summary>
+            /// 是否率先摧毁防御塔。在“终极魔典”模式中通常为 false。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool firstTower { get; set; }
+
+            /// <summary>
+            /// 击杀的虚空兽群数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int hordeKills { get; set; }
+
+            /// <summary>
+            /// 摧毁的水晶数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int inhibitorKills { get; set; }
+
+            /// <summary>
+            /// 击杀的峡谷先锋数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int riftHeraldKills { get; set; }
+
+            /// <summary>
+            /// 队伍ID (100 或 200)。
+            /// </summary>
+            public int teamId { get; set; }
+
+            /// <summary>
+            /// 摧毁的防御塔数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int towerKills { get; set; }
+
+            /// <summary>
+            /// 击杀的大龙（扭曲树精或虚空巢虫）数量。在“终极魔典”模式中通常为 0。
+            /// </summary>
+            public int vilemawKills { get; set; }
+
+            /// <summary>
+            /// 队伍是否获胜。
+            /// </summary>
+            [JsonConverter(typeof(JsonStringBoolConverter))]
+            public bool win { get; set; }
+        }
+
+        // <summary>
+        // 根对象，代表一局完整的游戏数据。
+        // </summary>
         public class GameInfo
         {
             /// <summary>
-            /// 游戏结果状态
+            /// 游戏结束结果，例如 "GameComplete" 表示游戏正常结束。
             /// </summary>
-            [JsonPropertyName("endOfGameResult")]
-            public string EndOfGameResult { get; set; } = "GameComplete";
+            public string endOfGameResult { get; set; }
 
             /// <summary>
-            /// 游戏创建时间戳（毫秒）
+            /// 游戏创建时间的时间戳（毫秒）。
             /// </summary>
-            [JsonPropertyName("gameCreation")]
-            public long GameCreation { get; set; }
+            public long gameCreation { get; set; }
 
             /// <summary>
-            /// ISO格式游戏创建时间
+            /// 游戏创建的日期时间字符串（UTC格式）。
             /// </summary>
-            [JsonPropertyName("gameCreationDate")]
-            public DateTime GameCreationDate { get; set; }
+            public string gameCreationDate { get; set; }
 
             /// <summary>
-            /// 游戏时长（秒）
+            /// 游戏持续时间（秒）。
             /// </summary>
-            [JsonPropertyName("gameDuration")]
-            public int GameDuration { get; set; }
+            public int gameDuration { get; set; }
 
             /// <summary>
-            /// 游戏唯一ID
+            /// 游戏的唯一ID。
             /// </summary>
-            [JsonPropertyName("gameId")]
-            public long GameId { get; set; }
+            public long gameId { get; set; }
 
             /// <summary>
-            /// 游戏模式（CHERRY=新模式）
+            /// 游戏模式，例如 "CHERRY" 代表“终极魔典”模式。
             /// </summary>
-            [JsonPropertyName("gameMode")]
-            public string GameMode { get; set; } = "CHERRY";
+            public string gameMode { get; set; }
 
             /// <summary>
-            /// 游戏模式修饰器
+            /// 游戏模式修饰符列表，通常为空。
             /// </summary>
-            [JsonPropertyName("gameModeMutators")]
-            public List<string> GameModeMutators { get; set; } = new List<string>();
+            public List<string> gameModeMutators { get; set; }
 
             /// <summary>
-            /// 游戏类型（MATCHED_GAME=匹配游戏）
+            /// 游戏类型，例如 "MATCHED_GAME" 表示匹配游戏。
             /// </summary>
-            [JsonPropertyName("gameType")]
-            public string GameType { get; set; } = "MATCHED_GAME";
+            public string gameType { get; set; }
 
             /// <summary>
-            /// 游戏版本号
+            /// 游戏版本号，例如 "15.18.710.6001"。
             /// </summary>
-            [JsonPropertyName("gameVersion")]
-            public string GameVersion { get; set; } = "15.18.710.6001";
+            public string gameVersion { get; set; }
 
             /// <summary>
-            /// 地图ID（30=CHERRY模式特殊地图）
+            /// 地图ID，例如 30 代表“终极魔典”模式的地图。
             /// </summary>
-            [JsonPropertyName("mapId")]
-            public int MapId { get; set; } = 30;
+            public int mapId { get; set; }
 
             /// <summary>
-            /// 参与者身份信息（16名玩家）
+            /// 参与者身份信息列表，包含所有玩家的基本信息。
             /// </summary>
-            [JsonPropertyName("participantIdentities")]
-            public List<ParticipantIdentity> ParticipantIdentities { get; set; } = new List<ParticipantIdentity>();
+            public List<ParticipantIdentitiesItem> participantIdentities { get; set; }
 
             /// <summary>
-            /// 参与者游戏数据
+            /// 参与者详细信息列表，包含所有玩家的游戏数据。
             /// </summary>
-            [JsonPropertyName("participants")]
-            public List<Participant> Participants { get; set; } = new List<Participant>();
+            public List<ParticipantsItem> participants { get; set; }
 
             /// <summary>
-            /// 游戏平台ID（HN1=峡谷之巅）
+            /// 平台ID，例如 "HN1"。
             /// </summary>
-            [JsonPropertyName("platformId")]
-            public string PlatformId { get; set; } = "HN1";
+            public string platformId { get; set; }
 
             /// <summary>
-            /// 队列ID（1700=CHERRY模式）
+            /// 游戏队列ID，用于区分不同的游戏模式（如排位、匹配等）。
             /// </summary>
-            [JsonPropertyName("queueId")]
-            public int QueueId { get; set; } = 1700;
+            public int queueId { get; set; }
 
             /// <summary>
-            /// 赛季ID
+            /// 赛季ID。
             /// </summary>
-            [JsonPropertyName("seasonId")]
-            public int SeasonId { get; set; }
+            public int seasonId { get; set; }
 
             /// <summary>
-            /// 队伍数据
+            /// 队伍信息列表，包含两支队伍的整体统计数据。
             /// </summary>
-            [JsonPropertyName("teams")]
-            public List<Team> Teams { get; set; } = new List<Team>();
+            public List<TeamsItem> teams { get; set; }
         }
 
-        /// <summary>
-        /// 参与者身份信息
+        // <summary>
+        /// 自定义Json转换器，用于将JSON中的字符串 "true"/"false" 转换为C#的 bool 类型。
+        /// 在您提供的JSON中，很多布尔值是以字符串形式出现的。
         /// </summary>
-        public class ParticipantIdentity
+        public class JsonStringBoolConverter : JsonConverter<bool>
         {
-            /// <summary>
-            /// 参与者ID（1-16）
-            /// </summary>
-            [JsonPropertyName("participantId")]
-            public int ParticipantId { get; set; }
-
-            /// <summary>
-            /// 玩家信息
-            /// </summary>
-            [JsonPropertyName("player")]
-            public PlayerInfo Player { get; set; } = new PlayerInfo();
-        }
-
-        /// <summary>
-        /// 玩家信息
-        /// </summary>
-        public class PlayerInfo
-        {
-            /// <summary>
-            /// 账号ID
-            /// </summary>
-            [JsonPropertyName("accountId")]
-            public long AccountId { get; set; }
-
-            /// <summary>
-            /// 当前账号ID
-            /// </summary>
-            [JsonPropertyName("currentAccountId")]
-            public long CurrentAccountId { get; set; }
-
-            /// <summary>
-            /// 当前平台ID
-            /// </summary>
-            [JsonPropertyName("currentPlatformId")]
-            public string CurrentPlatformId { get; set; } = "HN1";
-
-            /// <summary>
-            /// 游戏昵称（Riot ID名称）
-            /// </summary>
-            [JsonPropertyName("gameName")]
-            public string GameName { get; set; } = string.Empty;
-
-            /// <summary>
-            /// 比赛历史URI
-            /// </summary>
-            [JsonPropertyName("matchHistoryUri")]
-            public string MatchHistoryUri { get; set; } = string.Empty;
-
-            /// <summary>
-            /// 平台ID
-            /// </summary>
-            [JsonPropertyName("platformId")]
-            public string PlatformId { get; set; } = "HN1";
-
-            /// <summary>
-            /// 头像ID
-            /// </summary>
-            [JsonPropertyName("profileIcon")]
-            public int ProfileIcon { get; set; }
-
-            /// <summary>
-            /// 玩家全局唯一标识
-            /// </summary>
-            [JsonPropertyName("puuid")]
-            public string Puuid { get; set; } = string.Empty;
-
-            /// <summary>
-            /// 召唤师ID
-            /// </summary>
-            [JsonPropertyName("summonerId")]
-            public long SummonerId { get; set; }
-
-            /// <summary>
-            /// 召唤师名称（已废弃）
-            /// </summary>
-            [JsonPropertyName("summonerName")]
-            public string SummonerName { get; set; } = string.Empty;
-
-            /// <summary>
-            /// 标签线（Riot ID标签）
-            /// </summary>
-            [JsonPropertyName("tagLine")]
-            public string TagLine { get; set; } = string.Empty;
-        }
-
-        /// <summary>
-        /// 参与者游戏数据
-        /// </summary>
-        public class Participant
-        {
-            /// <summary>
-            /// 英雄ID
-            /// </summary>
-            [JsonPropertyName("championId")]
-            public int ChampionId { get; set; }
-
-            /// <summary>
-            /// 达到的最高赛季段位
-            /// </summary>
-            [JsonPropertyName("highestAchievedSeasonTier")]
-            public string HighestAchievedSeasonTier { get; set; } = string.Empty;
-
-            /// <summary>
-            /// 参与者ID
-            /// </summary>
-            [JsonPropertyName("participantId")]
-            public int ParticipantId { get; set; }
-
-            /// <summary>
-            /// 召唤师技能1 ID（2201/2202=CHERRY模式特殊技能）
-            /// </summary>
-            [JsonPropertyName("spell1Id")]
-            public int Spell1Id { get; set; }
-
-            /// <summary>
-            /// 召唤师技能2 ID
-            /// </summary>
-            [JsonPropertyName("spell2Id")]
-            public int Spell2Id { get; set; }
-
-            /// <summary>
-            /// 游戏统计数据
-            /// </summary>
-            [JsonPropertyName("stats")]
-            public ParticipantStats Stats { get; set; } = new ParticipantStats();
-
-            /// <summary>
-            /// 队伍ID（100=蓝色方，200=红色方）
-            /// </summary>
-            [JsonPropertyName("teamId")]
-            public int TeamId { get; set; }
-
-            /// <summary>
-            /// 时间线数据
-            /// </summary>
-            [JsonPropertyName("timeline")]
-            public ParticipantTimeline Timeline { get; set; } = new ParticipantTimeline();
-        }
-
-        /// <summary>
-        /// 参与者游戏统计数据（CHERRY模式特殊字段）
-        /// </summary>
-        public class ParticipantStats
-        {
-            // 基础KDA数据
-            [JsonPropertyName("kills")] public int Kills { get; set; }
-
-            [JsonPropertyName("deaths")] public int Deaths { get; set; }
-            [JsonPropertyName("assists")] public int Assists { get; set; }
-
-            // 连杀数据
-            [JsonPropertyName("doubleKills")] public int DoubleKills { get; set; }
-
-            [JsonPropertyName("tripleKills")] public int TripleKills { get; set; }
-            [JsonPropertyName("quadraKills")] public int QuadraKills { get; set; }
-            [JsonPropertyName("pentaKills")] public int PentaKills { get; set; }
-            [JsonPropertyName("killingSprees")] public int KillingSprees { get; set; }
-            [JsonPropertyName("largestKillingSpree")] public int LargestKillingSpree { get; set; }
-            [JsonPropertyName("largestMultiKill")] public int LargestMultiKill { get; set; }
-
-            // 基础属性
-            [JsonPropertyName("champLevel")] public int ChampLevel { get; set; }
-
-            [JsonPropertyName("goldEarned")] public int GoldEarned { get; set; }
-            [JsonPropertyName("goldSpent")] public int GoldSpent { get; set; }
-
-            // CHERRY模式特殊字段 - Augment系统
-            [JsonPropertyName("playerAugment1")] public int PlayerAugment1 { get; set; }
-
-            [JsonPropertyName("playerAugment2")] public int PlayerAugment2 { get; set; }
-            [JsonPropertyName("playerAugment3")] public int PlayerAugment3 { get; set; }
-            [JsonPropertyName("playerAugment4")] public int PlayerAugment4 { get; set; }
-            [JsonPropertyName("playerAugment5")] public int PlayerAugment5 { get; set; }
-            [JsonPropertyName("playerAugment6")] public int PlayerAugment6 { get; set; }
-
-            // CHERRY模式特殊字段 - 子队伍系统
-            [JsonPropertyName("playerSubteamId")] public int PlayerSubteamId { get; set; }
-
-            [JsonPropertyName("subteamPlacement")] public int SubteamPlacement { get; set; }
-
-            // 装备信息（CHERRY模式特殊装备ID）
-            [JsonPropertyName("item0")] public int Item0 { get; set; }
-
-            [JsonPropertyName("item1")] public int Item1 { get; set; }
-            [JsonPropertyName("item2")] public int Item2 { get; set; }
-            [JsonPropertyName("item3")] public int Item3 { get; set; }
-            [JsonPropertyName("item4")] public int Item4 { get; set; }
-            [JsonPropertyName("item5")] public int Item5 { get; set; }
-            [JsonPropertyName("item6")] public int Item6 { get; set; }
-
-            // 伤害数据
-            [JsonPropertyName("totalDamageDealtToChampions")] public int TotalDamageDealtToChampions { get; set; }
-
-            [JsonPropertyName("magicDamageDealtToChampions")] public int MagicDamageDealtToChampions { get; set; }
-            [JsonPropertyName("physicalDamageDealtToChampions")] public int PhysicalDamageDealtToChampions { get; set; }
-            [JsonPropertyName("trueDamageDealtToChampions")] public int TrueDamageDealtToChampions { get; set; }
-
-            // 承受伤害
-            [JsonPropertyName("totalDamageTaken")] public int TotalDamageTaken { get; set; }
-
-            [JsonPropertyName("damageSelfMitigated")] public int DamageSelfMitigated { get; set; }
-
-            // 治疗和控制
-            [JsonPropertyName("totalHeal")] public int TotalHeal { get; set; }
-
-            [JsonPropertyName("timeCCingOthers")] public int TimeCCingOthers { get; set; }
-
-            // 首杀/首塔等成就
-            [JsonPropertyName("firstBloodKill")] public bool FirstBloodKill { get; set; }
-
-            [JsonPropertyName("firstBloodAssist")] public bool FirstBloodAssist { get; set; }
-
-            // 胜负结果
-            [JsonPropertyName("win")] public bool Win { get; set; }
-
-            // CHERRY模式无补刀数据（都为0）
-            [JsonPropertyName("totalMinionsKilled")] public int TotalMinionsKilled { get; set; }
-
-            [JsonPropertyName("neutralMinionsKilled")] public int NeutralMinionsKilled { get; set; }
-
-            // CHERRY模式无视野数据（都为0）
-            [JsonPropertyName("visionScore")] public int VisionScore { get; set; }
-
-            [JsonPropertyName("wardsPlaced")] public int WardsPlaced { get; set; }
-            [JsonPropertyName("wardsKilled")] public int WardsKilled { get; set; }
-
-            // 符文数据（CHERRY模式中为0）
-            [JsonPropertyName("perk0")] public int Perk0 { get; set; }
-
-            [JsonPropertyName("perkPrimaryStyle")] public int PerkPrimaryStyle { get; set; }
-            [JsonPropertyName("perkSubStyle")] public int PerkSubStyle { get; set; }
-        }
-
-        /// <summary>
-        /// 参与者时间线数据
-        /// </summary>
-        public class ParticipantTimeline
-        {
-            /// <summary>
-            /// 分路位置
-            /// </summary>
-            [JsonPropertyName("lane")]
-            public string Lane { get; set; } = string.Empty;
-
-            /// <summary>
-            /// 参与者ID
-            /// </summary>
-            [JsonPropertyName("participantId")]
-            public int ParticipantId { get; set; }
-
-            /// <summary>
-            /// 角色定位
-            /// </summary>
-            [JsonPropertyName("role")]
-            public string Role { get; set; } = string.Empty;
-
-            // CHERRY模式中时间线数据为空
-            [JsonPropertyName("creepsPerMinDeltas")] public Dictionary<string, double> CreepsPerMinDeltas { get; set; } = new Dictionary<string, double>();
-
-            [JsonPropertyName("goldPerMinDeltas")] public Dictionary<string, double> GoldPerMinDeltas { get; set; } = new Dictionary<string, double>();
-        }
-
-        /// <summary>
-        /// 队伍数据
-        /// </summary>
-        public class Team
-        {
-            /// <summary>
-            /// Ban选信息（CHERRY模式有16个Ban位）
-            /// </summary>
-            [JsonPropertyName("bans")]
-            public List<BanInfo> Bans { get; set; } = new List<BanInfo>();
-
-            /// <summary>
-            /// 队伍ID（100=蓝色方，200=红色方，0=未知）
-            /// </summary>
-            [JsonPropertyName("teamId")]
-            public int TeamId { get; set; }
-
-            /// <summary>
-            /// 胜负结果（Win/Fail）
-            /// </summary>
-            [JsonPropertyName("win")]
-            public string Win { get; set; } = string.Empty;
-
-            // CHERRY模式中无传统资源数据
-            [JsonPropertyName("baronKills")] public int BaronKills { get; set; }
-
-            [JsonPropertyName("dragonKills")] public int DragonKills { get; set; }
-            [JsonPropertyName("towerKills")] public int TowerKills { get; set; }
-            [JsonPropertyName("inhibitorKills")] public int InhibitorKills { get; set; }
-
-            // 首杀/首塔等成就
-            [JsonPropertyName("firstBlood")] public bool FirstBlood { get; set; }
-
-            [JsonPropertyName("firstTower")] public bool FirstTower { get; set; }
-            [JsonPropertyName("firstInhibitor")] public bool FirstInhibitor { get; set; }
-        }
-
-        /// <summary>
-        /// Ban选信息
-        /// </summary>
-        public class BanInfo
-        {
-            /// <summary>
-            /// 英雄ID（-1=空Ban）
-            /// </summary>
-            [JsonPropertyName("championId")]
-            public int ChampionId { get; set; }
-
-            /// <summary>
-            /// Ban选顺序
-            /// </summary>
-            [JsonPropertyName("pickTurn")]
-            public int PickTurn { get; set; }
-        }
-    }
-
-    /// <summary>
-    /// CHERRY模式数据分析工具类
-    /// </summary>
-    public static class CherryMatchAnalyzer
-    {
-        /// <summary>
-        /// 计算KDA比率
-        /// </summary>
-        public static double CalculateKda(GameDetailModel.ParticipantStats stats)
-        {
-            return stats.Deaths == 0 ? stats.Kills + stats.Assists :
-                   (stats.Kills + stats.Assists) / (double)stats.Deaths;
-        }
-
-        /// <summary>
-        /// 获取玩家完整Riot ID
-        /// </summary>
-        public static string GetFullRiotId(GameDetailModel.PlayerInfo player)
-        {
-            return $"{player.GameName}#{player.TagLine}";
-        }
-
-        /// <summary>
-        /// 分析Augment组合
-        /// </summary>
-        public static List<int> GetAugments(GameDetailModel.ParticipantStats stats)
-        {
-            var augments = new List<int>();
-            if (stats.PlayerAugment1 > 0) augments.Add(stats.PlayerAugment1);
-            if (stats.PlayerAugment2 > 0) augments.Add(stats.PlayerAugment2);
-            if (stats.PlayerAugment3 > 0) augments.Add(stats.PlayerAugment3);
-            if (stats.PlayerAugment4 > 0) augments.Add(stats.PlayerAugment4);
-            return augments;
-        }
-
-        /// <summary>
-        /// CHERRY模式专属评分
-        /// </summary>
-        public static double CalculateCherryScore(GameDetailModel.ParticipantStats stats)
-        {
-            var killScore = stats.Kills * 3;
-            var assistScore = stats.Assists * 2;
-            var deathPenalty = stats.Deaths * 1.5;
-            var damageScore = stats.TotalDamageDealtToChampions / 1000.0;
-
-            return killScore + assistScore - deathPenalty + damageScore;
+            public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            {
+                if (reader.TokenType == JsonTokenType.String)
+                {
+                    string stringValue = reader.GetString();
+                    if (bool.TryParse(stringValue, out bool result))
+                    {
+                        return result;
+                    }
+                    // 处理可能的空值或其他情况
+                    return false;
+                }
+                // 如果不是字符串，则按默认方式处理
+                return reader.GetBoolean();
+            }
+
+            public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options)
+            {
+                writer.WriteStringValue(value.ToString().ToLower());
+            }
         }
     }
 }

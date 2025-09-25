@@ -133,6 +133,7 @@
             // 
             // pic_1
             // 
+            pic_1.Image = Properties.Resources._null;
             pic_1.Location = new Point(270, 58);
             pic_1.Name = "pic_1";
             pic_1.Size = new Size(43, 32);
@@ -189,8 +190,8 @@
             // 
             // recordForm
             // 
-            AutoScaleDimensions = new SizeF(7F, 17F);
-            AutoScaleMode = AutoScaleMode.Font;
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
             Controls.Add(pic_7);
             Controls.Add(pic_6);
             Controls.Add(pic_5);
@@ -205,6 +206,7 @@
             Controls.Add(game_type);
             Controls.Add(game_win);
             Controls.Add(game_pic);
+            DoubleBuffered = true;
             Name = "recordForm";
             Size = new Size(813, 94);
             game_pic.ResumeLayout(false);
