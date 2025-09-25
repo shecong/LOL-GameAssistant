@@ -29,6 +29,7 @@ namespace LOL_GameAssistant
             {
                 HttpClentHelper.Port = port;
                 HttpClentHelper.Token = token;
+                Console.WriteLine($"{port}:{token}");
             }
             //获取当前召唤师信息
              userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser());

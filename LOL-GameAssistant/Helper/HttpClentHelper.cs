@@ -54,7 +54,7 @@ public class HttpClentHelper
             HttpResponseMessage response;
             try
             {
-                _httpClient.Timeout = TimeSpan.FromSeconds(10);  // 设置10秒超时
+                _httpClient.Timeout = TimeSpan.FromSeconds(20);  // 设置10秒超时
                 response = await _httpClient.SendAsync(request).ConfigureAwait(false); // 使用新的 HttpRequestMessage 实例
             }
             catch (Exception ex)
