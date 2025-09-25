@@ -70,7 +70,7 @@ namespace LOL_GameAssistant
             String begIndex = "1";
             String endIndex = "3";
 
-            MatchHistoryResponse matchlists = Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            MatchHistoryResponse? matchlists = Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
             //加载数据到界面
         }
 

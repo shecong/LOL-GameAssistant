@@ -29,7 +29,7 @@ namespace LOL_GameAssistant.LoLApi
         public static MatchHistoryResponse? GetUserGame(String puuid, String? begIndex = null, String? endIndex = null)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex}$endIndex={endIndex}");
+            var result = client.GetAsync($"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex}&endIndex={endIndex}");
             return JsonConvert.DeserializeObject<MatchHistoryResponse>(Encoding.UTF8.GetString(Convert.FromBase64String(result.Result)));
         }
     }
