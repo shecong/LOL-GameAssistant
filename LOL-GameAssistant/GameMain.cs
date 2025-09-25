@@ -1,5 +1,6 @@
 using LOL_GameAssistant.LoLApi;
 using LOL_GameAssistant.Model;
+using LOL_GameAssistant.Models;
 using Newtonsoft.Json;
 using static LOL_GameAssistant.Model.LolRankedDataParser;
 using static LOL_GameAssistant.Model.PlayerModel;
@@ -8,7 +9,8 @@ namespace LOL_GameAssistant
 {
     public partial class GameMain : AntdUI.Window
     {
-        public Plyaer? userinfo=new Plyaer();
+        public Plyaer? userinfo = new Plyaer();
+
         public GameMain()
         {
             InitializeComponent();
@@ -31,7 +33,7 @@ namespace LOL_GameAssistant
                 HttpClentHelper.Token = token;
             }
             //获取当前召唤师信息
-             userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser());
+            userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser());
             if (userinfo != null)
             {
                 //获取头像
@@ -51,7 +53,24 @@ namespace LOL_GameAssistant
 
                 //获取当前召唤师游戏赛季信息
                 GetGameSJ(userinfo);
+                //获取玩家比赛记录
+                GetGameInfo(userinfo);
             }
+        }
+
+        /// <summary>
+        /// 获取玩家的比赛记录
+        /// </summary>
+        /// <param name="userinfo"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        private void GetGameInfo(Plyaer userinfo)
+        {
+            if (userinfo == null) return;
+            String begIndex = "1";
+            String endIndex = "3";
+
+            MatchHistoryResponse matchlists = Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            //加载数据到界面
         }
 
         /// <summary>
@@ -139,6 +158,7 @@ namespace LOL_GameAssistant
                     return Properties.Resources.下载;
             }
         }
+
         /// <summary>
         /// 根据段位返回对应文字
         /// </summary>
@@ -179,6 +199,7 @@ namespace LOL_GameAssistant
                     return "无段位";
             }
         }
+
         /// <summary>
         /// 刷新数据
         /// </summary>
@@ -187,7 +208,7 @@ namespace LOL_GameAssistant
         private void refeash_Click(object sender, EventArgs e)
         {
             //获取当前召唤师信息
-             userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser(userinfo.puuid));
+            userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser(userinfo.puuid));
             if (userinfo != null)
             {
                 //获取头像
