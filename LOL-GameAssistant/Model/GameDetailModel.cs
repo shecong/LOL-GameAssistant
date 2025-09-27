@@ -1,9 +1,5 @@
-﻿using LOL_GameAssistant.Models;
-using System.ComponentModel;
-using System.Reflection;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Windows.Forms;
 
 namespace LOL_GameAssistant.Models
 {
@@ -669,7 +665,7 @@ namespace LOL_GameAssistant.Models
 
             /// <summary>
             /// 是否获胜。
-            /// </summary> 
+            /// </summary>
             public String win { get; set; }
         }
 
@@ -749,14 +745,10 @@ namespace LOL_GameAssistant.Models
             /// </summary>
             public string Spell1Id;
 
-            
-
             /// <summary>
             /// 召唤师技能2的ID（F键技能）。
             /// </summary>
             public string Spell2Id;
-
-             
 
             /// <summary>
             /// 该参与者的详细游戏统计数据。
@@ -877,7 +869,7 @@ namespace LOL_GameAssistant.Models
 
             /// <summary>
             /// 队伍是否获胜。
-            /// </summary> 
+            /// </summary>
             public String win { get; set; }
         }
 
@@ -915,6 +907,7 @@ namespace LOL_GameAssistant.Models
             /// 游戏模式，例如 "CHERRY" 代表“终极魔典”模式。
             /// </summary>
             public string _gameMode { get; set; }
+
             public string gameMode
             {
                 get => _gameMode switch
@@ -937,6 +930,7 @@ namespace LOL_GameAssistant.Models
                 };
                 set => _gameMode = value;
             }
+
             /// <summary>
             /// 游戏模式修饰符列表，通常为空。
             /// </summary>
@@ -1015,8 +1009,5 @@ namespace LOL_GameAssistant.Models
                 writer.WriteStringValue(value.ToString().ToLower());
             }
         }
-        
-             
     }
-    
 }

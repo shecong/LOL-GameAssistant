@@ -1,4 +1,3 @@
-using AntdUI;
 using LOL_GameAssistant.LoLApi;
 using LOL_GameAssistant.Model;
 using LOL_GameAssistant.Models;
@@ -15,10 +14,9 @@ namespace LOL_GameAssistant
         public GameMain()
         {
             InitializeComponent();
-            
         }
 
-        public void GameMain_Load(object sender, EventArgs e)
+        public async void GameMain_Load(object sender, EventArgs e)
         {
             //获取客户端登陆
             (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
@@ -35,11 +33,11 @@ namespace LOL_GameAssistant
             //获取游戏版本号
             Game_Api.GetGameversion();
             //获取当前召唤师信息
-            userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser());
+            userinfo = JsonConvert.DeserializeObject<Plyaer>(await Assets_api.GetUser());
             if (userinfo != null)
             {
                 //获取头像
-                Stream headicon = Assets_api.GetImg(userinfo.profileIconId);
+                Stream headicon = await Assets_api.GetImg(userinfo.profileIconId);
                 if (headicon != null)
                 {
                     // 使用 Image.FromStream() 方法将 Stream 转换为 Image
@@ -65,16 +63,21 @@ namespace LOL_GameAssistant
         /// </summary>
         /// <param name="userinfo"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private void GetGameInfo(Plyaer userinfo)
+        private async Task GetGameInfo(Plyaer userinfo)
         {
             if (userinfo == null) return;
             String begIndex = "1";
-            String endIndex = "3";
+            String endIndex = Convert.ToInt32(this.game_count.Text) <= 10 ? "10" : this.game_count.Text;
 
-            GameHeadModel.MatchHistoryResponse? matchlists = Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
-            matchlists.Games.Games.OrderByDescending(p => p.GameCreation);
+            GameHeadModel.MatchHistoryResponse? matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            // 方法2：原地修改（如果集合是List<T>）
+            var sortedList = matchlists.Games.Games
+                .OrderByDescending(p => p.GameCreation)
+                .ToList();
+            matchlists.Games.Games.Clear(); // 清空原集合
+            matchlists.Games.Games.AddRange(sortedList); // 添加排序后的元素
             //加载数据到界面matchlists?.Games?.Games?.Count
-            for (int i = 0; i < 3; i++)
+            for (int i = Convert.ToInt32(this.game_count.Text) - 1; i >= 0 & i < Convert.ToInt32(this.game_count.Text); i--)
             {
                 try
                 {
@@ -84,11 +87,9 @@ namespace LOL_GameAssistant
                 }
                 catch (Exception)
                 {
-                    i -= i;
+                    i += i;
                     continue;
-
                 }
-              
             }
         }
 
@@ -97,11 +98,11 @@ namespace LOL_GameAssistant
         /// </summary>
         /// <param name="plyaer"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private void GetGameSJ(Plyaer? userinfo = null)
+        private async void GetGameSJ(Plyaer? userinfo = null)
         {
             if (userinfo == null) return;
             LolRankedDataParser lolparser = new LolRankedDataParser();
-            LolRankedDataParser.RankedData gameinfo = Game_Api.GetUserGame(userinfo.puuid);
+            LolRankedDataParser.RankedData gameinfo = await Game_Api.GetUserGame(userinfo.puuid);
             if (gameinfo == null) return;
             //获取单双排信息
             LolRankedDataParser.RankedEntry solo = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_SOLO_5x5);
@@ -224,14 +225,14 @@ namespace LOL_GameAssistant
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void refeash_Click(object sender, EventArgs e)
+        private async void refeash_Click(object sender, EventArgs e)
         {
             //获取当前召唤师信息
-            userinfo = JsonConvert.DeserializeObject<Plyaer>(Assets_api.GetUser(userinfo?.puuid));
+            userinfo = JsonConvert.DeserializeObject<Plyaer>(await Assets_api.GetUser(userinfo?.puuid));
             if (userinfo != null)
             {
                 //获取头像
-                Stream headicon = Assets_api.GetImg(userinfo.profileIconId);
+                Stream headicon = await Assets_api.GetImg(userinfo.profileIconId);
                 if (headicon != null)
                 {
                     // 使用 Image.FromStream() 方法将 Stream 转换为 Image
@@ -246,7 +247,9 @@ namespace LOL_GameAssistant
                 this.play_jd.Value = (float)userinfo.xpUntilNextLevel / (float)(userinfo.xpSinceLastLevel + userinfo.xpUntilNextLevel);
 
                 //获取当前召唤师游戏赛季信息
+                this.stackPanel1.Controls.Clear();
                 GetGameSJ(userinfo);
+                GetGameInfo(userinfo);
             }
         }
     }

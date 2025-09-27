@@ -214,8 +214,7 @@
             // 
             // recordForm
             // 
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleMode = AutoScaleMode.None;
             BackColor = SystemColors.ControlLight;
             Controls.Add(game_name);
             Controls.Add(game_time);
@@ -232,6 +231,7 @@
             Controls.Add(game_type);
             Controls.Add(game_win);
             Controls.Add(game_pic);
+            DoubleBuffered = true;
             Name = "recordForm";
             Size = new Size(813, 94);
             game_pic.ResumeLayout(false);

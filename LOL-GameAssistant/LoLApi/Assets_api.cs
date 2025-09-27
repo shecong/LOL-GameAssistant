@@ -7,28 +7,50 @@ namespace LOL_GameAssistant.LoLApi
     /// </summary>
     public static class Assets_api
     {
-        public static string GetUser()
+        public static async Task<string> GetUser()
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync("/lol-summoner/v1/current-summoner");
-            return Encoding.UTF8.GetString(Convert.FromBase64String(result.Result));
+            Stream? responseStream = await client.GetAsync("/lol-summoner/v1/current-summoner");
+            if (responseStream == null)
+            {
+                return String.Empty;
+            }
+            using (var reader = new StreamReader(responseStream, Encoding.UTF8))
+            {
+                // 4. ReadToEndAsync() 会将流中的所有内容异步读取到一个字符串中
+                string content = await reader.ReadToEndAsync();
+                return content;
+            }
         }
 
-        public static string GetUser(String? puuid)
+        public static async Task<string> GetUser(String? puuid)
         {
             if (puuid == null) return String.Empty;
             Dictionary<string, String> dic = new Dictionary<string, string>();
             dic.Add("puuid", puuid);
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"/lol-summoner/v2/summoners/puuid/{puuid}");
-            return Encoding.UTF8.GetString(Convert.FromBase64String(result.Result));
+            Stream? responseStream = await client.GetAsync($"/lol-summoner/v2/summoners/puuid/{puuid}");
+            if (responseStream == null)
+            {
+                return String.Empty;
+            }
+            using (var reader = new StreamReader(responseStream, Encoding.UTF8))
+            {
+                // 4. ReadToEndAsync() 会将流中的所有内容异步读取到一个字符串中
+                string content = await reader.ReadToEndAsync();
+                return content;
+            }
         }
 
-        public static Stream GetImg(String? id)
+        public static async Task<Stream> GetImg(String? id)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($@"/lol-game-data/assets/v1/profile-icons/{id}.jpg");
-            return new MemoryStream(Convert.FromBase64String(result.Result));
+            Stream? responseStream = await client.GetAsync($@"/lol-game-data/assets/v1/profile-icons/{id}.jpg");
+            if (responseStream == null)
+            {
+                return Stream.Null;
+            }
+            return responseStream;
         }
     }
 }

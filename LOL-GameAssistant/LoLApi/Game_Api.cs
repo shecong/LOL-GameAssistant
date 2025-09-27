@@ -1,9 +1,6 @@
-﻿using LOL_GameAssistant.Model;
+﻿using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Model;
 using LOL_GameAssistant.Models;
-using Newtonsoft.Json;
-using System.IO;
-using System.Text;
-using System.Xml.Linq;
 
 namespace LOL_GameAssistant.LoLApi
 {
@@ -11,46 +8,49 @@ namespace LOL_GameAssistant.LoLApi
     {
         public static string gameversion = "15.19.1";
 
-        public static List<ZBModel>? zBData=new List<ZBModel>();
+        public static List<ZBModel>? zBData = new List<ZBModel>();
         public static List<JNModel>? jNData = new List<JNModel>();
+
         /// <summary>
         /// LOL排位数据
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static LolRankedDataParser.RankedData GetUserGame(String? puuid)
+        public static async Task<LolRankedDataParser.RankedData> GetUserGame(String? puuid)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"/lol-ranked/v1/ranked-stats/{puuid}");
+            Stream? responseStream = await client.GetAsync($"/lol-ranked/v1/ranked-stats/{puuid}");
 
             LolRankedDataParser parser = new LolRankedDataParser();
-            return parser.ParseRankedData(Encoding.UTF8.GetString(Convert.FromBase64String(result.Result)));
+            return parser.ParseRankedData(await responseStream.ReadAsStringJsonAsync<String>());
         }
+
         /// <summary>
         /// 获取游戏最新版本
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static void GetGameversion()
+        public static async void GetGameversion()
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/api/versions.json");
-            List<string>? version = JsonConvert.DeserializeObject<List<String>>(Encoding.UTF8.GetString(Convert.FromBase64String(result.Result)));
+            Stream? responseStream = await client.GetAsync($"https://ddragon.leagueoflegends.com/api/versions.json");
+            List<string>? version = await responseStream.ReadAsJsonAsync<List<string>>();
             if (version != null)
             {
                 gameversion = version[0];
             }
         }
+
         /// <summary>
         /// 获取指定召唤师比赛记录
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static GameHeadModel.MatchHistoryResponse? GetUserGame(String? puuid, String? begIndex = null, String? endIndex = null)
+        public static async Task<GameHeadModel.MatchHistoryResponse?> GetUserGame(String? puuid, String? begIndex = null, String? endIndex = null)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex}&endIndex={endIndex}");
-            return JsonConvert.DeserializeObject<GameHeadModel.MatchHistoryResponse>(Encoding.UTF8.GetString(Convert.FromBase64String(result.Result)));
+            Stream? responseStream = await client.GetAsync($"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex}&endIndex={endIndex}");
+            return await responseStream.ReadAsJsonAsync<GameHeadModel.MatchHistoryResponse>();
         }
 
         /// <summary>
@@ -58,11 +58,12 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static Stream GetGameUserImg(String Key)
+        public static async Task<Stream> GetGameUserImg(String Key)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/profileicon/{Key}.png");
-            return new MemoryStream(Convert.FromBase64String(result.Result));
+            Stream? responseStream = await client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/profileicon/{Key}.png");
+            if (responseStream == null) return Stream.Null;
+            return responseStream;
         }
 
         /// <summary>
@@ -70,7 +71,7 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static Stream GetGameZBImg(String Key)
+        public static async Task<Stream> GetGameZBImg(String Key)
         {
             String? Path = "";
             if (string.IsNullOrEmpty(Key) || Key == "0")
@@ -88,14 +89,14 @@ namespace LOL_GameAssistant.LoLApi
             if (zBData?.Count == 0)
             {
                 HttpClentHelper zbclient = new HttpClentHelper();
-                var zbresult = zbclient.GetAsync($"/lol-game-data/assets/v1/items.json");
-                zBData= JsonConvert.DeserializeObject<List<ZBModel>>(
-                    Encoding.UTF8.GetString(Convert.FromBase64String(zbresult.Result)));
-            } 
+                Stream? zbStream = await zbclient.GetAsync($"/lol-game-data/assets/v1/items.json");
+                zBData = await zbStream.ReadAsJsonAsync<List<ZBModel>>();
+            }
             Path = zBData?.Where(p => p.id.ToString() == Key).FirstOrDefault()?.iconPath;
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"{Path}");
-            return new MemoryStream(Convert.FromBase64String(result.Result));
+            Stream? responeStream = await client.GetAsync($"{Path}");
+            if (responeStream == null) return Stream.Null;
+            return responeStream;
             //HttpClentHelper client = new HttpClentHelper();
             //var result = client.GetAsync($"/lol-game-data/assets/ASSETS/Items/Icons2D/{Key}.png");
             //return new MemoryStream(Convert.FromBase64String(result.Result));
@@ -106,43 +107,47 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static Stream GetGameZHSJNImg(String Key)
+        public static async Task<Stream> GetGameZHSJNImg(String Key)
         {
             String? Path = "";
             //先读取装备信息
-            if (jNData==null || jNData?.Count == 0)
+            if (jNData == null || jNData?.Count == 0)
             {
                 HttpClentHelper jnclient = new HttpClentHelper();
-                var jnresult = jnclient.GetAsync($"/lol-game-data/assets/v1/summoner-spells.json");
-                jNData = JsonConvert.DeserializeObject<List<JNModel>>(
-                    Encoding.UTF8.GetString(Convert.FromBase64String(jnresult.Result)));
+                Stream? jnStream = await jnclient.GetAsync($"/lol-game-data/assets/v1/summoner-spells.json");
+                jNData = await jnStream.ReadAsJsonAsync<List<JNModel>>();
             }
-            Path=jNData?.Where(p => p.id.ToString() == Key).FirstOrDefault()?.iconPath;
+            Path = jNData?.Where(p => p.id.ToString() == Key).FirstOrDefault()?.iconPath;
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"{Path}");
-            return new MemoryStream(Convert.FromBase64String(result.Result));
+            Stream? responeStream = await client.GetAsync($"{Path}");
+            if (responeStream == null) return Stream.Null;
+            return responeStream;
         }
+
         /// <summary>
         /// 获取英雄图标
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static Stream GetGameYXImg(int id)
+        public static async Task<Stream> GetGameYXImg(int id)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"/lol-game-data/assets/v1/champion-icons/{id}.png");
-            return new MemoryStream(Convert.FromBase64String(result.Result));
+            Stream? responeStream = await client.GetAsync($"/lol-game-data/assets/v1/champion-icons/{id}.png");
+            if (responeStream == null) return Stream.Null;
+            return responeStream;
         }
+
         /// <summary>
         /// 获取单场对局详情
         /// </summary>
         /// <param name="puuid"></param>
         /// <returns></returns>
-        public static GameDetailModel.GameInfo? GetGameDetail(String? gameId)
+        public static async Task<GameDetailModel.GameInfo?> GetGameDetail(String? gameId)
         {
             HttpClentHelper client = new HttpClentHelper();
-            var result = client.GetAsync($"/lol-match-history/v1/games/{gameId}");
-            return JsonConvert.DeserializeObject<GameDetailModel.GameInfo>(Encoding.UTF8.GetString(Convert.FromBase64String(result.Result)));
+            Stream? responeStream = await client.GetAsync($"/lol-match-history/v1/games/{gameId}");
+            if (responeStream == null) return null;
+            return await responeStream.ReadAsJsonAsync<GameDetailModel.GameInfo>();
         }
     }
 }
