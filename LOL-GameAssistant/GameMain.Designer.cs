@@ -28,10 +28,11 @@
         /// </summary>
         private void InitializeComponent()
         {
-            AntdUI.Tabs.StyleLine styleLine2 = new AntdUI.Tabs.StyleLine();
+            AntdUI.Tabs.StyleLine styleLine1 = new AntdUI.Tabs.StyleLine();
             tabs1 = new AntdUI.Tabs();
             tabPage1 = new AntdUI.TabPage();
             gridPanel1 = new AntdUI.GridPanel();
+            game_count = new AntdUI.InputNumber();
             splitter1 = new AntdUI.Splitter();
             game_sjend = new AntdUI.Label();
             game_lhp_loss = new AntdUI.Label();
@@ -52,6 +53,7 @@
             divider4 = new AntdUI.Divider();
             divider3 = new AntdUI.Divider();
             divider2 = new AntdUI.Divider();
+            game_pagin = new AntdUI.Pagination();
             stackPanel1 = new AntdUI.StackPanel();
             play_next = new AntdUI.Label();
             play_dj = new AntdUI.Label();
@@ -69,7 +71,6 @@
             tabPage4 = new AntdUI.TabPage();
             tabPage5 = new AntdUI.TabPage();
             HeadContent = new AntdUI.PageHeader();
-            game_count = new AntdUI.InputNumber();
             tabs1.SuspendLayout();
             tabPage1.SuspendLayout();
             gridPanel1.SuspendLayout();
@@ -97,7 +98,7 @@
             tabs1.Pages.Add(tabPage4);
             tabs1.Pages.Add(tabPage5);
             tabs1.Size = new Size(1131, 699);
-            tabs1.Style = styleLine2;
+            tabs1.Style = styleLine1;
             tabs1.TabIndex = 2;
             tabs1.Text = "tabs1";
             // 
@@ -134,6 +135,16 @@
             gridPanel1.TabIndex = 0;
             gridPanel1.Text = "gridPanel1";
             // 
+            // game_count
+            // 
+            game_count.Location = new Point(892, 42);
+            game_count.Name = "game_count";
+            game_count.PlaceholderText = "查询条数";
+            game_count.Size = new Size(125, 45);
+            game_count.TabIndex = 12;
+            game_count.Text = "5";
+            game_count.Value = new decimal(new int[] { 5, 0, 0, 0 });
+            // 
             // splitter1
             // 
             splitter1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
@@ -164,6 +175,7 @@
             // 
             // splitter1.Panel2
             // 
+            splitter1.Panel2.Controls.Add(game_pagin);
             splitter1.Panel2.Controls.Add(stackPanel1);
             splitter1.Size = new Size(1107, 521);
             splitter1.SplitterDistance = 367;
@@ -374,13 +386,22 @@
             divider2.TabIndex = 0;
             divider2.Text = "单双排";
             // 
+            // game_pagin
+            // 
+            game_pagin.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            game_pagin.Location = new Point(3, 5);
+            game_pagin.Name = "game_pagin";
+            game_pagin.Size = new Size(730, 28);
+            game_pagin.TabIndex = 12;
+            game_pagin.ValueChanged += game_pagin_ValueChanged;
+            // 
             // stackPanel1
             // 
+            stackPanel1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             stackPanel1.AutoScroll = true;
-            stackPanel1.Dock = DockStyle.Fill;
-            stackPanel1.Location = new Point(0, 0);
+            stackPanel1.Location = new Point(0, 37);
             stackPanel1.Name = "stackPanel1";
-            stackPanel1.Size = new Size(736, 521);
+            stackPanel1.Size = new Size(736, 484);
             stackPanel1.TabIndex = 11;
             stackPanel1.Text = "stackPanel1";
             stackPanel1.Vertical = true;
@@ -544,14 +565,6 @@
             HeadContent.TabIndex = 1;
             HeadContent.Text = "sc";
             // 
-            // game_count
-            // 
-            game_count.Location = new Point(892, 42);
-            game_count.Name = "game_count";
-            game_count.PlaceholderText = "查询条数";
-            game_count.Size = new Size(125, 45);
-            game_count.TabIndex = 12;
-            // 
             // GameMain
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
@@ -619,5 +632,6 @@
         private AntdUI.Label game_lhp_win;
         private AntdUI.Label game_lhp_sl;
         private AntdUI.InputNumber game_count;
+        private AntdUI.Pagination game_pagin;
     }
 }
