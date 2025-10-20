@@ -30,6 +30,20 @@
         {
             AntdUI.Tabs.StyleLine styleLine1 = new AntdUI.Tabs.StyleLine();
             tabs1 = new AntdUI.Tabs();
+            tabPage5 = new AntdUI.TabPage();
+            gridPanel2 = new AntdUI.GridPanel();
+            inputNumber1 = new AntdUI.InputNumber();
+            label5 = new AntdUI.Label();
+            setting_select_jyx = new AntdUI.SelectMultiple();
+            setting_select_xyx = new AntdUI.SelectMultiple();
+            swi_xyx = new AntdUI.Switch();
+            swi_jyyx = new AntdUI.Switch();
+            swi_gametrue = new AntdUI.Switch();
+            swi_open = new AntdUI.Switch();
+            label4 = new AntdUI.Label();
+            label3 = new AntdUI.Label();
+            label2 = new AntdUI.Label();
+            label1 = new AntdUI.Label();
             tabPage1 = new AntdUI.TabPage();
             gridPanel1 = new AntdUI.GridPanel();
             game_count = new AntdUI.InputNumber();
@@ -68,10 +82,14 @@
             divider1 = new AntdUI.Divider();
             tabPage2 = new AntdUI.TabPage();
             tabPage3 = new AntdUI.TabPage();
+            splitter2 = new AntdUI.Splitter();
+            stack1 = new AntdUI.StackPanel();
+            stack2 = new AntdUI.StackPanel();
             tabPage4 = new AntdUI.TabPage();
-            tabPage5 = new AntdUI.TabPage();
             HeadContent = new AntdUI.PageHeader();
             tabs1.SuspendLayout();
+            tabPage5.SuspendLayout();
+            gridPanel2.SuspendLayout();
             tabPage1.SuspendLayout();
             gridPanel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)splitter1).BeginInit();
@@ -80,16 +98,21 @@
             splitter1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pic_lhp).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pic_dsp).BeginInit();
+            tabPage3.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)splitter2).BeginInit();
+            splitter2.Panel1.SuspendLayout();
+            splitter2.Panel2.SuspendLayout();
+            splitter2.SuspendLayout();
             SuspendLayout();
             // 
             // tabs1
             // 
             tabs1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            tabs1.Controls.Add(tabPage5);
             tabs1.Controls.Add(tabPage1);
             tabs1.Controls.Add(tabPage2);
             tabs1.Controls.Add(tabPage3);
             tabs1.Controls.Add(tabPage4);
-            tabs1.Controls.Add(tabPage5);
             tabs1.Location = new Point(0, 35);
             tabs1.Name = "tabs1";
             tabs1.Pages.Add(tabPage1);
@@ -97,10 +120,159 @@
             tabs1.Pages.Add(tabPage3);
             tabs1.Pages.Add(tabPage4);
             tabs1.Pages.Add(tabPage5);
+            tabs1.SelectedIndex = 4;
             tabs1.Size = new Size(1131, 699);
             tabs1.Style = styleLine1;
             tabs1.TabIndex = 2;
             tabs1.Text = "tabs1";
+            // 
+            // tabPage5
+            // 
+            tabPage5.Controls.Add(gridPanel2);
+            tabPage5.Dock = DockStyle.Fill;
+            tabPage5.Location = new Point(0, 30);
+            tabPage5.Name = "tabPage5";
+            tabPage5.Size = new Size(1131, 669);
+            tabPage5.TabIndex = 4;
+            tabPage5.Text = "设置";
+            // 
+            // gridPanel2
+            // 
+            gridPanel2.Controls.Add(inputNumber1);
+            gridPanel2.Controls.Add(label5);
+            gridPanel2.Controls.Add(setting_select_jyx);
+            gridPanel2.Controls.Add(setting_select_xyx);
+            gridPanel2.Controls.Add(swi_xyx);
+            gridPanel2.Controls.Add(swi_jyyx);
+            gridPanel2.Controls.Add(swi_gametrue);
+            gridPanel2.Controls.Add(swi_open);
+            gridPanel2.Controls.Add(label4);
+            gridPanel2.Controls.Add(label3);
+            gridPanel2.Controls.Add(label2);
+            gridPanel2.Controls.Add(label1);
+            gridPanel2.Dock = DockStyle.Fill;
+            gridPanel2.Location = new Point(0, 0);
+            gridPanel2.Name = "gridPanel2";
+            gridPanel2.Size = new Size(1131, 669);
+            gridPanel2.Span = "";
+            gridPanel2.TabIndex = 0;
+            gridPanel2.Text = "gridPanel2";
+            // 
+            // inputNumber1
+            // 
+            inputNumber1.Location = new Point(125, 280);
+            inputNumber1.Name = "inputNumber1";
+            inputNumber1.Size = new Size(115, 42);
+            inputNumber1.TabIndex = 13;
+            inputNumber1.Text = "0";
+            // 
+            // label5
+            // 
+            label5.Location = new Point(19, 280);
+            label5.Name = "label5";
+            label5.Size = new Size(114, 42);
+            label5.TabIndex = 12;
+            label5.Text = "定时检查时间(秒)";
+            // 
+            // setting_select_jyx
+            // 
+            setting_select_jyx.AllowClear = true;
+            setting_select_jyx.AllowDrop = true;
+            setting_select_jyx.AutoHeight = true;
+            setting_select_jyx.CheckMode = true;
+            setting_select_jyx.DropDownArrow = true;
+            setting_select_jyx.Empty = true;
+            setting_select_jyx.List = true;
+            setting_select_jyx.Location = new Point(237, 144);
+            setting_select_jyx.MaxCount = 10;
+            setting_select_jyx.MinimumSize = new Size(0, 50);
+            setting_select_jyx.Multiline = true;
+            setting_select_jyx.Name = "setting_select_jyx";
+            setting_select_jyx.PlaceholderText = "下拉选择英雄";
+            setting_select_jyx.Size = new Size(862, 50);
+            setting_select_jyx.TabIndex = 11;
+            // 
+            // setting_select_xyx
+            // 
+            setting_select_xyx.AllowClear = true;
+            setting_select_xyx.AutoHeight = true;
+            setting_select_xyx.CheckMode = true;
+            setting_select_xyx.Location = new Point(237, 219);
+            setting_select_xyx.MaxCount = 10;
+            setting_select_xyx.MinimumSize = new Size(0, 50);
+            setting_select_xyx.Multiline = true;
+            setting_select_xyx.Name = "setting_select_xyx";
+            setting_select_xyx.PlaceholderText = "下拉选择英雄";
+            setting_select_xyx.Size = new Size(862, 50);
+            setting_select_xyx.TabIndex = 10;
+            // 
+            // swi_xyx
+            // 
+            swi_xyx.CheckedText = "true";
+            swi_xyx.Location = new Point(125, 220);
+            swi_xyx.Name = "swi_xyx";
+            swi_xyx.Size = new Size(91, 42);
+            swi_xyx.TabIndex = 8;
+            swi_xyx.Text = "switch4";
+            // 
+            // swi_jyyx
+            // 
+            swi_jyyx.CheckedText = "true";
+            swi_jyyx.Location = new Point(125, 145);
+            swi_jyyx.Name = "swi_jyyx";
+            swi_jyyx.Size = new Size(91, 42);
+            swi_jyyx.TabIndex = 7;
+            swi_jyyx.Text = "switch3";
+            // 
+            // swi_gametrue
+            // 
+            swi_gametrue.CheckedText = "true";
+            swi_gametrue.Location = new Point(125, 84);
+            swi_gametrue.Name = "swi_gametrue";
+            swi_gametrue.Size = new Size(91, 42);
+            swi_gametrue.TabIndex = 6;
+            swi_gametrue.Text = "switch2";
+            // 
+            // swi_open
+            // 
+            swi_open.CheckedText = "true";
+            swi_open.Location = new Point(125, 26);
+            swi_open.Name = "swi_open";
+            swi_open.Size = new Size(91, 42);
+            swi_open.TabIndex = 5;
+            swi_open.Text = "switch1";
+            // 
+            // label4
+            // 
+            label4.Location = new Point(19, 219);
+            label4.Name = "label4";
+            label4.Size = new Size(100, 42);
+            label4.TabIndex = 3;
+            label4.Text = "自动选英雄：";
+            // 
+            // label3
+            // 
+            label3.Location = new Point(19, 145);
+            label3.Name = "label3";
+            label3.Size = new Size(100, 42);
+            label3.TabIndex = 2;
+            label3.Text = "自动禁英雄：";
+            // 
+            // label2
+            // 
+            label2.Location = new Point(22, 84);
+            label2.Name = "label2";
+            label2.Size = new Size(97, 42);
+            label2.TabIndex = 1;
+            label2.Text = "自动接受对局：";
+            // 
+            // label1
+            // 
+            label1.Location = new Point(22, 26);
+            label1.Name = "label1";
+            label1.Size = new Size(97, 42);
+            label1.TabIndex = 0;
+            label1.Text = "自动匹配对局：";
             // 
             // tabPage1
             // 
@@ -529,12 +701,48 @@
             // 
             // tabPage3
             // 
+            tabPage3.Controls.Add(splitter2);
             tabPage3.Dock = DockStyle.Fill;
             tabPage3.Location = new Point(0, 30);
             tabPage3.Name = "tabPage3";
             tabPage3.Size = new Size(1131, 669);
             tabPage3.TabIndex = 2;
             tabPage3.Text = "战绩查询";
+            // 
+            // splitter2
+            // 
+            splitter2.Dock = DockStyle.Fill;
+            splitter2.Location = new Point(0, 0);
+            splitter2.Name = "splitter2";
+            // 
+            // splitter2.Panel1
+            // 
+            splitter2.Panel1.Controls.Add(stack1);
+            // 
+            // splitter2.Panel2
+            // 
+            splitter2.Panel2.Controls.Add(stack2);
+            splitter2.Size = new Size(1131, 669);
+            splitter2.SplitterDistance = 545;
+            splitter2.TabIndex = 0;
+            // 
+            // stack1
+            // 
+            stack1.Dock = DockStyle.Fill;
+            stack1.Location = new Point(0, 0);
+            stack1.Name = "stack1";
+            stack1.Size = new Size(545, 669);
+            stack1.TabIndex = 0;
+            stack1.Text = "stackPanel2";
+            // 
+            // stack2
+            // 
+            stack2.Dock = DockStyle.Fill;
+            stack2.Location = new Point(0, 0);
+            stack2.Name = "stack2";
+            stack2.Size = new Size(582, 669);
+            stack2.TabIndex = 0;
+            stack2.Text = "stackPanel3";
             // 
             // tabPage4
             // 
@@ -544,15 +752,6 @@
             tabPage4.Size = new Size(1131, 669);
             tabPage4.TabIndex = 3;
             tabPage4.Text = "关于";
-            // 
-            // tabPage5
-            // 
-            tabPage5.Dock = DockStyle.Fill;
-            tabPage5.Location = new Point(0, 30);
-            tabPage5.Name = "tabPage5";
-            tabPage5.Size = new Size(1131, 669);
-            tabPage5.TabIndex = 4;
-            tabPage5.Text = "设置";
             // 
             // HeadContent
             // 
@@ -578,6 +777,8 @@
             Text = "Form1";
             Load += GameMain_Load;
             tabs1.ResumeLayout(false);
+            tabPage5.ResumeLayout(false);
+            gridPanel2.ResumeLayout(false);
             tabPage1.ResumeLayout(false);
             gridPanel1.ResumeLayout(false);
             splitter1.Panel1.ResumeLayout(false);
@@ -586,6 +787,11 @@
             splitter1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pic_lhp).EndInit();
             ((System.ComponentModel.ISupportInitialize)pic_dsp).EndInit();
+            tabPage3.ResumeLayout(false);
+            splitter2.Panel1.ResumeLayout(false);
+            splitter2.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)splitter2).EndInit();
+            splitter2.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -633,5 +839,21 @@
         private AntdUI.Label game_lhp_sl;
         private AntdUI.InputNumber game_count;
         private AntdUI.Pagination game_pagin;
+        private AntdUI.Splitter splitter2;
+        private AntdUI.StackPanel stack1;
+        private AntdUI.StackPanel stack2;
+        private AntdUI.GridPanel gridPanel2;
+        private AntdUI.Label label2;
+        private AntdUI.Label label1;
+        private AntdUI.Switch swi_xyx;
+        private AntdUI.Switch swi_jyyx;
+        private AntdUI.Switch swi_gametrue;
+        private AntdUI.Switch swi_open;
+        private AntdUI.Label label4;
+        private AntdUI.Label label3;
+        private AntdUI.SelectMultiple setting_select_jyx;
+        private AntdUI.SelectMultiple setting_select_xyx;
+        private AntdUI.Label label5;
+        private AntdUI.InputNumber inputNumber1;
     }
 }

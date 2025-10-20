@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.LoLApi;
 using LOL_GameAssistant.Model;
 using LOL_GameAssistant.Models;
@@ -11,6 +12,11 @@ namespace LOL_GameAssistant
     {
         public Plyaer? userinfo = new Plyaer();
 
+        private readonly System.Windows.Forms.Timer timer_open = new();
+        private readonly System.Windows.Forms.Timer timer_gametrue = new();
+        private readonly System.Windows.Forms.Timer timer_jyyx = new();
+        private readonly System.Windows.Forms.Timer timer_xyx = new();
+
         public GameMain()
         {
             InitializeComponent();
@@ -19,6 +25,57 @@ namespace LOL_GameAssistant
         public async void GameMain_Load(object sender, EventArgs e)
         {
             await LoadGame();
+
+            await LoadBase();
+
+            await LoadTimer();
+        }
+
+        /// <summary>
+        /// 加载定时器
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        private async Task LoadTimer()
+        {
+            swi_open.CheckedChanged += (s, e) =>
+            {
+                if (swi_open.Checked) timer_open.Start();
+                else timer_open.Stop();
+            };
+            swi_gametrue.CheckedChanged += (s, e) =>
+            {
+                if (swi_open.Checked) timer_gametrue.Start();
+                else timer_gametrue.Stop();
+            };
+            swi_jyyx.CheckedChanged += (s, e) =>
+            {
+                if (swi_open.Checked) timer_jyyx.Start();
+                else timer_jyyx.Stop();
+            };
+            swi_xyx.CheckedChanged += (s, e) =>
+            {
+                if (swi_open.Checked) timer_xyx.Start();
+                else timer_xyx.Stop();
+            };
+            timer_open.Interval = 10000; // 10秒
+            //timer_open.Tick += (s, e) => GetMem();
+        }
+
+        /// <summary>
+        /// 初始化基础数据
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        private async Task LoadBase()
+        {
+            // 获取所有英雄
+            var allChampions = ChampionMap.GetChampionMap();
+            for (int i = 0; i < allChampions.Count; i++)
+            {
+                this.setting_select_jyx.Items.Add(allChampions.ElementAt(i).Value.RealName);
+                this.setting_select_xyx.Items.Add(allChampions.ElementAt(i).Value.RealName);
+            }
         }
 
         /// <summary>
@@ -129,7 +186,7 @@ namespace LOL_GameAssistant
 
             // 计算分页
             int total = sortedList.Count;
-            int skip = (pageindex == 1 ? 1 : (pageindex-1) * pageSize)-1;
+            int skip = (pageindex == 1 ? 1 : (pageindex - 1) * pageSize) - 1;
             var pageList = sortedList.Skip(skip).Take(pageSize).ToList();
 
             // 加载数据到界面
@@ -310,5 +367,26 @@ namespace LOL_GameAssistant
         {
             GetGameInfo(userinfo, this.game_pagin.Current < 0 ? Convert.ToInt32(this.game_count) : this.game_pagin.Current);
         }
+
+        #region 战绩对局
+
+        /// <summary>
+        /// 加载单局游戏详情
+        /// </summary>
+        /// <param name="gameid"></param>
+        public async void game_info(string gameid)
+        {
+            if (string.IsNullOrEmpty(gameid)) return;
+            //根据表头获取明细信息
+            GameDetailModel.GameInfo? gameInfo = new GameDetailModel.GameInfo();
+            gameInfo = await Game_Api.GetGameDetail(gameid);
+            if (gameInfo == null) return;
+            //游戏数据
+            GameDetailModel.ParticipantsItem? gamer = gameInfo.participants.Where(p => p.participantId == gameInfo.participantIdentities.Where(p => p.player.puuid == userinfo.puuid).FirstOrDefault().participantId).FirstOrDefault<GameDetailModel.ParticipantsItem>();
+            if (gamer == null) return;
+            //游戏详情
+        }
+
+        #endregion 战绩对局
     }
 }
