@@ -3,6 +3,7 @@ using LOL_GameAssistant.LoLApi;
 using LOL_GameAssistant.Model;
 using LOL_GameAssistant.Models;
 using Newtonsoft.Json;
+using System.Threading.Tasks;
 using static LOL_GameAssistant.Model.LolRankedDataParser;
 using static LOL_GameAssistant.Model.PlayerModel;
 
@@ -58,9 +59,33 @@ namespace LOL_GameAssistant
                 if (swi_open.Checked) timer_xyx.Start();
                 else timer_xyx.Stop();
             };
-            timer_open.Interval = 10000; // 10秒
-            //timer_open.Tick += (s, e) => GetMem();
+            timer_open.Interval = 1000; // 1秒
+            timer_open.Tick += (s, e) => OpenGame();
+            timer_gametrue.Interval = 1000; // 1秒
+            timer_gametrue.Tick += (s, e) => GameTrue();
         }
+
+        #region 定时执行方法
+
+        /// <summary>
+        /// 自动匹配对局
+        /// </summary>
+        /// <exception cref="NotImplementedException"></exception>
+        private async Task OpenGame()
+        {
+            Game_Api.OpenGameServer();
+        }
+
+        /// <summary>
+        /// 自动接受对局
+        /// </summary>
+        /// <exception cref="NotImplementedException"></exception>
+        private void GameTrue()
+        {
+            Game_Api.GameTrueServer();
+        }
+
+        #endregion 定时执行方法
 
         /// <summary>
         /// 初始化基础数据
@@ -195,6 +220,7 @@ namespace LOL_GameAssistant
                 try
                 {
                     recordForm record = new recordForm();
+
                     record.setInfo(pageList[i], userinfo.puuid);
                     this.stackPanel1.Controls.Add(record);
                 }

@@ -149,5 +149,27 @@ namespace LOL_GameAssistant.LoLApi
             if (responeStream == null) return null;
             return await responeStream.ReadAsJsonAsync<GameDetailModel.GameInfo>();
         }
+
+        /// <summary>
+        /// 自动匹配对局
+        /// </summary>
+        /// <param name="puuid"></param>
+        /// <returns></returns>
+        public static async void OpenGameServer()
+        {
+            HttpClentHelper client = new HttpClentHelper();
+            Stream? responseStream = await client.PostAsync($"/lol-lobby/v2/lobby/matchmaking/search");
+        }
+
+        /// <summary>
+        /// 自动接受对局
+        /// </summary>
+        /// <param name="puuid"></param>
+        /// <returns></returns>
+        public static async void GameTrueServer()
+        {
+            HttpClentHelper client = new HttpClentHelper();
+            Stream? responseStream = await client.PostAsync($"/lol-matchmaking/v1/ready-check/accept");
+        }
     }
 }
