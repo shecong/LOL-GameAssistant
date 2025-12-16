@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace LOL_GameAssistant.Helper
+﻿namespace LOL_GameAssistant.Helper
 {
     public class ChampionOption
     {

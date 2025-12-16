@@ -13,29 +13,40 @@ namespace LOL_GameAssistant.LoLApi
                 Process[] processes = Process.GetProcessesByName("LeagueClientUx");
                 if (processes.Length == 0)
                 {
-                    Console.WriteLine("未找到LeagueClientUx进程");
-                    return (null, null);
+                    processes = Process.GetProcessesByName("LeagueClient");
+                    if (processes.Length == 0)
+                    {
+                        Console.WriteLine("未找到LeagueClientUx进程");
+                        return (null, null);
+                    }
                 }
 
                 // 获取第一个匹配进程的命令行参数
-                string commandLine = GetCommandLine(processes[0].Id) ?? "";
-                if (string.IsNullOrEmpty(commandLine))
+
+                for (int i = 0; i < processes.Length; i++)
                 {
-                    Console.WriteLine("无法获取进程命令行参数");
-                    return (null, null);
+                    string commandLine = GetCommandLine(processes[i].Id) ?? "";
+                    if (string.IsNullOrEmpty(commandLine))
+                    {
+                        Console.WriteLine("无法获取进程命令行参数");
+                        return (null, null);
+                    }
+
+                    // 从命令行参数中提取端口和令牌
+                    var portMatch = Regex.Match(commandLine, @"--app-port=(\d+)");
+                    var tokenMatch = Regex.Match(commandLine, @"--remoting-auth-token=([^\s""]+)");
+
+                    if (!portMatch.Success || !tokenMatch.Success)
+                    {
+                        Console.WriteLine("无法从命令行参数中解析端口和令牌");
+                        return (null, null);
+                    }
+                    if (portMatch != null && tokenMatch != null)
+                    {
+                        return (portMatch.Groups[1].Value, tokenMatch.Groups[1].Value);
+                    }
                 }
-
-                // 从命令行参数中提取端口和令牌
-                var portMatch = Regex.Match(commandLine, @"--app-port=(\d+)");
-                var tokenMatch = Regex.Match(commandLine, @"--remoting-auth-token=([^\s""]+)");
-
-                if (!portMatch.Success || !tokenMatch.Success)
-                {
-                    Console.WriteLine("无法从命令行参数中解析端口和令牌");
-                    return (null, null);
-                }
-
-                return (portMatch.Groups[1].Value, tokenMatch.Groups[1].Value);
+                return (null, null);
             }
             catch (Exception ex)
             {

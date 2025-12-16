@@ -3,7 +3,6 @@ using LOL_GameAssistant.LoLApi;
 using LOL_GameAssistant.Model;
 using LOL_GameAssistant.Models;
 using Newtonsoft.Json;
-using System.Threading.Tasks;
 using static LOL_GameAssistant.Model.LolRankedDataParser;
 using static LOL_GameAssistant.Model.PlayerModel;
 
@@ -46,17 +45,17 @@ namespace LOL_GameAssistant
             };
             swi_gametrue.CheckedChanged += (s, e) =>
             {
-                if (swi_open.Checked) timer_gametrue.Start();
+                if (swi_gametrue.Checked) timer_gametrue.Start();
                 else timer_gametrue.Stop();
             };
             swi_jyyx.CheckedChanged += (s, e) =>
             {
-                if (swi_open.Checked) timer_jyyx.Start();
+                if (swi_jyyx.Checked) timer_jyyx.Start();
                 else timer_jyyx.Stop();
             };
             swi_xyx.CheckedChanged += (s, e) =>
             {
-                if (swi_open.Checked) timer_xyx.Start();
+                if (swi_xyx.Checked) timer_xyx.Start();
                 else timer_xyx.Stop();
             };
             timer_open.Interval = 1000; // 1秒
@@ -71,7 +70,7 @@ namespace LOL_GameAssistant
         /// 自动匹配对局
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        private async Task OpenGame()
+        private void OpenGame()
         {
             Game_Api.OpenGameServer();
         }
@@ -110,6 +109,7 @@ namespace LOL_GameAssistant
         private async Task LoadGame()
         {
             //获取客户端登陆
+            //(string? token, string? port) = LeagueAuthHelper.GetAuth();
             (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
             if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
             {
@@ -372,6 +372,16 @@ namespace LOL_GameAssistant
                 default:
                     return "无段位";
             }
+        }
+
+        /// <summary>
+        /// 重置按钮
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btn_back_Click(object sender, EventArgs e)
+        {
+            await LoadGame();
         }
 
         /// <summary>

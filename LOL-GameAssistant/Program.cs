@@ -1,3 +1,7 @@
+using LOL_GameAssistant.Helper;
+using System.Diagnostics;
+using System.Security.Principal;
+
 namespace LOL_GameAssistant
 {
     internal static class Program
@@ -25,8 +29,36 @@ namespace LOL_GameAssistant
             log4net.Config.XmlConfigurator.Configure();
 
             ApplicationConfiguration.Initialize();
-            GameMain = new GameMain();
-            Application.Run(GameMain);
+
+            //获得当前登录的Windows用户标示
+            WindowsIdentity identity = WindowsIdentity.GetCurrent();
+            WindowsPrincipal principal = new WindowsPrincipal(identity);
+            //判断当前登录用户是否为管理员
+            if (principal.IsInRole(WindowsBuiltInRole.Administrator))
+            {
+                //如果是管理员，则直接运行
+                Application.Run(new GameMain());
+            }
+            else
+            {
+                //创建启动对象
+                ProcessStartInfo startInfo = new ProcessStartInfo();
+                startInfo.UseShellExecute = true;
+                startInfo.WorkingDirectory = Environment.CurrentDirectory;
+                startInfo.FileName = Application.ExecutablePath;
+                //设置启动动作,确保以管理员身份运行
+                startInfo.Verb = "runas";
+                try
+                {
+                    Process.Start(startInfo);
+                }
+                catch
+                {
+                    return;
+                }
+                //退出
+                Application.Exit();
+            }
         }
 
         // UI线程异常处理
