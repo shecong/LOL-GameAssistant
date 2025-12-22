@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant.Model
+﻿namespace LOL_GameAssistant.Entity
 {
     public class PlayerModel
     {

@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace LOL_GameAssistant.Models
+namespace LOL_GameAssistant.Entity
 {
     public class GameDetailModel
     {

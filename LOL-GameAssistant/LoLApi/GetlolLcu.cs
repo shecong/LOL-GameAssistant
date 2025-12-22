@@ -1,10 +1,14 @@
 ﻿using System.Diagnostics;
+using System.Management;
 using System.Text.RegularExpressions;
+using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
 
 namespace LOL_GameAssistant.LoLApi
 {
     public static class GetlolLcu
     {
+        public static IInfoMsgForm? _infoMsgForm;
+
         public static (string? port, string? token) GetlolLcuCmd()
         {
             try
@@ -17,18 +21,19 @@ namespace LOL_GameAssistant.LoLApi
                     if (processes.Length == 0)
                     {
                         Console.WriteLine("未找到LeagueClientUx进程");
+                        _infoMsgForm?.AddMsg("未找到LeagueClientUx进程");
                         return (null, null);
                     }
                 }
 
                 // 获取第一个匹配进程的命令行参数
-
                 for (int i = 0; i < processes.Length; i++)
                 {
-                    string commandLine = GetCommandLine(processes[i].Id) ?? "";
+                    string commandLine = GetCommandLineUsingWmi(processes[i].Id) ?? "";
                     if (string.IsNullOrEmpty(commandLine))
                     {
                         Console.WriteLine("无法获取进程命令行参数");
+                        _infoMsgForm?.AddMsg("无法获取进程命令行参数");
                         return (null, null);
                     }
 
@@ -39,6 +44,7 @@ namespace LOL_GameAssistant.LoLApi
                     if (!portMatch.Success || !tokenMatch.Success)
                     {
                         Console.WriteLine("无法从命令行参数中解析端口和令牌");
+                        _infoMsgForm?.AddMsg("无法从命令行参数中解析端口和令牌");
                         return (null, null);
                     }
                     if (portMatch != null && tokenMatch != null)
@@ -51,36 +57,26 @@ namespace LOL_GameAssistant.LoLApi
             catch (Exception ex)
             {
                 Console.WriteLine($"获取认证信息时出错: {ex.Message}");
+                _infoMsgForm?.AddMsg($"获取认证信息时出错: {ex.Message}");
                 return (null, null);
             }
         }
 
-        // 获取进程命令行参数的辅助方法
-        private static string? GetCommandLine(int processId)
+        public static string? GetCommandLineUsingWmi(int processId)
         {
-            try
+            string query = $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}";
+
+            using (var searcher = new ManagementObjectSearcher(query))
             {
-                using (var process = new Process())
+                using (var results = searcher.Get())
                 {
-                    process.StartInfo.FileName = "wmic";
-                    process.StartInfo.Arguments = $"process where ProcessId={processId} get CommandLine /value";
-                    process.StartInfo.UseShellExecute = false;
-                    process.StartInfo.RedirectStandardOutput = true;
-                    process.StartInfo.CreateNoWindow = true;
-                    process.Start();
-
-                    string output = process.StandardOutput.ReadToEnd();
-                    process.WaitForExit();
-
-                    // 解析输出获取命令行
-                    var match = Regex.Match(output, @"CommandLine=([^\r\n]+)");
-                    return match.Success ? match.Groups[1].Value : null;
+                    foreach (ManagementObject obj in results)
+                    {
+                        return obj["CommandLine"]?.ToString();
+                    }
                 }
             }
-            catch
-            {
-                return null;
-            }
+            return null;
         }
     }
 }

@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace LOL_GameAssistant.Model
+namespace LOL_GameAssistant.Entity
 {
     /// <summary>
     /// 英雄联盟排位赛数据解析类

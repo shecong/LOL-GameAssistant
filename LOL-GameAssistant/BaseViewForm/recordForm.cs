@@ -1,8 +1,8 @@
 ﻿using LOL_GameAssistant.LoLApi;
-using LOL_GameAssistant.Models;
+using LOL_GameAssistant.Entity;
 using System.Data;
 
-namespace LOL_GameAssistant
+namespace LOL_GameAssistant.BaseViewForm
 {
     public partial class recordForm : UserControl
     {

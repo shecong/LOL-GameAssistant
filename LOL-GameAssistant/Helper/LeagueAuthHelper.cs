@@ -231,39 +231,5 @@ namespace LOL_GameAssistant.Helper
 
             return (remotingAuthToken, appPort);
         }
-
-        /// <summary>
-        /// 替代方案：通过WMI获取命令行（不需要特殊权限）
-        /// </summary>
-        public static (string remotingAuthToken, string appPort) GetAuthViaWMI()
-        {
-            try
-            {
-                using (var searcher = new ManagementObjectSearcher("SELECT CommandLine, ProcessId FROM Win32_Process WHERE Name = 'LeagueClientUx.exe'"))
-                using (var results = searcher.Get())
-                {
-                    foreach (ManagementObject obj in results)
-                    {
-                        string commandLine = obj["CommandLine"]?.ToString();
-                        if (!string.IsNullOrEmpty(commandLine))
-                        {
-                            try
-                            {
-                                return AuthResolver(commandLine);
-                            }
-                            catch
-                            {
-                                // 继续尝试下一个进程
-                            }
-                        }
-                    }
-                }
-                throw new InvalidOperationException("未找到有效的英雄联盟客户端进程");
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"WMI查询失败: {ex.Message}");
-            }
-        }
     }
 }

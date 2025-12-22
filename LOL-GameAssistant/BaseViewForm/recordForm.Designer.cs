@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant
+﻿namespace LOL_GameAssistant.BaseViewForm
 {
     partial class recordForm
     {

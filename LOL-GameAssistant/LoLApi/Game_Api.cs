@@ -1,14 +1,20 @@
 ﻿using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.Model;
-using LOL_GameAssistant.Models;
+using LOL_GameAssistant.Entity;
 
 namespace LOL_GameAssistant.LoLApi
 {
     public static class Game_Api
     {
+        /// <summary>
+        /// 游戏版本号
+        /// </summary>
         public static string gameversion = "15.19.1";
 
+        /// <summary>
+        /// 装备信息
+        /// </summary>
         public static List<ZBModel>? zBData = new List<ZBModel>();
+
         public static List<JNModel>? jNData = new List<JNModel>();
 
         /// <summary>

@@ -1,12 +1,16 @@
 using LOL_GameAssistant.Helper;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
+using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
 
 namespace LOL_GameAssistant
 {
     internal static class Program
     {
-        public static Form GameMain { get; private set; } = null!;
+        public static GameMain GameMain { get; private set; } = new GameMain();
+
+        private static IInfoMsgForm? _infoMsgForm;
 
         /// <summary>
         ///  The main entry point for the application.
@@ -14,19 +18,15 @@ namespace LOL_GameAssistant
         [STAThread]
         private static void Main()
         {
-            if (Environment.OSVersion.Version >= new Version(6, 3))
-            {
-                //Application.SetHighDpiMode(HighDpiMode.SystemAware);
-                // 或者使用 PerMonitorV2，这是目前最好的模式
-                Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
-            }
+            // 设置 DPI 感知模式（必须放在程序启动最开始）
+            //SetProcessDPIAware(); // Windows 7/8
+            // 或者使用以下方式（推荐）：
+            SetProcessDpiAwareness(_Process_DPI_Awareness.Process_Per_Monitor_DPI_Aware);
 
             // 设置全局异常处理
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += Application_ThreadException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
-
-            log4net.Config.XmlConfigurator.Configure();
 
             ApplicationConfiguration.Initialize();
 
@@ -37,7 +37,7 @@ namespace LOL_GameAssistant
             if (principal.IsInRole(WindowsBuiltInRole.Administrator))
             {
                 //如果是管理员，则直接运行
-                Application.Run(new GameMain());
+                Application.Run(GameMain);
             }
             else
             {
@@ -66,9 +66,7 @@ namespace LOL_GameAssistant
         {
             HandleException(e.Exception);
 
-            log4net.ILog log = log4net.LogManager.GetLogger("testApp.Logging");//获取一个日志记录器
-
-            log.Error(DateTime.Now.ToString() + e.Exception);//写入一条新log
+            GameMain.infoMsg.AddMsg($"{e.Exception}");
         }
 
         // 非UI线程异常处理
@@ -77,8 +75,7 @@ namespace LOL_GameAssistant
             if (e.ExceptionObject is Exception ex)
             {
                 HandleException(ex);
-                log4net.ILog log = log4net.LogManager.GetLogger("testApp.Logging");//获取一个日志记录器
-                log.Error(DateTime.Now.ToString() + ex);//写入一条新log
+                GameMain.infoMsg.AddMsg($"{ex}");
             }
         }
 
@@ -91,8 +88,23 @@ namespace LOL_GameAssistant
             // 显示友好错误信息
             AntdUI.Message.error(GameMain, $"程序发生错误: {ex.Message}\n请查看日志文件获取详细信息。");
 
+            GameMain.infoMsg.AddMsg($"{ex.Message}");
             // 可以选择是否退出应用
             // Application.Exit();
+        }
+
+        // DPI 感知 API
+        [DllImport("user32.dll")]
+        private static extern bool SetProcessDPIAware();
+
+        [DllImport("shcore.dll")]
+        private static extern int SetProcessDpiAwareness(_Process_DPI_Awareness value);
+
+        private enum _Process_DPI_Awareness
+        {
+            Process_DPI_Unaware = 0,
+            Process_System_DPI_Aware = 1,
+            Process_Per_Monitor_DPI_Aware = 2
         }
     }
 }

@@ -1,6 +1,9 @@
-﻿namespace LOL_GameAssistant.Model
+﻿namespace LOL_GameAssistant.Entity
 {
-    public class JNModel
+    /// <summary>
+    /// 装备信息
+    /// </summary>
+    public class ZBModel
     {
         public String id { get; set; }
         public String name { get; set; }
