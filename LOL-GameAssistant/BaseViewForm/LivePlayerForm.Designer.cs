@@ -28,17 +28,33 @@
         /// </summary>
         private void InitializeComponent()
         {
+            gridPanel1 = new AntdUI.GridPanel();
+            backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             SuspendLayout();
+            // 
+            // gridPanel1
+            // 
+            gridPanel1.Dock = DockStyle.Fill;
+            gridPanel1.Location = new Point(0, 0);
+            gridPanel1.Name = "gridPanel1";
+            gridPanel1.Size = new Size(588, 237);
+            gridPanel1.Span = "50% 50%;50% 50%;50% 50%;50% 50%;50% 50%";
+            gridPanel1.TabIndex = 0;
+            gridPanel1.Text = "gridPanel1";
             // 
             // LivePlayerForm
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
+            Controls.Add(gridPanel1);
             Name = "LivePlayerForm";
-            Size = new Size(577, 212);
+            Size = new Size(588, 237);
             ResumeLayout(false);
         }
 
         #endregion
+
+        private AntdUI.GridPanel gridPanel1;
+        private System.ComponentModel.BackgroundWorker backgroundWorker1;
     }
 }

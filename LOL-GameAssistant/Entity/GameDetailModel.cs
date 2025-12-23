@@ -21,7 +21,7 @@ namespace LOL_GameAssistant.Entity
             public int currentAccountId { get; set; }
 
             /// <summary>
-            /// 当前平台ID，例如 "HN1" 代表诺克萨斯服务器。
+            /// 当前平台ID，例如 "HN1" 代表韩服服务器。
             /// </summary>
             public string currentPlatformId { get; set; }
 
@@ -926,7 +926,8 @@ namespace LOL_GameAssistant.Entity
                     "KINGPORO" => "嗨皮魄罗娱乐模式",
                     "SIEGE" => "攻城战",
                     "DOOMBOTSTEEMO" => "末日人机",
-                    _ => _gameMode
+                    "KIWI" => "海克斯大乱斗",
+                    _ => "未知模式"
                 };
                 set => _gameMode = value;
             }
@@ -966,10 +967,26 @@ namespace LOL_GameAssistant.Entity
             /// </summary>
             public string platformId { get; set; }
 
-            /// <summary>
+            public string _queueId { get; set; }
+
+            /// <sum mary>
             /// 游戏队列ID，用于区分不同的游戏模式（如排位、匹配等）。
             /// </summary>
-            public int queueId { get; set; }
+            public string queueId
+            {
+                get => _queueId switch
+                {
+                    "420" => "单双排",
+                    "440" => "灵活组排",
+                    "430" => "匹配模式",
+                    "400" => "人机模式",
+                    "450" => "极地大乱斗",
+                    "700" => "冠军杯赛",
+                    "2400" => "海克斯大乱斗",
+                    _ => "其他"
+                };
+                set => _queueId = value;
+            }
 
             /// <summary>
             /// 赛季ID。

@@ -38,6 +38,8 @@ namespace LOL_GameAssistant
             tab0_grid1.Controls.Add(home);
 
             //加载对局
+            tab1_grid1.Controls.Clear();
+            tab1_grid1.Controls.Add(new LiveGameForm());
             //加载战绩查询
             //关于
             //加载设置

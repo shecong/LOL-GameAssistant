@@ -28,17 +28,31 @@
         /// </summary>
         private void InitializeComponent()
         {
+            gridPanel1 = new AntdUI.GridPanel();
             SuspendLayout();
+            // 
+            // gridPanel1
+            // 
+            gridPanel1.Dock = DockStyle.Fill;
+            gridPanel1.Location = new Point(0, 0);
+            gridPanel1.Name = "gridPanel1";
+            gridPanel1.Size = new Size(1331, 830);
+            gridPanel1.Span = "";
+            gridPanel1.TabIndex = 0;
+            gridPanel1.Text = "gridPanel1";
             // 
             // LiveGameForm
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
+            Controls.Add(gridPanel1);
             Name = "LiveGameForm";
             Size = new Size(1331, 830);
             ResumeLayout(false);
         }
 
         #endregion
+
+        private AntdUI.GridPanel gridPanel1;
     }
 }

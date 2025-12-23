@@ -177,5 +177,18 @@ namespace LOL_GameAssistant.LoLApi
             HttpClentHelper client = new HttpClentHelper();
             Stream? responseStream = await client.PostAsync($"/lol-matchmaking/v1/ready-check/accept");
         }
+
+        /// <summary>
+        /// 获取对局实时信息
+        /// </summary>
+        /// <param name="puuid"></param>
+        /// <returns></returns>
+        public static async Task<LobbyGameInfo?> GameNowServer()
+        {
+            HttpClentHelper client = new HttpClentHelper();
+            Stream? responseStream = await client.GetAsync($"/lol-lobby/v2/lobby");
+            if (responseStream == null) return null;
+            return await responseStream.ReadAsJsonAsync<LobbyGameInfo>();
+        }
     }
 }

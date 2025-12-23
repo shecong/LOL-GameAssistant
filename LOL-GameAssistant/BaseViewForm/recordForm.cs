@@ -9,6 +9,7 @@ namespace LOL_GameAssistant.BaseViewForm
         public recordForm()
         {
             InitializeComponent();
+            AttachDoubleClickToAllControls(this);
         }
 
         private void recordForm_Load(object sender, EventArgs e)
@@ -31,10 +32,11 @@ namespace LOL_GameAssistant.BaseViewForm
             if (gamer == null) return;
 
             //游戏详情
+            this.BackColor = gamer.stats.win == "true" ? System.Drawing.Color.FromArgb(225, 245, 233) : System.Drawing.Color.FromArgb(254, 235, 234);
             //头像
             this.game_pic.Image = Image.FromStream(await Game_Api.GetGameYXImg(gamer.championId));
             this.game_win.Text = gamer.stats.win == "true" ? "胜利" : "失败";
-            this.game_type.Text = gameInfo.gameMode;
+            this.game_type.Text = gameInfo.queueId;
             this.game_time.Text = gameInfo.gameCreationDate.Substring(0, 10);
             this.game_dj.Text = Convert.ToString(gamer.stats.champLevel);
             this.game_name.Text = gameInfo.participantIdentities.Where(p => p.player.puuid == puuid).FirstOrDefault().player.gameName;
@@ -49,6 +51,24 @@ namespace LOL_GameAssistant.BaseViewForm
             this.pic_5.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item4.ToString()));
             this.pic_6.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item5.ToString()));
             this.pic_7.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item6.ToString()));
+        }
+
+        private void AttachDoubleClickToAllControls(Control parent)
+        {
+            // 为父控件本身添加双击事件
+            parent.DoubleClick += FormOrControl_DoubleClick;
+
+            // 递归为所有子控件添加双击事件
+            foreach (Control child in parent.Controls)
+            {
+                AttachDoubleClickToAllControls(child);
+            }
+        }
+
+        private void FormOrControl_DoubleClick(object sender, EventArgs e)
+        {
+            //双击查看详情
+            AntdUI.Message.warn(ParentForm!, "敬请期待！");
         }
     }
 }

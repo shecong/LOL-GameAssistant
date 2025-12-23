@@ -30,11 +30,9 @@
         {
             AntdUI.Tabs.StyleLine styleLine1 = new AntdUI.Tabs.StyleLine();
             tabs1 = new AntdUI.Tabs();
-            tabPage5 = new AntdUI.TabPage();
-            tabPage6 = new AntdUI.TabPage();
-            tab5_grid1 = new AntdUI.GridPanel();
             tabPage1 = new AntdUI.TabPage();
             tab0_grid1 = new AntdUI.GridPanel();
+            tabPage5 = new AntdUI.TabPage();
             tabPage2 = new AntdUI.TabPage();
             tab1_grid1 = new AntdUI.GridPanel();
             tabPage3 = new AntdUI.TabPage();
@@ -42,9 +40,10 @@
             stack1 = new AntdUI.StackPanel();
             stack2 = new AntdUI.StackPanel();
             tabPage4 = new AntdUI.TabPage();
+            tabPage6 = new AntdUI.TabPage();
+            tab5_grid1 = new AntdUI.GridPanel();
             HeadContent = new AntdUI.PageHeader();
             tabs1.SuspendLayout();
-            tabPage6.SuspendLayout();
             tabPage1.SuspendLayout();
             tabPage2.SuspendLayout();
             tabPage3.SuspendLayout();
@@ -52,16 +51,17 @@
             splitter2.Panel1.SuspendLayout();
             splitter2.Panel2.SuspendLayout();
             splitter2.SuspendLayout();
+            tabPage6.SuspendLayout();
             SuspendLayout();
             // 
             // tabs1
             // 
             tabs1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            tabs1.Controls.Add(tabPage1);
-            tabs1.Controls.Add(tabPage5);
             tabs1.Controls.Add(tabPage2);
+            tabs1.Controls.Add(tabPage1);
             tabs1.Controls.Add(tabPage3);
             tabs1.Controls.Add(tabPage4);
+            tabs1.Controls.Add(tabPage5);
             tabs1.Controls.Add(tabPage6);
             tabs1.Location = new Point(0, 35);
             tabs1.Name = "tabs1";
@@ -71,39 +71,11 @@
             tabs1.Pages.Add(tabPage4);
             tabs1.Pages.Add(tabPage5);
             tabs1.Pages.Add(tabPage6);
+            tabs1.SelectedIndex = 1;
             tabs1.Size = new Size(1144, 787);
             tabs1.Style = styleLine1;
             tabs1.TabIndex = 2;
             tabs1.Text = "tabs1";
-            // 
-            // tabPage5
-            // 
-            tabPage5.Dock = DockStyle.Fill;
-            tabPage5.Location = new Point(0, 30);
-            tabPage5.Name = "tabPage5";
-            tabPage5.Size = new Size(1144, 757);
-            tabPage5.TabIndex = 4;
-            tabPage5.Text = "设置";
-            // 
-            // tabPage6
-            // 
-            tabPage6.Controls.Add(tab5_grid1);
-            tabPage6.Dock = DockStyle.Fill;
-            tabPage6.Location = new Point(0, 30);
-            tabPage6.Name = "tabPage6";
-            tabPage6.Size = new Size(1144, 757);
-            tabPage6.TabIndex = 5;
-            tabPage6.Text = "日志";
-            // 
-            // tab5_grid1
-            // 
-            tab5_grid1.Dock = DockStyle.Fill;
-            tab5_grid1.Location = new Point(0, 0);
-            tab5_grid1.Name = "tab5_grid1";
-            tab5_grid1.Size = new Size(1144, 757);
-            tab5_grid1.Span = "100%";
-            tab5_grid1.TabIndex = 1;
-            tab5_grid1.Text = "gridPanel8";
             // 
             // tabPage1
             // 
@@ -124,6 +96,15 @@
             tab0_grid1.Span = "100%";
             tab0_grid1.TabIndex = 0;
             tab0_grid1.Text = "gridPanel1";
+            // 
+            // tabPage5
+            // 
+            tabPage5.Dock = DockStyle.Fill;
+            tabPage5.Location = new Point(0, 30);
+            tabPage5.Name = "tabPage5";
+            tabPage5.Size = new Size(1144, 757);
+            tabPage5.TabIndex = 4;
+            tabPage5.Text = "设置";
             // 
             // tabPage2
             // 
@@ -199,6 +180,26 @@
             tabPage4.TabIndex = 3;
             tabPage4.Text = "关于";
             // 
+            // tabPage6
+            // 
+            tabPage6.Controls.Add(tab5_grid1);
+            tabPage6.Dock = DockStyle.Fill;
+            tabPage6.Location = new Point(0, 30);
+            tabPage6.Name = "tabPage6";
+            tabPage6.Size = new Size(1144, 757);
+            tabPage6.TabIndex = 5;
+            tabPage6.Text = "日志";
+            // 
+            // tab5_grid1
+            // 
+            tab5_grid1.Dock = DockStyle.Fill;
+            tab5_grid1.Location = new Point(0, 0);
+            tab5_grid1.Name = "tab5_grid1";
+            tab5_grid1.Size = new Size(1144, 757);
+            tab5_grid1.Span = "100%";
+            tab5_grid1.TabIndex = 1;
+            tab5_grid1.Text = "gridPanel8";
+            // 
             // HeadContent
             // 
             HeadContent.Dock = DockStyle.Top;
@@ -225,7 +226,6 @@
             Text = "Form1";
             Load += GameMain_Load;
             tabs1.ResumeLayout(false);
-            tabPage6.ResumeLayout(false);
             tabPage1.ResumeLayout(false);
             tabPage2.ResumeLayout(false);
             tabPage3.ResumeLayout(false);
@@ -233,6 +233,7 @@
             splitter2.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)splitter2).EndInit();
             splitter2.ResumeLayout(false);
+            tabPage6.ResumeLayout(false);
             ResumeLayout(false);
         }
 
