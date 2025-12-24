@@ -214,7 +214,9 @@
             // 
             // recordForm
             // 
-            AutoScaleMode = AutoScaleMode.None;
+            AutoScaleDimensions = new SizeF(7F, 17F);
+            AutoScaleMode = AutoScaleMode.Font;
+            AutoScroll = true;
             BackColor = SystemColors.ControlLight;
             Controls.Add(game_name);
             Controls.Add(game_time);

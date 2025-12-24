@@ -28,20 +28,52 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="e"></param>
         private async void LiveGameForm_Load(object? sender, EventArgs e)
         {
-            timer.Interval = 5000; // 1秒
+            timer.Interval = 10000; // 1秒
             timer.Tick += async (s, e) => await AddView();
-            timer.Start();
+            //timer.Start();
         }
 
-        private async Task AddView()
+        public async Task AddView()
         {
-            LobbyGameInfo? gameInfo = await Game_Api.GameNowServer();
-            if (gameInfo == null) return;
-            //添加所有玩家信息
-            foreach (var member in gameInfo.Members)
+            if (GameMain.gameFlowPhase == GameFlowPhase.ChampSelect || GameMain.gameFlowPhase == GameFlowPhase.Lobby)
             {
-                LivePlayerForm live = new LivePlayerForm(member.Puuid);
-                this.Controls.Add(live);
+                LobbyGameInfo? gameInfo = await Game_Api.GameNowServer();
+                if (gameInfo == null) return;
+                this.gridPanel1.Controls.Clear();
+                this.gridPanel2.Controls.Clear();
+                //添加所有玩家信息
+                for (int i = 0; i < gameInfo.GameConfig.CustomTeam100.Count; i++)
+                {
+                    if (gameInfo.GameConfig.CustomTeam100[i].Puuid.Trim() == "") continue;
+                    LivePlayerForm live = new LivePlayerForm(gameInfo.GameConfig.CustomTeam100[i].Puuid);
+                    this.gridPanel1.Controls.Add(live);
+                }
+                for (int i = 0; i < gameInfo.GameConfig.CustomTeam200.Count; i++)
+                {
+                    if (gameInfo.GameConfig.CustomTeam200[i].Puuid.Trim() == "") continue;
+                    LivePlayerForm live = new LivePlayerForm(gameInfo.GameConfig.CustomTeam200[i].Puuid);
+                    this.gridPanel2.Controls.Add(live);
+                }
+            }
+            else if (GameMain.gameFlowPhase == GameFlowPhase.InProgress)
+            {
+                GameSessionResponse? gameInfo = await Game_Api.GameLineInfoServer();
+                if (gameInfo == null) return;
+                this.gridPanel1.Controls.Clear();
+                this.gridPanel2.Controls.Clear();
+                //添加所有玩家信息
+                for (int i = 0; i < gameInfo.GameData.TeamOne.Count; i++)
+                {
+                    if (gameInfo.GameData.TeamOne[i].Puuid.Trim() == "") continue;
+                    LivePlayerForm live = new LivePlayerForm(gameInfo.GameData.TeamOne[i].Puuid);
+                    this.gridPanel1.Controls.Add(live);
+                }
+                for (int i = 0; i < gameInfo.GameData.TeamTwo.Count; i++)
+                {
+                    if (gameInfo.GameData.TeamTwo[i].Puuid.Trim() == "") continue;
+                    LivePlayerForm live = new LivePlayerForm(gameInfo.GameData.TeamTwo[i].Puuid);
+                    this.gridPanel2.Controls.Add(live);
+                }
             }
         }
     }

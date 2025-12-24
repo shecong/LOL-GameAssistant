@@ -1,5 +1,5 @@
-﻿using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.Entity;
+﻿using LOL_GameAssistant.Entity;
+using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.LoLApi
 {
@@ -189,6 +189,32 @@ namespace LOL_GameAssistant.LoLApi
             Stream? responseStream = await client.GetAsync($"/lol-lobby/v2/lobby");
             if (responseStream == null) return null;
             return await responseStream.ReadAsJsonAsync<LobbyGameInfo>();
+        }
+
+        /// <summary>
+        /// 获取游戏状态
+        /// </summary>
+        /// <param name="puuid"></param>
+        /// <returns></returns>
+        public static async Task<String?> GameFlowPhaseServer()
+        {
+            HttpClentHelper client = new HttpClentHelper();
+            Stream? responseStream = await client.GetAsync($"/lol-gameflow/v1/gameflow-phase");
+            if (responseStream == null) return null;
+            return await responseStream.ReadAsJsonAsync<String>();
+        }
+
+        /// <summary>
+        /// 进入游戏后可查询队伍信息
+        /// </summary>
+        /// <param name="puuid"></param>
+        /// <returns></returns>
+        public static async Task<GameSessionResponse?> GameLineInfoServer()
+        {
+            HttpClentHelper client = new HttpClentHelper();
+            Stream? responseStream = await client.GetAsync($"/lol-gameflow/v1/session");
+            if (responseStream == null) return null;
+            return await responseStream.ReadAsJsonAsync<GameSessionResponse>();
         }
     }
 }

@@ -28,78 +28,94 @@
         /// </summary>
         private void InitializeComponent()
         {
-            name = new Label();
-            gamedate = new Label();
-            kda = new Label();
-            iswin = new Label();
-            gametype = new Label();
+            gridPanel1 = new AntdUI.GridPanel();
+            gametype = new AntdUI.Label();
+            name = new AntdUI.Label();
+            gamedate = new AntdUI.Label();
+            kda = new AntdUI.Label();
+            iswin = new AntdUI.Label();
+            gridPanel1.SuspendLayout();
             SuspendLayout();
+            // 
+            // gridPanel1
+            // 
+            gridPanel1.Controls.Add(iswin);
+            gridPanel1.Controls.Add(kda);
+            gridPanel1.Controls.Add(gamedate);
+            gridPanel1.Controls.Add(name);
+            gridPanel1.Controls.Add(gametype);
+            gridPanel1.Dock = DockStyle.Fill;
+            gridPanel1.Location = new Point(0, 0);
+            gridPanel1.Name = "gridPanel1";
+            gridPanel1.Size = new Size(372, 26);
+            gridPanel1.Span = "19% 26% 26% 18% 10%";
+            gridPanel1.TabIndex = 6;
+            gridPanel1.Text = "gridPanel1";
+            // 
+            // gametype
+            // 
+            gridPanel1.SetIndex(gametype, 1);
+            gametype.Location = new Point(3, 3);
+            gametype.Name = "gametype";
+            gametype.Size = new Size(65, 20);
+            gametype.TabIndex = 0;
+            gametype.Text = "模式";
             // 
             // name
             // 
-            name.AutoSize = true;
-            name.Location = new Point(63, 11);
+            gridPanel1.SetIndex(name, 2);
+            name.Location = new Point(74, 3);
             name.Name = "name";
-            name.Size = new Size(44, 17);
+            name.Size = new Size(91, 20);
             name.TabIndex = 1;
             name.Text = "英雄名";
             // 
             // gamedate
             // 
-            gamedate.AutoSize = true;
-            gamedate.Location = new Point(156, 11);
+            gridPanel1.SetIndex(gamedate, 3);
+            gamedate.Location = new Point(170, 3);
             gamedate.Name = "gamedate";
-            gamedate.Size = new Size(56, 17);
+            gamedate.Size = new Size(91, 20);
             gamedate.TabIndex = 2;
-            gamedate.Text = "游戏日期";
+            gamedate.Text = "日期";
             // 
             // kda
             // 
-            kda.AutoSize = true;
-            kda.Location = new Point(255, 11);
+            gridPanel1.SetIndex(kda, 4);
+            kda.Location = new Point(267, 3);
             kda.Name = "kda";
-            kda.Size = new Size(39, 17);
+            kda.Size = new Size(61, 20);
             kda.TabIndex = 3;
-            kda.Text = "0/0/0";
+            kda.Text = "kda";
             // 
             // iswin
             // 
-            iswin.AutoSize = true;
-            iswin.Location = new Point(300, 11);
+            gridPanel1.SetIndex(iswin, 5);
+            iswin.Location = new Point(334, 3);
             iswin.Name = "iswin";
-            iswin.Size = new Size(55, 17);
+            iswin.Size = new Size(31, 20);
             iswin.TabIndex = 4;
             iswin.Text = "win/loss";
-            // 
-            // gametype
-            // 
-            gametype.AutoSize = true;
-            gametype.Location = new Point(3, 11);
-            gametype.Name = "gametype";
-            gametype.Size = new Size(44, 17);
-            gametype.TabIndex = 5;
-            gametype.Text = "英雄名";
             // 
             // LivePlayersForm
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
-            Controls.Add(gametype);
-            Controls.Add(iswin);
-            Controls.Add(kda);
-            Controls.Add(gamedate);
-            Controls.Add(name);
+            BackColor = SystemColors.ActiveBorder;
+            Controls.Add(gridPanel1);
+            DoubleBuffered = true;
             Name = "LivePlayersForm";
-            Size = new Size(355, 35);
+            Size = new Size(372, 26);
+            gridPanel1.ResumeLayout(false);
             ResumeLayout(false);
-            PerformLayout();
         }
 
         #endregion
-        private Label name;
-        private Label gamedate;
-        private Label kda;
-        private Label iswin;
-        private Label gametype;
+        private AntdUI.GridPanel gridPanel1;
+        private AntdUI.Label iswin;
+        private AntdUI.Label kda;
+        private AntdUI.Label gamedate;
+        private AntdUI.Label name;
+        private AntdUI.Label gametype;
     }
 }

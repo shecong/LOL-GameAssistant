@@ -926,7 +926,7 @@ namespace LOL_GameAssistant.Entity
                     "KINGPORO" => "嗨皮魄罗娱乐模式",
                     "SIEGE" => "攻城战",
                     "DOOMBOTSTEEMO" => "末日人机",
-                    "KIWI" => "海克斯大乱斗",
+                    "KIWI" => "海克斯乱斗",
                     _ => "未知模式"
                 };
                 set => _gameMode = value;
@@ -977,12 +977,14 @@ namespace LOL_GameAssistant.Entity
                 get => _queueId switch
                 {
                     "420" => "单双排",
-                    "440" => "灵活组排",
-                    "430" => "匹配模式",
+                    "440" => "灵活排",
+                    "430" => "匹配",
                     "400" => "人机模式",
                     "450" => "极地大乱斗",
                     "700" => "冠军杯赛",
-                    "2400" => "海克斯大乱斗",
+                    "2400" => "海克斯乱斗",
+                    "3140" => "训练营",
+                    
                     _ => "其他"
                 };
                 set => _queueId = value;

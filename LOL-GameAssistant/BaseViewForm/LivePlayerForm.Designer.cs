@@ -34,6 +34,7 @@
             // 
             // gridPanel1
             // 
+            gridPanel1.BackColor = SystemColors.ControlLight;
             gridPanel1.Dock = DockStyle.Fill;
             gridPanel1.Location = new Point(0, 0);
             gridPanel1.Name = "gridPanel1";
@@ -46,7 +47,9 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = SystemColors.ActiveCaption;
             Controls.Add(gridPanel1);
+            DoubleBuffered = true;
             Name = "LivePlayerForm";
             Size = new Size(588, 237);
             ResumeLayout(false);

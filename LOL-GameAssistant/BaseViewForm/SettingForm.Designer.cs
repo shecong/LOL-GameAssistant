@@ -73,7 +73,8 @@
             inputNumber1.Name = "inputNumber1";
             inputNumber1.Size = new Size(118, 44);
             inputNumber1.TabIndex = 13;
-            inputNumber1.Text = "0";
+            inputNumber1.Text = "2";
+            inputNumber1.Value = new decimal(new int[] { 2, 0, 0, 0 });
             // 
             // label5
             // 
@@ -199,6 +200,7 @@
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(gridPanel2);
+            DoubleBuffered = true;
             Name = "SettingForm";
             Size = new Size(828, 721);
             Load += SettingForm_Load;
@@ -209,7 +211,6 @@
         #endregion
 
         private AntdUI.GridPanel gridPanel2;
-        private AntdUI.InputNumber inputNumber1;
         private AntdUI.Label label5;
         private AntdUI.SelectMultiple setting_select_jyx;
         private AntdUI.SelectMultiple setting_select_xyx;
@@ -221,5 +222,6 @@
         private AntdUI.Label label3;
         private AntdUI.Label label2;
         private AntdUI.Label label1;
+        public AntdUI.InputNumber inputNumber1;
     }
 }

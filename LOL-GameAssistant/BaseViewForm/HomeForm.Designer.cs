@@ -91,7 +91,7 @@
             tabPage1.Dock = DockStyle.Fill;
             tabPage1.Location = new Point(0, 0);
             tabPage1.Name = "tabPage1";
-            tabPage1.Size = new Size(1033, 840);
+            tabPage1.Size = new Size(1231, 840);
             tabPage1.TabIndex = 1;
             tabPage1.Text = "首页";
             // 
@@ -101,7 +101,7 @@
             gridPanel1.Dock = DockStyle.Fill;
             gridPanel1.Location = new Point(0, 0);
             gridPanel1.Name = "gridPanel1";
-            gridPanel1.Size = new Size(1033, 840);
+            gridPanel1.Size = new Size(1231, 840);
             gridPanel1.Span = "100%";
             gridPanel1.TabIndex = 0;
             gridPanel1.Text = "gridPanel1";
@@ -115,7 +115,7 @@
             gridPanel7.Dock = DockStyle.Fill;
             gridPanel7.Location = new Point(3, 3);
             gridPanel7.Name = "gridPanel7";
-            gridPanel7.Size = new Size(1027, 834);
+            gridPanel7.Size = new Size(1225, 834);
             gridPanel7.Span = "50% 50%;100%;100%;-180 5% 95%";
             gridPanel7.TabIndex = 16;
             gridPanel7.Text = "gridPanel7";
@@ -127,7 +127,7 @@
             gridPanel7.SetIndex(gridPanel5, 1);
             gridPanel5.Location = new Point(3, 3);
             gridPanel5.Name = "gridPanel5";
-            gridPanel5.Size = new Size(508, 174);
+            gridPanel5.Size = new Size(606, 174);
             gridPanel5.Span = "30% 70%";
             gridPanel5.TabIndex = 15;
             gridPanel5.Text = "gridPanel5";
@@ -137,9 +137,9 @@
             gridPanel6.Controls.Add(play_name);
             gridPanel6.Controls.Add(play_QF);
             gridPanel6.Controls.Add(play_number);
-            gridPanel6.Location = new Point(155, 3);
+            gridPanel6.Location = new Point(185, 3);
             gridPanel6.Name = "gridPanel6";
-            gridPanel6.Size = new Size(350, 168);
+            gridPanel6.Size = new Size(418, 168);
             gridPanel6.Span = "90%;30% 30%";
             gridPanel6.TabIndex = 16;
             gridPanel6.Text = "gridPanel6";
@@ -152,7 +152,7 @@
             play_name.Location = new Point(3, 3);
             play_name.Name = "play_name";
             play_name.Prefix = "名称：";
-            play_name.Size = new Size(309, 78);
+            play_name.Size = new Size(370, 78);
             play_name.TabIndex = 2;
             play_name.Text = "名称";
             // 
@@ -161,11 +161,11 @@
             play_QF.ColorExtend = "135,#FF0000,#00FF00";
             play_QF.Font = new Font("Microsoft YaHei UI", 12F);
             gridPanel6.SetIndex(play_QF, 3);
-            play_QF.Location = new Point(108, 87);
+            play_QF.Location = new Point(128, 87);
             play_QF.Name = "play_QF";
             play_QF.Prefix = "区服：";
             play_QF.PrefixSvg = "RocketOutlined";
-            play_QF.Size = new Size(99, 78);
+            play_QF.Size = new Size(119, 78);
             play_QF.SuffixSvg = "";
             play_QF.TabIndex = 4;
             play_QF.Text = "区服";
@@ -178,7 +178,7 @@
             play_number.Location = new Point(3, 87);
             play_number.Name = "play_number";
             play_number.Prefix = "编号：";
-            play_number.Size = new Size(99, 78);
+            play_number.Size = new Size(119, 78);
             play_number.TabIndex = 3;
             play_number.Text = "编号";
             // 
@@ -187,7 +187,7 @@
             gridPanel5.SetIndex(play_HeadIcon, 1);
             play_HeadIcon.Location = new Point(3, 3);
             play_HeadIcon.Name = "play_HeadIcon";
-            play_HeadIcon.Size = new Size(146, 168);
+            play_HeadIcon.Size = new Size(176, 168);
             play_HeadIcon.TabIndex = 1;
             play_HeadIcon.Text = "无";
             // 
@@ -197,7 +197,7 @@
             gridPanel7.SetIndex(gridPanel4, 4);
             gridPanel4.Location = new Point(3, 216);
             gridPanel4.Name = "gridPanel4";
-            gridPanel4.Size = new Size(1021, 615);
+            gridPanel4.Size = new Size(1219, 615);
             gridPanel4.Span = "100%";
             gridPanel4.TabIndex = 14;
             gridPanel4.Text = "gridPanel4";
@@ -233,8 +233,8 @@
             // 
             splitter1.Panel2.Controls.Add(game_pagin);
             splitter1.Panel2.Controls.Add(stackPanel1);
-            splitter1.Size = new Size(1015, 609);
-            splitter1.SplitterDistance = 335;
+            splitter1.Size = new Size(1213, 609);
+            splitter1.SplitterDistance = 400;
             splitter1.TabIndex = 11;
             // 
             // game_sjend
@@ -438,7 +438,7 @@
             divider2.Location = new Point(7, 3);
             divider2.Name = "divider2";
             divider2.Orientation = AntdUI.TOrientation.Left;
-            divider2.Size = new Size(357, 23);
+            divider2.Size = new Size(390, 23);
             divider2.TabIndex = 0;
             divider2.Text = "单双排";
             // 
@@ -447,7 +447,7 @@
             game_pagin.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_pagin.Location = new Point(3, 5);
             game_pagin.Name = "game_pagin";
-            game_pagin.Size = new Size(670, 28);
+            game_pagin.Size = new Size(803, 28);
             game_pagin.TabIndex = 12;
             game_pagin.ValueChanged += game_pagin_ValueChanged;
             // 
@@ -457,7 +457,7 @@
             stackPanel1.AutoScroll = true;
             stackPanel1.Location = new Point(3, 39);
             stackPanel1.Name = "stackPanel1";
-            stackPanel1.Size = new Size(670, 567);
+            stackPanel1.Size = new Size(803, 567);
             stackPanel1.TabIndex = 11;
             stackPanel1.Text = "stackPanel1";
             stackPanel1.Vertical = true;
@@ -472,9 +472,9 @@
             gridPanel3.Controls.Add(btn_back);
             gridPanel3.Controls.Add(Search_Player);
             gridPanel3.Controls.Add(refeash);
-            gridPanel3.Location = new Point(517, 3);
+            gridPanel3.Location = new Point(615, 3);
             gridPanel3.Name = "gridPanel3";
-            gridPanel3.Size = new Size(508, 174);
+            gridPanel3.Size = new Size(606, 174);
             gridPanel3.Span = "20% 60% 20%;60% 20% 20%;80% 20%";
             gridPanel3.TabIndex = 13;
             gridPanel3.Text = "gridPanel3";
@@ -482,20 +482,20 @@
             // inp_playname
             // 
             gridPanel3.SetIndex(inp_playname, 2);
-            inp_playname.Location = new Point(105, 3);
+            inp_playname.Location = new Point(124, 3);
             inp_playname.Name = "inp_playname";
             inp_playname.PlaceholderText = "玩家名或者编号";
-            inp_playname.Size = new Size(299, 52);
+            inp_playname.Size = new Size(358, 52);
             inp_playname.TabIndex = 13;
             inp_playname.Text = "e684b22a-5f9a-5ca1-b7d5-5e1a8e4b705b";
             // 
             // game_count
             // 
             gridPanel3.SetIndex(game_count, 4);
-            game_count.Location = new Point(308, 61);
+            game_count.Location = new Point(367, 61);
             game_count.Name = "game_count";
             game_count.PlaceholderText = "查询条数";
-            game_count.Size = new Size(96, 52);
+            game_count.Size = new Size(115, 52);
             game_count.TabIndex = 12;
             game_count.Text = "5";
             game_count.Value = new decimal(new int[] { 5, 0, 0, 0 });
@@ -507,7 +507,7 @@
             play_next.Location = new Point(3, 61);
             play_next.Name = "play_next";
             play_next.Prefix = "当前经验：";
-            play_next.Size = new Size(299, 52);
+            play_next.Size = new Size(358, 52);
             play_next.TabIndex = 10;
             play_next.Text = "";
             // 
@@ -518,7 +518,7 @@
             play_dj.Location = new Point(3, 3);
             play_dj.Name = "play_dj";
             play_dj.Prefix = "当前等级：";
-            play_dj.Size = new Size(96, 52);
+            play_dj.Size = new Size(115, 52);
             play_dj.TabIndex = 9;
             play_dj.Text = "";
             // 
@@ -528,7 +528,7 @@
             play_jd.Location = new Point(3, 119);
             play_jd.Name = "play_jd";
             play_jd.ShowTextDot = 2;
-            play_jd.Size = new Size(400, 52);
+            play_jd.Size = new Size(479, 52);
             play_jd.TabIndex = 8;
             play_jd.Text = "";
             play_jd.TextUnit = "%(升级进度)";
@@ -536,9 +536,9 @@
             // btn_back
             // 
             gridPanel3.SetIndex(btn_back, 8);
-            btn_back.Location = new Point(409, 119);
+            btn_back.Location = new Point(488, 119);
             btn_back.Name = "btn_back";
-            btn_back.Size = new Size(96, 52);
+            btn_back.Size = new Size(115, 52);
             btn_back.TabIndex = 5;
             btn_back.Text = "重置";
             btn_back.Type = AntdUI.TTypeMini.Success;
@@ -547,9 +547,9 @@
             // Search_Player
             // 
             gridPanel3.SetIndex(Search_Player, 3);
-            Search_Player.Location = new Point(409, 3);
+            Search_Player.Location = new Point(488, 3);
             Search_Player.Name = "Search_Player";
-            Search_Player.Size = new Size(96, 52);
+            Search_Player.Size = new Size(115, 52);
             Search_Player.TabIndex = 7;
             Search_Player.Text = "搜索";
             Search_Player.Type = AntdUI.TTypeMini.Warn;
@@ -558,9 +558,9 @@
             // refeash
             // 
             gridPanel3.SetIndex(refeash, 5);
-            refeash.Location = new Point(409, 61);
+            refeash.Location = new Point(488, 61);
             refeash.Name = "refeash";
-            refeash.Size = new Size(96, 52);
+            refeash.Size = new Size(115, 52);
             refeash.TabIndex = 6;
             refeash.Text = "刷新";
             refeash.Type = AntdUI.TTypeMini.Primary;
@@ -574,7 +574,7 @@
             gridPanel7.SetIndex(divider1, 4);
             divider1.Location = new Point(3, 183);
             divider1.Name = "divider1";
-            divider1.Size = new Size(1021, 27);
+            divider1.Size = new Size(1219, 27);
             divider1.TabIndex = 0;
             divider1.Text = "战绩区";
             // 
@@ -583,8 +583,9 @@
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(tabPage1);
+            DoubleBuffered = true;
             Name = "HomeForm";
-            Size = new Size(1033, 840);
+            Size = new Size(1231, 840);
             Load += HomeForm_Load;
             tabPage1.ResumeLayout(false);
             gridPanel1.ResumeLayout(false);

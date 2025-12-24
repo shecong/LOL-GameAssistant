@@ -14,7 +14,7 @@ namespace LOL_GameAssistant.BaseViewForm
 {
     public partial class LivePlayerForm : UserControl
     {
-        private static string? Playerpuuid;
+        private string? Playerpuuid;
 
         public LivePlayerForm(string _Playerpuuid)
         {
@@ -38,21 +38,32 @@ namespace LOL_GameAssistant.BaseViewForm
             if (matchlists != null)
             {
                 var sortedList = matchlists.Games.Games
-               .OrderByDescending(p => p.GameCreation)
+               .OrderByDescending(p => p.GameCreation).Take(9)
+               .OrderBy(p => p.GameCreation)
                .ToList();
-                for (int i = 0; i < (sortedList.Count > 10 ? 9 : sortedList.Count); i++)
+                //初始加载玩家游戏
+                for (int i = 0; i < sortedList.Count; i++)
                 {
                     //获取每一场的游戏记录
                     //根据表头获取明细信息
                     GameDetailModel.GameInfo? gameInfo = new GameDetailModel.GameInfo();
-                    gameInfo = await Game_Api.GetGameDetail(Convert.ToString(sortedList[i]));
+                    gameInfo = await Game_Api.GetGameDetail(Convert.ToString(sortedList[i].GameId));
                     if (gameInfo == null) return;
                     //游戏数据
                     GameDetailModel.ParticipantsItem? gamer = gameInfo.participants.Where(p => p.participantId == gameInfo.participantIdentities.Where(p => p.player.puuid == Playerpuuid).FirstOrDefault().participantId).FirstOrDefault<GameDetailModel.ParticipantsItem>();
                     if (gamer == null) return;
-
-                    LivePlayersForm livePlayersForm = new LivePlayersForm(gameInfo.queueId, ChampionMap.GetChampion(gamer.championId).RealName, $"{gamer.stats.kills}/{gamer.stats.deaths}/{gamer.stats.assists}", gameInfo.gameCreationDate.Substring(0, 10), gamer.stats.win == "true" ? "win" : "loss");
+                    //加载明细
+                    LivePlayersForm livePlayersForm = new LivePlayersForm("明细", gameInfo.queueId, ChampionMap.GetChampion(gamer.championId).RealName, gameInfo.gameCreationDate.Substring(0, 10), $"{gamer.stats.kills}/{gamer.stats.deaths}/{gamer.stats.assists}", gamer.stats.win == "true" ? "win" : "loss");
                     this.gridPanel1.Controls.Add(livePlayersForm);
+                    //最后一个加载头部
+                    if (i == sortedList.Count - 1)
+                    {
+                        var palyername = gameInfo.participantIdentities?.Where(p => p.player.puuid == Playerpuuid).FirstOrDefault()?.player.gameName;
+                        var puuid = gameInfo.participantIdentities?.Where(p => p.player.puuid == Playerpuuid).FirstOrDefault()?.player.puuid;
+
+                        LivePlayersForm palyerLive = new LivePlayersForm("头部", palyername, puuid, "", "", "");
+                        this.gridPanel1.Controls.Add(palyerLive);
+                    }
                 }
             }
         }
