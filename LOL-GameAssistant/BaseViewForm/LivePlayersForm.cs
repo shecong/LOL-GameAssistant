@@ -34,9 +34,8 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             else
             {
-                this.BackColor = iswin == "win" ? System.Drawing.Color.FromArgb(225, 245, 233) : System.Drawing.Color.FromArgb(254, 235, 234);
+                this.BackColor = (iswin == "win" ? System.Drawing.Color.FromArgb(250, 250, 250) : System.Drawing.Color.FromArgb(242, 242, 242));
                 this.gametype.Text = gametype;
-
                 this.name.Text = name;
                 this.gamedate.Text = gamedate;
                 this.kda.Text = kda;

@@ -24,6 +24,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private IInfoMsgForm _infoMsgForm;
 
         private GameHeadModel.MatchHistoryResponse? matchlists;
+
         /// <summary>
         /// 1=当前玩家，2=指定玩家
         /// </summary>
@@ -154,7 +155,7 @@ namespace LOL_GameAssistant.BaseViewForm
             String begIndex = "1";
             String endIndex = "9999";
 
-             matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
 
             //加载分页
             InitPagin(matchlists);
@@ -173,7 +174,7 @@ namespace LOL_GameAssistant.BaseViewForm
             String begIndex = "0";
             String endIndex = pageSize <= 10 ? "10" : this.game_count.Text;
 
-             matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
 
             // 排序
             var sortedList = matchlists.Games.Games
@@ -353,6 +354,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private async void btn_back_Click(object sender, EventArgs e)
         {
             await LoadGame();
+            UpdateGame_pagin();
         }
 
         /// <summary>
@@ -363,6 +365,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private async void refeash_Click(object sender, EventArgs e)
         {
             await LoadGame();
+            UpdateGame_pagin();
         }
 
         /// <summary>
@@ -381,7 +384,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (puuid.Length < 30)
             {
                 //循环获取puuid
-                  puuid = GetUserPuuid(puuid);
+                puuid = GetUserPuuid(puuid);
                 if (puuid == "")
                 {
                     AntdUI.Message.error(ParentForm!, "召唤师名字查询未找到在以往对局中匹配过的！");
@@ -398,7 +401,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private string GetUserPuuid(string playername)
         {
             for (int i = 0; i < matchlists.Games.Games.Count; i++)
-            { 
+            {
                 for (int j = 0; j < matchlists.Games.Games[i].ParticipantIdentities.Count; j++)
                 {
                     if ($"{matchlists.Games.Games[i].ParticipantIdentities[j].Player.GameName}#{matchlists.Games.Games[i].ParticipantIdentities[j].Player.TagLine}".Contains(playername))
@@ -416,6 +419,16 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private void game_pagin_ValueChanged(object sender, AntdUI.PagePageEventArgs e)
+        {
+
+        }
+
+        private void game_pagin_Click(object sender, EventArgs e)
+        {
+            UpdateGame_pagin();
+        }
+
+        private void UpdateGame_pagin()
         {
             if (UserStatus == 1)
                 GetGameInfo(userinfo, this.game_pagin.Current < 0 ? Convert.ToInt32(this.game_count) : this.game_pagin.Current);

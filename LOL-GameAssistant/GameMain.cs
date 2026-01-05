@@ -48,6 +48,7 @@ namespace LOL_GameAssistant
                    if (Enum.TryParse(status, true, out GameFlowPhase parsedPhase))
                    {
                        gameFlowPhase = parsedPhase;
+                       this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
                    }
                }
            });

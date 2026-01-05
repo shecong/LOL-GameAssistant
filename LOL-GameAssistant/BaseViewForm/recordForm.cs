@@ -32,7 +32,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (gamer == null) return;
 
             //游戏详情
-            this.BackColor = gamer.stats.win == "true" ? System.Drawing.Color.FromArgb(225, 245, 233) : System.Drawing.Color.FromArgb(254, 235, 234);
+            this.BackColor = gamer.stats.win == "true" ? System.Drawing.Color.FromArgb(250, 250, 250) : System.Drawing.Color.FromArgb(242, 242, 242);
             //头像
             this.game_pic.Image = Image.FromStream(await Game_Api.GetGameYXImg(gamer.championId));
             this.game_win.Text = gamer.stats.win == "true" ? "胜利" : "失败";

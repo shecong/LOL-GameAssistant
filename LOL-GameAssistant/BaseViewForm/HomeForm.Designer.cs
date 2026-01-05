@@ -234,84 +234,91 @@
             splitter1.Panel2.Controls.Add(game_pagin);
             splitter1.Panel2.Controls.Add(stackPanel1);
             splitter1.Size = new Size(1213, 609);
-            splitter1.SplitterDistance = 400;
+            splitter1.SplitterDistance = 386;
             splitter1.TabIndex = 11;
             // 
             // game_sjend
             // 
+            game_sjend.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_sjend.ColorExtend = "135,#FF0000,#00FF00";
             game_sjend.Font = new Font("Microsoft YaHei UI", 12F);
-            game_sjend.Location = new Point(7, 476);
+            game_sjend.Location = new Point(10, 476);
             game_sjend.Name = "game_sjend";
             game_sjend.Prefix = "赛季结束日期：";
-            game_sjend.Size = new Size(296, 41);
+            game_sjend.Size = new Size(370, 41);
             game_sjend.TabIndex = 7;
             game_sjend.Text = "未知";
             // 
             // game_lhp_loss
             // 
+            game_lhp_loss.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_lhp_loss.ColorExtend = "135,#FF0000,#00FF00";
             game_lhp_loss.Font = new Font("Microsoft YaHei UI", 12F);
             game_lhp_loss.Location = new Point(234, 298);
             game_lhp_loss.Name = "game_lhp_loss";
             game_lhp_loss.Prefix = "loss：";
-            game_lhp_loss.Size = new Size(130, 39);
+            game_lhp_loss.Size = new Size(146, 39);
             game_lhp_loss.TabIndex = 18;
             game_lhp_loss.Text = "未知";
             // 
             // game_lhp_win
             // 
+            game_lhp_win.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_lhp_win.ColorExtend = "135,#FF0000,#00FF00";
             game_lhp_win.Font = new Font("Microsoft YaHei UI", 12F);
             game_lhp_win.Location = new Point(234, 250);
             game_lhp_win.Name = "game_lhp_win";
             game_lhp_win.Prefix = "win：";
-            game_lhp_win.Size = new Size(130, 42);
+            game_lhp_win.Size = new Size(146, 42);
             game_lhp_win.TabIndex = 17;
             game_lhp_win.Text = "未知";
             // 
             // game_lhp_sl
             // 
+            game_lhp_sl.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_lhp_sl.ColorExtend = "135,#FF0000,#00FF00";
             game_lhp_sl.Font = new Font("Microsoft YaHei UI", 12F);
             game_lhp_sl.Location = new Point(234, 197);
             game_lhp_sl.Name = "game_lhp_sl";
             game_lhp_sl.Prefix = "胜率：";
-            game_lhp_sl.Size = new Size(130, 47);
+            game_lhp_sl.Size = new Size(146, 47);
             game_lhp_sl.Suffix = "%";
             game_lhp_sl.TabIndex = 16;
             game_lhp_sl.Text = "未知";
             // 
             // game_dsp_loss
             // 
+            game_dsp_loss.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_dsp_loss.ColorExtend = "135,#FF0000,#00FF00";
             game_dsp_loss.Font = new Font("Microsoft YaHei UI", 12F);
             game_dsp_loss.Location = new Point(234, 123);
             game_dsp_loss.Name = "game_dsp_loss";
             game_dsp_loss.Prefix = "loss：";
-            game_dsp_loss.Size = new Size(130, 39);
+            game_dsp_loss.Size = new Size(146, 39);
             game_dsp_loss.TabIndex = 15;
             game_dsp_loss.Text = "未知";
             // 
             // game_dsp_win
             // 
+            game_dsp_win.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_dsp_win.ColorExtend = "135,#FF0000,#00FF00";
             game_dsp_win.Font = new Font("Microsoft YaHei UI", 12F);
             game_dsp_win.Location = new Point(234, 74);
             game_dsp_win.Name = "game_dsp_win";
             game_dsp_win.Prefix = "win：";
-            game_dsp_win.Size = new Size(130, 43);
+            game_dsp_win.Size = new Size(146, 43);
             game_dsp_win.TabIndex = 14;
             game_dsp_win.Text = "未知";
             // 
             // game_dsp_sl
             // 
+            game_dsp_sl.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_dsp_sl.ColorExtend = "135,#FF0000,#00FF00";
             game_dsp_sl.Font = new Font("Microsoft YaHei UI", 12F);
             game_dsp_sl.Location = new Point(234, 26);
             game_dsp_sl.Name = "game_dsp_sl";
             game_dsp_sl.Prefix = "胜率：";
-            game_dsp_sl.Size = new Size(130, 42);
+            game_dsp_sl.Size = new Size(146, 42);
             game_dsp_sl.Suffix = "%";
             game_dsp_sl.TabIndex = 13;
             game_dsp_sl.Text = "未知";
@@ -360,28 +367,31 @@
             // 
             // game_ycf
             // 
+            game_ycf.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_ycf.ColorExtend = "135,#FF0000,#00FF00";
             game_ycf.Font = new Font("Microsoft YaHei UI", 12F);
-            game_ycf.Location = new Point(210, 476);
+            game_ycf.Location = new Point(7, 523);
             game_ycf.Name = "game_ycf";
             game_ycf.Prefix = "隐藏分评分：";
-            game_ycf.Size = new Size(135, 41);
+            game_ycf.Size = new Size(170, 41);
             game_ycf.TabIndex = 8;
             game_ycf.Text = "未知";
             // 
             // game_dqsd
             // 
+            game_dqsd.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_dqsd.ColorExtend = "135,#FF0000,#00FF00";
             game_dqsd.Font = new Font("Microsoft YaHei UI", 12F);
             game_dqsd.Location = new Point(210, 421);
             game_dqsd.Name = "game_dqsd";
             game_dqsd.Prefix = "当前胜点：";
-            game_dqsd.Size = new Size(154, 49);
+            game_dqsd.Size = new Size(170, 49);
             game_dqsd.TabIndex = 6;
             game_dqsd.Text = "未知";
             // 
             // game_jjscount
             // 
+            game_jjscount.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_jjscount.ColorExtend = "135,#FF0000,#00FF00";
             game_jjscount.Font = new Font("Microsoft YaHei UI", 12F);
             game_jjscount.Location = new Point(7, 419);
@@ -393,17 +403,19 @@
             // 
             // game_jjs
             // 
+            game_jjs.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_jjs.ColorExtend = "135,#FF0000,#00FF00";
             game_jjs.Font = new Font("Microsoft YaHei UI", 12F);
             game_jjs.Location = new Point(210, 362);
             game_jjs.Name = "game_jjs";
             game_jjs.Prefix = "晋级赛：";
-            game_jjs.Size = new Size(154, 53);
+            game_jjs.Size = new Size(173, 53);
             game_jjs.TabIndex = 4;
             game_jjs.Text = "未知";
             // 
             // game_dws
             // 
+            game_dws.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_dws.ColorExtend = "135,#FF0000,#00FF00";
             game_dws.Font = new Font("Microsoft YaHei UI", 12F);
             game_dws.Location = new Point(8, 362);
@@ -415,11 +427,12 @@
             // 
             // divider4
             // 
+            divider4.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             divider4.ColorSplit = Color.FromArgb(255, 235, 59);
             divider4.Location = new Point(10, 333);
             divider4.Name = "divider4";
             divider4.Orientation = AntdUI.TOrientation.Left;
-            divider4.Size = new Size(354, 23);
+            divider4.Size = new Size(373, 23);
             divider4.TabIndex = 2;
             divider4.Text = "赛季数据";
             // 
@@ -428,17 +441,18 @@
             divider3.Location = new Point(7, 168);
             divider3.Name = "divider3";
             divider3.Orientation = AntdUI.TOrientation.Left;
-            divider3.Size = new Size(357, 23);
+            divider3.Size = new Size(376, 23);
             divider3.TabIndex = 1;
             divider3.Text = "灵活排位";
             // 
             // divider2
             // 
+            divider2.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             divider2.ColorSplit = Color.FromArgb(255, 235, 59);
             divider2.Location = new Point(7, 3);
             divider2.Name = "divider2";
             divider2.Orientation = AntdUI.TOrientation.Left;
-            divider2.Size = new Size(390, 23);
+            divider2.Size = new Size(376, 23);
             divider2.TabIndex = 0;
             divider2.Text = "单双排";
             // 
@@ -447,9 +461,10 @@
             game_pagin.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             game_pagin.Location = new Point(3, 5);
             game_pagin.Name = "game_pagin";
-            game_pagin.Size = new Size(803, 28);
+            game_pagin.Size = new Size(817, 28);
             game_pagin.TabIndex = 12;
             game_pagin.ValueChanged += game_pagin_ValueChanged;
+            game_pagin.Click += game_pagin_Click;
             // 
             // stackPanel1
             // 
@@ -457,7 +472,7 @@
             stackPanel1.AutoScroll = true;
             stackPanel1.Location = new Point(3, 39);
             stackPanel1.Name = "stackPanel1";
-            stackPanel1.Size = new Size(803, 567);
+            stackPanel1.Size = new Size(817, 567);
             stackPanel1.TabIndex = 11;
             stackPanel1.Text = "stackPanel1";
             stackPanel1.Vertical = true;
