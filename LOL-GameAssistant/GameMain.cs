@@ -1,11 +1,14 @@
 using LOL_GameAssistant.BaseViewForm;
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.LoLApi;
-using LOL_GameAssistant.Entity;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Text;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using static LOL_GameAssistant.Entity.LolRankedDataParser;
 using static LOL_GameAssistant.Entity.PlayerModel;
-using System.Threading.Tasks;
 
 namespace LOL_GameAssistant
 {
@@ -34,7 +37,7 @@ namespace LOL_GameAssistant
             var timer = new System.Windows.Forms.Timer();
             timer.Interval = Convert.ToInt32(settingForm.inputNumber1.Text);
             timer.Tick += Timer_Tick;
-            timer.Start();
+            //timer.Start();
         }
 
         private void Timer_Tick(object? sender, EventArgs e)
@@ -61,6 +64,8 @@ namespace LOL_GameAssistant
         /// <exception cref="NotImplementedException"></exception>
         private async Task LoadAllForm()
         {
+            //使用websokect连接
+            ConnectWebSocket();
             //加载首页
             tab0_grid1.Controls.Clear();
             tab0_grid1.Controls.Add(home);
@@ -87,6 +92,112 @@ namespace LOL_GameAssistant
         private async void dj_refresh_Click(object sender, EventArgs e)
         {
             await liveGameForm.AddView();
+        }
+
+        public async void ConnectWebSocket()
+        {
+            // 创建客户端
+            (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
+            var client = new WebSocketClient($"wss://127.0.0.1:{port}", Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{token}")));
+
+            // 订阅事件
+            client.OnMessage += msg => WebSocketMessage(msg);
+            client.OnError += err => WebSocketError(err);
+            client.OnConnectChanged += connected =>
+                Console.WriteLine(connected ? "已连接" : "已断开");
+
+            try
+            {
+                // 连接
+                await client.ConnectAsync();
+
+                // 发送消息
+                await client.SendAsync("[5, \"OnJsonApiEvent\"]");
+
+                // 保持连接
+                await Task.Delay(TimeSpan.FromMinutes(1));
+            }
+            finally
+            {
+                //await client.CloseAsync();
+                //client.Dispose();
+            }
+        }
+
+        private void WebSocketError(string err)
+        {
+            infoMsg.AddMsg(err);
+        }
+
+        private void WebSocketMessage(string msg)
+        {
+            //infoMsg.AddMsg(msg);
+            // 解析JSON数组
+            try
+            {
+                var jsonArray = JsonNode.Parse(msg)?.AsArray();
+                if (jsonArray == null || jsonArray.Count < 3) return;
+                // 提取数组元素
+                var messageId = jsonArray[0]?.GetValue<int>() ?? 0;  // 第一个元素：消息ID（如8）
+                var eventName = jsonArray[1]?.GetValue<string>();    // 第二个元素：事件名称
+                var dataNode = jsonArray[2];                         // 第三个元素：数据对象
+                                                                     // 根据事件类型处理
+                switch (eventName)
+                {
+                    case "OnJsonApiEvent":
+                        HandleJsonApiEvent(dataNode);
+                        break;
+
+                    // 可以添加其他事件类型
+                    default:
+                        Console.WriteLine($"未知事件: {eventName}");
+                        Console.WriteLine($"完整消息: {msg}");
+                        break;
+                }
+            }
+            catch (Exception)
+            {
+                return;
+            }
+        }
+
+        /// <summary>
+        /// 处理 OnJsonApiEvent 事件
+        /// </summary>
+        private void HandleJsonApiEvent(JsonNode dataNode)
+        {
+            try
+            {
+                if (dataNode == null)
+                {
+                    Console.WriteLine("OnJsonApiEvent 数据为空");
+                    return;
+                }
+
+                // 提取事件数据
+                var uri = dataNode["uri"]?.GetValue<string>();
+                var eventType = dataNode["eventType"]?.GetValue<string>();
+                var data = dataNode["data"];
+
+                // 根据URI进行特定处理
+                if (!string.IsNullOrEmpty(uri))
+                {
+                    switch (uri)
+                    {
+                        case "/lol-gameflow/v1/gameflow-phase":
+
+                            infoMsg.AddMsg(data.ToString());
+                            break;
+
+                        default:
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理事件失败: {ex.Message}");
+            }
         }
     }
 }

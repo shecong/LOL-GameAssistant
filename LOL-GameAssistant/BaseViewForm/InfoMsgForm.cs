@@ -36,5 +36,18 @@ namespace LOL_GameAssistant.BaseViewForm
                 chat_msg.AddToBottom(new AntdUI.Chat.TextChatItem($"{msg}", Properties.Resources.下载, $"Info:{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")}"));
             }
         }
+
+        private void 清空消息ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            //清空消息
+            if (chat_msg.InvokeRequired)
+            {
+                this.Invoke(new Action<object, EventArgs>(清空消息ToolStripMenuItem_Click));
+            }
+            else
+            {
+                chat_msg.Items.Clear();
+            }
+        }
     }
 }

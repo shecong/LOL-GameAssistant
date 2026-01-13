@@ -28,9 +28,13 @@
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             gridPanel1 = new AntdUI.GridPanel();
             chat_msg = new AntdUI.Chat.ChatList();
+            contextMenuStrip1 = new ContextMenuStrip(components);
+            清空消息ToolStripMenuItem = new ToolStripMenuItem();
             gridPanel1.SuspendLayout();
+            contextMenuStrip1.SuspendLayout();
             SuspendLayout();
             // 
             // gridPanel1
@@ -46,11 +50,25 @@
             // 
             // chat_msg
             // 
+            chat_msg.ContextMenuStrip = contextMenuStrip1;
             chat_msg.Location = new Point(3, 3);
             chat_msg.Name = "chat_msg";
             chat_msg.Size = new Size(1147, 802);
             chat_msg.TabIndex = 0;
             chat_msg.Text = "chatList1";
+            // 
+            // contextMenuStrip1
+            // 
+            contextMenuStrip1.Items.AddRange(new ToolStripItem[] { 清空消息ToolStripMenuItem });
+            contextMenuStrip1.Name = "contextMenuStrip1";
+            contextMenuStrip1.Size = new Size(181, 48);
+            // 
+            // 清空消息ToolStripMenuItem
+            // 
+            清空消息ToolStripMenuItem.Name = "清空消息ToolStripMenuItem";
+            清空消息ToolStripMenuItem.Size = new Size(180, 22);
+            清空消息ToolStripMenuItem.Text = "清空消息";
+            清空消息ToolStripMenuItem.Click += 清空消息ToolStripMenuItem_Click;
             // 
             // InfoMsgForm
             // 
@@ -60,6 +78,7 @@
             Name = "InfoMsgForm";
             Size = new Size(1153, 808);
             gridPanel1.ResumeLayout(false);
+            contextMenuStrip1.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -67,5 +86,7 @@
 
         private AntdUI.GridPanel gridPanel1;
         private AntdUI.Chat.ChatList chat_msg;
+        private ContextMenuStrip contextMenuStrip1;
+        private ToolStripMenuItem 清空消息ToolStripMenuItem;
     }
 }
