@@ -13,8 +13,6 @@ namespace LOL_GameAssistant.BaseViewForm
 {
     public partial class LiveGameForm : UserControl
     {
-        private System.Windows.Forms.Timer timer = new();
-
         public LiveGameForm()
         {
             InitializeComponent();
@@ -28,9 +26,6 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="e"></param>
         private async void LiveGameForm_Load(object? sender, EventArgs e)
         {
-            timer.Interval = 10000; // 1秒
-            timer.Tick += async (s, e) => await AddView();
-            //timer.Start();
         }
 
         public async Task AddView()

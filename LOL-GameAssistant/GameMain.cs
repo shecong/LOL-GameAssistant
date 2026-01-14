@@ -9,6 +9,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using static LOL_GameAssistant.Entity.LolRankedDataParser;
 using static LOL_GameAssistant.Entity.PlayerModel;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace LOL_GameAssistant
 {
@@ -185,7 +186,7 @@ namespace LOL_GameAssistant
                     switch (uri)
                     {
                         case "/lol-gameflow/v1/gameflow-phase":
-
+                            gameflowphaseStatus(Convert.ToString(data));
                             infoMsg.AddMsg(data.ToString());
                             break;
 
@@ -197,6 +198,61 @@ namespace LOL_GameAssistant
             catch (Exception ex)
             {
                 Console.WriteLine($"处理事件失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 游戏流程状态处理
+        /// </summary>
+        /// <param name="statustype"></param>
+        private async Task gameflowphaseStatus(String? statustype)
+        {
+            //修改主页状态
+            if (Enum.TryParse(statustype, true, out GameFlowPhase parsedPhase))
+            {
+                gameFlowPhase = parsedPhase;
+                this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
+            }
+            switch (statustype.ToLower())
+            {
+                case "none":
+                    break;
+
+                case "lobby":
+                    //在大厅,如果有开启自动对局,则自动开启
+                    SettingForm.OpenGame(settingForm);
+                    break;
+
+                case "matchmaking":
+                    //匹配中,如果有开启自动接受,则自动接受
+                    SettingForm.GameTrue(settingForm);
+                    break;
+
+                case "ReadyCheck":
+
+                    break;
+
+                case "champselect":
+                    //选择英雄阶段，执行禁用英雄和自动选择英雄|且刷新一次对局数据（ps：对手战绩此时查看不到）
+
+                    //刷新对局数据
+                    _ = liveGameForm.AddView();
+                    break;
+
+                case "GameStart":
+                    break;
+
+                case "inprogress":
+                    //对局中，自动刷新对局数据
+                    break;
+
+                case "waitingforstats":
+                case "terminatedinerror":
+                    //结束对局
+                    break;
+
+                default:
+                    break;
             }
         }
     }

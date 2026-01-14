@@ -73,14 +73,10 @@ namespace LOL_GameAssistant.Helper
                 _socket.Options.SetRequestHeader("Authorization", $"Basic {_token}");
             }
 
-#if DEBUG
             // 仅在开发环境跳过SSL验证
             _socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
-#else
             // 生产环境使用系统默认验证
-            _socket.Options.RemoteCertificateValidationCallback = null;
-#endif
-
+            // _socket.Options.RemoteCertificateValidationCallback = null;
             try
             {
                 // 连接到服务器

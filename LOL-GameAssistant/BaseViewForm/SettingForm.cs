@@ -12,10 +12,7 @@ namespace LOL_GameAssistant.BaseViewForm
 {
     public partial class SettingForm : UserControl
     {
-        private static readonly System.Windows.Forms.Timer timer_open = new();
-        private static readonly System.Windows.Forms.Timer timer_gametrue = new();
-        private static readonly System.Windows.Forms.Timer timer_jyyx = new();
-        private static readonly System.Windows.Forms.Timer timer_xyx = new();
+        public DateTime? lastOpenGameTime=DateTime.Now;
 
         public SettingForm()
         {
@@ -25,41 +22,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private async void SettingForm_Load(object sender, EventArgs e)
         {
             await LoadBase();
-
-            await LoadTimer();
-        }
-
-        /// <summary>
-        /// 加载定时器
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        private async Task LoadTimer()
-        {
-            swi_open.CheckedChanged += (s, e) =>
-            {
-                if (swi_open.Checked) timer_open.Start();
-                else timer_open.Stop();
-            };
-            swi_gametrue.CheckedChanged += (s, e) =>
-            {
-                if (swi_gametrue.Checked) timer_gametrue.Start();
-                else timer_gametrue.Stop();
-            };
-            swi_jyyx.CheckedChanged += (s, e) =>
-            {
-                if (swi_jyyx.Checked) timer_jyyx.Start();
-                else timer_jyyx.Stop();
-            };
-            swi_xyx.CheckedChanged += (s, e) =>
-            {
-                if (swi_xyx.Checked) timer_xyx.Start();
-                else timer_xyx.Stop();
-            };
-            timer_open.Interval = 1000; // 1秒
-            timer_open.Tick += (s, e) => OpenGame();
-            timer_gametrue.Interval = 1000; // 1秒
-            timer_gametrue.Tick += (s, e) => GameTrue();
         }
 
         #region 定时执行方法
@@ -68,18 +30,26 @@ namespace LOL_GameAssistant.BaseViewForm
         /// 自动匹配对局
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        private void OpenGame()
+        public static void OpenGame(SettingForm form)
         {
-            Game_Api.OpenGameServer();
+            var now = DateTime.Now;
+            if ((form.lastOpenGameTime == null || (now - form.lastOpenGameTime.Value).TotalSeconds >= 10) && form.swi_open.Checked)
+            {
+                Game_Api.OpenGameServer();
+                form.lastOpenGameTime = now;
+            }
         }
 
         /// <summary>
         /// 自动接受对局
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        private void GameTrue()
+        public static void GameTrue(SettingForm form)
         {
-            Game_Api.GameTrueServer();
+            if (form.swi_gametrue.Checked)
+            {
+                Game_Api.GameTrueServer();
+            }
         }
 
         #endregion 定时执行方法
