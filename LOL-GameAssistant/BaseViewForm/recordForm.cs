@@ -1,5 +1,5 @@
-﻿using LOL_GameAssistant.LoLApi;
-using LOL_GameAssistant.Entity;
+﻿using LOL_GameAssistant.Entity;
+using LOL_GameAssistant.LoLApi;
 using System.Data;
 
 namespace LOL_GameAssistant.BaseViewForm

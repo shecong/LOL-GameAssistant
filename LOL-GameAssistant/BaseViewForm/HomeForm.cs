@@ -1,14 +1,7 @@
-﻿using LOL_GameAssistant.LoLApi;
-using LOL_GameAssistant.Entity;
+﻿using LOL_GameAssistant.Entity;
+using LOL_GameAssistant.LoLApi;
 using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
 using static LOL_GameAssistant.Entity.LolRankedDataParser;
 using static LOL_GameAssistant.Entity.PlayerModel;
@@ -420,7 +413,6 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="e"></param>
         private void game_pagin_ValueChanged(object sender, AntdUI.PagePageEventArgs e)
         {
-
         }
 
         private void game_pagin_Click(object sender, EventArgs e)

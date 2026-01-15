@@ -1,14 +1,7 @@
 ﻿using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.LoLApi;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
-using System.Drawing.Printing;
-using System.Text;
-using System.Windows.Forms;
 
 namespace LOL_GameAssistant.BaseViewForm
 {

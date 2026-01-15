@@ -984,7 +984,7 @@ namespace LOL_GameAssistant.Entity
                     "700" => "冠军杯赛",
                     "2400" => "海克斯乱斗",
                     "3140" => "训练营",
-                    
+
                     _ => "其他"
                 };
                 set => _queueId = value;

@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace LOL_GameAssistant.Entity
 {
@@ -58,5 +55,4 @@ namespace LOL_GameAssistant.Entity
         [JsonPropertyName("teamParticipantId")]
         public int TeamParticipantId { get; set; }
     }
-
 }

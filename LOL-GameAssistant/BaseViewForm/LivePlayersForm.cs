@@ -27,10 +27,20 @@ namespace LOL_GameAssistant.BaseViewForm
                 var labe = new AntdUI.Label() { Text = gametype, SuffixSvg = "CopyOutlined" };
                 labe.Click += async (s, e) =>
                 {
-                    Clipboard.SetText(name);
+                    try
+                    {
+                        Clipboard.SetText(name);
+                    }
+                    catch (Exception)
+                    {
+                        Clipboard.SetText(name);
+                    }
                     AntdUI.Message.success(ParentForm!, "召唤师id已复制到剪贴板！");
                 };
                 this.gridPanel1.Controls.Add(labe);
+                //添加段位
+
+                //添加个人大小马
             }
             else
             {

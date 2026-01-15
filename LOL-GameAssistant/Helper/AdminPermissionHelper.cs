@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Principal;
-using System.Text;
 
 namespace LOL_GameAssistant.Helper
 {

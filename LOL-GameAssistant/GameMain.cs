@@ -221,6 +221,8 @@ namespace LOL_GameAssistant
                 case "lobby":
                     //在大厅,如果有开启自动对局,则自动开启
                     SettingForm.OpenGame(settingForm);
+                    //刷新对局数据
+                    await liveGameForm.AddView();
                     break;
 
                 case "matchmaking":
@@ -244,6 +246,7 @@ namespace LOL_GameAssistant
 
                 case "inprogress":
                     //对局中，自动刷新对局数据
+                    _ = liveGameForm.AddView();
                     break;
 
                 case "waitingforstats":

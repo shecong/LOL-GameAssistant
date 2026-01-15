@@ -1,9 +1,4 @@
-﻿using System.Diagnostics;
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text.RegularExpressions;
-
-namespace LOL_Demo_Test
+﻿namespace LOL_Demo_Test
 {
     internal class Program
     {
@@ -14,9 +9,6 @@ namespace LOL_Demo_Test
 
         public static async Task GetlolInfoAsync()
         {
-            
         }
-
-        
     }
 }

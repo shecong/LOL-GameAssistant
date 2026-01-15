@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace LOL_GameAssistant.Entity
+﻿namespace LOL_GameAssistant.Entity
 {
     /// <summary>
     /// 表示游戏客户端的流程阶段。

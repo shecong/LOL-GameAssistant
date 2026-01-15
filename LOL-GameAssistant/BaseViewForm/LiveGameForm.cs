@@ -34,40 +34,64 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 LobbyGameInfo? gameInfo = await Game_Api.GameNowServer();
                 if (gameInfo == null) return;
-                this.gridPanel1.Controls.Clear();
-                this.gridPanel2.Controls.Clear();
+                this.gridPanel1.BeginInvoke(new Action(() =>
+                {
+                    gridPanel1.Controls.Clear();
+                }));
+                this.gridPanel2.BeginInvoke(new Action(() =>
+                {
+                    gridPanel2.Controls.Clear();
+                }));
                 //添加所有玩家信息
                 for (int i = 0; i < gameInfo.GameConfig.CustomTeam100.Count; i++)
                 {
                     if (gameInfo.GameConfig.CustomTeam100[i].Puuid.Trim() == "") continue;
                     LivePlayerForm live = new LivePlayerForm(gameInfo.GameConfig.CustomTeam100[i].Puuid);
-                    this.gridPanel1.Controls.Add(live);
+                    this.gridPanel1.BeginInvoke(new Action(() =>
+                    {
+                        gridPanel1.Controls.Add(live);
+                    }));
                 }
                 for (int i = 0; i < gameInfo.GameConfig.CustomTeam200.Count; i++)
                 {
                     if (gameInfo.GameConfig.CustomTeam200[i].Puuid.Trim() == "") continue;
                     LivePlayerForm live = new LivePlayerForm(gameInfo.GameConfig.CustomTeam200[i].Puuid);
-                    this.gridPanel2.Controls.Add(live);
+                    this.gridPanel2.BeginInvoke(new Action(() =>
+                    {
+                        gridPanel2.Controls.Add(live);
+                    }));
                 }
             }
             else if (GameMain.gameFlowPhase == GameFlowPhase.InProgress)
             {
                 GameSessionResponse? gameInfo = await Game_Api.GameLineInfoServer();
                 if (gameInfo == null) return;
-                this.gridPanel1.Controls.Clear();
-                this.gridPanel2.Controls.Clear();
+                this.gridPanel1.BeginInvoke(new Action(() =>
+                {
+                    gridPanel1.Controls.Clear();
+                }));
+                this.gridPanel2.BeginInvoke(new Action(() =>
+                {
+                    gridPanel2.Controls.Clear();
+                }));
                 //添加所有玩家信息
                 for (int i = 0; i < gameInfo.GameData.TeamOne.Count; i++)
                 {
                     if (gameInfo.GameData.TeamOne[i].Puuid.Trim() == "") continue;
                     LivePlayerForm live = new LivePlayerForm(gameInfo.GameData.TeamOne[i].Puuid);
-                    this.gridPanel1.Controls.Add(live);
+                    this.gridPanel1.BeginInvoke(new Action(() =>
+                    {
+                        gridPanel1.Controls.Add(live);
+                    }));
                 }
                 for (int i = 0; i < gameInfo.GameData.TeamTwo.Count; i++)
                 {
                     if (gameInfo.GameData.TeamTwo[i].Puuid.Trim() == "") continue;
                     LivePlayerForm live = new LivePlayerForm(gameInfo.GameData.TeamTwo[i].Puuid);
-                    this.gridPanel2.Controls.Add(live);
+                    this.gridPanel2.BeginInvoke(new Action(() =>
+                    {
+                        gridPanel2.Controls.Add(live);
+                    }));
                 }
             }
         }
