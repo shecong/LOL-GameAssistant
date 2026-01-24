@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             AntdUI.Tabs.StyleLine styleLine1 = new AntdUI.Tabs.StyleLine();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(GameMain));
             tabs1 = new AntdUI.Tabs();
             tabPage1 = new AntdUI.TabPage();
             tab0_grid1 = new AntdUI.GridPanel();
@@ -96,7 +97,7 @@
             tab0_grid1.Size = new Size(1510, 781);
             tab0_grid1.Span = "100%";
             tab0_grid1.TabIndex = 0;
-            tab0_grid1.Text = "gridPanel1";
+            tab0_grid1.Text = resources.GetString("tab0_grid1.Text");
             // 
             // tabPage2
             // 
