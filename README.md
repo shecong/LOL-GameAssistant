@@ -9,3 +9,4 @@
 
   目前的话，个人信息和排位信息，以及战绩界面都已经初步完善,后续功能还在陆续增加中
 
+https://github.com/shecong/LOL-GameAssistant/blob/master/architecture.html
