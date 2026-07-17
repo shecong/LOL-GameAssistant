@@ -8,5 +8,5 @@
 ![](https://s3.bmp.ovh/imgs/2025/09/26/7559ecc4e047ff15.png)
 
   目前的话，个人信息和排位信息，以及战绩界面都已经初步完善,后续功能还在陆续增加中
+![]([https://s3.bmp.ovh/imgs/2025/09/26/7559ecc4e047ff15.png](https://github.com/shecong/LOL-GameAssistant/blob/master/architecture.html))
 
-https://github.com/shecong/LOL-GameAssistant/blob/master/architecture.html
