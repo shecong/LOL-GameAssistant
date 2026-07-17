@@ -1,5 +1,6 @@
-﻿using LOL_GameAssistant.Entity;
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
+using static LOL_GameAssistant.GameMain;
 
 namespace LOL_GameAssistant.LoLApi
 {
@@ -11,59 +12,64 @@ namespace LOL_GameAssistant.LoLApi
         public static string gameversion = "15.19.1";
 
         /// <summary>
-        /// 装备信息
+        /// 装备信息（初始化为 null，与 jNData 保持一致）
         /// </summary>
-        public static List<ZBModel>? zBData = new List<ZBModel>();
+        public static List<ZBModel>? zBData = null;
 
-        public static List<JNModel>? jNData = new List<JNModel>();
+        public static List<JNModel>? jNData = null;
 
         /// <summary>
         /// LOL排位数据
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
-        public static async Task<LolRankedDataParser.RankedData> GetUserGame(String? puuid)
+        public static async Task<LolRankedDataParser.RankedData?> GetUserGame(String? puuid)
         {
             HttpClentHelper client = new HttpClentHelper();
             Stream? responseStream = await client.GetAsync($"/lol-ranked/v1/ranked-stats/{puuid}");
+            if (responseStream == null) return null;
 
             LolRankedDataParser parser = new LolRankedDataParser();
-            return parser.ParseRankedData(await responseStream.ReadAsStringJsonAsync<String>());
+            var jsonStr = await responseStream.ReadAsStringJsonAsync();
+            if (string.IsNullOrEmpty(jsonStr)) return null;
+            return parser.ParseRankedData(jsonStr);
         }
 
         /// <summary>
         /// 获取游戏最新版本
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
-        public static async void GetGameversion()
+        public static async Task GetGameversionAsync()
         {
-            HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync($"https://ddragon.leagueoflegends.com/api/versions.json");
-            List<string>? version = await responseStream.ReadAsJsonAsync<List<string>>();
-            if (version != null)
+            try
             {
-                gameversion = version[0];
+                HttpClentHelper client = new HttpClentHelper();
+                Stream? responseStream = await client.GetAsync($"https://ddragon.leagueoflegends.com/api/versions.json");
+                if (responseStream == null) return;
+
+                List<string>? version = await responseStream.ReadAsJsonAsync<List<string>>();
+                if (version != null && version.Count > 0)
+                {
+                    gameversion = version[0];
+                }
+            }
+            catch (Exception ex)
+            {
+                infoMsg.AddMsg($"获取游戏版本失败: {ex.Message}");
             }
         }
 
         /// <summary>
         /// 获取指定召唤师比赛记录
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<GameHeadModel.MatchHistoryResponse?> GetUserGame(String? puuid, String? begIndex = null, String? endIndex = null)
         {
             HttpClentHelper client = new HttpClentHelper();
             Stream? responseStream = await client.GetAsync($"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex}&endIndex={endIndex}");
+            if (responseStream == null) return null;
             return await responseStream.ReadAsJsonAsync<GameHeadModel.MatchHistoryResponse>();
         }
 
         /// <summary>
         /// 获取召唤师图标
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<Stream> GetGameUserImg(String Key)
         {
             HttpClentHelper client = new HttpClentHelper();
@@ -73,16 +79,12 @@ namespace LOL_GameAssistant.LoLApi
         }
 
         /// <summary>
-        /// 获取装备图标
+        /// 获取装备图标（返回安全的 MemoryStream 副本）
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<Stream> GetGameZBImg(String Key)
         {
-            String? Path = "";
             if (string.IsNullOrEmpty(Key) || Key == "0")
             {
-                // 修复：将Bitmap转换为Stream
                 using (var bmp = LOL_GameAssistant.Properties.Resources._null)
                 {
                     var ms = new MemoryStream();
@@ -91,63 +93,84 @@ namespace LOL_GameAssistant.LoLApi
                     return ms;
                 }
             }
-            //先读取装备信息
-            if (zBData?.Count == 0)
+            // 按需加载装备信息
+            if (zBData == null)
             {
                 HttpClentHelper zbclient = new HttpClentHelper();
                 Stream? zbStream = await zbclient.GetAsync($"/lol-game-data/assets/v1/items.json");
-                zBData = await zbStream.ReadAsJsonAsync<List<ZBModel>>();
+                if (zbStream != null)
+                {
+                    zBData = await zbStream.ReadAsJsonAsync<List<ZBModel>>();
+                }
             }
-            Path = zBData?.Where(p => p.id.ToString() == Key).FirstOrDefault()?.iconPath;
+
+            String? Path = zBData?.Find(p => p.id.ToString() == Key)?.iconPath;
+            if (string.IsNullOrEmpty(Path))
+            {
+                return Stream.Null;
+            }
+
             HttpClentHelper client = new HttpClentHelper();
             Stream? responeStream = await client.GetAsync($"{Path}");
             if (responeStream == null) return Stream.Null;
-            return responeStream;
-            //HttpClentHelper client = new HttpClentHelper();
-            //var result = client.GetAsync($"/lol-game-data/assets/ASSETS/Items/Icons2D/{Key}.png");
-            //return new MemoryStream(Convert.FromBase64String(result.Result));
+
+            // 复制到 MemoryStream 使调用方可安全使用 Image.FromStream
+            var ms = new MemoryStream();
+            await responeStream.CopyToAsync(ms);
+            ms.Position = 0;
+            return ms;
         }
 
         /// <summary>
-        /// 获取召唤师技能图标
+        /// 获取召唤师技能图标（返回安全的 MemoryStream 副本）
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<Stream> GetGameZHSJNImg(String Key)
         {
-            String? Path = "";
-            //先读取装备信息
-            if (jNData == null || jNData?.Count == 0)
+            // 按需加载召唤师技能信息
+            if (jNData == null)
             {
                 HttpClentHelper jnclient = new HttpClentHelper();
                 Stream? jnStream = await jnclient.GetAsync($"/lol-game-data/assets/v1/summoner-spells.json");
-                jNData = await jnStream.ReadAsJsonAsync<List<JNModel>>();
+                if (jnStream != null)
+                {
+                    jNData = await jnStream.ReadAsJsonAsync<List<JNModel>>();
+                }
             }
-            Path = jNData?.Where(p => p.id.ToString() == Key).FirstOrDefault()?.iconPath;
+
+            String? Path = jNData?.Find(p => p.id.ToString() == Key)?.iconPath;
+            if (string.IsNullOrEmpty(Path))
+            {
+                return Stream.Null;
+            }
+
             HttpClentHelper client = new HttpClentHelper();
             Stream? responeStream = await client.GetAsync($"{Path}");
             if (responeStream == null) return Stream.Null;
-            return responeStream;
+
+            var ms = new MemoryStream();
+            await responeStream.CopyToAsync(ms);
+            ms.Position = 0;
+            return ms;
         }
 
         /// <summary>
-        /// 获取英雄图标
+        /// 获取英雄图标（返回安全的 MemoryStream 副本）
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<Stream> GetGameYXImg(int id)
         {
             HttpClentHelper client = new HttpClentHelper();
             Stream? responeStream = await client.GetAsync($"/lol-game-data/assets/v1/champion-icons/{id}.png");
             if (responeStream == null) return Stream.Null;
-            return responeStream;
+
+            var ms = new MemoryStream();
+            await responeStream.CopyToAsync(ms);
+            ms.Position = 0;
+            return ms;
         }
 
         /// <summary>
         /// 获取单场对局详情
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<GameDetailModel.GameInfo?> GetGameDetail(String? gameId)
         {
             HttpClentHelper client = new HttpClentHelper();
@@ -159,30 +182,38 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 自动匹配对局
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
-        public static async void OpenGameServer()
+        public static async Task OpenGameServerAsync()
         {
-            HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.PostAsync($"/lol-lobby/v2/lobby/matchmaking/search");
+            try
+            {
+                HttpClentHelper client = new HttpClentHelper();
+                await client.PostAsync($"/lol-lobby/v2/lobby/matchmaking/search");
+            }
+            catch (Exception ex)
+            {
+                infoMsg.AddMsg($"自动匹配失败: {ex.Message}");
+            }
         }
 
         /// <summary>
         /// 自动接受对局
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
-        public static async void GameTrueServer()
+        public static async Task GameTrueServerAsync()
         {
-            HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.PostAsync($"/lol-matchmaking/v1/ready-check/accept");
+            try
+            {
+                HttpClentHelper client = new HttpClentHelper();
+                await client.PostAsync($"/lol-matchmaking/v1/ready-check/accept");
+            }
+            catch (Exception ex)
+            {
+                infoMsg.AddMsg($"自动接受失败: {ex.Message}");
+            }
         }
 
         /// <summary>
         /// 获取对局实时信息
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<LobbyGameInfo?> GameNowServer()
         {
             HttpClentHelper client = new HttpClentHelper();
@@ -194,8 +225,6 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 获取游戏状态
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<String?> GameFlowPhaseServer()
         {
             HttpClentHelper client = new HttpClentHelper();
@@ -207,8 +236,6 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 进入游戏后可查询队伍信息
         /// </summary>
-        /// <param name="puuid"></param>
-        /// <returns></returns>
         public static async Task<GameSessionResponse?> GameLineInfoServer()
         {
             HttpClentHelper client = new HttpClentHelper();

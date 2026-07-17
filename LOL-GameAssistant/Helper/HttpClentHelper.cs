@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Web;
 
@@ -42,7 +42,6 @@ public class HttpClentHelper : IDisposable
         return url;
     }
 
-    // 便捷方法 - 添加 CancellationToken 支持
     public Task<Stream?> GetAsync(string endpoint, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
     {
         return SendRequestStreamAsync("GET", endpoint, queryParams, null, cancellationToken);
@@ -81,11 +80,9 @@ public class HttpClentHelper : IDisposable
                 baseUrl = "";
             }
 
-            // 构建完整URL（包含查询参数）
             var requestUrl = BuildRequestUrl(baseUrl, endpoint, queryParams);
 
-            // 创建 HttpRequestMessage
-            var request = new HttpRequestMessage(new HttpMethod(httpMethod), requestUrl);
+            using var request = new HttpRequestMessage(new HttpMethod(httpMethod), requestUrl);
 
             // 设置认证头
             request.Headers.Authorization = new AuthenticationHeaderValue(
@@ -101,17 +98,15 @@ public class HttpClentHelper : IDisposable
                 request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             }
 
-            // 发送请求
             Console.WriteLine($"正在发送 {httpMethod} 请求到: {requestUrl}");
             if (!string.IsNullOrEmpty(body))
             {
                 Console.WriteLine($"请求体: {body}");
             }
 
-            HttpResponseMessage response;
+            HttpResponseMessage? response = null;
             try
             {
-                // 使用 HttpCompletionOption.ResponseHeadersRead 以流式处理响应
                 response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             }
             catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -125,16 +120,30 @@ public class HttpClentHelper : IDisposable
                 return null;
             }
 
-            if (response.IsSuccessStatusCode)
+            try
             {
-                return await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                if (response.IsSuccessStatusCode)
+                {
+                    // 将响应内容复制到 MemoryStream 并释放 HttpResponseMessage
+                    var ms = new MemoryStream();
+                    using (var responseStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                    {
+                        await responseStream.CopyToAsync(ms).ConfigureAwait(false);
+                    }
+                    ms.Position = 0;
+                    return ms;
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    Console.WriteLine($"请求失败: {response.StatusCode}");
+                    Console.WriteLine($"错误详情: {errorContent}");
+                    return null;
+                }
             }
-            else
+            finally
             {
-                var errorContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                Console.WriteLine($"请求失败: {response.StatusCode}");
-                Console.WriteLine($"错误详情: {errorContent}");
-                return null;
+                response?.Dispose();
             }
         }
         catch (HttpRequestException ex)
@@ -158,7 +167,6 @@ public class HttpClentHelper : IDisposable
         }
     }
 
-    // 批量请求方法 - 新增功能
     public async Task<List<Stream?>> SendBatchRequestsAsync(
         List<(string method, string endpoint, Dictionary<string, string>? queryParams, string? body)> requests,
         int maxConcurrency = 5,
@@ -167,7 +175,6 @@ public class HttpClentHelper : IDisposable
         var results = new List<Stream?>();
         var tasks = new List<Task<Stream?>>();
 
-        // 使用 SemaphoreSlim 控制并发数
         using var batchSemaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
 
         foreach (var request in requests)
@@ -194,7 +201,6 @@ public class HttpClentHelper : IDisposable
             tasks.Add(task);
         }
 
-        // 等待所有任务完成
         var completedTasks = await Task.WhenAll(tasks);
         results.AddRange(completedTasks);
 
@@ -203,7 +209,6 @@ public class HttpClentHelper : IDisposable
 
     public void Dispose()
     {
-        // 静态 HttpClient 不需要手动释放，但可以实现 IDisposable 接口以保持模式一致
-        // 如果需要释放资源，可以在这里添加
+        // 静态 HttpClient 不需要手动释放
     }
 }

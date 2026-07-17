@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.LoLApi;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -20,28 +20,38 @@ namespace LOL_GameAssistant.BaseViewForm
         #region 定时执行方法
 
         /// <summary>
-        /// 自动匹配对局
+        /// 自动匹配对局（线程安全，始终在 UI 线程执行）
         /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
         public static void OpenGame(SettingForm form)
         {
+            if (form.InvokeRequired)
+            {
+                form.BeginInvoke(() => OpenGame(form));
+                return;
+            }
+
             var now = DateTime.Now;
             if ((form.lastOpenGameTime == null || (now - form.lastOpenGameTime.Value).TotalSeconds >= 10) && form.swi_open.Checked)
             {
-                Game_Api.OpenGameServer();
+                _ = Game_Api.OpenGameServerAsync();
                 form.lastOpenGameTime = now;
             }
         }
 
         /// <summary>
-        /// 自动接受对局
+        /// 自动接受对局（线程安全，始终在 UI 线程执行）
         /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
         public static void GameTrue(SettingForm form)
         {
+            if (form.InvokeRequired)
+            {
+                form.BeginInvoke(() => GameTrue(form));
+                return;
+            }
+
             if (form.swi_gametrue.Checked)
             {
-                Game_Api.GameTrueServer();
+                _ = Game_Api.GameTrueServerAsync();
             }
         }
 
@@ -50,8 +60,6 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 初始化基础数据
         /// </summary>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
         private async Task LoadBase()
         {
             // 获取所有英雄
