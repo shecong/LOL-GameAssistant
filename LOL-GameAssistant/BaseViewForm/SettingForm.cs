@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.LoLApi;
 
@@ -6,6 +7,41 @@ namespace LOL_GameAssistant.BaseViewForm
     public partial class SettingForm : UserControl
     {
         public DateTime? lastOpenGameTime = DateTime.Now;
+
+        /// <summary>
+        /// 自动禁用英雄列表（用户选中的英雄 ID）
+        /// </summary>
+        private List<int> BanChampionIds = new List<int>();
+
+        /// <summary>
+        /// 自动选择英雄列表（用户选中的英雄 ID）
+        /// </summary>
+        private List<int> PickChampionIds = new List<int>();
+
+        /// <summary>
+        /// 定时轮询 Timer
+        /// </summary>
+        private System.Windows.Forms.Timer? _pollTimer;
+
+        /// <summary>
+        /// 上次执行 ban/pick 的 session action 快照，避免重复执行
+        /// </summary>
+        private string? _lastActionsHash;
+
+        /// <summary>
+        /// Ban/pick 执行冷却计时（避免同一轮多次触发）
+        /// </summary>
+        private DateTime _lastAutoActionTime = DateTime.MinValue;
+
+        /// <summary>
+        /// 上次自动匹配检测时间
+        /// </summary>
+        private DateTime _lastAutoMatchCheck = DateTime.MinValue;
+
+        /// <summary>
+        /// 上次自动接受检测时间
+        /// </summary>
+        private DateTime _lastAutoAcceptCheck = DateTime.MinValue;
 
         public SettingForm()
         {
@@ -55,6 +91,231 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>
+        /// 开始轮询（WebSocket 连接后或游戏启动后调用）
+        /// </summary>
+        public void StartPolling()
+        {
+            if (_pollTimer != null) return;
+
+            int intervalSeconds = Math.Max(1, (int)(inputNumber1?.Value ?? 2));
+            _pollTimer = new System.Windows.Forms.Timer();
+            _pollTimer.Interval = intervalSeconds * 1000;
+            _pollTimer.Tick += async (s, e) => await PollTickAsync();
+            _pollTimer.Start();
+
+            GameMain.infoMsg.AddMsg($"设置轮询已启动，检测间隔: {intervalSeconds}秒");
+        }
+
+        /// <summary>
+        /// 停止轮询
+        /// </summary>
+        public void StopPolling()
+        {
+            if (_pollTimer != null)
+            {
+                _pollTimer.Stop();
+                _pollTimer.Dispose();
+                _pollTimer = null;
+            }
+        }
+
+        /// <summary>
+        /// 轮询检测：游戏未启动时持续检测 LCU 连接，
+        /// 连接上之后根据游戏阶段执行自动操作
+        /// </summary>
+        private async Task PollTickAsync()
+        {
+            try
+            {
+                // 检查 LCU 连接是否可用
+                if (string.IsNullOrEmpty(HttpClentHelper.Port) || string.IsNullOrEmpty(HttpClentHelper.Token))
+                {
+                    // 尝试获取 LCU 认证
+                    (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
+                    if (!string.IsNullOrEmpty(port) && !string.IsNullOrEmpty(token))
+                    {
+                        HttpClentHelper.Port = port;
+                        HttpClentHelper.Token = token;
+                        GameMain.infoMsg.AddMsg($"轮询检测到LOL客户端，端口: {port}");
+
+                        // WebSocket 还没连的话，尝试连接
+                        if (GameMain.gameFlowPhase == GameFlowPhase.None || GameMain.gameFlowPhase == GameFlowPhase.Closed)
+                        {
+                            // 通过 rest API 获取当前阶段
+                            var phase = await Game_Api.GameFlowPhaseServer();
+                            if (!string.IsNullOrEmpty(phase))
+                            {
+                                // 触发状态更新（会在 UI 线程调度）
+                                GameMain.gameFlowPhase = Enum.TryParse(phase, true, out GameFlowPhase p) ? p : GameFlowPhase.None;
+                                if (GameMain.gameFlowPhase == GameFlowPhase.Lobby)
+                                {
+                                    GameMain.infoMsg.AddMsg("轮询检测到游戏在大厅状态");
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
+
+                // 获取当前游戏阶段
+                var currentPhase = await Game_Api.GameFlowPhaseServer();
+                if (string.IsNullOrEmpty(currentPhase)) return;
+
+                if (Enum.TryParse(currentPhase, true, out GameFlowPhase parsedPhase))
+                {
+                    GameMain.gameFlowPhase = parsedPhase;
+                }
+
+                var now = DateTime.Now;
+
+                switch (currentPhase.ToLower())
+                {
+                    case "lobby":
+                        // 自动匹配：每 10 秒检测一次
+                        if (swi_open.Checked && (now - _lastAutoMatchCheck).TotalSeconds >= 10)
+                        {
+                            _lastAutoMatchCheck = now;
+                            _ = Game_Api.OpenGameServerAsync();
+                            GameMain.infoMsg.AddMsg("轮询: 自动开始匹配");
+                        }
+                        break;
+
+                    case "matchmaking":
+                        break;
+
+                    case "readycheck":
+                        // 自动接受：每 5 秒检测一次
+                        if (swi_gametrue.Checked && (now - _lastAutoAcceptCheck).TotalSeconds >= 5)
+                        {
+                            _lastAutoAcceptCheck = now;
+                            _ = Game_Api.GameTrueServerAsync();
+                            GameMain.infoMsg.AddMsg("轮询: 自动接受对局");
+                        }
+                        break;
+
+                    case "champselect":
+                        // 自动禁用 & 自动选择
+                        if ((swi_jyyx.Checked || swi_xyx.Checked) &&
+                            (now - _lastAutoActionTime).TotalSeconds >= 3)
+                        {
+                            await ExecuteAutoBanPickAsync();
+                            _lastAutoActionTime = now;
+                        }
+                        break;
+
+                    case "inprogress":
+                        // 游戏中，无需操作
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                // 轮询异常不中断定时器
+                GameMain.infoMsg.AddMsg($"轮询异常: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 执行自动 ban/pick（轮询调用）
+        /// </summary>
+        private async Task ExecuteAutoBanPickAsync()
+        {
+            try
+            {
+                var session = await Select_Api.GetSessionAsync();
+                if (session == null) return;
+
+                // 检查 session 是否有变化（避免重复执行）
+                var actionsJson = session["actions"]?.ToJsonString() ?? "";
+                var actionsHash = actionsJson.GetHashCode().ToString();
+                if (actionsHash == _lastActionsHash) return;
+                _lastActionsHash = actionsHash;
+
+                // 刷新 ban/pick 目标
+                RefreshBanPickTargets();
+
+                // 一次调用完成 ban 和 pick
+                if ((BanChampionIds.Count > 0 || PickChampionIds.Count > 0) &&
+                    (swi_jyyx.Checked || swi_xyx.Checked))
+                {
+                    var banIds = swi_jyyx.Checked ? new List<int>(BanChampionIds) : new List<int>();
+                    var pickIds = swi_xyx.Checked ? new List<int>(PickChampionIds) : new List<int>();
+                    await Select_Api.ExecuteAutoActionsAsync(session, banIds, pickIds);
+                }
+            }
+            catch (Exception ex)
+            {
+                GameMain.infoMsg.AddMsg($"自动ban/pick执行异常: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// WebSocket 事件触发的一次性自动 ban/pick（GameMain 调用）
+        /// </summary>
+        public async Task ExecuteAutoBanPickOnceAsync()
+        {
+            var now = DateTime.Now;
+            if ((now - _lastAutoActionTime).TotalSeconds < 2) return;
+            _lastAutoActionTime = now;
+
+            await ExecuteAutoBanPickAsync();
+        }
+
+        /// <summary>
+        /// 从 UI 选择控件刷新 ban/pick 目标
+        /// </summary>
+        private void RefreshBanPickTargets()
+        {
+            try
+            {
+                BanChampionIds.Clear();
+                PickChampionIds.Clear();
+
+                // 从多选控件获取选中的英雄名称
+                if (swi_jyyx.Checked && setting_select_jyx.SelectedValue != null)
+                {
+                    var selectedNames = setting_select_jyx.SelectedValue as IList<string>;
+                    if (selectedNames != null)
+                    {
+                        foreach (var name in selectedNames)
+                        {
+                            var champion = ChampionMap.GetChampionMap()
+                                .FirstOrDefault(c => c.Value.RealName == name).Value;
+                            if (champion != null && champion.Value > 0)
+                            {
+                                BanChampionIds.Add(champion.Value);
+                            }
+                        }
+                    }
+                }
+
+                if (swi_xyx.Checked && setting_select_xyx.SelectedValue != null)
+                {
+                    var selectedNames = setting_select_xyx.SelectedValue as IList<string>;
+                    if (selectedNames != null)
+                    {
+                        foreach (var name in selectedNames)
+                        {
+                            var champion = ChampionMap.GetChampionMap()
+                                .FirstOrDefault(c => c.Value.RealName == name).Value;
+                            if (champion != null && champion.Value > 0)
+                            {
+                                PickChampionIds.Add(champion.Value);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                GameMain.infoMsg.AddMsg($"刷新ban/pick目标异常: {ex.Message}");
+            }
+        }
+
         #endregion 定时执行方法
 
         /// <summary>
@@ -64,11 +325,17 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             // 获取所有英雄
             var allChampions = ChampionMap.GetChampionMap();
-            for (int i = 0; i < allChampions.Count; i++)
-            {
-                this.setting_select_jyx.Items.Add(allChampions.ElementAt(i).Value.RealName);
-                this.setting_select_xyx.Items.Add(allChampions.ElementAt(i).Value.RealName);
-            }
+            var names = allChampions.Values
+                .Where(c => c.Value > 0)
+                .OrderBy(c => c.RealName)
+                .Select(c => c.RealName)
+                .ToList();
+
+            this.setting_select_jyx.Items.AddRange(names);
+            this.setting_select_xyx.Items.AddRange(names);
+
+            // 启动轮询
+            StartPolling();
         }
     }
 }

@@ -62,6 +62,11 @@ public class HttpClentHelper : IDisposable
         return SendRequestStreamAsync("DELETE", endpoint, queryParams, null, cancellationToken);
     }
 
+    public Task<Stream?> PatchAsync(string endpoint, string? body = null, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
+    {
+        return SendRequestStreamAsync("PATCH", endpoint, queryParams, body, cancellationToken);
+    }
+
     public async Task<Stream?> SendRequestStreamAsync(string httpMethod, string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(Port) || string.IsNullOrEmpty(Token))

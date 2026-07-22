@@ -263,11 +263,17 @@ namespace LOL_GameAssistant
                     break;
 
                 case "champselect":
-                    // 选择英雄阶段，刷新对局数据
-                    this.BeginInvoke(async () =>
+                    // 选择英雄阶段：自动禁用 & 自动选择
+                    settingForm.BeginInvoke(async () =>
                     {
-                        try { await liveGameForm.AddView(); }
-                        catch (Exception ex) { infoMsg.AddMsg($"对局刷新失败: {ex.Message}"); }
+                        try
+                        {
+                            // 刷新对局数据
+                            await liveGameForm.AddView();
+                            // 执行自动 ban/pick
+                            await settingForm.ExecuteAutoBanPickOnceAsync();
+                        }
+                        catch (Exception ex) { infoMsg.AddMsg($"ChampSelect处理失败: {ex.Message}"); }
                     });
                     break;
 
