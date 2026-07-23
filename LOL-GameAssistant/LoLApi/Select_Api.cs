@@ -54,9 +54,6 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 根据当前会话，执行自动禁用和自动选择逻辑
         /// </summary>
-        /// <param name="session">英雄选择会话 JSON</param>
-        /// <param name="banChampionIds">要禁用的英雄ID列表</param>
-        /// <param name="pickChampionId">要选择的英雄ID（取第一个有效的）</param>
         public static async Task ExecuteAutoActionsAsync(
             JsonNode session,
             List<int> banChampionIds,
@@ -86,15 +83,13 @@ namespace LOL_GameAssistant.LoLApi
 
                         var type = actionNode["type"]?.GetValue<string>() ?? "";
                         var actionId = actionNode["id"]?.GetValue<int>() ?? -1;
-                        var isInProgress = actionNode["isInProgress"]?.GetValue<bool>() ?? false;
                         var completed = actionNode["completed"]?.GetValue<bool>() ?? true;
 
-                        // 跳过已完成或正在进行的动作
-                        if (completed || isInProgress || actionId < 0) continue;
+                        // 跳过已完成的动作
+                        if (completed || actionId < 0) continue;
 
                         if (type == "ban" && banChampionIds.Count > 0)
                         {
-                            // 禁用英雄：选择一个未完成的 ban action
                             int championId = banChampionIds[0];
                             // 检查这个英雄是否已经被 ban
                             var bans = session["bans"]?["myTeamBans"]?.AsArray();
@@ -108,18 +103,19 @@ namespace LOL_GameAssistant.LoLApi
                             }
                             if (!alreadyBanned)
                             {
-                                await PatchActionAsync(actionId, championId, true);
-                                GameMain.infoMsg.AddMsg($"自动禁用: {ChampionMap.GetChampion(championId)?.RealName ?? championId.ToString()}");
-                                banChampionIds.RemoveAt(0); // 消费掉这个 ban 目标
+                                // 先选英雄，不锁定（completed=false），等倒计时自然锁定
+                                // 这样用户还能在倒计时结束前手动修改
+                                await PatchActionAsync(actionId, championId, false);
+                                GameMain.infoMsg.AddMsg($"✅ 自动禁用: {ChampionMap.GetChampion(championId)?.RealName ?? championId.ToString()}");
+                                banChampionIds.RemoveAt(0);
                             }
                         }
                         else if (type == "pick" && pickChampionIds.Count > 0)
                         {
-                            // 选择英雄：选择一个未完成的 pick action
                             int championId = pickChampionIds[0];
-                            await PatchActionAsync(actionId, championId, true);
-                            GameMain.infoMsg.AddMsg($"自动选择: {ChampionMap.GetChampion(championId)?.RealName ?? championId.ToString()}");
-                            // 选择后不再移除，因为可能有多轮 pick
+                            // 选择但不锁定（completed=false），让系统倒计时自然锁定
+                            await PatchActionAsync(actionId, championId, false);
+                            GameMain.infoMsg.AddMsg($"✅ 自动选择: {ChampionMap.GetChampion(championId)?.RealName ?? championId.ToString()}");
                         }
                     }
                 }
