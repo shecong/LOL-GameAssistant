@@ -6,15 +6,15 @@ namespace LOL_GameAssistant.Helper
     public static class StreamExtensions
     {
         /// <summary>
-        /// 将流反序列化为指定类型（同步实现，移除无意义的 async）
+        /// 将流反序列化为指定类型
         /// </summary>
-        public static T ReadAsJsonAsync<T>(this Stream stream)
+        public static Task<T> ReadAsJsonAsync<T>(this Stream stream)
         {
-            using (StreamReader reader = new StreamReader(stream))
+            using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: false))
             using (JsonTextReader jsonReader = new JsonTextReader(reader))
             {
                 JsonSerializer serializer = new JsonSerializer();
-                return serializer.Deserialize<T>(jsonReader)!;
+                return Task.FromResult(serializer.Deserialize<T>(jsonReader)!);
             }
         }
 

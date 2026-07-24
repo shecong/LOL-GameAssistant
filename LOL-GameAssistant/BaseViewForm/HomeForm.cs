@@ -83,8 +83,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     return;
                 }
 
-                HttpClentHelper.Port = port;
-                HttpClentHelper.Token = token;
+                HttpClentHelper.SetCredentials(port, token);
                 // 不打印 token 到日志（安全考虑）
                 _infoMsgForm.AddMsg($"已连接到LOL客户端端口:{port}");
 
@@ -150,8 +149,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     return;
                 }
 
-                HttpClentHelper.Port = port;
-                HttpClentHelper.Token = token;
+                HttpClentHelper.SetCredentials(port, token);
                 _infoMsgForm.AddMsg($"已连接到LOL客户端端口:{port}");
 
                 // 获取游戏版本号

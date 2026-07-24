@@ -30,7 +30,9 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             panel.BeginInvoke(new Action(() =>
             {
-                foreach (Control c in panel.Controls)
+                // 先收集再 Dispose 和 Clear，避免在枚举过程中修改集合
+                var controls = panel.Controls.Cast<Control>().ToList();
+                foreach (Control c in controls)
                 {
                     try { c.Dispose(); } catch { }
                 }

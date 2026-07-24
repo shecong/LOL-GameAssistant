@@ -169,8 +169,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
                     if (!string.IsNullOrEmpty(port) && !string.IsNullOrEmpty(token))
                     {
-                        HttpClentHelper.Port = port;
-                        HttpClentHelper.Token = token;
+                        HttpClentHelper.SetCredentials(port, token);
                         GameMain.infoMsg.AddMsg($"轮询检测到LOL客户端，端口: {port}");
 
                         // 尝试重连 WebSocket（如果还没连上）

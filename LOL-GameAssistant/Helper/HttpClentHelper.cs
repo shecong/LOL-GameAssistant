@@ -4,13 +4,28 @@ using System.Web;
 
 public class HttpClentHelper : IDisposable
 {
-    public static string? Port;
-    public static string? Token;
+    public static volatile string? Port;
+    public static volatile string? Token;
 
     // 使用静态 HttpClient 实例避免 Socket 耗尽
     private static readonly HttpClient _httpClient;
 
     private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(20, 20); // 限制并发数
+
+    // Port/Token 原子更新锁
+    private static readonly object _credentialsLock = new object();
+
+    /// <summary>
+    /// 线程安全地设置 LCU 认证凭据（原子操作）
+    /// </summary>
+    public static void SetCredentials(string port, string token)
+    {
+        lock (_credentialsLock)
+        {
+            Port = port;
+            Token = token;
+        }
+    }
 
     static HttpClentHelper()
     {
@@ -75,7 +90,7 @@ public class HttpClentHelper : IDisposable
         }
 
         // 使用信号量控制并发
-        await _semaphore.WaitAsync(cancellationToken);
+        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(true);
         try
         {
             // 构建基础URL
@@ -112,7 +127,7 @@ public class HttpClentHelper : IDisposable
             HttpResponseMessage? response = null;
             try
             {
-                response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
             }
             catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -131,16 +146,16 @@ public class HttpClentHelper : IDisposable
                 {
                     // 将响应内容复制到 MemoryStream 并释放 HttpResponseMessage
                     var ms = new MemoryStream();
-                    using (var responseStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                    using (var responseStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(true))
                     {
-                        await responseStream.CopyToAsync(ms).ConfigureAwait(false);
+                        await responseStream.CopyToAsync(ms).ConfigureAwait(true);
                     }
                     ms.Position = 0;
                     return ms;
                 }
                 else
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var errorContent = await response.Content.ReadAsStringAsync().ConfigureAwait(true);
                     Console.WriteLine($"请求失败: {response.StatusCode}");
                     Console.WriteLine($"错误详情: {errorContent}");
                     return null;
@@ -184,7 +199,7 @@ public class HttpClentHelper : IDisposable
 
         foreach (var request in requests)
         {
-            await batchSemaphore.WaitAsync(cancellationToken);
+            await batchSemaphore.WaitAsync(cancellationToken).ConfigureAwait(true);
 
             var task = Task.Run(async () =>
             {

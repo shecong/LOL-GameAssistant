@@ -22,6 +22,8 @@ namespace LOL_GameAssistant
         public Plyaer? userinfo = new Plyaer();
 
         private WebSocketClient? _wsClient;
+        private readonly object _wsLock = new object();
+        private volatile bool _isConnecting = false;
 
         /// <summary>
         /// 游戏状态枚举（volatile 保证多核可见性）
@@ -89,38 +91,55 @@ namespace LOL_GameAssistant
 
         public async Task ConnectWebSocketAsync()
         {
-            // 释放旧连接（如有）
-            if (_wsClient != null)
-            {
-                try { await _wsClient.DisposeAsync(); } catch { }
-                _wsClient = null;
-            }
-
-            (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
-
-            if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
-            {
-                infoMsg.AddMsg("未找到LOL客户端认证信息，请确保客户端已启动并登录。");
-                return;
-            }
-
-            // 创建客户端
-            _wsClient = new WebSocketClient($"wss://127.0.0.1:{port}", Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{token}")));
-
-            // 订阅事件
-            _wsClient.OnMessage += msg => WebSocketMessage(msg);
-            _wsClient.OnError += err => WebSocketError(_wsClient, err.Message);
-            _wsClient.OnConnectChanged += connected =>
-                WebSocketChange(_wsClient, connected);
-
+            // 防止并发重连
+            if (_isConnecting) return;
+            _isConnecting = true;
             try
             {
-                await _wsClient.ConnectAsync();
-                await _wsClient.SendAsync("[5, \"OnJsonApiEvent\"]");
+                // 线程安全地释放旧连接
+                WebSocketClient? oldClient = null;
+                lock (_wsLock)
+                {
+                    oldClient = _wsClient;
+                    _wsClient = null;
+                }
+                if (oldClient != null)
+                {
+                    try { await oldClient.DisposeAsync(); } catch { }
+                }
+
+                (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
+
+                if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
+                {
+                    infoMsg.AddMsg("未找到LOL客户端认证信息，请确保客户端已启动并登录。");
+                    return;
+                }
+
+                // 创建新客户端
+                var newClient = new WebSocketClient($"wss://127.0.0.1:{port}", Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{token}")));
+
+                // 订阅事件
+                newClient.OnMessage += msg => WebSocketMessage(msg);
+                newClient.OnError += err => WebSocketError(newClient, err.Message);
+                newClient.OnConnectChanged += connected =>
+                    WebSocketChange(newClient, connected);
+
+                lock (_wsLock)
+                {
+                    _wsClient = newClient;
+                }
+
+                await newClient.ConnectAsync();
+                await newClient.SendAsync("[5, \"OnJsonApiEvent\"]");
             }
             catch (Exception ex)
             {
                 infoMsg.AddMsg($"WebSocket连接异常: {ex.Message}");
+            }
+            finally
+            {
+                _isConnecting = false;
             }
         }
 
@@ -129,9 +148,15 @@ namespace LOL_GameAssistant
         /// </summary>
         protected override async void OnFormClosing(FormClosingEventArgs e)
         {
-            if (_wsClient != null)
+            WebSocketClient? clientToDispose;
+            lock (_wsLock)
             {
-                try { await _wsClient.DisposeAsync(); } catch { }
+                clientToDispose = _wsClient;
+                _wsClient = null;
+            }
+            if (clientToDispose != null)
+            {
+                try { await clientToDispose.DisposeAsync(); } catch { }
             }
             base.OnFormClosing(e);
         }

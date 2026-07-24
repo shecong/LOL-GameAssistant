@@ -116,6 +116,7 @@ namespace LOL_GameAssistant.LoLApi
                             // 选择但不锁定（completed=false），让系统倒计时自然锁定
                             await PatchActionAsync(actionId, championId, false);
                             GameMain.infoMsg.AddMsg($"✅ 自动选择: {ChampionMap.GetChampion(championId)?.RealName ?? championId.ToString()}");
+                            pickChampionIds.RemoveAt(0); // 消费掉已使用的 pick 目标，避免多轮重复选择
                         }
                     }
                 }

@@ -9,7 +9,13 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 游戏版本号
         /// </summary>
-        public static string gameversion = "15.19.1";
+        public static volatile string gameversion = "15.19.1";
+
+        /// <summary>
+        /// 懒加载锁
+        /// </summary>
+        private static readonly object _zBDataLock = new object();
+        private static readonly object _jNDataLock = new object();
 
         /// <summary>
         /// 装备信息（初始化为 null，与 jNData 保持一致）
@@ -93,18 +99,24 @@ namespace LOL_GameAssistant.LoLApi
                     return ms;
                 }
             }
-            // 按需加载装备信息
+            // 按需加载装备信息（双重锁定，线程安全）
             if (zBData == null)
             {
-                HttpClentHelper zbclient = new HttpClentHelper();
-                Stream? zbStream = await zbclient.GetAsync($"/lol-game-data/assets/v1/items.json");
-                if (zbStream != null)
+                lock (_zBDataLock)
                 {
-                    zBData = await zbStream.ReadAsJsonAsync<List<ZBModel>>();
+                    if (zBData == null)
+                    {
+                        HttpClentHelper zbclient = new HttpClentHelper();
+                        Stream? zbStream = await zbclient.GetAsync($"/lol-game-data/assets/v1/items.json");
+                        if (zbStream != null)
+                        {
+                            zBData = await zbStream.ReadAsJsonAsync<List<ZBModel>>();
+                        }
+                    }
                 }
             }
 
-            String? Path = zBData?.Find(p => p.id.ToString() == Key)?.iconPath;
+            String? Path = zBData?.Find(p => p.Id == Key)?.IconPath;
             if (string.IsNullOrEmpty(Path))
             {
                 return Stream.Null;
@@ -114,7 +126,6 @@ namespace LOL_GameAssistant.LoLApi
             Stream? responeStream = await client.GetAsync($"{Path}");
             if (responeStream == null) return Stream.Null;
 
-            // 复制到 MemoryStream 使调用方可安全使用 Image.FromStream
             var ms = new MemoryStream();
             await responeStream.CopyToAsync(ms);
             ms.Position = 0;
@@ -126,18 +137,24 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         public static async Task<Stream> GetGameZHSJNImg(String Key)
         {
-            // 按需加载召唤师技能信息
+            // 按需加载召唤师技能信息（双重锁定，线程安全）
             if (jNData == null)
             {
-                HttpClentHelper jnclient = new HttpClentHelper();
-                Stream? jnStream = await jnclient.GetAsync($"/lol-game-data/assets/v1/summoner-spells.json");
-                if (jnStream != null)
+                lock (_jNDataLock)
                 {
-                    jNData = await jnStream.ReadAsJsonAsync<List<JNModel>>();
+                    if (jNData == null)
+                    {
+                        HttpClentHelper jnclient = new HttpClentHelper();
+                        Stream? jnStream = await jnclient.GetAsync($"/lol-game-data/assets/v1/summoner-spells.json");
+                        if (jnStream != null)
+                        {
+                            jNData = await jnStream.ReadAsJsonAsync<List<JNModel>>();
+                        }
+                    }
                 }
             }
 
-            String? Path = jNData?.Find(p => p.id.ToString() == Key)?.iconPath;
+            String? Path = jNData?.Find(p => p.Id == Key)?.IconPath;
             if (string.IsNullOrEmpty(Path))
             {
                 return Stream.Null;
