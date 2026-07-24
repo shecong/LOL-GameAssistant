@@ -99,20 +99,20 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     UserStatus = 1;
                     // 获取头像（释放旧 Image）
-                    Stream headicon = await Assets_api.GetImg(userinfo.profileIconId);
+                    Stream headicon = await Assets_api.GetImg(userinfo.ProfileIconId);
                     if (headicon != null)
                     {
                         DisposeOldImage(this.play_HeadIcon.Image);
                         this.play_HeadIcon.Image = LoadImageSafe(headicon);
                     }
-                    this.play_name.Text = userinfo.gameName;
-                    this.play_number.Text = $"#{userinfo.tagLine}";
+                    this.play_name.Text = userinfo.GameName;
+                    this.play_number.Text = $"#{userinfo.TagLine}";
                     this.play_QF.Text = "";
-                    this.play_dj.Text = userinfo.summonerLevel;
-                    this.play_next.Text = Convert.ToString(userinfo.xpSinceLastLevel);
+                    this.play_dj.Text = userinfo.SummonerLevel;
+                    this.play_next.Text = Convert.ToString(userinfo.XpSinceLastLevel);
                     // 避免满级号除零 NaN
-                    int denom = userinfo.xpSinceLastLevel + userinfo.xpUntilNextLevel;
-                    this.play_jd.Value = denom > 0 ? (float)userinfo.xpUntilNextLevel / (float)denom : 0f;
+                    int denom = userinfo.XpSinceLastLevel + userinfo.XpUntilNextLevel;
+                    this.play_jd.Value = denom > 0 ? (float)userinfo.XpUntilNextLevel / (float)denom : 0f;
 
                     // 获取赛季信息
                     await GetGameSJAsync(userinfo);
@@ -164,19 +164,19 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     UserStatus = 2;
                     // 获取头像
-                    Stream headicon = await Assets_api.GetImg(userOhterinfo.profileIconId);
+                    Stream headicon = await Assets_api.GetImg(userOhterinfo.ProfileIconId);
                     if (headicon != null)
                     {
                         DisposeOldImage(this.play_HeadIcon.Image);
                         this.play_HeadIcon.Image = LoadImageSafe(headicon);
                     }
-                    this.play_name.Text = userOhterinfo.gameName;
-                    this.play_number.Text = $"#{userOhterinfo.tagLine}";
+                    this.play_name.Text = userOhterinfo.GameName;
+                    this.play_number.Text = $"#{userOhterinfo.TagLine}";
                     this.play_QF.Text = "";
-                    this.play_dj.Text = userOhterinfo.summonerLevel;
-                    this.play_next.Text = Convert.ToString(userOhterinfo.xpSinceLastLevel);
-                    int denom = userOhterinfo.xpSinceLastLevel + userOhterinfo.xpUntilNextLevel;
-                    this.play_jd.Value = denom > 0 ? (float)userOhterinfo.xpUntilNextLevel / (float)denom : 0f;
+                    this.play_dj.Text = userOhterinfo.SummonerLevel;
+                    this.play_next.Text = Convert.ToString(userOhterinfo.XpSinceLastLevel);
+                    int denom = userOhterinfo.XpSinceLastLevel + userOhterinfo.XpUntilNextLevel;
+                    this.play_jd.Value = denom > 0 ? (float)userOhterinfo.XpUntilNextLevel / (float)denom : 0f;
 
                     // 获取赛季信息
                     await GetGameSJAsync(userOhterinfo);
@@ -203,7 +203,7 @@ namespace LOL_GameAssistant.BaseViewForm
             String begIndex = "1";
             String endIndex = "9999";
 
-            matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            matchlists = await Game_Api.GetUserGame(userinfo.Puuid, begIndex, endIndex);
 
             // 加载分页
             InitPagin(matchlists);
@@ -225,7 +225,7 @@ namespace LOL_GameAssistant.BaseViewForm
             String begIndex = "0";
             String endIndex = pageSize <= 10 ? "10" : this.game_count.Text;
 
-            matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            matchlists = await Game_Api.GetUserGame(userinfo.Puuid, begIndex, endIndex);
 
             // null 检查
             if (matchlists?.Games?.Games == null) return;
@@ -246,7 +246,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 try
                 {
                     recordForm record = new recordForm();
-                    record.setInfo(pageList[i], userinfo.puuid);
+                    record.setInfo(pageList[i], userinfo.Puuid);
                     this.stackPanel1.Controls.Add(record);
                 }
                 catch (Exception ex)
@@ -266,7 +266,7 @@ namespace LOL_GameAssistant.BaseViewForm
             try
             {
                 LolRankedDataParser lolparser = new LolRankedDataParser();
-                LolRankedDataParser.RankedData? gameinfo = await Game_Api.GetUserGame(userinfo.puuid);
+                LolRankedDataParser.RankedData? gameinfo = await Game_Api.GetUserGame(userinfo.Puuid);
                 if (gameinfo == null) return;
 
                 // 获取单双排信息
