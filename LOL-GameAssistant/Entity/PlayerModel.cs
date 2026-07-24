@@ -30,87 +30,58 @@
             public int pointsToReroll { get; set; }
         }
 
+        /// <summary>
+        /// 召唤师/玩家信息
+        /// </summary>
         public class Plyaer
         {
-            /// <summary>
-            ///
-            /// </summary>
-            public String? accountId { get; set; }
+            [Newtonsoft.Json.JsonProperty("accountId")]
+            public long? AccountId { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public String? displayName { get; set; }
+            [Newtonsoft.Json.JsonProperty("displayName")]
+            public string? DisplayName { get; set; }
 
-            /// <summary>
-            /// 封觉九灵奇楠天
-            /// </summary>
-            public string? gameName { get; set; }
+            [Newtonsoft.Json.JsonProperty("gameName")]
+            public string? GameName { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public string? internalName { get; set; }
+            [Newtonsoft.Json.JsonProperty("internalName")]
+            public string? InternalName { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public string? nameChangeFlag { get; set; }
+            [Newtonsoft.Json.JsonProperty("nameChangeFlag")]
+            public string? NameChangeFlag { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public String? percentCompleteForNextLevel { get; set; }
+            [Newtonsoft.Json.JsonProperty("percentCompleteForNextLevel")]
+            public int PercentCompleteForNextLevel { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public string? privacy { get; set; }
+            [Newtonsoft.Json.JsonProperty("privacy")]
+            public string? Privacy { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public String? profileIconId { get; set; }
+            [Newtonsoft.Json.JsonProperty("profileIconId")]
+            public int ProfileIconId { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public string? puuid { get; set; }
+            [Newtonsoft.Json.JsonProperty("puuid")]
+            public string? Puuid { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public RerollPoints? rerollPoints { get; set; }
+            [Newtonsoft.Json.JsonProperty("rerollPoints")]
+            public RerollPoints? RerollPoints { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public String? summonerId { get; set; }
+            [Newtonsoft.Json.JsonProperty("summonerId")]
+            public long SummonerId { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public String? summonerLevel { get; set; }
+            [Newtonsoft.Json.JsonProperty("summonerLevel")]
+            public int SummonerLevel { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public string? tagLine { get; set; }
+            [Newtonsoft.Json.JsonProperty("tagLine")]
+            public string? TagLine { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public string? unnamed { get; set; }
+            [Newtonsoft.Json.JsonProperty("unnamed")]
+            public string? Unnamed { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public int xpSinceLastLevel { get; set; }
+            [Newtonsoft.Json.JsonProperty("xpSinceLastLevel")]
+            public int XpSinceLastLevel { get; set; }
 
-            /// <summary>
-            ///
-            /// </summary>
-            public int xpUntilNextLevel { get; set; }
+            [Newtonsoft.Json.JsonProperty("xpUntilNextLevel")]
+            public int XpUntilNextLevel { get; set; }
         }
     }
 }

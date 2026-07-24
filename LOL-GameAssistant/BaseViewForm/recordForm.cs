@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Entity;
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.LoLApi;
 using System.Data;
 
@@ -17,48 +17,115 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>
+        /// 安全的 Image.FromStream 替代
+        /// </summary>
+        private static Image LoadImageSafe(Stream stream)
+        {
+            if (stream == null || stream == Stream.Null || stream.Length == 0)
+                return null!;
+            var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            ms.Position = 0;
+            return Image.FromStream(ms);
+        }
+
+        /// <summary>
+        /// 安全释放旧 Image
+        /// </summary>
+        private static void DisposeOldImage(Image? img)
+        {
+            if (img != null)
+            {
+                try { img.Dispose(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 安全设置 PictureBox 图像
+        /// </summary>
+        private static async Task SetPictureImage(PictureBox pic, Task<Stream> streamTask)
+        {
+            try
+            {
+                var stream = await streamTask;
+                if (stream == null || stream == Stream.Null || stream.Length == 0) return;
+                DisposeOldImage(pic.Image);
+                pic.Image = LoadImageSafe(stream);
+            }
+            catch (Exception ex)
+            {
+                GameMain.infoMsg.AddMsg($"加载图标失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// 加载信息
         /// </summary>
         public async Task setInfo(GameHeadModel.GameInfo head, String? puuid)
         {
             if (head == null) return;
-            //根据表头获取明细信息
-            GameDetailModel.GameInfo? gameInfo = new GameDetailModel.GameInfo();
-            gameInfo = await Game_Api.GetGameDetail(Convert.ToString(head.GameId));
-            if (gameInfo == null) return;
 
-            //游戏数据
-            GameDetailModel.ParticipantsItem? gamer = gameInfo.participants.Where(p => p.participantId == gameInfo.participantIdentities.Where(p => p.player.puuid == puuid).FirstOrDefault().participantId).FirstOrDefault<GameDetailModel.ParticipantsItem>();
-            if (gamer == null) return;
+            try
+            {
+                // 获取比赛详情
+                GameDetailModel.GameInfo? gameInfo = await Game_Api.GetGameDetail(Convert.ToString(head.GameId));
+                if (gameInfo == null) return;
 
-            //游戏详情
-            this.BackColor = gamer.stats.win == "true" ? System.Drawing.Color.FromArgb(250, 250, 250) : System.Drawing.Color.FromArgb(242, 242, 242);
-            //头像
-            this.game_pic.Image = Image.FromStream(await Game_Api.GetGameYXImg(gamer.championId));
-            this.game_win.Text = gamer.stats.win == "true" ? "胜利" : "失败";
-            this.game_type.Text = gameInfo.queueId;
-            this.game_time.Text = gameInfo.gameCreationDate.Substring(0, 10);
-            this.game_dj.Text = Convert.ToString(gamer.stats.champLevel);
-            this.game_name.Text = gameInfo.participantIdentities.Where(p => p.player.puuid == puuid).FirstOrDefault().player.gameName;
-            this.game_msg.Text = $"{gamer.stats.kills}/{gamer.stats.deaths}/{gamer.stats.assists}";
-            this.pic_D.Image = Image.FromStream(await Game_Api.GetGameZHSJNImg(gamer.Spell1Id.ToString()));
-            this.pic_F.Image = Image.FromStream(await Game_Api.GetGameZHSJNImg(gamer.Spell2Id.ToString()));
-            //游戏装备
-            this.pic_1.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item0.ToString()));
-            this.pic_2.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item1.ToString()));
-            this.pic_3.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item2.ToString()));
-            this.pic_4.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item3.ToString()));
-            this.pic_5.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item4.ToString()));
-            this.pic_6.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item5.ToString()));
-            this.pic_7.Image = Image.FromStream(await Game_Api.GetGameZBImg(gamer.stats.item6.ToString()));
+                // 找到玩家身份
+                var identity = gameInfo.participantIdentities
+                    ?.FirstOrDefault(p => p?.player?.puuid == puuid);
+                if (identity == null) return;
+
+                // 找到玩家游戏数据
+                GameDetailModel.ParticipantsItem? gamer = gameInfo.participants
+                    ?.FirstOrDefault(p => p?.participantId == identity.participantId);
+                if (gamer?.stats == null) return;
+
+                var stats = gamer.stats;
+
+                // 游戏详情（大小写不敏感胜负判断）
+                bool isWin = string.Equals(stats.win, "true", StringComparison.OrdinalIgnoreCase);
+                this.BackColor = isWin
+                    ? System.Drawing.Color.FromArgb(250, 250, 250)
+                    : System.Drawing.Color.FromArgb(242, 242, 242);
+
+                this.game_win.Text = isWin ? "胜利" : "失败";
+                this.game_type.Text = gameInfo.queueId;
+                this.game_time.Text = (gameInfo.gameCreationDate?.Length >= 10)
+                    ? gameInfo.gameCreationDate.Substring(0, 10) : "";
+                this.game_dj.Text = Convert.ToString(stats.champLevel);
+
+                // 玩家名称
+                this.game_name.Text = gameInfo.participantIdentities
+                    ?.FirstOrDefault(p => p?.player?.puuid == puuid)
+                    ?.player?.gameName ?? "";
+
+                this.game_msg.Text = $"{stats.kills}/{stats.deaths}/{stats.assists}";
+
+                // 英雄图标
+                await SetPictureImage(this.game_pic, Game_Api.GetGameYXImg(gamer.championId));
+                // 召唤师技能图标
+                await SetPictureImage(this.pic_D, Game_Api.GetGameZHSJNImg(gamer.Spell1Id?.ToString() ?? ""));
+                await SetPictureImage(this.pic_F, Game_Api.GetGameZHSJNImg(gamer.Spell2Id?.ToString() ?? ""));
+                // 装备图标
+                await SetPictureImage(this.pic_1, Game_Api.GetGameZBImg(stats.item0.ToString()));
+                await SetPictureImage(this.pic_2, Game_Api.GetGameZBImg(stats.item1.ToString()));
+                await SetPictureImage(this.pic_3, Game_Api.GetGameZBImg(stats.item2.ToString()));
+                await SetPictureImage(this.pic_4, Game_Api.GetGameZBImg(stats.item3.ToString()));
+                await SetPictureImage(this.pic_5, Game_Api.GetGameZBImg(stats.item4.ToString()));
+                await SetPictureImage(this.pic_6, Game_Api.GetGameZBImg(stats.item5.ToString()));
+                await SetPictureImage(this.pic_7, Game_Api.GetGameZBImg(stats.item6.ToString()));
+            }
+            catch (Exception ex)
+            {
+                GameMain.infoMsg.AddMsg($"加载比赛记录详情失败: {ex.Message}");
+            }
         }
 
         private void AttachDoubleClickToAllControls(Control parent)
         {
-            // 为父控件本身添加双击事件
             parent.DoubleClick += FormOrControl_DoubleClick;
 
-            // 递归为所有子控件添加双击事件
             foreach (Control child in parent.Controls)
             {
                 AttachDoubleClickToAllControls(child);
@@ -67,8 +134,8 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void FormOrControl_DoubleClick(object sender, EventArgs e)
         {
-            //双击查看详情
-            AntdUI.Message.warn(ParentForm!, "敬请期待！");
+            if (ParentForm != null)
+                AntdUI.Message.warn(ParentForm, "敬请期待！");
         }
     }
 }

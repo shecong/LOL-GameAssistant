@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.BaseViewForm;
+using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.LoLApi;
@@ -21,10 +21,14 @@ namespace LOL_GameAssistant
         public static LiveGameForm liveGameForm = new LiveGameForm();
         public Plyaer? userinfo = new Plyaer();
 
+        private WebSocketClient? _wsClient;
+        private readonly object _wsLock = new object();
+        private volatile bool _isConnecting = false;
+
         /// <summary>
-        /// 游戏状态枚举
+        /// 游戏状态枚举（volatile 保证多核可见性）
         /// </summary>
-        public static GameFlowPhase gameFlowPhase;
+        public static volatile GameFlowPhase gameFlowPhase;
 
         public GameMain()
         {
@@ -40,12 +44,18 @@ namespace LOL_GameAssistant
         /// <summary>
         /// 初始化加载所有窗体
         /// </summary>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
         private async Task LoadAllForm()
         {
-            //使用websokect连接
-            ConnectWebSocket();
+            //使用websocket连接
+            try
+            {
+                await ConnectWebSocketAsync();
+            }
+            catch (Exception ex)
+            {
+                infoMsg.AddMsg($"WebSocket连接失败: {ex.Message}");
+            }
+
             //加载首页
             tab0_grid1.Controls.Clear();
             tab0_grid1.Controls.Add(home);
@@ -67,46 +77,102 @@ namespace LOL_GameAssistant
         /// <summary>
         /// 刷新对局
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private async void dj_refresh_Click(object sender, EventArgs e)
         {
-            await liveGameForm.AddView();
-        }
-
-        public async void ConnectWebSocket()
-        {
-            // 创建客户端
-            (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
-            var client = new WebSocketClient($"wss://127.0.0.1:{port}", Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{token}")));
-
-            // 订阅事件
-            client.OnMessage += msg => WebSocketMessage(msg);
-            client.OnError += err => WebSocketError(client, err.Message);
-            client.OnConnectChanged += connected =>
-                WebSocketChange(client, connected);
-
             try
             {
-                // 连接（自动启用重连）
-                await client.ConnectAsync();
+                await liveGameForm.AddView();
+            }
+            catch (Exception ex)
+            {
+                infoMsg.AddMsg($"对局刷新异常: {ex.Message}");
+            }
+        }
 
-                // 发送消息
-                await client.SendAsync("[5, \"OnJsonApiEvent\"]");
+        public async Task ConnectWebSocketAsync()
+        {
+            // 防止并发重连
+            if (_isConnecting) return;
+            _isConnecting = true;
+            try
+            {
+                // 线程安全地释放旧连接
+                WebSocketClient? oldClient = null;
+                lock (_wsLock)
+                {
+                    oldClient = _wsClient;
+                    _wsClient = null;
+                }
+                if (oldClient != null)
+                {
+                    try { await oldClient.DisposeAsync(); } catch { }
+                }
+
+                (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
+
+                if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
+                {
+                    infoMsg.AddMsg("未找到LOL客户端认证信息，请确保客户端已启动并登录。");
+                    return;
+                }
+
+                // 创建新客户端
+                var newClient = new WebSocketClient($"wss://127.0.0.1:{port}", Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{token}")));
+
+                // 订阅事件
+                newClient.OnMessage += msg => WebSocketMessage(msg);
+                newClient.OnError += err =>
+                {
+                    infoMsg.AddMsg($"WebSocket错误: {err.Message}");
+                    // 断线后延迟重连
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(5000);
+                        await ConnectWebSocketAsync();
+                    });
+                };
+                newClient.OnConnectChanged += connected =>
+                    WebSocketChange(newClient, connected);
+
+                lock (_wsLock)
+                {
+                    _wsClient = newClient;
+                }
+
+                await newClient.ConnectAsync();
+                await newClient.SendAsync("[5, \"OnJsonApiEvent\"]");
+            }
+            catch (Exception ex)
+            {
+                infoMsg.AddMsg($"WebSocket连接异常: {ex.Message}");
             }
             finally
             {
-                //await client.CloseAsync();
-                //client.Dispose();
+                _isConnecting = false;
             }
         }
 
         /// <summary>
-        /// 重连机制
+        /// 释放 WebSocket 资源
         /// </summary>
-        /// <param name="client"></param>
-        /// <param name="connected"></param>
-        /// <exception cref="NotImplementedException"></exception>
+        protected override async void OnFormClosing(FormClosingEventArgs e)
+        {
+            WebSocketClient? clientToDispose;
+            lock (_wsLock)
+            {
+                clientToDispose = _wsClient;
+                _wsClient = null;
+            }
+            if (clientToDispose != null)
+            {
+                try { await clientToDispose.DisposeAsync(); } catch { }
+            }
+            base.OnFormClosing(e);
+        }
+
+        /// <summary>
+        /// 连接状态变化
+        /// </summary>
         private void WebSocketChange(WebSocketClient client, bool connected)
         {
             if (connected)
@@ -117,55 +183,35 @@ namespace LOL_GameAssistant
 
         private async Task WebSocketError(WebSocketClient client, string err)
         {
-            //while (!string.IsNullOrEmpty(err))
-            //{
-            //    infoMsg.AddMsg("WebSocket断开，正在重连...");
-
-            //    Thread.Sleep(5000); // ✅ 异步等待，不阻塞主线程
-
-            //    try
-            //    {
-            //        await client.CloseAsync();
-            //        client.Dispose();
-            //        ConnectWebSocket(); // ✅ 异步连接
-            //    }
-            //    catch (Exception ex)
-            //    {
-            //        infoMsg.AddMsg($"WebSocket重连失败: {ex.Message}");
-            //    }
-            //}
             infoMsg.AddMsg(err);
         }
 
         private void WebSocketMessage(string msg)
         {
-            //infoMsg.AddMsg(msg);
-            // 解析JSON数组
             try
             {
                 var jsonArray = JsonNode.Parse(msg)?.AsArray();
                 if (jsonArray == null || jsonArray.Count < 3) return;
-                // 提取数组元素
-                var messageId = jsonArray[0]?.GetValue<int>() ?? 0;  // 第一个元素：消息ID（如8）
-                var eventName = jsonArray[1]?.GetValue<string>();    // 第二个元素：事件名称
-                var dataNode = jsonArray[2];                         // 第三个元素：数据对象
-                                                                     // 根据事件类型处理
+
+                var messageId = jsonArray[0]?.GetValue<int>() ?? 0;
+                var eventName = jsonArray[1]?.GetValue<string>();
+                var dataNode = jsonArray[2];
+
                 switch (eventName)
                 {
                     case "OnJsonApiEvent":
                         HandleJsonApiEvent(dataNode);
                         break;
 
-                    // 可以添加其他事件类型
                     default:
                         Console.WriteLine($"未知事件: {eventName}");
                         Console.WriteLine($"完整消息: {msg}");
                         break;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return;
+                infoMsg.AddMsg($"WebSocket消息解析异常: {ex.Message}");
             }
         }
 
@@ -182,19 +228,21 @@ namespace LOL_GameAssistant
                     return;
                 }
 
-                // 提取事件数据
                 var uri = dataNode["uri"]?.GetValue<string>();
                 var eventType = dataNode["eventType"]?.GetValue<string>();
                 var data = dataNode["data"];
 
-                // 根据URI进行特定处理
                 if (!string.IsNullOrEmpty(uri))
                 {
                     switch (uri)
                     {
                         case "/lol-gameflow/v1/gameflow-phase":
-                            gameflowphaseStatus(Convert.ToString(data));
-                            infoMsg.AddMsg(data.ToString());
+                            // 修复：使用 GetValue<string>() 获取原始字符串值，而非 Convert.ToString()（会带引号）
+                            var phaseStr = data?.GetValue<string>();
+                            if (!string.IsNullOrEmpty(phaseStr))
+                            {
+                                gameflowphaseStatus(phaseStr);
+                            }
                             break;
 
                         default:
@@ -209,56 +257,75 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>
-        /// 游戏流程状态处理
+        /// 游戏流程状态处理（始终在 UI 线程执行）
         /// </summary>
         /// <param name="statustype"></param>
-        private async Task gameflowphaseStatus(String? statustype)
+        private void gameflowphaseStatus(string statustype)
         {
-            //修改主页状态
+            // 确保在 UI 线程执行
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke(() => gameflowphaseStatus(statustype));
+                return;
+            }
+
+            if (string.IsNullOrEmpty(statustype)) return;
+
+            // 更新主页状态
             if (Enum.TryParse(statustype, true, out GameFlowPhase parsedPhase))
             {
                 gameFlowPhase = parsedPhase;
                 this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
             }
+
             switch (statustype.ToLower())
             {
                 case "none":
                     break;
 
                 case "lobby":
-                    //在大厅,如果有开启自动对局,则自动开启
-                    SettingForm.OpenGame(settingForm); 
+                    // 在大厅，如果有开启自动对局，则自动开启
+                    SettingForm.OpenGame(settingForm);
                     break;
 
                 case "matchmaking":
-                    
                     break;
 
                 case "readycheck":
-                    //匹配中,如果有开启自动接受,则自动接受
-                    SettingForm.GameTrue(settingForm);
-                    //匹配中,如果有开启自动接受,则自动接受
+                    // 匹配中，如果有开启自动接受，则自动接受
                     SettingForm.GameTrue(settingForm);
                     break;
 
                 case "champselect":
-                    //选择英雄阶段，执行禁用英雄和自动选择英雄|且刷新一次对局数据（ps：对手战绩此时查看不到）
-
-                    //刷新对局数据
-                    _ = liveGameForm.AddView();
+                    // 选择英雄阶段：自动禁用 & 自动选择
+                    settingForm.BeginInvoke(async () =>
+                    {
+                        try
+                        {
+                            // 刷新对局数据
+                            await liveGameForm.AddView();
+                            // 执行自动 ban/pick
+                            await settingForm.ExecuteAutoBanPickOnceAsync();
+                        }
+                        catch (Exception ex) { infoMsg.AddMsg($"ChampSelect处理失败: {ex.Message}"); }
+                    });
                     break;
 
-                case "GameStart":
+                case "gamestart":
                     break;
 
                 case "inprogress":
-                    //对局中，自动刷新对局数据
-                    _ = liveGameForm.AddView();
+                    // 对局中，自动刷新对局数据
+                    this.BeginInvoke(async () =>
+                    {
+                        try { await liveGameForm.AddView(); }
+                        catch (Exception ex) { infoMsg.AddMsg($"对局刷新失败: {ex.Message}"); }
+                    });
                     break;
 
                 case "waitingforstats":
                 case "terminatedinerror":
-                    //结束对局
+                    // 结束对局
                     break;
 
                 default:
