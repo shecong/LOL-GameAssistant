@@ -121,7 +121,16 @@ namespace LOL_GameAssistant
 
                 // 订阅事件
                 newClient.OnMessage += msg => WebSocketMessage(msg);
-                newClient.OnError += err => WebSocketError(newClient, err.Message);
+                newClient.OnError += err =>
+                {
+                    infoMsg.AddMsg($"WebSocket错误: {err.Message}");
+                    // 断线后延迟重连
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(5000);
+                        await ConnectWebSocketAsync();
+                    });
+                };
                 newClient.OnConnectChanged += connected =>
                     WebSocketChange(newClient, connected);
 
