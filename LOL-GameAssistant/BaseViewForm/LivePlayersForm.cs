@@ -18,26 +18,27 @@ namespace LOL_GameAssistant.BaseViewForm
             Load(Type, gametype, name, gamedate, kda, iswin);
         }
 
-        private async void Load(string Type, string gametype, string name, string gamedate, string kda, string iswin)
+        private void Load(string Type, string gametype, string name, string gamedate, string kda, string iswin)
         {
             if (Type == "头部")
             {
                 this.gridPanel1.Controls.Clear();
                 this.gridPanel1.Span = "80%";
                 var labe = new AntdUI.Label() { Text = gametype, SuffixSvg = "CopyOutlined" };
-                labe.Click += async (s, e) =>
+                labe.Click += (s, e) =>
                 {
-                    Task.Run(() =>
+                    try
                     {
-                        Thread.CurrentThread.SetApartmentState(ApartmentState.STA);
+                        // Clipboard.SetText 要求 STA 线程。WinForms UI 线程已经满足 STA 条件，直接调用即可。
                         Clipboard.SetText(name);
-                    }).Wait();
-                    AntdUI.Message.success(ParentForm!, "召唤师id已复制到剪贴板！");
+                        AntdUI.Message.success(ParentForm, "召唤师id已复制到剪贴板！");
+                    }
+                    catch (Exception ex)
+                    {
+                        AntdUI.Message.error(ParentForm, $"复制失败: {ex.Message}");
+                    }
                 };
                 this.gridPanel1.Controls.Add(labe);
-                //添加段位
-
-                //添加个人大小马
             }
             else
             {

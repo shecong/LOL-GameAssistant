@@ -33,7 +33,7 @@
             //清空消息
             if (chat_msg.InvokeRequired)
             {
-                this.Invoke(new Action<object, EventArgs>(清空消息ToolStripMenuItem_Click));
+                this.Invoke(new Action<object, EventArgs>(清空消息ToolStripMenuItem_Click), sender, e);
             }
             else
             {

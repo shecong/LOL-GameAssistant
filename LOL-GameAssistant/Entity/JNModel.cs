@@ -1,12 +1,22 @@
-﻿namespace LOL_GameAssistant.Entity
+using Newtonsoft.Json;
+
+namespace LOL_GameAssistant.Entity
 {
+    /// <summary>
+    /// 召唤师技能/装备基础数据模型
+    /// </summary>
     public class JNModel
     {
-        public String id { get; set; }
-        public String name { get; set; }
+        [JsonProperty("id")]
+        public string? Id { get; set; }
 
-        public String description { get; set; }
+        [JsonProperty("name")]
+        public string? Name { get; set; }
 
-        public String iconPath { get; set; }
+        [JsonProperty("description")]
+        public string? Description { get; set; }
+
+        [JsonProperty("iconPath")]
+        public string? IconPath { get; set; }
     }
 }

@@ -352,14 +352,21 @@ namespace LOL_GameAssistant.Entity
         /// 将段位转换为数值用于比较
         /// </summary>
         /// <param name="tier">段位</param>
-        /// <param name="division">小段位</param>
+        /// <param name="division">小段位（大师及以上为 "NA" 或无意义时使用 0）</param>
         /// <returns>段位数值（越高表示段位越高）</returns>
         private int GetRankValue(string tier, string division)
         {
             if (string.IsNullOrEmpty(tier) || tier == "NONE") return 0;
 
             int tierValue = Array.IndexOf(TierLevels.Tiers, tier) * 4;
-            int divisionValue = Array.IndexOf(TierLevels.Divisions, division) + 1;
+            if (tierValue < 0) return 0; // 未知段位
+
+            int divisionValue = 0;
+            if (!string.IsNullOrEmpty(division) && division != "NA")
+            {
+                int divIndex = Array.IndexOf(TierLevels.Divisions, division);
+                divisionValue = divIndex >= 0 ? divIndex + 1 : 0;
+            }
 
             return tierValue + divisionValue;
         }
