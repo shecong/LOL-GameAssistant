@@ -116,6 +116,9 @@ namespace LOL_GameAssistant
                     return;
                 }
 
+                // 将凭据写入全局静态字段，确保轮询等功能可用
+                HttpClentHelper.SetCredentials(port, token);
+
                 // 创建新客户端
                 var newClient = new WebSocketClient($"wss://127.0.0.1:{port}", Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{token}")));
 
