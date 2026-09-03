@@ -5,19 +5,27 @@ using System.Text;
 namespace LOL_GameAssistant.Helper
 {
     /// <summary>
-    /// WebSocket客户端，支持认证和心跳
+    /// WebSocket客户端，支持认证、心跳和自动重连
     /// </summary>
     public class WebSocketClient : IDisposable, IAsyncDisposable
     {
-        private ClientWebSocket _socket;
+        private ClientWebSocket? _socket;
         private CancellationTokenSource _cts;
         private readonly string _url;
-        private readonly string _token;
+        private readonly string? _token;
         private volatile bool _isRunning;
         private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
-        private CancellationTokenSource _heartbeatCts;
-        private Task _receiveTask;
-        private Task _heartbeatTask;
+        private CancellationTokenSource? _heartbeatCts;
+        private Task? _receiveTask;
+        private Task? _heartbeatTask;
+
+        // 自动重连字段
+        private bool _reconnectEnabled = true;
+        private int _reconnectDelayMs = 5000;
+        private int _maxReconnectDelayMs = 30000;
+        private CancellationTokenSource? _reconnectCts;
+        private Task? _reconnectTask;
+        private volatile bool _disposed;
 
         /// <summary>
         /// 当前连接状态
@@ -27,28 +35,69 @@ namespace LOL_GameAssistant.Helper
         /// <summary>
         /// 收到消息时触发
         /// </summary>
-        public event Action<string> OnMessage;
+        public event Action<string>? OnMessage;
 
         /// <summary>
         /// 发生错误时触发
         /// </summary>
-        public event Action<Exception> OnError;
+        public event Action<Exception>? OnError;
 
         /// <summary>
         /// 连接状态变化时触发
         /// </summary>
-        public event Action<bool> OnConnectChanged;
+        public event Action<bool>? OnConnectChanged;
+
+        /// <summary>
+        /// 正在重连时触发，参数为描述文本
+        /// </summary>
+        public event Action<string>? OnReconnecting;
+
+        /// <summary>
+        /// 是否启用自动重连
+        /// </summary>
+        public bool ReconnectEnabled
+        {
+            get => _reconnectEnabled;
+            set => _reconnectEnabled = value;
+        }
+
+        /// <summary>
+        /// 重连初始延迟（毫秒），默认 5000
+        /// </summary>
+        public int ReconnectDelayMs
+        {
+            get => _reconnectDelayMs;
+            set => _reconnectDelayMs = Math.Max(1000, value);
+        }
+
+        /// <summary>
+        /// 重连最大延迟（毫秒），默认 30000
+        /// </summary>
+        public int MaxReconnectDelayMs
+        {
+            get => _maxReconnectDelayMs;
+            set => _maxReconnectDelayMs = Math.Max(1000, value);
+        }
 
         /// <summary>
         /// 构造函数
         /// </summary>
         /// <param name="url">WebSocket服务器地址</param>
         /// <param name="token">认证令牌（可选）</param>
-        public WebSocketClient(string url, string token = null)
+        public WebSocketClient(string url, string? token = null)
         {
             _url = url ?? throw new ArgumentNullException(nameof(url));
             _token = token;
             _cts = new CancellationTokenSource();
+        }
+
+        /// <summary>
+        /// 停止自动重连
+        /// </summary>
+        public void StopReconnect()
+        {
+            _reconnectEnabled = false;
+            _reconnectCts?.Cancel();
         }
 
         /// <summary>
@@ -96,6 +145,10 @@ namespace LOL_GameAssistant.Helper
                 _isRunning = false;
                 // 异步触发错误事件
                 _ = Task.Run(() => OnError?.Invoke(new Exception($"连接失败: {ex.Message}", ex)));
+
+                // 连接失败时启动重连，让客户端持续检测
+                _reconnectEnabled = true;
+                _ = Task.Run(() => StartReconnectLoopAsync());
             }
         }
 
@@ -105,6 +158,12 @@ namespace LOL_GameAssistant.Helper
         private async Task CleanupAsync()
         {
             _isRunning = false;
+
+            // 停止重连
+            if (_reconnectCts != null)
+            {
+                _reconnectCts?.Cancel();
+            }
 
             // 停止心跳任务
             if (_heartbeatCts != null)
@@ -151,14 +210,14 @@ namespace LOL_GameAssistant.Helper
         /// <exception cref="InvalidOperationException">未连接</exception>
         public async Task SendAsync(string message)
         {
-            if (!IsConnected) return;
-            //throw new InvalidOperationException("未连接到服务器");
+            var socket = _socket;
+            if (socket == null || !IsConnected) return;
 
             await _sendLock.WaitAsync(_cts.Token).ConfigureAwait(false);
             try
             {
                 var buffer = Encoding.UTF8.GetBytes(message);
-                await _socket.SendAsync(
+                await socket.SendAsync(
                     new ArraySegment<byte>(buffer),
                     WebSocketMessageType.Text,
                     true,
@@ -193,7 +252,12 @@ namespace LOL_GameAssistant.Helper
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        _ = Task.Run(() => CloseAsync());
+                        _ = Task.Run(async () =>
+                        {
+                            await CleanupAsync().ConfigureAwait(false);
+                            _ = Task.Run(() => OnConnectChanged?.Invoke(false));
+                            _ = Task.Run(() => StartReconnectLoopAsync());
+                        });
                         break;
                     }
 
@@ -209,6 +273,7 @@ namespace LOL_GameAssistant.Helper
 
                     foreach (var segment in segments)
                     {
+                        if (segment.Array == null) continue;
                         Buffer.BlockCopy(segment.Array, segment.Offset, messageBytes, offset, segment.Count);
                         offset += segment.Count;
                     }
@@ -219,30 +284,37 @@ namespace LOL_GameAssistant.Helper
                     // 异步触发消息事件
                     _ = Task.Run(() => OnMessage?.Invoke(message));
 
-                    // 处理心跳消息
-                    if (message == "PING")
-                        _ = Task.Run(() => SendAsync("PONG"));
+                    // 处理 LCU 心跳消息（协议格式 [8,"PING"]，同时兼容裸文本 PING）
+                    if (message == "[8,\"PING\"]" || message == "PING")
+                        _ = Task.Run(() => SendAsync("[8,\"PONG\"]"));
                 }
                 catch (OperationCanceledException)
                 {
                     break;
                 }
-                catch (WebSocketException wsEx)
+                catch (WebSocketException)
                 {
                     if (_isRunning)
                     {
-                        // 异步触发错误事件
-                        _ = Task.Run(() => OnError?.Invoke(wsEx));
-                        _ = Task.Run(() => CloseAsync());
+                        _ = Task.Run(async () =>
+                        {
+                            await CleanupAsync().ConfigureAwait(false);
+                            _ = Task.Run(() => OnConnectChanged?.Invoke(false));
+                            _ = Task.Run(() => StartReconnectLoopAsync());
+                        });
                     }
                     break;
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     if (_isRunning)
                     {
-                        // 异步触发错误事件
-                        _ = Task.Run(() => OnError?.Invoke(ex));
+                        _ = Task.Run(async () =>
+                        {
+                            await CleanupAsync().ConfigureAwait(false);
+                            _ = Task.Run(() => OnConnectChanged?.Invoke(false));
+                            _ = Task.Run(() => StartReconnectLoopAsync());
+                        });
                     }
                     break;
                 }
@@ -258,11 +330,14 @@ namespace LOL_GameAssistant.Helper
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(30), _heartbeatCts.Token).ConfigureAwait(false);
+                    var cts = _heartbeatCts;
+                    if (cts == null) break;
+                    await Task.Delay(TimeSpan.FromSeconds(30), cts.Token).ConfigureAwait(false);
 
                     if (IsConnected)
                     {
-                        _ = Task.Run(() => SendAsync("PING"));
+                        // LCU WebSocket 心跳使用 JSON 数组格式 [8,"PING"]
+                        _ = Task.Run(() => SendAsync("[8,\"PING\"]"));
                     }
                 }
                 catch (OperationCanceledException)
@@ -278,11 +353,114 @@ namespace LOL_GameAssistant.Helper
         }
 
         /// <summary>
+        /// 自动重连循环（指数退避）
+        /// </summary>
+        private async Task StartReconnectLoopAsync()
+        {
+            // 防止多个重连循环同时运行
+            if (!_reconnectEnabled || _disposed) return;
+            if (_reconnectTask != null && !_reconnectTask.IsCompleted)
+            {
+                return;
+            }
+
+            _reconnectCts = new CancellationTokenSource();
+            var token = _reconnectCts.Token;
+
+            _reconnectTask = Task.Run(async () =>
+            {
+                var delay = _reconnectDelayMs;
+                var attempt = 0;
+
+                while (_reconnectEnabled && !token.IsCancellationRequested && !_disposed)
+                {
+                    attempt++;
+                    var msg = $"正在重连... 第 {attempt} 次尝试，等待 {delay / 1000} 秒 (最多 {_maxReconnectDelayMs / 1000} 秒)";
+                    _ = Task.Run(() => OnReconnecting?.Invoke(msg));
+
+                    try
+                    {
+                        await Task.Delay(delay, token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+
+                    if (!_reconnectEnabled || token.IsCancellationRequested || _disposed) break;
+
+                    // 尝试重连
+                    try
+                    {
+                        // 清理旧 socket
+                        if (_socket != null)
+                        {
+                            try { _socket.Dispose(); } catch { }
+                            _socket = null;
+                        }
+
+                        _socket = new ClientWebSocket();
+                        if (!string.IsNullOrEmpty(_token))
+                        {
+                            _socket.Options.SetRequestHeader("Authorization", $"Basic {_token}");
+                        }
+                        _socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+
+                        await _socket.ConnectAsync(new Uri(_url), token).ConfigureAwait(false);
+
+                        // 重连成功
+                        _isRunning = true;
+
+                        // 重新订阅事件消息
+                        await SendAsync("[5, \"OnJsonApiEvent\"]").ConfigureAwait(false);
+
+                        // 重启子任务
+                        _heartbeatCts = new CancellationTokenSource();
+                        _heartbeatTask = Task.Run(() => HeartbeatLoopAsync(), _heartbeatCts.Token);
+                        _receiveTask = Task.Run(() => ReceiveLoopAsync(), _cts.Token);
+
+                        _ = Task.Run(() => OnConnectChanged?.Invoke(true));
+                        _ = Task.Run(() => OnReconnecting?.Invoke("WebSocket 重连成功"));
+
+                        // 重置重连延迟
+                        delay = _reconnectDelayMs;
+
+                        return; // 退出重连循环
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _isRunning = false;
+                        var errMsg = $"重连失败 (第 {attempt} 次): {ex.Message}";
+                        _ = Task.Run(() => OnError?.Invoke(new Exception(errMsg, ex)));
+                        _ = Task.Run(() => OnReconnecting?.Invoke(errMsg));
+
+                        // 指数退避，上限 maxReconnectDelayMs
+                        delay = Math.Min(delay * 2, _maxReconnectDelayMs);
+                    }
+                }
+            }, token);
+
+            try
+            {
+                await _reconnectTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // 正常取消，无需处理
+            }
+        }
+
+        /// <summary>
         /// 关闭WebSocket连接
         /// </summary>
         public async Task CloseAsync()
         {
             var wasRunning = _isRunning;
+            StopReconnect();
             await CleanupAsync().ConfigureAwait(false);
 
             if (wasRunning)
@@ -306,12 +484,15 @@ namespace LOL_GameAssistant.Helper
         public async ValueTask DisposeAsync()
         {
             _cts?.Cancel();
+            _disposed = true;
             _isRunning = false;
 
+            StopReconnect();
             await CleanupAsync().ConfigureAwait(false);
 
             _cts?.Dispose();
             _heartbeatCts?.Dispose();
+            _reconnectCts?.Dispose();
             _sendLock?.Dispose();
 
             GC.SuppressFinalize(this);
@@ -328,7 +509,7 @@ namespace LOL_GameAssistant.Helper
         /// </summary>
         /// <param name="url">WebSocket服务器地址</param>
         /// <param name="token">认证令牌（可选）</param>
-        public SimpleWebSocketClient(string url, string token = null)
+        public SimpleWebSocketClient(string url, string? token = null)
             : base(url, token)
         {
         }

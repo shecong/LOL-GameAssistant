@@ -19,6 +19,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private GameHeadModel.MatchHistoryResponse? matchlists;
 
         /// <summary>
+        /// 防止客户端后启动时重复刷新首页。
+        /// </summary>
+        private bool _refreshingFromConnection;
+
+        /// <summary>
         /// 1=当前玩家，2=指定玩家
         /// </summary>
         public static int UserStatus = 1;
@@ -47,7 +52,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             //获取客户端登陆
             GetlolLcu._infoMsgForm = _infoMsgForm;
-            (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
+            (string? port, string? token) = GetlolLcu.GetAuth();
             if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
             {
                 AntdUI.Message.error(Program.GameMain, "未找到正在  运行的LOL客户端，请确保客户端已启动并登录。");
@@ -57,10 +62,10 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 HttpClentHelper.Port = port;
                 HttpClentHelper.Token = token;
-                _infoMsgForm.AddMsg($"{port}:{token}");
+                _infoMsgForm.AddMsg($"LCU 连接成功，端口: {port}");
             }
             //获取游戏版本号
-            Game_Api.GetGameversion();
+            await Game_Api.GetGameversion();
             //获取当前召唤师信息
             userinfo = JsonConvert.DeserializeObject<Plyaer>(await Assets_api.GetUser());
             if (userinfo != null)
@@ -76,15 +81,37 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
                 this.play_name.Text = userinfo.gameName;
                 this.play_number.Text = $"#{userinfo.tagLine}";
+                this.inp_playname.Text = $"{userinfo.gameName}#{userinfo.tagLine}";
                 this.play_QF.Text = "";
                 this.play_dj.Text = userinfo.summonerLevel;
-                this.play_next.Text = Convert.ToString(userinfo.xpSinceLastLevel);
-                this.play_jd.Value = (float)userinfo.xpUntilNextLevel / (float)(userinfo.xpSinceLastLevel + userinfo.xpUntilNextLevel);
+                this.play_next.Text = Convert.ToString(userinfo.xpUntilNextLevel);
+                this.play_jd.Value = (float)userinfo.xpSinceLastLevel / (float)(userinfo.xpSinceLastLevel + userinfo.xpUntilNextLevel);
 
                 //获取当前召唤师游戏赛季信息
-                GetGameSJ(userinfo);
+                await GetGameSJAsync(userinfo);
                 //获取玩家比赛记录
-                GetGameInfo(userinfo);
+                await GetGameInfo(userinfo);
+            }
+        }
+
+        /// <summary>
+        /// 客户端后启动时由主窗体调用，刷新当前玩家数据（带防重入）。
+        /// </summary>
+        public async Task RefreshAsync()
+        {
+            if (_refreshingFromConnection) return;
+            _refreshingFromConnection = true;
+            try
+            {
+                await LoadGame();
+            }
+            catch
+            {
+                // 刷新失败不阻塞主流程
+            }
+            finally
+            {
+                _refreshingFromConnection = false;
             }
         }
 
@@ -96,7 +123,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             //获取客户端登陆
             GetlolLcu._infoMsgForm = _infoMsgForm;
-            (string? port, string? token) = GetlolLcu.GetlolLcuCmd();
+            (string? port, string? token) = GetlolLcu.GetAuth();
             if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
             {
                 AntdUI.Message.error(Program.GameMain, "未找到正在  运行的LOL客户端，请确保客户端已启动并登录。");
@@ -106,10 +133,10 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 HttpClentHelper.Port = port;
                 HttpClentHelper.Token = token;
-                _infoMsgForm.AddMsg($"{port}:{token}");
+                _infoMsgForm.AddMsg($"LCU 连接成功，端口: {port}");
             }
             //获取游戏版本号
-            Game_Api.GetGameversion();
+            await Game_Api.GetGameversion();
             //获取当前召唤师信息
             userOhterinfo = JsonConvert.DeserializeObject<Plyaer>(await Assets_api.GetUser(puuid));
             if (userOhterinfo != null)
@@ -127,13 +154,13 @@ namespace LOL_GameAssistant.BaseViewForm
                 this.play_number.Text = $"#{userOhterinfo.tagLine}";
                 this.play_QF.Text = "";
                 this.play_dj.Text = userOhterinfo.summonerLevel;
-                this.play_next.Text = Convert.ToString(userOhterinfo.xpSinceLastLevel);
-                this.play_jd.Value = (float)userOhterinfo.xpUntilNextLevel / (float)(userOhterinfo.xpSinceLastLevel + userOhterinfo.xpUntilNextLevel);
+                this.play_next.Text = Convert.ToString(userOhterinfo.xpUntilNextLevel);
+                this.play_jd.Value = (float)userOhterinfo.xpSinceLastLevel / (float)(userOhterinfo.xpSinceLastLevel + userOhterinfo.xpUntilNextLevel);
 
                 //获取当前召唤师游戏赛季信息
-                GetGameSJ(userOhterinfo);
+                await GetGameSJAsync(userOhterinfo);
                 //获取玩家比赛记录
-                GetGameInfo(userOhterinfo);
+                await GetGameInfo(userOhterinfo);
             }
         }
 
@@ -145,13 +172,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private async Task GetGameInfo(Plyaer? userinfo)
         {
             if (userinfo == null) return;
-            String begIndex = "1";
-            String endIndex = "9999";
-
-            matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
+            matchlists = await Game_Api.GetUserGame(userinfo.puuid, "0", "9999");
 
             //加载分页
             InitPagin(matchlists);
+            await GetGameInfo(userinfo, 1);
         }
 
         /// <summary>
@@ -159,41 +184,61 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         /// <param name="userinfo"></param>
         /// <exception cref="NotImplementedException"></exception>
+        /// <summary>
+        /// 获取玩家的比赛记录（分页）
+        /// </summary>
         private async Task GetGameInfo(Plyaer userinfo, int pageindex)
         {
             stackPanel1.Controls.Clear();
-            if (userinfo == null) return;
-            int pageSize = Convert.ToInt32(this.game_count.Text);
-            String begIndex = "0";
-            String endIndex = pageSize <= 10 ? "10" : this.game_count.Text;
+            if (userinfo == null || matchlists?.Games?.Games == null) return;
+            if (!int.TryParse(this.game_count.Text, out int pageSize) || pageSize <= 0) pageSize = 10;
 
-            matchlists = await Game_Api.GetUserGame(userinfo.puuid, begIndex, endIndex);
-
-            // 排序
+            // 使用已缓存的 matchlists 数据进行本地分页，避免重复调用 API
             var sortedList = matchlists.Games.Games
                 .OrderByDescending(p => p.GameCreation)
                 .ToList();
 
-            // 计算分页
             int total = sortedList.Count;
-            int skip = (pageindex == 1 ? 1 : (pageindex - 1) * pageSize) - 1;
+            int skip = (pageindex - 1) * pageSize;
+            if (skip >= total) return;
             var pageList = sortedList.Skip(skip).Take(pageSize).ToList();
 
-            // 加载数据到界面
-            for (int i = pageList.Count - 1; i >= 0 & i < pageList.Count; i--)
+            // 保持近期战绩卡片的紧凑宽度，避免随首页宽度被无限拉伸；宽屏仍自动多列展示
+            const int RecordCardWidth = 600;
+            const int CardGap = 12;
+            int clientWidth = Math.Max(RecordCardWidth, this.stackPanel1.ClientSize.Width - 20);
+            int columns = Math.Max(1, (clientWidth + CardGap) / (RecordCardWidth + CardGap));
+            int cardWidth = RecordCardWidth;
+
+            // 并行加载本页战绩（限制并发，避免瞬时大量请求），完成后按原顺序显示
+            var semaphore = new SemaphoreSlim(4, 4);
+            var tasks = pageList.Select(async head =>
             {
+                await semaphore.WaitAsync();
                 try
                 {
-                    recordForm record = new recordForm();
-
-                    record.setInfo(pageList[i], userinfo.puuid);
-                    this.stackPanel1.Controls.Add(record);
+                    recordForm record = new recordForm
+                    {
+                        Width = cardWidth,
+                        Margin = new Padding(0, 0, CardGap, 10)
+                    };
+                    await record.setInfo(head, userinfo.puuid);
+                    return record;
                 }
-                catch (Exception)
+                catch
                 {
-                    i += i;
-                    continue;
+                    return null;
                 }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToList();
+
+            var records = await Task.WhenAll(tasks);
+            foreach (var record in records)
+            {
+                if (record != null) this.stackPanel1.Controls.Add(record);
             }
         }
 
@@ -202,44 +247,91 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         /// <param name="plyaer"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private async void GetGameSJ(Plyaer? userinfo = null)
+        private async Task GetGameSJAsync(Plyaer? userinfo = null)
         {
             if (userinfo == null) return;
             LolRankedDataParser lolparser = new LolRankedDataParser();
-            LolRankedDataParser.RankedData gameinfo = await Game_Api.GetUserGame(userinfo.puuid);
+            var gameinfo = await Game_Api.GetRankedStatsAsync(userinfo.puuid, isCurrentUser: UserStatus == 1);
             if (gameinfo == null) return;
             //获取单双排信息
-            LolRankedDataParser.RankedEntry solo = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_SOLO_5x5);
+            LolRankedDataParser.RankedEntry? solo = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_SOLO_5x5);
             //获取灵活5v5信息
-            LolRankedDataParser.RankedEntry flex = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_FLEX_SR);
-            //计算信息
+            LolRankedDataParser.RankedEntry? flex = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_FLEX_SR);
+
+            //===== 单双排（排位赛）卡片 =====
             if (solo != null)
             {
                 this.pic_dsp.Image = CheckTierImg(solo.Tier);
-                this.game_dspT.Text = CheckTierName(solo.Tier) + solo.Division;
-                this.game_dsp_sl.Text = Convert.ToString(solo.WinRate);
-                this.game_dsp_win.Text = Convert.ToString(solo.CurrentSeasonWinsForRewards);
-                this.game_dsp_loss.Text = Convert.ToString(solo.Losses);
+                this.game_dspT.Text = HasRank(solo)
+                    ? $"单双排 {CheckTierName(solo.Tier)}{solo.Division}"
+                    : "单双排 未排位";
+                this.game_dsp_lp.Text = $"{solo.LeaguePoints} LP";
+                this.game_dsp_sl.Text = $"胜率 {solo.WinRate}%";
+                this.game_dsp_win.Text = $"{solo.Wins} 胜";
+                this.game_dsp_loss.Text = $"{solo.Losses} 负";
+                this.game_dsp_highest.Text =
+                    string.IsNullOrEmpty(solo.HighestTier) || solo.HighestTier == "NONE"
+                        ? "最高 -"
+                        : $"最高 {CheckTierName(solo.HighestTier)}{solo.HighestDivision}";
             }
+            else
+            {
+                this.pic_dsp.Image = CheckTierImg("");
+                this.game_dspT.Text = "单双排 未排位";
+                this.game_dsp_lp.Text = "-";
+                this.game_dsp_sl.Text = "胜率 -";
+                this.game_dsp_win.Text = "胜场 -";
+                this.game_dsp_loss.Text = "负场 -";
+                this.game_dsp_highest.Text = "最高 -";
+            }
+
+            //===== 灵活组排卡片 =====
             if (flex != null)
             {
                 this.pic_lhp.Image = CheckTierImg(flex.Tier);
-                this.game_lhpT.Text = CheckTierName(flex.Tier) + flex.Division;
-                this.game_lhp_sl.Text = Convert.ToString(flex.WinRate);
-                this.game_lhp_win.Text = Convert.ToString(flex.CurrentSeasonWinsForRewards);
-                this.game_lhp_loss.Text = Convert.ToString(flex.Losses);
+                this.game_lhpT.Text = HasRank(flex)
+                    ? $"灵活组排 {CheckTierName(flex.Tier)}{flex.Division}"
+                    : "灵活组排 未排位";
+                this.game_lhp_lp.Text = $"{flex.LeaguePoints} LP";
+                this.game_lhp_sl.Text = $"胜率 {flex.WinRate}%";
+                this.game_lhp_win.Text = $"{flex.Wins} 胜";
+                this.game_lhp_loss.Text = $"{flex.Losses} 负";
+                this.game_lhp_highest.Text =
+                    string.IsNullOrEmpty(flex.HighestTier) || flex.HighestTier == "NONE"
+                        ? "最高 -"
+                        : $"最高 {CheckTierName(flex.HighestTier)}{flex.HighestDivision}";
             }
-            //获取赛点信息
-            this.game_dws.Text = solo?.ProvisionalGamesRemaining >= 10 ? "是" : "否";
-            this.game_jjs.Text = string.IsNullOrEmpty(solo?.MiniSeriesProgress) ? "非定级赛" : "solo.MiniSeriesProgress";
-            this.game_jjscount.Text = "未知";
-            this.game_dqsd.Text = Convert.ToString(solo?.LeaguePoints);
-            if (gameinfo.Seasons.TryGetValue("RANKED_SOLO_5x5", out SeasonInfo? value))
+            else
             {
-                this.game_sjend.Text = Convert.ToString(value.SeasonEndDateTime);
+                this.pic_lhp.Image = CheckTierImg("");
+                this.game_lhpT.Text = "灵活组排 未排位";
+                this.game_lhp_lp.Text = "-";
+                this.game_lhp_sl.Text = "胜率 -";
+                this.game_lhp_win.Text = "胜场 -";
+                this.game_lhp_loss.Text = "负场 -";
+                this.game_lhp_highest.Text = "最高 -";
             }
 
-            this.game_ycf.Text = Convert.ToString(solo?.RatedRating);
+            //===== 底部六项数据（以单双排为主，与左侧卡片对应） =====
+            this.game_dws.Text = GetPlacementText(solo);
+            this.game_jjs.Text = GetPromotionText(solo);
+            this.game_jjscount.Text = solo == null ? "-" : $"{solo.TotalGames} 场";
+            this.game_dqsd.Text = solo == null ? "-" : $"{solo.LeaguePoints} LP";
+            this.game_sjend.Text = GetSeasonEndText(gameinfo, QueueTypes.RANKED_SOLO_5x5);
+            string ratedTierName = solo == null ? "" : GetRatedTierName(solo.RatedTier);
+            this.game_ycf.Text = solo != null && solo.RatedRating > 0
+                ? $"{solo.RatedRating}" + (string.IsNullOrEmpty(ratedTierName) ? "" : $"（{ratedTierName}）")
+                : "-";
+        }
+
+        /// <summary>
+        /// 判断是否已获得有效段位。
+        /// </summary>
+        private static bool HasRank(LolRankedDataParser.RankedEntry? entry)
+        {
+            return entry != null
+                && !string.IsNullOrEmpty(entry.Tier)
+                && !string.Equals(entry.Tier, "NONE", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -308,10 +400,10 @@ namespace LOL_GameAssistant.BaseViewForm
             switch (tier)
             {
                 case "IRON":
-                    return "青铜";
+                    return "黑铁";
 
                 case "BRONZE":
-                    return "黑铁";
+                    return "青铜";
 
                 case "SILVER":
                     return "白银";
@@ -323,7 +415,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     return "铂金";
 
                 case "DIAMOND":
-                    return "砖石";
+                    return "钻石";
 
                 case "MASTER":
                     return "超凡大师";
@@ -347,7 +439,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private async void btn_back_Click(object sender, EventArgs e)
         {
             await LoadGame();
-            UpdateGame_pagin();
+            await UpdateGame_paginAsync();
         }
 
         /// <summary>
@@ -358,34 +450,81 @@ namespace LOL_GameAssistant.BaseViewForm
         private async void refeash_Click(object sender, EventArgs e)
         {
             await LoadGame();
-            UpdateGame_pagin();
+            await UpdateGame_paginAsync();
         }
 
         /// <summary>
         /// 搜索指定玩家
         /// </summary>
         /// <param name="sender"></param>
-        /// <param name="e"></param>
         private async void PlayInfo_Click(object sender, EventArgs e)
         {
-            string puuid = this.inp_playname.Text.Trim();
-            if (string.IsNullOrEmpty(puuid))
+            string input = this.inp_playname.Text.Trim();
+            if (string.IsNullOrEmpty(input))
             {
-                AntdUI.Message.error(ParentForm!, "请输入puuid进行查询，召唤师名字查询仅支持在以往对局中匹配过的！");
-                _infoMsgForm.AddMsg("请输入puuid进行查询，召唤师名字查询仅支持在以往对局中匹配过的！");
+                AntdUI.Message.error(ParentForm!, "请输入 puuid 或 名称#TAG 进行查询");
+                _infoMsgForm.AddMsg("请输入 puuid 或 名称#TAG 进行查询");
+                return;
             }
-            if (puuid.Length < 30)
+
+            string? puuid = null;
+
+            // 情况 1：包含 #，按 Riot ID（名称#TAG）解析
+            if (input.Contains('#'))
             {
-                //循环获取puuid
-                puuid = GetUserPuuid(puuid);
-                if (puuid == "")
+                var parts = input.Split('#', 2);
+                string gameName = parts[0].Trim();
+                string tagLine = parts[1].Trim();
+
+                if (string.IsNullOrEmpty(gameName) || string.IsNullOrEmpty(tagLine))
                 {
-                    AntdUI.Message.error(ParentForm!, "召唤师名字查询未找到在以往对局中匹配过的！");
+                    AntdUI.Message.error(ParentForm!, "格式错误，正确格式：名称#TAG（例如 玩家名#CN1）");
+                    _infoMsgForm.AddMsg("格式错误，正确格式：名称#TAG");
+                    return;
+                }
+
+                _infoMsgForm.AddMsg($"正在通过 Riot ID 搜索: {gameName}#{tagLine}");
+
+                // 尝试通过 LCU API 直接搜索
+                string summonerJson = await Assets_api.SearchSummonerByRiotId(gameName, tagLine);
+                if (!string.IsNullOrEmpty(summonerJson))
+                {
+                    try
+                    {
+                        var player = JsonConvert.DeserializeObject<Plyaer>(summonerJson);
+                        puuid = player?.puuid;
+                    }
+                    catch { }
+                }
+
+                // API 搜索失败，退回 match history 扫描
+                if (string.IsNullOrEmpty(puuid))
+                {
+                    _infoMsgForm.AddMsg("LCU 搜索未返回结果，尝试从历史对局中匹配...");
+                    puuid = GetUserPuuid(input);
                 }
             }
+            // 情况 2：长度 >= 30，视为 puuid
+            else if (input.Length >= 30)
+            {
+                puuid = input;
+            }
+            // 情况 3：视为短名称，扫描历史对局
+            else
+            {
+                _infoMsgForm.AddMsg($"正在从历史对局中搜索: {input}");
+                puuid = GetUserPuuid(input);
+            }
+
+            if (string.IsNullOrEmpty(puuid))
+            {
+                AntdUI.Message.error(ParentForm!, "未找到该玩家，请检查输入是否正确");
+                _infoMsgForm.AddMsg("未找到该玩家");
+                return;
+            }
+
             await LoadGame(puuid);
         }
-
         /// <summary>
         /// 循环历史游戏数据找到匹配的puuid
         /// </summary>
@@ -393,13 +532,19 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <returns></returns>
         private string GetUserPuuid(string playername)
         {
-            for (int i = 0; i < matchlists.Games.Games.Count; i++)
+            if (matchlists?.Games?.Games == null) return "";
+            foreach (var game in matchlists.Games.Games)
             {
-                for (int j = 0; j < matchlists.Games.Games[i].ParticipantIdentities.Count; j++)
+                if (game?.ParticipantIdentities == null) continue;
+                foreach (var identity in game.ParticipantIdentities)
                 {
-                    if ($"{matchlists.Games.Games[i].ParticipantIdentities[j].Player.GameName}#{matchlists.Games.Games[i].ParticipantIdentities[j].Player.TagLine}".Contains(playername))
+                    var player = identity?.Player;
+                    if (player == null) continue;
+                    string fullName = $"{player.GameName}#{player.TagLine}";
+                    if (!string.IsNullOrWhiteSpace(playername) &&
+                        fullName.Contains(playername, StringComparison.OrdinalIgnoreCase))
                     {
-                        return matchlists.Games.Games[i].ParticipantIdentities[j].Player.Puuid;
+                        return player.Puuid ?? "";
                     }
                 }
             }
@@ -413,19 +558,21 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="e"></param>
         private void game_pagin_ValueChanged(object sender, AntdUI.PagePageEventArgs e)
         {
+            _ = UpdateGame_paginAsync();
         }
 
         private void game_pagin_Click(object sender, EventArgs e)
         {
-            UpdateGame_pagin();
+            _ = UpdateGame_paginAsync();
         }
 
-        private void UpdateGame_pagin()
+        private async Task UpdateGame_paginAsync()
         {
-            if (UserStatus == 1)
-                GetGameInfo(userinfo, this.game_pagin.Current < 0 ? Convert.ToInt32(this.game_count) : this.game_pagin.Current);
-            else if (UserStatus == 2)
-                GetGameInfo(userOhterinfo, this.game_pagin.Current < 0 ? Convert.ToInt32(this.game_count) : this.game_pagin.Current);
+            if (UserStatus == 1 && userinfo != null)
+                await GetGameInfo(userinfo, this.game_pagin.Current);
+            else if (UserStatus == 2 && userOhterinfo != null)
+                await GetGameInfo(userOhterinfo, this.game_pagin.Current);
         }
     }
 }
+

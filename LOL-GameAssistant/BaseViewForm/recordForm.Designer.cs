@@ -31,9 +31,14 @@
             game_pic = new AntdUI.Avatar();
             game_dj = new AntdUI.Button();
             game_win = new AntdUI.Label();
+            game_name = new AntdUI.Label();
+            game_msg = new AntdUI.Label();
             game_type = new AntdUI.Label();
             game_time = new AntdUI.Label();
-            game_msg = new AntdUI.Label();
+            game_duration = new AntdUI.Label();
+            game_cs = new AntdUI.Label();
+            game_damage = new AntdUI.Label();
+            game_gold = new AntdUI.Label();
             pic_D = new PictureBox();
             pic_F = new PictureBox();
             pic_1 = new PictureBox();
@@ -43,7 +48,10 @@
             pic_5 = new PictureBox();
             pic_6 = new PictureBox();
             pic_7 = new PictureBox();
-            game_name = new AntdUI.Label();
+            lblAlly = new Label();
+            flowAlly = new FlowLayoutPanel();
+            lblEnemy = new Label();
+            flowEnemy = new FlowLayoutPanel();
             game_pic.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pic_D).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pic_F).BeginInit();
@@ -60,166 +68,239 @@
             // 
             game_pic.Controls.Add(game_dj);
             game_pic.Image = Properties.Resources.下载;
-            game_pic.Location = new Point(3, 3);
+            game_pic.Location = new Point(6, 6);
             game_pic.Name = "game_pic";
             game_pic.Radius = 100;
-            game_pic.Size = new Size(87, 88);
+            game_pic.Size = new Size(56, 56);
             game_pic.TabIndex = 0;
-            game_pic.Text = "a";
+            game_pic.Text = "";
             // 
             // game_dj
             // 
-            game_dj.Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point, 134);
-            game_dj.IconRatio = 0F;
-            game_dj.Location = new Point(59, 58);
+            game_dj.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+            game_dj.Location = new Point(28, 34);
             game_dj.Name = "game_dj";
-            game_dj.Radius = 0;
-            game_dj.Shape = AntdUI.TShape.Circle;
-            game_dj.Size = new Size(37, 30);
+            game_dj.Size = new Size(28, 22);
             game_dj.TabIndex = 0;
             game_dj.Text = "18";
-            game_dj.TextCenterHasIcon = true;
             // 
             // game_win
             // 
-            game_win.ColorExtend = "135,#FF0000,#00FF00";
-            game_win.Location = new Point(114, 3);
+            game_win.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
+            game_win.Location = new Point(64, 6);
             game_win.Name = "game_win";
-            game_win.Prefix = "win：";
-            game_win.Size = new Size(121, 29);
+            game_win.Size = new Size(56, 22);
             game_win.TabIndex = 1;
             game_win.Text = "未知";
             // 
-            // game_type
+            // game_name
             // 
-            game_type.ColorExtend = "135,#FF0000,#00FF00";
-            game_type.Location = new Point(114, 32);
-            game_type.Name = "game_type";
-            game_type.Prefix = "类型：";
-            game_type.Size = new Size(121, 29);
-            game_type.TabIndex = 2;
-            game_type.Text = "未知";
-            // 
-            // game_time
-            // 
-            game_time.ColorExtend = "135,#FF0000,#00FF00";
-            game_time.Location = new Point(114, 61);
-            game_time.Name = "game_time";
-            game_time.Prefix = "时间：";
-            game_time.Size = new Size(150, 29);
-            game_time.TabIndex = 3;
-            game_time.Text = "1999-01-01";
+            game_name.Font = new Font("Microsoft YaHei UI", 9.5F);
+            game_name.Location = new Point(124, 6);
+            game_name.Name = "game_name";
+            game_name.Size = new Size(100, 22);
+            game_name.TabIndex = 2;
+            game_name.Text = "未知";
             // 
             // game_msg
             // 
-            game_msg.ColorExtend = "135,#FF0000,#00FF00";
-            game_msg.Location = new Point(405, 3);
+            game_msg.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold);
+            game_msg.Location = new Point(228, 6);
             game_msg.Name = "game_msg";
-            game_msg.Prefix = "KDA：";
-            game_msg.Size = new Size(104, 29);
-            game_msg.TabIndex = 4;
-            game_msg.Text = "未知";
+            game_msg.Size = new Size(80, 22);
+            game_msg.TabIndex = 3;
+            game_msg.Text = "KDA -";
+            // 
+            // game_type
+            // 
+            game_type.Font = new Font("Microsoft YaHei UI", 9F);
+            game_type.ForeColor = SystemColors.GrayText;
+            game_type.Location = new Point(312, 6);
+            game_type.Name = "game_type";
+            game_type.Size = new Size(130, 22);
+            game_type.TabIndex = 4;
+            game_type.Text = "模式 -";
+            // 
+            // game_time
+            // 
+            game_time.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            game_time.Font = new Font("Microsoft YaHei UI", 9F);
+            game_time.ForeColor = SystemColors.GrayText;
+            game_time.Location = new Point(450, 6);
+            game_time.Name = "game_time";
+            game_time.Size = new Size(144, 22);
+            game_time.TabIndex = 5;
+            game_time.Text = "日期 -";
+            // 
+            // game_duration
+            // 
+            game_duration.Font = new Font("Microsoft YaHei UI", 9F);
+            game_duration.ForeColor = SystemColors.GrayText;
+            game_duration.Location = new Point(64, 30);
+            game_duration.Name = "game_duration";
+            game_duration.Size = new Size(84, 20);
+            game_duration.TabIndex = 6;
+            game_duration.Text = "时长 -";
+            // 
+            // game_cs
+            // 
+            game_cs.Font = new Font("Microsoft YaHei UI", 9F);
+            game_cs.ForeColor = SystemColors.GrayText;
+            game_cs.Location = new Point(152, 30);
+            game_cs.Name = "game_cs";
+            game_cs.Size = new Size(84, 20);
+            game_cs.TabIndex = 7;
+            game_cs.Text = "补刀 -";
+            // 
+            // game_damage
+            // 
+            game_damage.Font = new Font("Microsoft YaHei UI", 9F);
+            game_damage.ForeColor = SystemColors.GrayText;
+            game_damage.Location = new Point(240, 30);
+            game_damage.Name = "game_damage";
+            game_damage.Size = new Size(100, 20);
+            game_damage.TabIndex = 8;
+            game_damage.Text = "伤害 -";
+            // 
+            // game_gold
+            // 
+            game_gold.Font = new Font("Microsoft YaHei UI", 9F);
+            game_gold.ForeColor = SystemColors.GrayText;
+            game_gold.Location = new Point(344, 30);
+            game_gold.Name = "game_gold";
+            game_gold.Size = new Size(80, 20);
+            game_gold.TabIndex = 9;
+            game_gold.Text = "金币 -";
             // 
             // pic_D
             // 
-            pic_D.Location = new Point(514, 3);
+            pic_D.Location = new Point(436, 28);
             pic_D.Name = "pic_D";
-            pic_D.Size = new Size(43, 39);
+            pic_D.Size = new Size(30, 30);
             pic_D.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_D.TabIndex = 5;
+            pic_D.TabIndex = 10;
             pic_D.TabStop = false;
             // 
             // pic_F
             // 
-            pic_F.Location = new Point(563, 3);
+            pic_F.Location = new Point(470, 28);
             pic_F.Name = "pic_F";
-            pic_F.Size = new Size(44, 39);
+            pic_F.Size = new Size(30, 30);
             pic_F.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_F.TabIndex = 6;
+            pic_F.TabIndex = 11;
             pic_F.TabStop = false;
             // 
             // pic_1
             // 
             pic_1.Image = Properties.Resources._null;
-            pic_1.Location = new Point(270, 48);
+            pic_1.Location = new Point(64, 64);
             pic_1.Name = "pic_1";
-            pic_1.Size = new Size(43, 42);
+            pic_1.Size = new Size(30, 30);
             pic_1.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_1.TabIndex = 7;
+            pic_1.TabIndex = 12;
             pic_1.TabStop = false;
             // 
             // pic_2
             // 
-            pic_2.Location = new Point(319, 48);
+            pic_2.Location = new Point(98, 64);
             pic_2.Name = "pic_2";
-            pic_2.Size = new Size(43, 42);
+            pic_2.Size = new Size(30, 30);
             pic_2.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_2.TabIndex = 8;
+            pic_2.TabIndex = 13;
             pic_2.TabStop = false;
             // 
             // pic_3
             // 
-            pic_3.Location = new Point(368, 48);
+            pic_3.Location = new Point(132, 64);
             pic_3.Name = "pic_3";
-            pic_3.Size = new Size(43, 42);
+            pic_3.Size = new Size(30, 30);
             pic_3.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_3.TabIndex = 9;
+            pic_3.TabIndex = 14;
             pic_3.TabStop = false;
             // 
             // pic_4
             // 
-            pic_4.Location = new Point(417, 48);
+            pic_4.Location = new Point(166, 64);
             pic_4.Name = "pic_4";
-            pic_4.Size = new Size(43, 42);
+            pic_4.Size = new Size(30, 30);
             pic_4.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_4.TabIndex = 10;
+            pic_4.TabIndex = 15;
             pic_4.TabStop = false;
             // 
             // pic_5
             // 
-            pic_5.Location = new Point(466, 48);
+            pic_5.Location = new Point(200, 64);
             pic_5.Name = "pic_5";
-            pic_5.Size = new Size(43, 42);
+            pic_5.Size = new Size(30, 30);
             pic_5.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_5.TabIndex = 11;
+            pic_5.TabIndex = 16;
             pic_5.TabStop = false;
             // 
             // pic_6
             // 
-            pic_6.Location = new Point(515, 48);
+            pic_6.Location = new Point(234, 64);
             pic_6.Name = "pic_6";
-            pic_6.Size = new Size(43, 42);
+            pic_6.Size = new Size(30, 30);
             pic_6.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_6.TabIndex = 12;
+            pic_6.TabIndex = 17;
             pic_6.TabStop = false;
             // 
             // pic_7
             // 
-            pic_7.Location = new Point(564, 48);
+            pic_7.Location = new Point(268, 64);
             pic_7.Name = "pic_7";
-            pic_7.Size = new Size(43, 42);
+            pic_7.Size = new Size(30, 30);
             pic_7.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_7.TabIndex = 13;
+            pic_7.TabIndex = 18;
             pic_7.TabStop = false;
             // 
-            // game_name
+            // lblAlly
             // 
-            game_name.ColorExtend = "135,#FF0000,#00FF00";
-            game_name.Location = new Point(241, 3);
-            game_name.Name = "game_name";
-            game_name.Prefix = "名称：";
-            game_name.Size = new Size(158, 29);
-            game_name.TabIndex = 14;
-            game_name.Text = "未知";
+            lblAlly.AutoSize = true;
+            lblAlly.BackColor = Color.Transparent;
+            lblAlly.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+            lblAlly.ForeColor = Color.FromArgb(30, 136, 229);
+            lblAlly.Location = new Point(8, 108);
+            lblAlly.Name = "lblAlly";
+            lblAlly.Size = new Size(32, 16);
+            lblAlly.TabIndex = 19;
+            lblAlly.Text = "我方";
+            // 
+            // flowAlly
+            // 
+            flowAlly.Location = new Point(44, 102);
+            flowAlly.Name = "flowAlly";
+            flowAlly.Size = new Size(176, 30);
+            flowAlly.TabIndex = 20;
+            // 
+            // lblEnemy
+            // 
+            lblEnemy.AutoSize = true;
+            lblEnemy.BackColor = Color.Transparent;
+            lblEnemy.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+            lblEnemy.ForeColor = Color.FromArgb(211, 47, 47);
+            lblEnemy.Location = new Point(310, 108);
+            lblEnemy.Name = "lblEnemy";
+            lblEnemy.Size = new Size(32, 16);
+            lblEnemy.TabIndex = 21;
+            lblEnemy.Text = "敌方";
+            // 
+            // flowEnemy
+            // 
+            flowEnemy.Location = new Point(346, 102);
+            flowEnemy.Name = "flowEnemy";
+            flowEnemy.Size = new Size(176, 30);
+            flowEnemy.TabIndex = 22;
             // 
             // recordForm
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
-            AutoScroll = true;
             BackColor = SystemColors.ControlLight;
-            Controls.Add(game_name);
-            Controls.Add(game_time);
+            Controls.Add(flowEnemy);
+            Controls.Add(lblEnemy);
+            Controls.Add(flowAlly);
+            Controls.Add(lblAlly);
             Controls.Add(pic_7);
             Controls.Add(pic_6);
             Controls.Add(pic_5);
@@ -229,13 +310,19 @@
             Controls.Add(pic_1);
             Controls.Add(pic_F);
             Controls.Add(pic_D);
-            Controls.Add(game_msg);
+            Controls.Add(game_gold);
+            Controls.Add(game_damage);
+            Controls.Add(game_cs);
+            Controls.Add(game_duration);
+            Controls.Add(game_time);
             Controls.Add(game_type);
+            Controls.Add(game_msg);
+            Controls.Add(game_name);
             Controls.Add(game_win);
             Controls.Add(game_pic);
             DoubleBuffered = true;
             Name = "recordForm";
-            Size = new Size(813, 94);
+            Size = new Size(600, 138);
             game_pic.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pic_D).EndInit();
             ((System.ComponentModel.ISupportInitialize)pic_F).EndInit();
@@ -254,9 +341,14 @@
         private AntdUI.Avatar game_pic;
         private AntdUI.Button game_dj;
         private AntdUI.Label game_win;
+        private AntdUI.Label game_name;
+        private AntdUI.Label game_msg;
         private AntdUI.Label game_type;
         private AntdUI.Label game_time;
-        private AntdUI.Label game_msg;
+        private AntdUI.Label game_duration;
+        private AntdUI.Label game_cs;
+        private AntdUI.Label game_damage;
+        private AntdUI.Label game_gold;
         private PictureBox pic_D;
         private PictureBox pic_F;
         private PictureBox pic_1;
@@ -266,6 +358,9 @@
         private PictureBox pic_5;
         private PictureBox pic_6;
         private PictureBox pic_7;
-        private AntdUI.Label game_name;
+        private Label lblAlly;
+        private FlowLayoutPanel flowAlly;
+        private Label lblEnemy;
+        private FlowLayoutPanel flowEnemy;
     }
 }

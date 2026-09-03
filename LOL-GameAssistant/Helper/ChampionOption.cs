@@ -1,5 +1,8 @@
 ﻿namespace LOL_GameAssistant.Helper
 {
+    /// <summary>
+    /// 英雄下拉选项：显示名、ID、真名与常用昵称。
+    /// </summary>
     public class ChampionOption
     {
         public string Label { get; set; }
@@ -155,7 +158,6 @@
 { 221, new ChampionOption("祖安花火", 221, "泽丽", "") },
 { 222, new ChampionOption("暴走萝莉", 222, "金克丝", "金克丝") },
 { 223, new ChampionOption("河流之王", 223, "塔姆", "蛤蟆") },
-{ 233, new ChampionOption("狂厄蔷薇", 233, "布里茨·芮尔", "玫瑰") },
 { 234, new ChampionOption("破败之王", 234, "佛耶戈", "佛爷") },
 { 235, new ChampionOption("涤魂圣枪", 235, "赛娜", "") },
 { 236, new ChampionOption("圣枪游侠", 236, "卢锡安", "奥巴马") },
@@ -185,7 +187,6 @@
 { 555, new ChampionOption("血港鬼影", 555, "派克", "水鬼") },
 { 711, new ChampionOption("愁云使者", 711, "薇古丝", "熬夜波比") },
 { 777, new ChampionOption("封魔剑魂", 777, "永恩", "") },
-{ 799, new ChampionOption("铁血狼母", 799, "沃里克(铁血)", "狼人") },
 { 800, new ChampionOption("流光镜影", 800, "米利欧", "") },
 { 804, new ChampionOption("不破之誓", 804, "布蕾尔", "吸血鬼2") },
 { 875, new ChampionOption("腕豪", 875, "瑟提", "劲夫") },
@@ -196,8 +197,6 @@
 { 895, new ChampionOption("不羁之悦", 895, "尼菈", "水刀妹") },
 { 897, new ChampionOption("纳祖芒荣耀", 897, "奎桑提", "黑哥") },
 { 901, new ChampionOption("炽炎雏龙", 901, "斯莫德", "小火龙") },
-{ 902, new ChampionOption("明烛", 902, "米利欧", "米利欧") },
-{ 904, new ChampionOption("不落魔锋", 904, "维戈斯", "剪刀手") },
 { 910, new ChampionOption("异画师", 910, "彗", "画师") },
 { 950, new ChampionOption("百裂冥犬", 950, "纳亚菲利", "狗群") }
         };
@@ -208,7 +207,7 @@
             return _championMap;
         }
 
-        public static ChampionOption GetChampion(int id)
+        public static ChampionOption? GetChampion(int id)
         {
             _championMap.TryGetValue(id, out var champion);
             return champion;
@@ -220,7 +219,7 @@
     /// </summary>
     public static class GetChampionHelper
     {
-        public static ChampionOption GetChampionOption(int id)
+        public static ChampionOption? GetChampionOption(int id)
         {
             return ChampionMap.GetChampion(id);
         }

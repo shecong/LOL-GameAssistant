@@ -1,7 +1,13 @@
 ﻿namespace LOL_GameAssistant.Entity
 {
+    /// <summary>
+    /// 召唤师 JSON 模型（LCU /lol-summoner）。
+    /// </summary>
     public class PlayerModel
     {
+        /// <summary>
+        /// 重 roll 点数信息。
+        /// </summary>
         public class RerollPoints
         {
             /// <summary>
@@ -30,6 +36,9 @@
             public int pointsToReroll { get; set; }
         }
 
+        /// <summary>
+        /// 召唤师信息（注意：类名为历史遗留拼写 Plyaer，属性与 LCU 字段保持一致）。
+        /// </summary>
         public class Plyaer
         {
             /// <summary>

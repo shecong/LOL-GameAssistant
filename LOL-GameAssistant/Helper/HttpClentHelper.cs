@@ -2,6 +2,9 @@
 using System.Text;
 using System.Web;
 
+/// <summary>
+/// LCU/HTTP 请求客户端封装：静态 HttpClient、Basic 认证、并发限制、批量请求。
+/// </summary>
 public class HttpClentHelper : IDisposable
 {
     public static string? Port;
@@ -56,6 +59,11 @@ public class HttpClentHelper : IDisposable
     public Task<Stream?> PutAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
     {
         return SendRequestStreamAsync("PUT", endpoint, queryParams, body, cancellationToken);
+    }
+
+    public Task<Stream?> PatchAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
+    {
+        return SendRequestStreamAsync("PATCH", endpoint, queryParams, body, cancellationToken);
     }
 
     public Task<Stream?> DeleteAsync(string endpoint, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)

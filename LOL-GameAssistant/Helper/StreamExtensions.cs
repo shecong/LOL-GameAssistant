@@ -3,9 +3,12 @@ using System.Text;
 
 namespace LOL_GameAssistant.Helper
 {
+    /// <summary>
+    /// Stream 扩展：JSON / Base64 JSON / 纯文本异步读取。
+    /// </summary>
     public static class StreamExtensions
     {
-        public static async Task<T> ReadAsJsonAsync<T>(this Stream stream)
+        public static async Task<T?> ReadAsJsonAsync<T>(this Stream stream)
         {
             using (StreamReader reader = new StreamReader(stream))
             using (JsonTextReader jsonReader = new JsonTextReader(reader))
@@ -15,7 +18,7 @@ namespace LOL_GameAssistant.Helper
             }
         }
 
-        public static async Task<T> ReadAsBase64JsonAsync<T>(this Stream stream)
+        public static async Task<T?> ReadAsBase64JsonAsync<T>(this Stream stream)
         {
             using (StreamReader reader = new StreamReader(stream))
             {
@@ -26,11 +29,10 @@ namespace LOL_GameAssistant.Helper
             }
         }
 
-        public static async Task<string> ReadAsStringJsonAsync<String>(this Stream stream)
+        public static async Task<string> ReadAsStringJsonAsync(this Stream stream)
         {
             using (StreamReader reader = new StreamReader(stream))
             {
-                // 4. ReadToEndAsync() 会将流中的所有内容异步读取到一个字符串中
                 string content = await reader.ReadToEndAsync();
                 return content;
             }

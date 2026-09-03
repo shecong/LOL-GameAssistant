@@ -1,6 +1,5 @@
-using System.Diagnostics;
+ï»¿using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Security.Principal;
 using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
 
 namespace LOL_GameAssistant
@@ -9,58 +8,31 @@ namespace LOL_GameAssistant
     {
         public static GameMain GameMain { get; private set; } = new GameMain();
 
-        private static IInfoMsgForm? _infoMsgForm;
-
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
         [STAThread]
         private static void Main()
         {
-            // ÉèÖÃ DPI ¸ĞÖªÄ£Ê½£¨±ØĞë·ÅÔÚ³ÌĞòÆô¶¯×î¿ªÊ¼£©
+            // è®¾ç½® DPI æ„ŸçŸ¥æ¨¡å¼ï¼ˆå¿…é¡»æ”¾åœ¨ç¨‹åºå¯åŠ¨æœ€å¼€å§‹ï¼‰
             //SetProcessDPIAware(); // Windows 7/8
-            // »òÕßÊ¹ÓÃÒÔÏÂ·½Ê½£¨ÍÆ¼ö£©£º
+            // æˆ–è€…ä½¿ç”¨ä»¥ä¸‹æ–¹å¼ï¼ˆæ¨èï¼‰ï¼š
             SetProcessDpiAwareness(_Process_DPI_Awareness.Process_Per_Monitor_DPI_Aware);
 
-            // ÉèÖÃÈ«¾ÖÒì³£´¦Àí
+            // è®¾ç½®å…¨å±€å¼‚å¸¸å¤„ç†
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += Application_ThreadException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
             ApplicationConfiguration.Initialize();
 
-            //»ñµÃµ±Ç°µÇÂ¼µÄWindowsÓÃ»§±êÊ¾
-            WindowsIdentity identity = WindowsIdentity.GetCurrent();
-            WindowsPrincipal principal = new WindowsPrincipal(identity);
-            //ÅĞ¶Ïµ±Ç°µÇÂ¼ÓÃ»§ÊÇ·ñÎª¹ÜÀíÔ±
-            if (principal.IsInRole(WindowsBuiltInRole.Administrator))
-            {
-                //Èç¹ûÊÇ¹ÜÀíÔ±£¬ÔòÖ±½ÓÔËĞĞ
-                Application.Run(GameMain);
-            }
-            else
-            {
-                //´´½¨Æô¶¯¶ÔÏó
-                ProcessStartInfo startInfo = new ProcessStartInfo();
-                startInfo.UseShellExecute = true;
-                startInfo.WorkingDirectory = Environment.CurrentDirectory;
-                startInfo.FileName = Application.ExecutablePath;
-                //ÉèÖÃÆô¶¯¶¯×÷,È·±£ÒÔ¹ÜÀíÔ±Éí·İÔËĞĞ
-                startInfo.Verb = "runas";
-                try
-                {
-                    Process.Start(startInfo);
-                }
-                catch
-                {
-                    return;
-                }
-                //ÍË³ö
-                Application.Exit();
-            }
+            // è¯´æ˜ï¼šè¯»å– LCU lockfile / WMI å‘½ä»¤è¡Œå¹¶ä¸éœ€è¦ç®¡ç†å‘˜æƒé™ï¼Œ
+            // å› æ­¤ä¸å†å¼ºåˆ¶ UAC ææƒï¼Œé¿å…æ¯æ¬¡å¯åŠ¨éƒ½å¼¹çª—ã€‚
+            // å¦‚åç»­åŠŸèƒ½ç¡®å®éœ€è¦ç®¡ç†å‘˜æƒé™ï¼Œå¯è°ƒç”¨ AdminPermissionHelper.EnsureAdminPermission()ã€‚
+            Application.Run(GameMain);
         }
 
-        // UIÏß³ÌÒì³£´¦Àí
+        // UIçº¿ç¨‹å¼‚å¸¸å¤„ç†
         private static void Application_ThreadException(object sender, ThreadExceptionEventArgs e)
         {
             HandleException(e.Exception);
@@ -68,7 +40,7 @@ namespace LOL_GameAssistant
             GameMain.infoMsg.AddMsg($"{e.Exception}");
         }
 
-        // ·ÇUIÏß³ÌÒì³£´¦Àí
+        // éUIçº¿ç¨‹å¼‚å¸¸å¤„ç†
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             if (e.ExceptionObject is Exception ex)
@@ -80,19 +52,19 @@ namespace LOL_GameAssistant
 
         private static void HandleException(Exception ex)
         {
-            // ¼ÇÂ¼ÈÕÖ¾
-            string logMessage = $"[{DateTime.Now}] Òì³£ĞÅÏ¢: {ex.Message}\n¶ÑÕ»¸ú×Ù: {ex.StackTrace}\n";
+            // è®°å½•æ—¥å¿—
+            string logMessage = $"[{DateTime.Now}] å¼‚å¸¸ä¿¡æ¯: {ex.Message}\nå †æ ˆè·Ÿè¸ª: {ex.StackTrace}\n";
             System.IO.File.AppendAllText("error.log", logMessage);
 
-            // ÏÔÊ¾ÓÑºÃ´íÎóĞÅÏ¢
-            AntdUI.Message.error(GameMain, $"³ÌĞò·¢Éú´íÎó: {ex.Message}\nÇë²é¿´ÈÕÖ¾ÎÄ¼ş»ñÈ¡ÏêÏ¸ĞÅÏ¢¡£");
+            // æ˜¾ç¤ºå‹å¥½é”™è¯¯ä¿¡æ¯
+            AntdUI.Message.error(GameMain, $"ç¨‹åºå‘ç”Ÿé”™è¯¯: {ex.Message}\nè¯·æŸ¥çœ‹æ—¥å¿—æ–‡ä»¶è·å–è¯¦ç»†ä¿¡æ¯ã€‚");
 
             GameMain.infoMsg.AddMsg($"{ex.Message}");
-            // ¿ÉÒÔÑ¡ÔñÊÇ·ñÍË³öÓ¦ÓÃ
+            // å¯ä»¥é€‰æ‹©æ˜¯å¦é€€å‡ºåº”ç”¨
             // Application.Exit();
         }
 
-        // DPI ¸ĞÖª API
+        // DPI æ„ŸçŸ¥ API
         [DllImport("user32.dll")]
         private static extern bool SetProcessDPIAware();
 

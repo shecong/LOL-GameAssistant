@@ -1,58 +1,66 @@
-﻿using System.Text.Json.Serialization;
-
+﻿
 namespace LOL_GameAssistant.Entity
 {
+    /// <summary>
+    /// 对局中实时会话模型（LCU /lol-gameflow/v1/session）。
+    /// </summary>
     public class GameSessionResponse
     {
-        [JsonPropertyName("phase")]
-        public string Phase { get; set; }
+        [Newtonsoft.Json.JsonProperty("phase")]
+        public string Phase { get; set; } = "";
 
-        [JsonPropertyName("gameData")]
-        public GameData GameData { get; set; }
+        [Newtonsoft.Json.JsonProperty("gameData")]
+        public GameData GameData { get; set; } = null!;
     }
 
+    /// <summary>
+    /// 对局数据：双方队伍成员列表。
+    /// </summary>
     public class GameData
     {
-        [JsonPropertyName("teamOne")]
-        public List<TeamMember> TeamOne { get; set; }
+        [Newtonsoft.Json.JsonProperty("teamOne")]
+        public List<TeamMember> TeamOne { get; set; } = new();
 
-        [JsonPropertyName("teamTwo")]
-        public List<TeamMember> TeamTwo { get; set; }
+        [Newtonsoft.Json.JsonProperty("teamTwo")]
+        public List<TeamMember> TeamTwo { get; set; } = new();
     }
 
+    /// <summary>
+    /// 对局中队伍成员信息。
+    /// </summary>
     public class TeamMember
     {
-        [JsonPropertyName("championId")]
+        [Newtonsoft.Json.JsonProperty("championId")]
         public int ChampionId { get; set; }
 
-        [JsonPropertyName("lastSelectedSkinIndex")]
+        [Newtonsoft.Json.JsonProperty("lastSelectedSkinIndex")]
         public int LastSelectedSkinIndex { get; set; }
 
-        [JsonPropertyName("profileIconId")]
+        [Newtonsoft.Json.JsonProperty("profileIconId")]
         public int ProfileIconId { get; set; }
 
-        [JsonPropertyName("puuid")]
-        public string Puuid { get; set; }
+        [Newtonsoft.Json.JsonProperty("puuid")]
+        public string Puuid { get; set; } = "";
 
-        [JsonPropertyName("selectedPosition")]
-        public string SelectedPosition { get; set; }
+        [Newtonsoft.Json.JsonProperty("selectedPosition")]
+        public string SelectedPosition { get; set; } = "";
 
-        [JsonPropertyName("selectedRole")]
-        public string SelectedRole { get; set; }
+        [Newtonsoft.Json.JsonProperty("selectedRole")]
+        public string SelectedRole { get; set; } = "";
 
-        [JsonPropertyName("summonerId")]
+        [Newtonsoft.Json.JsonProperty("summonerId")]
         public long SummonerId { get; set; }
 
-        [JsonPropertyName("summonerInternalName")]
-        public string SummonerInternalName { get; set; }
+        [Newtonsoft.Json.JsonProperty("summonerInternalName")]
+        public string SummonerInternalName { get; set; } = "";
 
-        [JsonPropertyName("summonerName")]
-        public string SummonerName { get; set; }
+        [Newtonsoft.Json.JsonProperty("summonerName")]
+        public string SummonerName { get; set; } = "";
 
-        [JsonPropertyName("teamOwner")]
+        [Newtonsoft.Json.JsonProperty("teamOwner")]
         public bool TeamOwner { get; set; }
 
-        [JsonPropertyName("teamParticipantId")]
+        [Newtonsoft.Json.JsonProperty("teamParticipantId")]
         public int TeamParticipantId { get; set; }
     }
 }

@@ -9,11 +9,65 @@ namespace LOL_GameAssistant.LoLApi
     {
         public static IInfoMsgForm? _infoMsgForm;
 
+        /// <summary>
+        /// 从 LCU lockfile 读取端口和 token（比 WMI 命令行解析更可靠）
+        /// 格式: LeagueClient:port:token:protocol:PID
+        /// </summary>
+        public static (string? port, string? token) GetFromLockfile()
+        {
+            try
+            {
+                // 通过 WMI 获取进程路径
+                string query = "SELECT ExecutablePath, ProcessId FROM Win32_Process WHERE Name = 'LeagueClientUx.exe' OR Name = 'LeagueClient.exe'";
+                using var searcher = new ManagementObjectSearcher(query);
+                using var results = searcher.Get();
+
+                foreach (ManagementObject obj in results)
+                {
+                    string exePath = obj["ExecutablePath"]?.ToString() ?? "";
+                    if (string.IsNullOrEmpty(exePath)) continue;
+
+                    string dir = Path.GetDirectoryName(exePath) ?? "";
+                    string lockfile = Path.Combine(dir, "lockfile");
+                    if (!File.Exists(lockfile)) continue;
+
+                    string content = File.ReadAllText(lockfile).Trim();
+                    var parts = content.Split(':');
+                    // Format: LeagueClient:port:token:protocol:PID
+                    if (parts.Length >= 4)
+                    {
+                        string? port = parts[1];
+                        string? token = parts[2];
+                        if (!string.IsNullOrEmpty(port) && !string.IsNullOrEmpty(token))
+                        {
+                            _infoMsgForm?.AddMsg($"lockfile 连接成功: {port}");
+                            return (port, token);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"lockfile 读取失败: {ex.Message}");
+            }
+            return (null, null);
+        }
+
+        /// <summary>
+        /// 从 LCU lockfile 读取端口和 token（优先），失败则回退到 WMI 命令行解析
+        /// </summary>
+        public static (string? port, string? token) GetAuth()
+        {
+            var (port, token) = GetFromLockfile();
+            if (!string.IsNullOrEmpty(port) && !string.IsNullOrEmpty(token))
+                return (port, token);
+            return GetlolLcuCmd();
+        }
+
         public static (string? port, string? token) GetlolLcuCmd()
         {
             try
             {
-                // 尝试多种方式获取LOL客户端进程
                 Process[] processes = Process.GetProcessesByName("LeagueClientUx");
                 if (processes.Length == 0)
                 {
@@ -26,7 +80,6 @@ namespace LOL_GameAssistant.LoLApi
                     }
                 }
 
-                // 获取第一个匹配进程的命令行参数
                 for (int i = 0; i < processes.Length; i++)
                 {
                     string commandLine = GetCommandLineUsingWmi(processes[i].Id) ?? "";
@@ -37,7 +90,6 @@ namespace LOL_GameAssistant.LoLApi
                         return (null, null);
                     }
 
-                    // 从命令行参数中提取端口和令牌
                     var portMatch = Regex.Match(commandLine, @"--app-port=(\d+)");
                     var tokenMatch = Regex.Match(commandLine, @"--remoting-auth-token=([^\s""]+)");
 
@@ -65,15 +117,12 @@ namespace LOL_GameAssistant.LoLApi
         public static string? GetCommandLineUsingWmi(int processId)
         {
             string query = $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}";
-
             using (var searcher = new ManagementObjectSearcher(query))
+            using (var results = searcher.Get())
             {
-                using (var results = searcher.Get())
+                foreach (ManagementObject obj in results)
                 {
-                    foreach (ManagementObject obj in results)
-                    {
-                        return obj["CommandLine"]?.ToString();
-                    }
+                    return obj["CommandLine"]?.ToString();
                 }
             }
             return null;

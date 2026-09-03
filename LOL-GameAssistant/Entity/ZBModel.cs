@@ -5,11 +5,11 @@
     /// </summary>
     public class ZBModel
     {
-        public String id { get; set; }
-        public String name { get; set; }
+        public String id { get; set; } = "";
+        public String name { get; set; } = "";
 
-        public String description { get; set; }
+        public String description { get; set; } = "";
 
-        public String iconPath { get; set; }
+        public String iconPath { get; set; } = "";
     }
 }

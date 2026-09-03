@@ -5,6 +5,10 @@ using System.Text.RegularExpressions;
 
 namespace LOL_GameAssistant.Helper
 {
+    /// <summary>
+    /// LCU 认证信息辅助类：通过 P/Invoke 读取客户端进程命令行，
+    /// 作为 GetlolLcu（lockfile/WMI 方案）的备用实现。
+    /// </summary>
     public static class LeagueAuthHelper
     {
         private static int _curPid = 0;
@@ -86,7 +90,7 @@ namespace LOL_GameAssistant.Helper
                     throw new InvalidOperationException("未找到英雄联盟客户端进程");
                 }
 
-                string cmdLine = null;
+                string? cmdLine = null;
                 bool foundValidProcess = false;
 
                 foreach (var pid in pids)
@@ -175,7 +179,7 @@ namespace LOL_GameAssistant.Helper
         /// <summary>
         /// 获取进程命令行
         /// </summary>
-        private static string GetProcessCommandLine(uint pid)
+        private static string? GetProcessCommandLine(uint pid)
         {
             try
             {
@@ -205,8 +209,11 @@ namespace LOL_GameAssistant.Helper
         /// <summary>
         /// 解析命令行参数
         /// </summary>
-        private static (string remotingAuthToken, string appPort) AuthResolver(string commandLine)
+        private static (string remotingAuthToken, string appPort) AuthResolver(string? commandLine)
         {
+            if (string.IsNullOrEmpty(commandLine))
+                throw new InvalidOperationException("命令行参数为空");
+
             var regex = new Regex(@"--([^\s=]+)(?:=(?:""([^""]+)""|([^\s""]+)))?");
             var matches = regex.Matches(commandLine);
             var parameters = new Dictionary<string, string>();
@@ -220,8 +227,8 @@ namespace LOL_GameAssistant.Helper
                 parameters[key] = value;
             }
 
-            if (!parameters.TryGetValue("remoting-auth-token", out string remotingAuthToken) ||
-                !parameters.TryGetValue("app-port", out string appPort) ||
+            if (!parameters.TryGetValue("remoting-auth-token", out string? remotingAuthToken) ||
+                !parameters.TryGetValue("app-port", out string? appPort) ||
                 string.IsNullOrEmpty(remotingAuthToken) ||
                 string.IsNullOrEmpty(appPort))
             {

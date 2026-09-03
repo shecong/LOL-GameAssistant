@@ -1,0 +1,113 @@
+﻿        /// <summary>
+        /// 根据模式筛选重建统计图表
+        /// </summary>
+        private void RebuildStatsCharts(string filter)
+        {
+            if (_rawGameStats == null || _rawGameStats.Count == 0) return;
+
+            var filtered = string.IsNullOrEmpty(filter) || filter == "全部"
+                ? _rawGameStats
+                : _rawGameStats.Where(s => s.Mode == filter).ToList();
+
+            if (filtered.Count == 0)
+            {
+                panelStats.Controls.Clear();
+                panelStats.Controls.Add(new Label { Text = "该模式暂无数据", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
+                return;
+            }
+
+            int totalWins = filtered.Count(s => s.Win);
+            int totalLosses = filtered.Count - totalWins;
+            var champStats = new Dictionary<int, (int g, int w)>();
+            var queueStats = new Dictionary<string, int>();
+            var kdaList = new List<(double kda, bool win)>();
+
+            foreach (var stat in filtered)
+            {
+                int cid = stat.ChampionId;
+                var cur = champStats.GetValueOrDefault(cid);
+                champStats[cid] = (cur.g + 1, cur.w + (stat.Win ? 1 : 0));
+                kdaList.Add((stat.Kda, stat.Win));
+                if (!queueStats.ContainsKey(stat.Mode))
+                    queueStats[stat.Mode] = 0;
+                queueStats[stat.Mode]++;
+            }
+
+            double overallKda = filtered.Count > 0 ? filtered.Average(s => s.Kda) : 0;
+            double winRate = filtered.Count > 0 ? Math.Round((double)totalWins / filtered.Count * 100, 1) : 0;
+
+            panelStats.Controls.Clear();
+
+            // 筛选按钮栏
+            var btnPanel = new System.Windows.Forms.FlowLayoutPanel { Dock = DockStyle.Top, Height = 35, Padding = new Padding(5), BackColor = Color.WhiteSmoke };
+            var allModes = _rawGameStats.Select(s => s.Mode).Distinct().OrderBy(m => m).ToList();
+            var filterTexts = new List<string> { "全部" };
+            filterTexts.AddRange(allModes);
+            foreach (var modeText in filterTexts)
+            {
+                var btn = new System.Windows.Forms.Button
+                {
+                    Text = modeText,
+                    AutoSize = true,
+                    Height = 26,
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = modeText == filter ? Color.DodgerBlue : SystemColors.Control,
+                    ForeColor = modeText == filter ? Color.White : SystemColors.ControlText,
+                    Margin = new Padding(2)
+                };
+                var capturedMode = modeText;
+                btn.Click += (_, _) =>
+                {
+                    foreach (System.Windows.Forms.Control c in btnPanel.Controls)
+                    {
+                        if (c is System.Windows.Forms.Button b)
+                        {
+                            b.BackColor = b.Text == capturedMode ? Color.DodgerBlue : SystemColors.Control;
+                            b.ForeColor = b.Text == capturedMode ? Color.White : SystemColors.ControlText;
+                        }
+                    }
+                    RebuildStatsCharts(capturedMode);
+                };
+                btnPanel.Controls.Add(btn);
+            }
+            panelStats.Controls.Add(btnPanel);
+
+            var chartContainer = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+
+            if (kdaList.Count > 1)
+            {
+                var trendData = kdaList.TakeLast(30).ToList();
+                var kdaPanel = new Panel { Dock = DockStyle.Top, Height = 210 };
+                kdaPanel.Paint += (s, e) => ChartDrawer.DrawKdaTrend(e.Graphics, kdaPanel.ClientRectangle, trendData, "KDA \u8d8b\u52bf\uff08\u8fd1 N \u573a \u00b7 \u7eff=\u80dc \u7ea2=\u8d1f\uff09");
+                chartContainer.Controls.Add(kdaPanel);
+            }
+
+            if (champStats.Count > 0)
+            {
+                var champData = champStats
+                    .OrderByDescending(x => x.Value.g).Take(10)
+                    .Select(x => (ChampionMap.GetChampion(x.Key)?.RealName ?? ("英雄" + x.Key.ToString()), x.Value.g, Math.Round((double)x.Value.w / x.Value.g * 100, 1)))
+                    .ToList();
+                var champPanel = new Panel { Dock = DockStyle.Top, Height = Math.Max(80, champData.Count * 25 + 30) };
+                champPanel.Paint += (s, e) => ChartDrawer.DrawChampionBars(e.Graphics, champPanel.ClientRectangle, champData, "\u5e38\u7528\u82f1\u96c4 Top 10");
+                chartContainer.Controls.Add(champPanel);
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append("\u7b5b\u9009: ").Append(filter).Append("  |  \u573a\u6b21: ").Append(filtered.Count);
+            sb.Append("  |  \u80dc\u573a: ").Append(totalWins).Append("  |  \u8d1f\u573a: ").Append(totalLosses).Append("  |  \u80dc\u7387: ").Append(winRate).Append("%");
+            sb.Append("  |  \u5e73\u5747KDA: ").Append(Math.Round(overallKda, 2));
+            var summaryLabel = new Label
+            {
+                Text = sb.ToString(),
+                Dock = DockStyle.Top,
+                Height = 30,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Microsoft YaHei UI", 9F),
+                Padding = new Padding(10, 0, 0, 0)
+            };
+            chartContainer.Controls.Add(summaryLabel);
+
+            panelStats.Controls.Add(chartContainer);
+            lblStatus.Text = "\u7b5b\u9009: " + filter + "  " + filtered.Count + " \u573a \u00b7 \u80dc\u7387 " + winRate + "%";
+        }

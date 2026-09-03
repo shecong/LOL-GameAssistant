@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            lblVersion = new AntdUI.Label();
             label1 = new AntdUI.Label();
             btn_opengithub = new AntdUI.Button();
             btn_github = new AntdUI.Button();
@@ -36,6 +37,20 @@
             gridPanel1 = new AntdUI.GridPanel();
             gridPanel1.SuspendLayout();
             SuspendLayout();
+            // 
+            // lblVersion
+            // 
+            lblVersion.ForeColor = SystemColors.GrayText;
+            lblVersion.Font = new Font("Microsoft YaHei UI", 9F);
+            lblVersion.Location = new Point(3, 465);
+            lblVersion.Name = "lblVersion";
+            gridPanel1.SetIndex(lblVersion, 6);
+            lblVersion.Size = new Size(617, 29);
+            lblVersion.TabIndex = 5;
+            lblVersion.Text = "版本: 1.0.0";
+            lblVersion.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            gridPanel1.Controls.Add(lblVersion);
             // 
             // label1
             // 
@@ -103,7 +118,7 @@
             gridPanel1.Location = new Point(0, 0);
             gridPanel1.Name = "gridPanel1";
             gridPanel1.Size = new Size(623, 621);
-            gridPanel1.Span = "100%;100%;33% 33% 33%;-10% 70% 20%";
+            gridPanel1.Span = "100%;100%;33% 33% 33%;100%;-10% 70% 20%";
             gridPanel1.TabIndex = 5;
             gridPanel1.Text = "gridPanel1";
             // 
@@ -127,5 +142,6 @@
         private AntdUI.Button btn_update;
         private AntdUI.Alert alert1;
         private AntdUI.GridPanel gridPanel1;
+        private AntdUI.Label lblVersion;
     }
 }

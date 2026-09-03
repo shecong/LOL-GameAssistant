@@ -17,79 +17,79 @@ namespace LOL_GameAssistant.Entity
         /// 游戏配置信息
         /// </summary>
         [JsonProperty("gameConfig")]
-        public GameConfig GameConfig { get; set; }
+        public GameConfig GameConfig { get; set; } = null!;
 
         /// <summary>
         /// 邀请信息列表
         /// </summary>
         [JsonProperty("invitations")]
-        public List<Invitation> Invitations { get; set; }
+        public List<Invitation> Invitations { get; set; } = new();
 
         /// <summary>
         /// 本地玩家成员信息
         /// </summary>
         [JsonProperty("localMember")]
-        public Member LocalMember { get; set; }
+        public Member LocalMember { get; set; } = null!;
 
         /// <summary>
         /// 所有成员列表
         /// </summary>
         [JsonProperty("members")]
-        public List<Member> Members { get; set; }
+        public List<Member> Members { get; set; } = new();
 
         /// <summary>
         /// 多用户聊天JWT数据传输对象
         /// </summary>
         [JsonProperty("mucJwtDto")]
-        public MucJwtDto MucJwtDto { get; set; }
+        public MucJwtDto MucJwtDto { get; set; } = null!;
 
         /// <summary>
         /// 多用户聊天室ID
         /// </summary>
         [JsonProperty("multiUserChatId")]
-        public string MultiUserChatId { get; set; }
+        public string MultiUserChatId { get; set; } = "";
 
         /// <summary>
         /// 多用户聊天室密码
         /// </summary>
         [JsonProperty("multiUserChatPassword")]
-        public string MultiUserChatPassword { get; set; }
+        public string MultiUserChatPassword { get; set; } = "";
 
         /// <summary>
         /// 派对/房间ID
         /// </summary>
         [JsonProperty("partyId")]
-        public string PartyId { get; set; }
+        public string PartyId { get; set; } = "";
 
         /// <summary>
         /// 派对类型 (open/closed/inviteOnly)
         /// </summary>
         [JsonProperty("partyType")]
-        public string PartyType { get; set; }
+        public string PartyType { get; set; } = "";
 
         /// <summary>
         /// 热门英雄列表
         /// </summary>
         [JsonProperty("popularChampions")]
-        public List<object> PopularChampions { get; set; }
+        public List<object> PopularChampions { get; set; } = new();
 
         /// <summary>
         /// 限制条件列表
         /// </summary>
         [JsonProperty("restrictions")]
-        public List<object> Restrictions { get; set; }
+        public List<object> Restrictions { get; set; } = new();
 
         /// <summary>
         /// 稀缺位置列表
         /// </summary>
         [JsonProperty("scarcePositions")]
-        public List<object> ScarcePositions { get; set; }
+        public List<object> ScarcePositions { get; set; } = new();
 
         /// <summary>
         /// 警告信息列表
         /// </summary>
         [JsonProperty("warnings")]
-        public List<object> Warnings { get; set; }
+        public List<object> Warnings { get; set; } = new();
     }
 
     /// <summary>
@@ -101,55 +101,55 @@ namespace LOL_GameAssistant.Entity
         /// 允许的预组队规模列表
         /// </summary>
         [JsonProperty("allowablePremadeSizes")]
-        public List<int> AllowablePremadeSizes { get; set; }
+        public List<int> AllowablePremadeSizes { get; set; } = new();
 
         /// <summary>
         /// 自定义大厅名称
         /// </summary>
         [JsonProperty("customLobbyName")]
-        public string CustomLobbyName { get; set; }
+        public string CustomLobbyName { get; set; } = "";
 
         /// <summary>
         /// 自定义游戏变异器名称
         /// </summary>
         [JsonProperty("customMutatorName")]
-        public string CustomMutatorName { get; set; }
+        public string CustomMutatorName { get; set; } = "";
 
         /// <summary>
         /// 自定义奖励禁用原因列表
         /// </summary>
         [JsonProperty("customRewardsDisabledReasons")]
-        public List<object> CustomRewardsDisabledReasons { get; set; }
+        public List<object> CustomRewardsDisabledReasons { get; set; } = new();
 
         /// <summary>
         /// 自定义观战策略
         /// </summary>
         [JsonProperty("customSpectatorPolicy")]
-        public string CustomSpectatorPolicy { get; set; }
+        public string CustomSpectatorPolicy { get; set; } = "";
 
         /// <summary>
         /// 自定义观战者列表
         /// </summary>
         [JsonProperty("customSpectators")]
-        public List<object> CustomSpectators { get; set; }
+        public List<object> CustomSpectators { get; set; } = new();
 
         /// <summary>
         /// 自定义队伍100（蓝色方）成员列表
         /// </summary>
         [JsonProperty("customTeam100")]
-        public List<Member> CustomTeam100 { get; set; }
+        public List<Member> CustomTeam100 { get; set; } = new();
 
         /// <summary>
         /// 自定义队伍200（红色方）成员列表
         /// </summary>
         [JsonProperty("customTeam200")]
-        public List<Member> CustomTeam200 { get; set; }
+        public List<Member> CustomTeam200 { get; set; } = new();
 
         /// <summary>
         /// 游戏模式
         /// </summary>
         [JsonProperty("gameMode")]
-        public string GameMode { get; set; }
+        public string GameMode { get; set; } = "";
 
         /// <summary>
         /// 是否为自定义游戏
@@ -215,7 +215,7 @@ namespace LOL_GameAssistant.Entity
         /// 选择类型
         /// </summary>
         [JsonProperty("pickType")]
-        public string PickType { get; set; }
+        public string PickType { get; set; } = "";
 
         /// <summary>
         /// 是否允许预组队规模
@@ -323,37 +323,37 @@ namespace LOL_GameAssistant.Entity
         /// 机器人难度等级
         /// </summary>
         [JsonProperty("botDifficulty")]
-        public string BotDifficulty { get; set; }
+        public string BotDifficulty { get; set; } = "";
 
         /// <summary>
         /// 机器人ID
         /// </summary>
         [JsonProperty("botId")]
-        public string BotId { get; set; }
+        public string BotId { get; set; } = "";
 
         /// <summary>
         /// 机器人位置
         /// </summary>
         [JsonProperty("botPosition")]
-        public string BotPosition { get; set; }
+        public string BotPosition { get; set; } = "";
 
         /// <summary>
         /// 机器人UUID
         /// </summary>
         [JsonProperty("botUuid")]
-        public string BotUuid { get; set; }
+        public string BotUuid { get; set; } = "";
 
         /// <summary>
         /// 首选位置
         /// </summary>
         [JsonProperty("firstPositionPreference")]
-        public string FirstPositionPreference { get; set; }
+        public string FirstPositionPreference { get; set; } = "";
 
         /// <summary>
         /// 子队内位置（通常为null）
         /// </summary>
         [JsonProperty("intraSubteamPosition")]
-        public object IntraSubteamPosition { get; set; }
+        public object IntraSubteamPosition { get; set; } = new();
 
         /// <summary>
         /// 是否为机器人
@@ -377,19 +377,19 @@ namespace LOL_GameAssistant.Entity
         /// 成员数据（通常为null）
         /// </summary>
         [JsonProperty("memberData")]
-        public object MemberData { get; set; }
+        public object MemberData { get; set; } = new();
 
         /// <summary>
         /// 玩家槽位列表
         /// </summary>
         [JsonProperty("playerSlots")]
-        public List<object> PlayerSlots { get; set; }
+        public List<object> PlayerSlots { get; set; } = new();
 
         /// <summary>
         /// 玩家唯一标识符
         /// </summary>
         [JsonProperty("puuid")]
-        public string Puuid { get; set; }
+        public string Puuid { get; set; } = "";
 
         /// <summary>
         /// 是否准备就绪
@@ -401,7 +401,7 @@ namespace LOL_GameAssistant.Entity
         /// 次选位置
         /// </summary>
         [JsonProperty("secondPositionPreference")]
-        public string SecondPositionPreference { get; set; }
+        public string SecondPositionPreference { get; set; } = "";
 
         /// <summary>
         /// 是否显示被踢出横幅
@@ -413,13 +413,13 @@ namespace LOL_GameAssistant.Entity
         /// 草莓地图ID（通常为null）
         /// </summary>
         [JsonProperty("strawberryMapId")]
-        public object StrawberryMapId { get; set; }
+        public object StrawberryMapId { get; set; } = new();
 
         /// <summary>
         /// 子队索引（通常为null）
         /// </summary>
         [JsonProperty("subteamIndex")]
-        public object SubteamIndex { get; set; }
+        public object SubteamIndex { get; set; } = new();
 
         /// <summary>
         /// 召唤师头像ID
@@ -437,7 +437,7 @@ namespace LOL_GameAssistant.Entity
         /// 召唤师内部名称
         /// </summary>
         [JsonProperty("summonerInternalName")]
-        public string SummonerInternalName { get; set; }
+        public string SummonerInternalName { get; set; } = "";
 
         /// <summary>
         /// 召唤师等级
@@ -449,7 +449,7 @@ namespace LOL_GameAssistant.Entity
         /// 召唤师名称
         /// </summary>
         [JsonProperty("summonerName")]
-        public string SummonerName { get; set; }
+        public string SummonerName { get; set; } = "";
 
         /// <summary>
         /// 队伍ID
@@ -467,25 +467,25 @@ namespace LOL_GameAssistant.Entity
         /// 邀请ID
         /// </summary>
         [JsonProperty("invitationId")]
-        public string InvitationId { get; set; }
+        public string InvitationId { get; set; } = "";
 
         /// <summary>
         /// 邀请类型
         /// </summary>
         [JsonProperty("invitationType")]
-        public string InvitationType { get; set; }
+        public string InvitationType { get; set; } = "";
 
         /// <summary>
         /// 邀请状态 (Accepted/Declined/Pending)
         /// </summary>
         [JsonProperty("state")]
-        public string State { get; set; }
+        public string State { get; set; } = "";
 
         /// <summary>
         /// 时间戳
         /// </summary>
         [JsonProperty("timestamp")]
-        public string Timestamp { get; set; }
+        public string Timestamp { get; set; } = "";
 
         /// <summary>
         /// 目标召唤师ID
@@ -497,7 +497,7 @@ namespace LOL_GameAssistant.Entity
         /// 目标召唤师名称
         /// </summary>
         [JsonProperty("toSummonerName")]
-        public string ToSummonerName { get; set; }
+        public string ToSummonerName { get; set; } = "";
     }
 
     /// <summary>
@@ -509,25 +509,25 @@ namespace LOL_GameAssistant.Entity
         /// 频道声明/ID
         /// </summary>
         [JsonProperty("channelClaim")]
-        public string ChannelClaim { get; set; }
+        public string ChannelClaim { get; set; } = "";
 
         /// <summary>
         /// 域名
         /// </summary>
         [JsonProperty("domain")]
-        public string Domain { get; set; }
+        public string Domain { get; set; } = "";
 
         /// <summary>
         /// JSON Web Token
         /// </summary>
         [JsonProperty("jwt")]
-        public string Jwt { get; set; }
+        public string Jwt { get; set; } = "";
 
         /// <summary>
         /// 目标地区/服务器
         /// </summary>
         [JsonProperty("targetRegion")]
-        public string TargetRegion { get; set; }
+        public string TargetRegion { get; set; } = "";
     }
 
     /// <summary>

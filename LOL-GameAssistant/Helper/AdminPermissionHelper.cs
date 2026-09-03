@@ -3,6 +3,9 @@ using System.Security.Principal;
 
 namespace LOL_GameAssistant.Helper
 {
+    /// <summary>
+    /// 管理员权限辅助类：检查当前是否以管理员身份运行，并支持自动提权重启。
+    /// </summary>
     public class AdminPermissionHelper
     {
         /// <summary>

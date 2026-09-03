@@ -33,6 +33,8 @@
             tabs1 = new AntdUI.Tabs();
             tabPage1 = new AntdUI.TabPage();
             tab0_grid1 = new AntdUI.GridPanel();
+            tabPageFriends = new AntdUI.TabPage();
+            friendsGrid = new AntdUI.GridPanel();
             tabPage2 = new AntdUI.TabPage();
             tab1_grid1 = new AntdUI.GridPanel();
             tabPage3 = new AntdUI.TabPage();
@@ -48,6 +50,7 @@
             grid_main = new AntdUI.GridPanel();
             tabs1.SuspendLayout();
             tabPage1.SuspendLayout();
+            tabPageFriends.SuspendLayout();
             tabPage2.SuspendLayout();
             tabPage4.SuspendLayout();
             tabPage6.SuspendLayout();
@@ -60,6 +63,7 @@
             // 
             tabs1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             tabs1.Controls.Add(tabPage1);
+            tabs1.Controls.Add(tabPageFriends);
             tabs1.Controls.Add(tabPage2);
             tabs1.Controls.Add(tabPage3);
             tabs1.Controls.Add(tabPage4);
@@ -69,6 +73,7 @@
             tabs1.Location = new Point(3, 3);
             tabs1.Name = "tabs1";
             tabs1.Pages.Add(tabPage1);
+            tabs1.Pages.Add(tabPageFriends);
             tabs1.Pages.Add(tabPage2);
             tabs1.Pages.Add(tabPage3);
             tabs1.Pages.Add(tabPage4);
@@ -99,6 +104,26 @@
             tab0_grid1.TabIndex = 0;
             tab0_grid1.Text = resources.GetString("tab0_grid1.Text");
             // 
+            // tabPageFriends
+            // 
+            tabPageFriends.Controls.Add(friendsGrid);
+            tabPageFriends.Dock = DockStyle.Fill;
+            tabPageFriends.Location = new Point(0, 30);
+            tabPageFriends.Name = "tabPageFriends";
+            tabPageFriends.Size = new Size(1510, 781);
+            tabPageFriends.TabIndex = 1;
+            tabPageFriends.Text = "好友";
+            // 
+            // friendsGrid
+            // 
+            friendsGrid.Dock = DockStyle.Fill;
+            friendsGrid.Location = new Point(0, 0);
+            friendsGrid.Name = "friendsGrid";
+            friendsGrid.Size = new Size(1510, 781);
+            friendsGrid.Span = "100%";
+            friendsGrid.TabIndex = 0;
+            friendsGrid.Text = "friendsGrid";
+            // 
             // tabPage2
             // 
             tabPage2.Controls.Add(tab1_grid1);
@@ -106,7 +131,7 @@
             tabPage2.Location = new Point(0, 30);
             tabPage2.Name = "tabPage2";
             tabPage2.Size = new Size(1510, 781);
-            tabPage2.TabIndex = 1;
+            tabPage2.TabIndex = 2;
             tabPage2.Text = "对局";
             // 
             // tab1_grid1
@@ -125,7 +150,7 @@
             tabPage3.Location = new Point(0, 30);
             tabPage3.Name = "tabPage3";
             tabPage3.Size = new Size(1510, 781);
-            tabPage3.TabIndex = 2;
+            tabPage3.TabIndex = 3;
             tabPage3.Text = "战绩查询";
             // 
             // tabPage4
@@ -135,7 +160,7 @@
             tabPage4.Location = new Point(0, 30);
             tabPage4.Name = "tabPage4";
             tabPage4.Size = new Size(1510, 781);
-            tabPage4.TabIndex = 3;
+            tabPage4.TabIndex = 4;
             tabPage4.Text = "关于";
             // 
             // tab4_grid1
@@ -154,7 +179,7 @@
             tabPage5.Location = new Point(0, 30);
             tabPage5.Name = "tabPage5";
             tabPage5.Size = new Size(1510, 781);
-            tabPage5.TabIndex = 4;
+            tabPage5.TabIndex = 5;
             tabPage5.Text = "设置";
             // 
             // tabPage6
@@ -164,7 +189,7 @@
             tabPage6.Location = new Point(0, 30);
             tabPage6.Name = "tabPage6";
             tabPage6.Size = new Size(1510, 781);
-            tabPage6.TabIndex = 5;
+            tabPage6.TabIndex = 6;
             tabPage6.Text = "日志";
             // 
             // tab5_grid1
@@ -249,6 +274,7 @@
             Load += GameMain_Load;
             tabs1.ResumeLayout(false);
             tabPage1.ResumeLayout(false);
+            tabPageFriends.ResumeLayout(false);
             tabPage2.ResumeLayout(false);
             tabPage4.ResumeLayout(false);
             tabPage6.ResumeLayout(false);
@@ -261,14 +287,13 @@
         #endregion
 
         private AntdUI.Tabs tabs1;
+        private AntdUI.TabPage tabPageFriends;
+        private AntdUI.GridPanel friendsGrid;
         private AntdUI.TabPage tabPage2;
         private AntdUI.TabPage tabPage3;
         private AntdUI.TabPage tabPage4;
         private AntdUI.TabPage tabPage5;
         private AntdUI.PageHeader HeadContent;
-        private AntdUI.Splitter splitter2;
-        private AntdUI.StackPanel stack1;
-        private AntdUI.StackPanel stack2;
         private AntdUI.TabPage tabPage6;
         private AntdUI.GridPanel tab5_grid1;
         private AntdUI.GridPanel tab1_grid1;
