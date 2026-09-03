@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOL GameAssistant — 功能架构图</title>
+<style>
+  :root {
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --baseline:       #c3c2b7;
+  }
+  [data-theme="dark"] {
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --border:         rgba(255,255,255,0.10);
+    --baseline:       #383835;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --baseline:       #383835;
+    }
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    padding: 40px 48px;
+  }
+  .hero {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .hero h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .hero p {
+    color: var(--text-secondary);
+    font-size: 15px;
+  }
+
+  /* ---------- layout ---------- */
+  .arch-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* ---------- row ---------- */
+  .layer {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .layer-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    padding: 8px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 2px solid var(--baseline);
+    min-width: 28px;
+    flex-shrink: 0;
+  }
+
+  /* ---------- card ---------- */
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    flex: 1;
+    min-width: 0;
+  }
+  .card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card h3 .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .card .subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+  .card ul {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+  .card li {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .card li::before {
+    content: "·";
+    margin-right: 4px;
+    color: var(--text-muted);
+  }
+
+  /* ---------- color-coded card accents ---------- */
+  .c-ui        { border-left: 3px solid #2a78d6; }
+  .c-api       { border-left: 3px solid #1baf7a; }
+  .c-helper    { border-left: 3px solid #eda100; }
+  .c-entity    { border-left: 3px solid #4a3aa7; }
+  .c-external  { border-left: 3px solid #e34948; }
+  .c-infra     { border-left: 3px solid #eb6834; }
+
+  .dot-ui       { background: #2a78d6; }
+  .dot-api      { background: #1baf7a; }
+  .dot-helper   { background: #eda100; }
+  .dot-entity   { background: #4a3aa7; }
+  .dot-external { background: #e34948; }
+  .dot-infra    { background: #eb6834; }
+
+  /* ---------- flow section ---------- */
+  .flow-section {
+    max-width: 1400px;
+    margin: 40px auto 0;
+  }
+  .flow-section h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .flow-diagram {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px 32px;
+    overflow-x: auto;
+  }
+
+  /* ---------- flow steps ---------- */
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .flow-node {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .flow-arrow {
+    font-size: 18px;
+    color: var(--text-muted);
+    margin: 0 6px;
+    flex-shrink: 0;
+  }
+  .fn-start   { background: #cde2fb; color: #0d366b; }
+  .fn-process { background: #9ec5f4; color: #104281; }
+  .fn-decision{ background: #ffedd5; color: #7c2d12; }
+  .fn-end     { background: #d1fae5; color: #064e3b; }
+
+  /* ---------- data-flow table ---------- */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 13px;
+  }
+  .data-table th {
+    text-align: left;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--baseline);
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .data-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--gridline);
+    color: var(--text-primary);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table .dir {
+    font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .dir.in  { color: #1baf7a; }
+  .dir.out { color: #2a78d6; }
+
+  /* ---------- legend ---------- */
+  .legend {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .legend span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend .swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* ---------- stat tiles ---------- */
+  .stats-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 32px;
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+    flex-wrap: wrap;
+  }
+  .stat-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    flex: 1;
+    min-width: 180px;
+  }
+  .stat-tile .value {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .stat-tile .label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 900px) {
+    body { padding: 20px 16px; }
+    .layer { flex-direction: column; }
+    .layer-label {
+      writing-mode: horizontal-tb;
+      border-right: none;
+      border-bottom: 2px solid var(--baseline);
+      min-width: auto;
+      padding: 4px 0;
+    }
+    .card { flex: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>LOL GameAssistant 功能架构</h1>
+  <p>.NET 10 Windows Forms · 英雄联盟 LCU 集成 · 实时对局助手</p>
+</div>
+
+<!-- ==================== KPI row ==================== -->
+<div class="stats-row">
+  <div class="stat-tile">
+    <div class="value" style="color:#2a78d6;">4</div>
+    <div class="label">项目模块</div>
+  </div>
+  <div class="stat-tile">
+    <div class="value" style="color:#1baf7a;">8</div>
+    <div class="label">UI 视图</div>
+  </div>
+  <div class="stat-tile">
+    <div class="value" style="color:#eda100;">4</div>
+    <div class="label">API 接口类</div>
+  </div>
+  <div class="stat-tile">
+    <div class="value" style="color:#4a3aa7;">7</div>
+    <div class="label">Helper 工具</div>
+  </div>
+  <div class="stat-tile">
+    <div class="value" style="color:#e34948;">10</div>
+    <div class="label">实体模型</div>
+  </div>
+  <div class="stat-tile">
+    <div class="value" style="color:#eb6834;">170+</div>
+    <div class="label">内置英雄数据</div>
+  </div>
+</div>
+
+<!-- ==================== Architecture layers ==================== -->
+<div class="arch-grid" style="margin-top:40px;">
+
+  <!-- UI Layer -->
+  <div class="layer">
+    <div class="layer-label">表示层 UI</div>
+    <div class="card c-ui">
+      <h3><span class="dot dot-ui"></span>GameMain</h3>
+      <div class="subtitle">AntdUI.Window · 主窗口 · Tab 容器</div>
+      <ul>
+        <li>WebSocket 生命周期管理</li><li>游戏状态枚举分发</li><li>异常处理 & 日志写入</li>
+        <li>管理员权限检查</li><li>DPI 感知初始化</li>
+      </ul>
+    </div>
+    <div class="card c-ui">
+      <h3><span class="dot dot-ui"></span>HomeForm</h3>
+      <div class="subtitle">首页 · 召唤师信息 & 战绩</div>
+      <ul>
+        <li>当前/指定召唤师查询</li><li>头像 & 等级 & 经验进度</li>
+        <li>单双排 & 灵活排位数据</li><li>段位图标 & 胜率/胜场</li>
+        <li>比赛历史分页列表</li><li>puuid ↔ 游戏名映射</li>
+      </ul>
+    </div>
+    <div class="card c-ui">
+      <h3><span class="dot dot-ui"></span>LiveGameForm</h3>
+      <div class="subtitle">对局 · 实时队伍信息</div>
+      <ul>
+        <li>蓝/红方队员列表</li><li>英雄选择阶段加载</li>
+        <li>游戏中阶段加载</li><li>按 puuid 查询近10场</li>
+      </ul>
+    </div>
+    <div class="card c-ui">
+      <h3><span class="dot dot-ui"></span>辅助视图</h3>
+      <div class="subtitle">SettingForm · recordForm · AboutForm · InfoMsgForm · LivePlayerForm · LivePlayersForm</div>
+      <ul>
+        <li>自动接受/自动匹配开关</li><li>英雄偏好选择</li>
+        <li>战绩卡片 (KDA/装备/技能)</li><li>消息日志面板</li>
+        <li>关于/GitHub 链接</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- API Layer -->
+  <div class="layer">
+    <div class="layer-label">API 层</div>
+    <div class="card c-api">
+      <h3><span class="dot dot-api"></span>Game_Api</h3>
+      <div class="subtitle">游戏数据 API · 静态方法集</div>
+      <ul>
+        <li>排位数据 (ranked-stats)</li><li>比赛历史 (match-history)</li>
+        <li>比赛详情 (game detail)</li><li>装备图标 & 数据</li>
+        <li>召唤师技能图标</li><li>英雄图标</li><li>游戏版本 (Data Dragon)</li>
+        <li>自动匹配/接受对局</li><li>大厅实时信息</li><li>游戏状态/会话</li>
+      </ul>
+    </div>
+    <div class="card c-api">
+      <h3><span class="dot dot-api"></span>Assets_api</h3>
+      <div class="subtitle">召唤师 & 资源 API</div>
+      <ul>
+        <li>当前召唤师信息</li><li>按 puuid 查询召唤师</li><li>头像图标加载</li>
+      </ul>
+    </div>
+    <div class="card c-api">
+      <h3><span class="dot dot-api"></span>GetlolLcu</h3>
+      <div class="subtitle">LCU 进程认证</div>
+      <ul>
+        <li>进程发现 (LeagueClientUx)</li><li>WMI 命令行解析</li>
+        <li>提取 port & token</li>
+      </ul>
+    </div>
+    <div class="card c-api">
+      <h3><span class="dot dot-api"></span>Select_Api</h3>
+      <div class="subtitle">英雄选择 API</div>
+      <ul><li>选择阶段会话动作</li></ul>
+    </div>
+  </div>
+
+  <!-- Helper Layer -->
+  <div class="layer">
+    <div class="layer-label">基础设 施层</div>
+    <div class="card c-helper">
+      <h3><span class="dot dot-helper"></span>HttpClentHelper</h3>
+      <div class="subtitle">HTTP 客户端 · IDisposable</div>
+      <ul>
+        <li>静态 HttpClient 池化</li><li>SemaphoreSlim 并发控制 (20)</li>
+        <li>Basic 认证 (riot:token)</li><li>SSL 跳过验证</li>
+        <li>GET/POST/PUT/DELETE</li><li>批量请求 (SendBatch)</li>
+        <li>流式响应</li><li>30s 超时</li>
+      </ul>
+    </div>
+    <div class="card c-helper">
+      <h3><span class="dot dot-helper"></span>WebSocketClient</h3>
+      <div class="subtitle">WebSocket 实时通信 · IAsyncDisposable</div>
+      <ul>
+        <li>ClientWebSocket 封装</li><li>Basic 认证头</li>
+        <li>接收循环 + 消息拼接</li><li>30s 心跳 PING/PONG</li>
+        <li>事件驱动 (OnMessage/OnError/OnConnectChanged)</li>
+        <li>发送锁 (SemaphoreSlim)</li>
+        <li>SimpleWebSocketClient 子类</li>
+      </ul>
+    </div>
+    <div class="card c-helper">
+      <h3><span class="dot dot-helper"></span>辅助工具</h3>
+      <div class="subtitle">LeagueAuthHelper · StreamExtensions · FileHelper · ChampionMap · AdminPermissionHelper</div>
+      <ul>
+        <li>Win32 进程快照认证</li><li>JSON/Base64 流反序列化</li>
+        <li>资源缓存管理</li>
+        <li>170+ 英雄 ID→名称映射</li>
+        <li>管理员权限提升</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Entity Layer -->
+  <div class="layer">
+    <div class="layer-label">数据 层</div>
+    <div class="card c-entity">
+      <h3><span class="dot dot-entity"></span>核心实体</h3>
+      <div class="subtitle">PlayerModel · GameHeadModel · GameDetailModel</div>
+      <ul>
+        <li>召唤师信息 (puuid/等级/图标)</li><li>比赛历史 (GameId/英雄/KDA/装备)</li>
+        <li>比赛详情 (Stats/Timeline/Bans/Teams)</li>
+        <li>自定义 JsonStringBoolConverter</li>
+      </ul>
+    </div>
+    <div class="card c-entity">
+      <h3><span class="dot dot-entity"></span>游戏状态</h3>
+      <div class="subtitle">GameFlowPhase · GameLiveSession · LobbyGameInfo</div>
+      <ul>
+        <li>枚举: None→Lobby→Matchmaking→ReadyCheck→ChampSelect→InProgress→EndOfGame</li>
+        <li>中文名称扩展方法</li><li>GameSession: TeamOne/TeamTwo</li>
+        <li>Lobby: members/config/invitations</li>
+      </ul>
+    </div>
+    <div class="card c-entity">
+      <h3><span class="dot dot-entity"></span>数据 & 解析</h3>
+      <div class="subtitle">LolRankedDataParser · ZBModel · JNModel</div>
+      <ul>
+        <li>排位 JSON 解析</li><li>段位数值化比较</li><li>晋级赛进度分析</li>
+        <li>装备/技能图标路径</li><li>IRON→CHALLENGER 段位常量</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- External -->
+  <div class="layer">
+    <div class="layer-label">外部</div>
+    <div class="card c-external">
+      <h3><span class="dot dot-external"></span>League Client (LCU)</h3>
+      <div class="subtitle">本地 HTTPS REST API + WebSocket</div>
+      <ul>
+        <li>127.0.0.1:{port} · riot:{token} 认证</li><li>REST: /lol-summoner/, /lol-ranked/, /lol-match-history/, /lol-gameflow/, /lol-lobby/, /lol-game-data/</li>
+        <li>WebSocket: wss://127.0.0.1:{port} · OnJsonApiEvent 订阅</li>
+      </ul>
+    </div>
+    <div class="card c-external">
+      <h3><span class="dot dot-external"></span>Data Dragon</h3>
+      <div class="subtitle">Riot 官方静态数据 CDN</div>
+      <ul>
+        <li>版本列表 (api/versions.json)</li><li>头像图标 (profileicon)</li>
+      </ul>
+    </div>
+    <div class="card c-infra">
+      <h3><span class="dot dot-infra"></span>依赖框架</h3>
+      <div class="subtitle">NuGet 包</div>
+      <ul>
+        <li>AntdUI 2.1.6 — WinForms UI 组件</li><li>Newtonsoft.Json 13.0.4</li>
+        <li>System.Management 9.0.10</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== Data flow ==================== -->
+<div class="flow-section">
+  <h2>核心数据流</h2>
+  <div class="flow-diagram">
+
+    <div class="flow-row">
+      <div class="flow-node fn-start">应用启动</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-process">管理员权限检查</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-process">GetlolLcu 获取认证</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-decision">LeagueClient 运行?</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-process">WebSocket 连接</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-end">订阅 OnJsonApiEvent</div>
+    </div>
+
+    <div class="flow-row" style="justify-content:flex-start;">
+      <div class="flow-node fn-start" style="margin-left: 60px;">WebSocket 消息</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-decision">gameflow-phase?</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-process" style="font-size:11px;">Lobby→自动匹配<br>ReadyCheck→自动接受<br>ChampSelect→刷新对局<br>InProgress→刷新对局</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-end">UI 状态更新</div>
+    </div>
+
+    <div class="flow-row" style="justify-content:flex-start;">
+      <div class="flow-node fn-start" style="margin-left: 120px;">HTTP 请求</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-process">HttpClentHelper</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-process">LCU REST API</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-process">Stream 响应</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-process">StreamExtensions 反序列化</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fn-end">Entity 模型 → UI 绑定</div>
+    </div>
+
+  </div>
+
+  <!-- Data API table -->
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>方向</th><th>协议</th><th>端点</th><th>用途</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="dir in">IN</td>
+        <td>WebSocket</td>
+        <td style="font-family:monospace;font-size:12px;">wss://127.0.0.1:{port} → [5, "OnJsonApiEvent"]</td>
+        <td>实时游戏状态推送 (gameflow-phase)</td>
+      </tr>
+      <tr>
+        <td class="dir out">OUT</td>
+        <td>REST GET</td>
+        <td style="font-family:monospace;font-size:12px;">/lol-summoner/v1/current-summoner</td>
+        <td>当前召唤师信息</td>
+      </tr>
+      <tr>
+        <td class="dir out">OUT</td>
+        <td>REST GET</td>
+        <td style="font-family:monospace;font-size:12px;">/lol-ranked/v1/ranked-stats/{puuid}</td>
+        <td>排位赛季数据</td>
+      </tr>
+      <tr>
+        <td class="dir out">OUT</td>
+        <td>REST GET</td>
+        <td style="font-family:monospace;font-size:12px;">/lol-match-history/v1/products/lol/{puuid}/matches</td>
+        <td>比赛历史记录</td>
+      </tr>
+      <tr>
+        <td class="dir out">OUT</td>
+        <td>REST GET</td>
+        <td style="font-family:monospace;font-size:12px;">/lol-match-history/v1/games/{gameId}</td>
+        <td>单场比赛详情</td>
+      </tr>
+      <tr>
+        <td class="dir out">OUT</td>
+        <td>REST GET</td>
+        <td style="font-family:monospace;font-size:12px;">/lol-game-data/assets/v1/items.json</td>
+        <td>装备图标 & 元数据</td>
+      </tr>
+      <tr>
+        <td class="dir out">OUT</td>
+        <td>REST POST</td>
+        <td style="font-family:monospace;font-size:12px;">/lol-lobby/v2/lobby/matchmaking/search</td>
+        <td>自动开始匹配</td>
+      </tr>
+      <tr>
+        <td class="dir out">OUT</td>
+        <td>REST POST</td>
+        <td style="font-family:monospace;font-size:12px;">/lol-matchmaking/v1/ready-check/accept</td>
+        <td>自动接受对局</td>
+      </tr>
+      <tr>
+        <td class="dir out">OUT</td>
+        <td>REST GET</td>
+        <td style="font-family:monospace;font-size:12px;">/lol-gameflow/v1/session</td>
+        <td>游戏会话 (队伍成员)</td>
+      </tr>
+      <tr>
+        <td class="dir in">IN</td>
+        <td>REST GET</td>
+        <td style="font-family:monospace;font-size:12px;">https://ddragon.leagueoflegends.com/api/versions.json</td>
+        <td>游戏最新版本号</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Legend -->
+  <div class="legend">
+    <span><span class="swatch" style="background:#2a78d6;"></span> 表示层 UI</span>
+    <span><span class="swatch" style="background:#1baf7a;"></span> API 接口层</span>
+    <span><span class="swatch" style="background:#eda100;"></span> 基础设施层</span>
+    <span><span class="swatch" style="background:#4a3aa7;"></span> 数据实体层</span>
+    <span><span class="swatch" style="background:#e34948;"></span> 外部系统</span>
+    <span><span class="swatch" style="background:#eb6834;"></span> NuGet 依赖</span>
+  </div>
+</div>
+
+<button id="theme-toggle" style="
+  position:fixed; bottom:24px; right:24px;
+  padding:8px 16px; border:1px solid var(--border);
+  background:var(--surface-1); color:var(--text-primary);
+  border-radius:6px; cursor:pointer; font-size:13px;
+">🌓 切换暗色</button>
+
+<script>
+  const btn = document.getElementById('theme-toggle');
+  btn.addEventListener('click', () => {
+    const root = document.documentElement;
+    const cur = root.getAttribute('data-theme');
+    root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  });
+</script>
+</body>
+</html>
