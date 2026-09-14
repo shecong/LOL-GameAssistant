@@ -127,9 +127,11 @@ namespace LOL_GameAssistant
 
             //加载对局
             tab1_grid1.Controls.Clear();
+            liveGameForm.Dock = DockStyle.Fill;
             tab1_grid1.Controls.Add(liveGameForm);
             //加载战绩查询
             tabPage3.Controls.Clear();
+            battleQueryForm.Dock = DockStyle.Fill;
             tabPage3.Controls.Add(battleQueryForm);
             //关于
             tab4_grid1.Controls.Add(new AboutForm() { Dock = DockStyle.Fill });

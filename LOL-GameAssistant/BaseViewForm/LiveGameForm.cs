@@ -17,19 +17,85 @@ namespace LOL_GameAssistant.BaseViewForm
         private string _premadeSignature = "";
         private string _teamTitleBase1 = "蓝方";
         private string _teamTitleBase2 = "红方";
+        private readonly AntdUI.Label _teamQueueTag1;
+        private readonly AntdUI.Label _teamQueueTag2;
+        private readonly ToolTip _teamQueueTip = new();
         private const int PlayerCardHeight = 470;
-        private const int PlayerCardMaxWidth = 450;
+        private const int PlayerCardPreferredWidth = 450;
+        private const int PlayerCardSingleColumnMaxWidth = 640;
+        private const int PlayerCardMinimumWidth = 360;
+        private const int PlayerCardHorizontalMargin = 10;
+        private const int PlayerCardVerticalMargin = 10;
 
         public LiveGameForm()
         {
             InitializeComponent();
+            _teamQueueTag1 = CreateTeamQueueTag();
+            _teamQueueTag2 = CreateTeamQueueTag();
+            headerTeam1.Controls.Add(_teamQueueTag1);
+            headerTeam2.Controls.Add(_teamQueueTag2);
+            _teamQueueTag1.BringToFront();
+            _teamQueueTag2.BringToFront();
+            headerTeam1.Resize += (_, _) => LayoutTeamQueueTags();
+            headerTeam2.Resize += (_, _) => LayoutTeamQueueTags();
             this.Load += LiveGameForm_Load;
-            this.Disposed += (_, _) => _autoRefreshTimer?.Dispose();
+            Resize += (_, _) => LayoutPlayerCards();
+            this.Disposed += (_, _) =>
+            {
+                _autoRefreshTimer?.Dispose();
+                _teamQueueTip.Dispose();
+            };
+            LayoutTeamQueueTags();
         }
 
         private void LiveGameForm_Load(object? sender, EventArgs e)
         {
             lblGameInfo.Text = "暂无对局信息，进入对局后自动展示";
+        }
+
+        private static AntdUI.Label CreateTeamQueueTag()
+        {
+            return new AntdUI.Label
+            {
+                AutoSize = false,
+                BackColor = Color.FromArgb(238, 238, 238),
+                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(90, 90, 90),
+                Text = "检测中",
+                TextAlign = ContentAlignment.MiddleCenter,
+                Visible = false
+            };
+        }
+
+        private void LayoutTeamQueueTags()
+        {
+            LayoutTeamQueueTag(headerTeam1, lblTeamTitle1, _teamQueueTag1);
+            LayoutTeamQueueTag(headerTeam2, lblTeamTitle2, _teamQueueTag2);
+        }
+
+        private static void LayoutTeamQueueTag(GradientPanel header, Label title, AntdUI.Label tag)
+        {
+            if (header.ClientSize.Width <= 0) return;
+
+            int width = Math.Clamp(TextRenderer.MeasureText(tag.Text, tag.Font).Width + 16, 48, 132);
+            tag.Size = new Size(width, 22);
+            tag.Location = new Point(Math.Max(4, header.ClientSize.Width - width - 8), 6);
+            title.Padding = new Padding(0, 0, width + 16, 0);
+        }
+
+        private void SetTeamQueueTag(AntdUI.Label tag, string status, string detail)
+        {
+            tag.Text = status;
+            (tag.BackColor, tag.ForeColor) = status switch
+            {
+                "单排" => (Color.FromArgb(238, 238, 238), Color.FromArgb(90, 90, 90)),
+                "检测中" => (Color.FromArgb(227, 242, 253), Color.FromArgb(25, 118, 210)),
+                "未知" => (Color.FromArgb(255, 243, 224), Color.FromArgb(230, 126, 34)),
+                _ => (Color.FromArgb(255, 236, 179), Color.FromArgb(191, 104, 0))
+            };
+            tag.Visible = true;
+            _teamQueueTip.SetToolTip(tag, $"{status}：{detail}");
+            LayoutTeamQueueTags();
         }
 
         /// <summary>
@@ -63,6 +129,8 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             _lastSignature = "";
             _premadeSignature = "";
+            _teamQueueTag1.Visible = false;
+            _teamQueueTag2.Visible = false;
         }
 
         /// <summary>
@@ -197,10 +265,8 @@ namespace LOL_GameAssistant.BaseViewForm
             string suffix2 = team2Mine ? " · 我方" : (anyMine ? " · 敌方" : "");
             lblTeamTitle1.Text = $"蓝方 ({count1}){suffix1}";
             lblTeamTitle2.Text = $"红方 ({count2}){suffix2}";
-
-            int width = Math.Min(
-                PlayerCardMaxWidth,
-                Math.Max(300, Math.Min(panelTeam1.ClientSize.Width, panelTeam2.ClientSize.Width) - 24));
+            SetTeamQueueTag(_teamQueueTag1, "检测中", "正在根据近期同队记录识别队伍类型");
+            SetTeamQueueTag(_teamQueueTag2, "检测中", "正在根据近期同队记录识别队伍类型");
 
             panelTeam1.SuspendLayout();
             panelTeam2.SuspendLayout();
@@ -209,14 +275,16 @@ namespace LOL_GameAssistant.BaseViewForm
                 panelTeam1.Controls.Clear();
                 panelTeam2.Controls.Clear();
 
-                AddPlayerCards(panelTeam1, team1, width, myPuuid);
-                AddPlayerCards(panelTeam2, team2, width, myPuuid);
+                AddPlayerCards(panelTeam1, team1, myPuuid);
+                AddPlayerCards(panelTeam2, team2, myPuuid);
             }
             finally
             {
                 panelTeam1.ResumeLayout();
                 panelTeam2.ResumeLayout();
             }
+
+            LayoutPlayerCards();
 
             // 卡片展开动效（交错延迟）
             int index = 0;
@@ -260,7 +328,11 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             catch
             {
-                // 开黑检测失败不影响对局展示
+                if (!IsDisposed && signature == _lastSignature)
+                {
+                    SetTeamQueueTag(_teamQueueTag1, "未知", "组队检测暂不可用");
+                    SetTeamQueueTag(_teamQueueTag2, "未知", "组队检测暂不可用");
+                }
             }
         }
 
@@ -277,6 +349,9 @@ namespace LOL_GameAssistant.BaseViewForm
             lblTeamTitle2.Text = string.IsNullOrEmpty(summary2)
                 ? _teamTitleBase2
                 : $"{_teamTitleBase2} · 开黑 {summary2}";
+
+            SetTeamQueueTag(_teamQueueTag1, result.GetTeamQueueStatus(0), result.GetTeamQueueDetail(0));
+            SetTeamQueueTag(_teamQueueTag2, result.GetTeamQueueStatus(1), result.GetTeamQueueDetail(1));
 
             ApplyPremadeToPanel(panelTeam1, result);
             ApplyPremadeToPanel(panelTeam2, result);
@@ -297,10 +372,71 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>
+        /// 按队伍面板的实际可用宽度重排卡片：宽屏使用两列，空间不足时改为舒展的单列。
+        /// 滚动条和卡片外边距均纳入计算，避免临界宽度下第二张卡片错误换行。
+        /// </summary>
+        private void LayoutPlayerCards()
+        {
+            if (IsDisposed) return;
+            ResizePlayerCards(panelTeam1);
+            ResizePlayerCards(panelTeam2);
+        }
+
+        private static void ResizePlayerCards(FlowLayoutPanel panel)
+        {
+            var cards = panel.Controls.OfType<LivePlayerForm>().ToList();
+            if (cards.Count == 0 || panel.ClientSize.Width <= 0) return;
+
+            int width = CalculatePlayerCardWidth(panel, cards.Count);
+            panel.SuspendLayout();
+            try
+            {
+                foreach (var card in cards)
+                {
+                    card.Width = width;
+                    card.Height = PlayerCardHeight;
+                }
+            }
+            finally
+            {
+                panel.ResumeLayout(true);
+            }
+        }
+
+        private static int CalculatePlayerCardWidth(FlowLayoutPanel panel, int cardCount)
+        {
+            int contentWidth = panel.ClientSize.Width - panel.Padding.Horizontal;
+            if (contentWidth <= 0) return PlayerCardMinimumWidth;
+
+            // 优先尝试两列；若对局记录区域会产生纵向滚动条，预留其宽度。
+            int twoColumnRows = (cardCount + 1) / 2;
+            int twoColumnScrollbar = NeedsVerticalScrollbar(panel, twoColumnRows)
+                ? SystemInformation.VerticalScrollBarWidth
+                : 0;
+            int twoColumnWidth = (contentWidth - twoColumnScrollbar - 2 * PlayerCardHorizontalMargin) / 2;
+            if (cardCount > 1 && twoColumnWidth >= PlayerCardMinimumWidth)
+            {
+                return Math.Min(PlayerCardPreferredWidth, twoColumnWidth);
+            }
+
+            // 单列时让卡片填充所在队列，避免旧逻辑在窗口变宽后仍停留在固定 450px。
+            int singleColumnScrollbar = NeedsVerticalScrollbar(panel, cardCount)
+                ? SystemInformation.VerticalScrollBarWidth
+                : 0;
+            int singleColumnWidth = contentWidth - singleColumnScrollbar - PlayerCardHorizontalMargin;
+            return Math.Max(PlayerCardMinimumWidth, Math.Min(PlayerCardSingleColumnMaxWidth, singleColumnWidth));
+        }
+
+        private static bool NeedsVerticalScrollbar(FlowLayoutPanel panel, int rows)
+        {
+            int contentHeight = panel.Padding.Vertical + rows * (PlayerCardHeight + PlayerCardVerticalMargin);
+            return contentHeight > panel.ClientSize.Height;
+        }
+
         private static void AddPlayerCards(
             FlowLayoutPanel panel,
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members,
-            int width,
             string? myPuuid)
         {
             if (members.Count == 0)
@@ -328,9 +464,9 @@ namespace LOL_GameAssistant.BaseViewForm
                     isAlly,
                     teamKnown)
                 {
-                    Width = width,
+                    Width = PlayerCardPreferredWidth,
                     Height = PlayerCardHeight,
-                    Margin = new Padding(0, 0, 10, 10)
+                    Margin = new Padding(0, 0, PlayerCardHorizontalMargin, PlayerCardVerticalMargin)
                 };
                 panel.Controls.Add(card);
             }

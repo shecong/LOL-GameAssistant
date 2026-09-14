@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using System.Net.Security;
 using System.Text;
 using System.Web;
 
@@ -18,7 +19,8 @@ public class HttpClentHelper : IDisposable
     static HttpClentHelper()
     {
         var handler = new HttpClientHandler();
-        handler.ServerCertificateCustomValidationCallback = delegate { return true; };
+        handler.ServerCertificateCustomValidationCallback = static (request, _, _, errors) =>
+            IsLcuUri(request.RequestUri) || errors == SslPolicyErrors.None;
         handler.UseProxy = false;
         handler.AllowAutoRedirect = false;
         handler.MaxConnectionsPerServer = 50; // 增加连接数限制
@@ -43,6 +45,14 @@ public class HttpClentHelper : IDisposable
         }
 
         return url;
+    }
+
+    private static bool IsLcuUri(Uri? uri)
+    {
+        return uri?.Host == "127.0.0.1"
+            && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal)
+            && int.TryParse(Port, out int port)
+            && uri.Port == port;
     }
 
     // 便捷方法 - 添加 CancellationToken 支持
@@ -93,12 +103,15 @@ public class HttpClentHelper : IDisposable
             var requestUrl = BuildRequestUrl(baseUrl, endpoint, queryParams);
 
             // 创建 HttpRequestMessage
-            var request = new HttpRequestMessage(new HttpMethod(httpMethod), requestUrl);
+            using var request = new HttpRequestMessage(new HttpMethod(httpMethod), requestUrl);
 
-            // 设置认证头
-            request.Headers.Authorization = new AuthenticationHeaderValue(
-                "Basic",
-                Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{Token}")));
+            // LCU 凭据仅可发送给当前检测到的本机 LCU 端点。
+            if (IsLcuUri(request.RequestUri))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue(
+                    "Basic",
+                    Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{Token}")));
+            }
 
             // 设置Accept头
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
@@ -135,13 +148,17 @@ public class HttpClentHelper : IDisposable
 
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                return new ResponseStream(stream, response);
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                Console.WriteLine($"请求失败: {response.StatusCode}");
-                Console.WriteLine($"错误详情: {errorContent}");
+                using (response)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                    Console.WriteLine($"请求失败: {response.StatusCode}");
+                    Console.WriteLine($"错误详情: {errorContent}");
+                }
                 return null;
             }
         }
@@ -213,5 +230,49 @@ public class HttpClentHelper : IDisposable
     {
         // 静态 HttpClient 不需要手动释放，但可以实现 IDisposable 接口以保持模式一致
         // 如果需要释放资源，可以在这里添加
+    }
+
+    /// <summary>
+    /// 将响应的生命周期绑定到返回流，调用方释放流时同步释放 HTTP 响应。
+    /// </summary>
+    private sealed class ResponseStream(Stream inner, HttpResponseMessage response) : Stream
+    {
+        private readonly Stream _inner = inner;
+        private HttpResponseMessage? _response = response;
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => _inner.CanSeek;
+        public override bool CanWrite => _inner.CanWrite;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => _inner.Position = value; }
+        public override void Flush() => _inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => _inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override int Read(Span<byte> buffer) => _inner.Read(buffer);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => _inner.ReadAsync(buffer, cancellationToken);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _inner.ReadAsync(buffer, offset, count, cancellationToken);
+        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+        public override void SetLength(long value) => _inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
+        public override void Write(ReadOnlySpan<byte> buffer) => _inner.Write(buffer);
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => _inner.WriteAsync(buffer, cancellationToken);
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _inner.WriteAsync(buffer, offset, count, cancellationToken);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _inner.Dispose();
+                Interlocked.Exchange(ref _response, null)?.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await _inner.DisposeAsync().ConfigureAwait(false);
+            Interlocked.Exchange(ref _response, null)?.Dispose();
+            GC.SuppressFinalize(this);
+        }
     }
 }

@@ -6,7 +6,7 @@ namespace LOL_GameAssistant.LoLApi
     /// <summary>
     /// 开黑（预组队）检测器：
     /// 通过每位玩家最近 20 场对局的战绩摘要，统计“与当前对局其他玩家同队”的次数，
-    /// 同队 ≥ 3 次的两人判定为大概率开黑，再按并查集合并成开黑小组。
+    /// 同队 ≥ 2 次的两人判定为大概率开黑，再按并查集合并成开黑小组。
     /// 算法参考社区项目（rank-analysis / Yuumi）的做法，无需拉取对局详情。
     /// </summary>
     public static class PremadeDetector
@@ -15,7 +15,7 @@ namespace LOL_GameAssistant.LoLApi
         private const int HistoryCount = 20;
 
         /// <summary>判定为开黑的“同队场次”阈值。</summary>
-        private const int SameTeamThreshold = 3;
+        private const int SameTeamThreshold = 2;
 
         /// <summary>单玩家战绩摘要缓存（5 分钟），避免自动刷新时重复请求。</summary>
         private static readonly ConcurrentDictionary<string, (DateTime Time, GameHeadModel.MatchHistoryResponse? Data)>
@@ -64,6 +64,46 @@ namespace LOL_GameAssistant.LoLApi
                     .ToList();
                 return sizes.Count == 0 ? "" : string.Join("+", sizes);
             }
+
+            /// <summary>
+            /// 返回队伍的排队状态标签。无固定队友时为“单排”，单个固定小组时显示具体人数，
+            /// 存在多个小组时以“多排 2+2”等形式标识。
+            /// </summary>
+            public string GetTeamQueueStatus(int teamIndex)
+            {
+                var sizes = Groups
+                    .Where(group => group.TeamIndex == teamIndex)
+                    .Select(group => group.Puuids.Count)
+                    .OrderByDescending(size => size)
+                    .ToList();
+                if (sizes.Count == 0) return "单排";
+
+                if (sizes.Count == 1)
+                {
+                    return sizes[0] switch
+                    {
+                        2 => "双排",
+                        3 => "三排",
+                        4 => "四排",
+                        5 => "五排",
+                        _ => "多排"
+                    };
+                }
+
+                return $"多排 {string.Join("+", sizes)}";
+            }
+
+            /// <summary>
+            /// 生成可用于悬停说明的队伍检测详情。
+            /// </summary>
+            public string GetTeamQueueDetail(int teamIndex)
+            {
+                var groups = Groups.Where(group => group.TeamIndex == teamIndex).ToList();
+                if (groups.Count == 0) return "近期战绩中未检测到固定同队关系";
+
+                return string.Join("；", groups.Select(group =>
+                    $"{group.Puuids.Count} 人组队：{string.Join("、", group.Names)}"));
+            }
         }
 
         /// <summary>
@@ -106,56 +146,54 @@ namespace LOL_GameAssistant.LoLApi
             foreach (var p in team2.Where(p => !string.IsNullOrEmpty(p.Puuid)))
                 teamOf[p.Puuid] = 1;
 
-            // 按对局去重：同一局会同时出现在多名玩家的战绩里，只统计一次
-            var pairsByGame = new Dictionary<long, HashSet<(string A, string B)>>();
+            // 先把每个战绩摘要中可见的当前玩家合并到对应对局。
+            // 同一局会出现在多名玩家的战绩里，而不同摘要返回的身份信息并不总是完整：
+            // 不能在读到第一份摘要后就跳过该局，否则会漏掉另一组双排（例如 2+2）。
+            var playersByGame = new Dictionary<long, Dictionary<string, int>>();
             foreach (var (_, history) in histories)
             {
                 if (history?.Games?.Games == null) continue;
                 foreach (var game in history.Games.Games)
                 {
                     if (game.Participants == null || game.ParticipantIdentities == null) continue;
-                    if (pairsByGame.ContainsKey(game.GameId)) continue;
+                    if (game.GameId <= 0) continue;
 
                     // 该局：puuid → teamId
                     var pidToTeam = game.Participants
                         .Where(p => p.TeamId > 0)
                         .ToDictionary(p => p.ParticipantId, p => p.TeamId);
-                    var puuidToPid = new Dictionary<string, int>();
-                    var puuidInGame = new List<string>();
+                    if (!playersByGame.TryGetValue(game.GameId, out var playersInGame))
+                    {
+                        playersByGame[game.GameId] = playersInGame = new Dictionary<string, int>();
+                    }
+
                     foreach (var identity in game.ParticipantIdentities)
                     {
                         var player = identity.Player;
                         if (player == null || string.IsNullOrEmpty(player.Puuid)) continue;
                         if (!teamOf.ContainsKey(player.Puuid)) continue; // 只看当前对局的玩家
                         if (!pidToTeam.ContainsKey(identity.ParticipantId)) continue;
-                        puuidToPid[player.Puuid] = identity.ParticipantId;
-                        puuidInGame.Add(player.Puuid);
-                    }
-
-                    // 两两统计同队（两人必须同时出现在该局且队伍相同）
-                    for (int i = 0; i < puuidInGame.Count - 1; i++)
-                    {
-                        string a = puuidInGame[i];
-                        int teamA = pidToTeam[puuidToPid[a]];
-                        for (int j = i + 1; j < puuidInGame.Count; j++)
-                        {
-                            string b = puuidInGame[j];
-                            if (pidToTeam[puuidToPid[b]] != teamA) continue;
-                            var key = string.CompareOrdinal(a, b) < 0 ? (a, b) : (b, a);
-                            if (!pairsByGame.TryGetValue(game.GameId, out var set))
-                                pairsByGame[game.GameId] = set = new HashSet<(string A, string B)>();
-                            set.Add(key);
-                        }
+                        playersInGame[player.Puuid] = pidToTeam[identity.ParticipantId];
                     }
                 }
             }
 
-            // 汇总每对玩家的同队局数
+            // 每局合并完整后再两两统计。这样既保证一局只计一次，又能保留同队内的多个独立小组。
             var sameTeamCounts = new Dictionary<(string A, string B), int>();
-            foreach (var set in pairsByGame.Values)
+            foreach (var playersInGame in playersByGame.Values)
             {
-                foreach (var key in set)
-                    sameTeamCounts[key] = sameTeamCounts.GetValueOrDefault(key) + 1;
+                var players = playersInGame.ToArray();
+                for (int i = 0; i < players.Length - 1; i++)
+                {
+                    for (int j = i + 1; j < players.Length; j++)
+                    {
+                        if (players[i].Value != players[j].Value) continue;
+                        string a = players[i].Key;
+                        string b = players[j].Key;
+                        var key = string.CompareOrdinal(a, b) < 0 ? (a, b) : (b, a);
+                        sameTeamCounts[key] = sameTeamCounts.GetValueOrDefault(key) + 1;
+                    }
+                }
             }
 
             // 只保留“当前同队”且“近期同队 ≥ 阈值”的两人关系

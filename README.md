@@ -16,7 +16,7 @@
 | 项目 | 说明 | 目标框架 |
 | --- | --- | --- |
 | LOL-GameAssistant | WinForms 主程序（AntdUI 界面 + LCU 对接） | net10.0-windows |
-| LOL-GameApi | ASP.NET Core Web API（健康检查、DataDragon 版本查询） | net8.0 |
+| LOL-GameApi | ASP.NET Core Web API（健康检查、DataDragon 版本查询） | net10.0 |
 | LOL-Demo-Test | 控制台示例：检测 LCU 端口/令牌 | net8.0 |
 | LoL_Demo_Test | 预留类库 | net8.0 |
 

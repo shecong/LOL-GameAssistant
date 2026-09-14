@@ -110,6 +110,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             this.Resize += (_, _) => RecalcHeaderLayout();
+            panelMatches.SizeChanged += (_, _) => ResizeMatchRows();
             RecalcHeaderLayout();
             this.Load += async (_, _) => await LoadAsync();
         }
@@ -119,36 +120,74 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void RecalcHeaderLayout()
         {
-            int right = Width - 12;
-            int leftEnd = right - 240;
+            const int textLeft = 56;
+            const int copyWidth = 60;
+            const int currentIconWidth = 28;
+            const int tagWidth = 36;
+            const int premadeWidth = 46;
+            const int gap = 6;
 
-            // 队友/对手标识放在第二行（当前英雄文字右侧），避免挤压名称和胜率
+            int right = Math.Max(textLeft + copyWidth + gap, ClientSize.Width - 12);
+            int copyLeft = Math.Max(textLeft, right - copyWidth);
+            int currentIconLeft = Math.Max(textLeft, copyLeft - gap - currentIconWidth);
+            btnCopy.Location = new Point(copyLeft, 8);
+            picCurrent.Location = new Point(currentIconLeft, 10);
+
+            // 顶行优先保证玩家名称；宽度不足时隐藏战绩汇总，避免文字彼此覆盖。
+            int summaryRight = currentIconLeft - gap;
+            int summaryWidth = Math.Min(135, Math.Max(0, summaryRight - textLeft - 88));
+            bool showSummary = summaryWidth >= 78;
+            lblSummary.Visible = showSummary;
+            if (showSummary)
+            {
+                lblSummary.Location = new Point(summaryRight - summaryWidth, 8);
+                lblSummary.Width = summaryWidth;
+            }
+
+            int nameRight = showSummary ? summaryRight - summaryWidth - gap : summaryRight;
+            lblName.Location = new Point(textLeft, 8);
+            lblName.Width = Math.Max(0, nameRight - textLeft);
+
+            // 第二行将玩家信息、当前英雄和队伍标签按可用空间从左到右分配。
+            int championRight = currentIconLeft - gap;
             if (_teamKnown)
             {
-                lblTeamTag.Location = new Point(right - 138, 32);
-                lblTeamTag.Size = new Size(36, 20);
+                int teamTagLeft = championRight - tagWidth;
+                lblTeamTag.Location = new Point(teamTagLeft, 32);
+                lblTeamTag.Size = new Size(tagWidth, 20);
+                championRight = teamTagLeft - gap;
             }
-            // 开黑标记放在队友/对手标识左侧
             if (lblPremadeTag.Visible)
             {
-                lblPremadeTag.Location = new Point(right - 190, 32);
-                lblPremadeTag.Size = new Size(46, 20);
+                int premadeTagLeft = championRight - premadeWidth;
+                lblPremadeTag.Location = new Point(premadeTagLeft, 32);
+                lblPremadeTag.Size = new Size(premadeWidth, 20);
+                championRight = premadeTagLeft - gap;
             }
-            btnCopy.Location = new Point(right - 62, 8);
-            picCurrent.Location = new Point(right - 96, 10);
-            lblSummary.Location = new Point(leftEnd, 8);
-            lblSummary.Width = Math.Max(60, right - 96 - leftEnd - 4);
-            lblChampionNow.Location = new Point(leftEnd, 32);
-            int championEnd = lblPremadeTag.Visible
-                ? right - 190 - 4
-                : _teamKnown
-                    ? right - 138 - 4
-                    : right - 62 - 4;
-            lblChampionNow.Width = Math.Max(60, championEnd - leftEnd);
 
-            int nameWidth = Math.Max(80, leftEnd - 56 - 8);
-            lblName.Width = nameWidth;
-            lblSub.Width = nameWidth;
+            int rowTwoSpace = Math.Max(0, championRight - textLeft);
+            int subWidth = Math.Min(160, Math.Max(0, rowTwoSpace / 2));
+            int championLeft = textLeft + subWidth + gap;
+            int championWidth = Math.Max(0, championRight - championLeft);
+            bool showChampion = championWidth >= 70 && !string.IsNullOrEmpty(lblChampionNow.Text);
+
+            lblSub.Location = new Point(textLeft, 32);
+            lblSub.Width = showChampion ? subWidth : rowTwoSpace;
+            lblChampionNow.Visible = showChampion;
+            if (showChampion)
+            {
+                lblChampionNow.Location = new Point(championLeft, 32);
+                lblChampionNow.Width = championWidth;
+            }
+        }
+
+        private void ResizeMatchRows()
+        {
+            int width = Math.Max(100, panelMatches.ClientSize.Width - 18);
+            foreach (var row in panelMatches.Controls.OfType<RecentMatchRow>())
+            {
+                row.Width = width;
+            }
         }
 
         /// <summary>
@@ -291,6 +330,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _ = row.SetDataAsync(detail, gamer, _playerPuuid);
             }
             panelMatches.AutoScrollMinSize = new Size(panelMatches.ClientSize.Width, y);
+            ResizeMatchRows();
         }
 
         private void ShowShimmer()
@@ -314,6 +354,7 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 lblChampionNow.Text = $"当前: {ChampionMap.GetChampion(_championId)?.RealName ?? $"英雄{_championId}"}";
                 lblChampionNow.Visible = true;
+                RecalcHeaderLayout();
                 var icon = await Game_Api.GetGameChampionIconAsync(_championId);
                 if (icon != null && !IsDisposed) picCurrent.Image = icon;
             }
@@ -356,6 +397,7 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 lblChampionNow.Text = $"当前: {ChampionMap.GetChampion(_championId)?.RealName ?? $"英雄{_championId}"}";
                 lblChampionNow.Visible = true;
+                RecalcHeaderLayout();
                 var icon = await Game_Api.GetGameChampionIconAsync(_championId);
                 if (icon != null && !IsDisposed) picCurrent.Image = icon;
             }

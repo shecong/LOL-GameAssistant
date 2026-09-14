@@ -30,7 +30,7 @@ namespace LOL_GameAssistant.LoLApi
         {
             using var client = new HttpClentHelper();
             var body = JsonConvert.SerializeObject(new { championId, completed });
-            Stream? response = await client.PatchAsync(
+            using Stream? response = await client.PatchAsync(
                 $"/lol-champ-select/v1/session/actions/{actionId}",
                 body: body
             );

@@ -17,6 +17,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private int _pageSize = 10;
         private const int StatsLoadLimit = 100;
         private const int DetailLoadConcurrency = 6;
+        private const int MatchListHorizontalInset = 20;
 
         private List<FavoritePlayer> _favorites = FavoriteStore.Load();
 
@@ -25,6 +26,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private bool _searchBusy;
 
         private readonly SemaphoreSlim _pageLoadGate = new(1, 1);
+        private readonly ToolTip _playerIdentityTip = new();
         private RankedEntry? solo, flex;
 
         private class RawGameStat
@@ -38,13 +40,130 @@ namespace LOL_GameAssistant.BaseViewForm
         public BattleQueryForm()
         {
             InitializeComponent();
+            Resize += (_, _) => UpdateResponsiveLayout();
+            stackMatches.SizeChanged += (_, _) => ResizeMatchRows();
+            panelPlayer.SizeChanged += (_, _) => LayoutPlayerPanel();
+            ConfigureCopyablePlayerIdentity();
+        }
+
+        /// <summary>
+        /// 玩家名称与 Riot ID 均可直接点击复制，方便转发或再次检索。
+        /// </summary>
+        private void ConfigureCopyablePlayerIdentity()
+        {
+            lblPlayerName.Cursor = Cursors.Hand;
+            lblPlayerTag.Cursor = Cursors.Hand;
+            lblPlayerName.Click += (_, _) => CopyPlayerIdentity(_currentPlayer?.gameName, "名称");
+            lblPlayerTag.Click += (_, _) => CopyPlayerIdentity(lblPlayerTag.Text, "ID");
+            _playerIdentityTip.SetToolTip(lblPlayerName, "点击复制名称");
+            _playerIdentityTip.SetToolTip(lblPlayerTag, "点击复制 ID");
+        }
+
+        private void CopyPlayerIdentity(string? value, string label)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+
+            try
+            {
+                Clipboard.SetText(value);
+                lblStatus.Text = $"已复制{label}：{value}";
+                if (ParentForm != null)
+                {
+                    AntdUI.Message.success(ParentForm, $"已复制{label}");
+                }
+            }
+            catch
+            {
+                lblStatus.Text = $"复制{label}失败";
+                if (ParentForm != null)
+                {
+                    AntdUI.Message.error(ParentForm, $"复制{label}失败，请重试");
+                }
+            }
         }
 
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
             RefreshFavoriteList(null);
+            UpdateResponsiveLayout();
             _ = InitializeDefaultSearchAsync();
+        }
+
+        private void UpdateResponsiveLayout()
+        {
+            if (IsDisposed) return;
+            LayoutSearchPanel();
+            LayoutPlayerPanel();
+            ResizeMatchRows();
+        }
+
+        /// <summary>
+        /// 搜索工具栏在窄窗口中自动换行并增加高度，避免固定 56px 时裁剪控件。
+        /// </summary>
+        private void LayoutSearchPanel()
+        {
+            if (panelSearch.ClientSize.Width <= 0) return;
+
+            panelSearch.SuspendLayout();
+            try
+            {
+                panelSearch.WrapContents = true;
+                panelSearch.AutoScroll = false;
+                panelSearch.PerformLayout();
+
+                int contentBottom = panelSearch.Controls
+                    .Cast<Control>()
+                    .Where(control => control.Visible)
+                    .Select(control => control.Bottom + control.Margin.Bottom)
+                    .DefaultIfEmpty(0)
+                    .Max();
+                panelSearch.Height = Math.Max(56, contentBottom + panelSearch.Padding.Bottom);
+            }
+            finally
+            {
+                panelSearch.ResumeLayout(true);
+            }
+        }
+
+        /// <summary>
+        /// 玩家概览优先保留资料区域，剩余空间再分配给排位面板，防止窄窗口中两个区域重叠。
+        /// </summary>
+        private void LayoutPlayerPanel()
+        {
+            if (panelPlayer.ClientSize.Width <= 0) return;
+
+            int avatarWidth = avatarPlayer.Width;
+            int availableForRanked = panelPlayer.ClientSize.Width - panelPlayer.Padding.Horizontal - avatarWidth - 240;
+            panelRanked.Width = Math.Clamp(availableForRanked, 240, 472);
+        }
+
+        private int GetMatchRowWidth(int contentHeight)
+        {
+            int scrollbarWidth = contentHeight > stackMatches.ClientSize.Height
+                ? SystemInformation.VerticalScrollBarWidth
+                : 0;
+            return Math.Max(1, stackMatches.ClientSize.Width - MatchListHorizontalInset - scrollbarWidth);
+        }
+
+        /// <summary>
+        /// 查询结果为手工定位控件；容器宽度改变后必须重新设置每行宽度和滚动范围。
+        /// </summary>
+        private void ResizeMatchRows()
+        {
+            var rows = stackMatches.Controls.OfType<RecentMatchRow>().ToList();
+            if (rows.Count == 0 || stackMatches.ClientSize.Width <= 0) return;
+
+            int contentHeight = 8 + rows.Sum(row => row.Height + 8) + 6;
+            int width = GetMatchRowWidth(contentHeight);
+            int y = 8;
+            foreach (var row in rows)
+            {
+                row.Width = width;
+                row.Location = new Point(10, y);
+                y += row.Height + 8;
+            }
+            stackMatches.AutoScrollMinSize = new Size(0, contentHeight);
         }
 
         /// <summary>
@@ -409,8 +528,9 @@ namespace LOL_GameAssistant.BaseViewForm
                         // 紧凑战绩行：胜负配色 + 圆角 + 悬停动效
                         var rec = new RecentMatchRow
                         {
-                            Width = Math.Max(700, stackMatches.ClientSize.Width - 30),
-                            Height = RecentMatchRow.RowHeight
+                            Width = Math.Max(1, stackMatches.ClientSize.Width - MatchListHorizontalInset),
+                            Height = RecentMatchRow.TeamRowHeight,
+                            ShowTeammateInfo = true
                         };
                         await rec.SetDataAsync(detail, gamer, _currentPlayer.puuid);
                         return rec;
@@ -438,10 +558,12 @@ namespace LOL_GameAssistant.BaseViewForm
                     stackMatches.Controls.Add(rec);
                     // 逐行错峰入场，列表更灵动
                     UiAnimation.SlideIn(rec, -16, 220, index * 30);
+                    _ = rec.DetectTeamQueueStatusAsync();
                     y += rec.Height + 8;
                     index++;
                 }
-                stackMatches.AutoScrollMinSize = new Size(stackMatches.ClientSize.Width, y + 6);
+                stackMatches.AutoScrollMinSize = new Size(0, y + 6);
+                ResizeMatchRows();
 
                 int totalPages = Math.Max(1, (int)Math.Ceiling((double)_matchHistory.Games.Games.Count / _pageSize));
                 lblStatus.Text = $"共 {_matchHistory.Games.Games.Count} 场 · 第 {_currentPage}/{totalPages} 页";
@@ -577,7 +699,16 @@ namespace LOL_GameAssistant.BaseViewForm
             panelStats.Controls.Clear();
 
             // 筛选按钮栏
-            var btnPanel = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 35, Padding = new Padding(5), BackColor = Color.WhiteSmoke };
+            var btnPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                MinimumSize = new Size(0, 35),
+                Padding = new Padding(5),
+                BackColor = Color.WhiteSmoke,
+                WrapContents = true
+            };
             var allModes = _rawGameStats.Select(s => s.Mode).Distinct().OrderBy(m => m).ToList();
             var filterTexts = new List<string> { "全部" };
             filterTexts.AddRange(allModes);

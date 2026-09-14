@@ -13,8 +13,8 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         public static async Task OpenGameServer()
         {
-            HttpClentHelper client = new HttpClentHelper();
-            _ = await client.PostAsync("/lol-lobby/v2/lobby/matchmaking/search");
+            using var client = new HttpClentHelper();
+            using Stream? response = await client.PostAsync("/lol-lobby/v2/lobby/matchmaking/search");
         }
 
         /// <summary>
@@ -22,8 +22,8 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         public static async Task GameTrueServer()
         {
-            HttpClentHelper client = new HttpClentHelper();
-            _ = await client.PostAsync("/lol-matchmaking/v1/ready-check/accept");
+            using var client = new HttpClentHelper();
+            using Stream? response = await client.PostAsync("/lol-matchmaking/v1/ready-check/accept");
         }
 
         /// <summary>
