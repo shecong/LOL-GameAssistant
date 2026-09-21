@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using System.Runtime.InteropServices;
-using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
+﻿using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant
 {
@@ -20,8 +18,8 @@ namespace LOL_GameAssistant
             SetProcessDpiAwareness(_Process_DPI_Awareness.Process_Per_Monitor_DPI_Aware);
 
             // 设置全局异常处理
-            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-            Application.ThreadException += Application_ThreadException;
+            System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            System.Windows.Forms.Application.ThreadException += Application_ThreadException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
             ApplicationConfiguration.Initialize();
@@ -29,7 +27,7 @@ namespace LOL_GameAssistant
             // 说明：读取 LCU lockfile / WMI 命令行并不需要管理员权限，
             // 因此不再强制 UAC 提权，避免每次启动都弹窗。
             // 如后续功能确实需要管理员权限，可调用 AdminPermissionHelper.EnsureAdminPermission()。
-            Application.Run(GameMain);
+            System.Windows.Forms.Application.Run(GameMain);
         }
 
         // UI线程异常处理

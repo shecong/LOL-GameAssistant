@@ -1,7 +1,11 @@
-﻿using System.Drawing.Drawing2D;
-using LOL_GameAssistant.Entity;
+﻿using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.LoLApi;
+using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Teams;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.Teams;
+using System.Drawing.Drawing2D;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -13,8 +17,10 @@ namespace LOL_GameAssistant.BaseViewForm
         public const int RowHeight = 40;
         public const int TeamRowHeight = 126;
 
-        private GameDetailModel.GameInfo? _detail;
+        private MatchDetail? _detail;
         private string? _puuid;
+        private readonly IGameAssetService _gameAssetService;
+        private readonly IPremadeDetectionService _premadeDetectionService;
         private readonly Panel _teamInfoPanel;
         private readonly Label _teamTitle;
         private readonly Label _teamQueueTag;
@@ -51,8 +57,17 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        public RecentMatchRow()
+        public RecentMatchRow() : this(AppCompositionRoot.GameAssetService, AppCompositionRoot.PremadeDetectionService)
         {
+        }
+
+        /// <summary>战绩行通过应用端口读取英雄资源，避免直接依赖静态 LCU API。</summary>
+        internal RecentMatchRow(
+            IGameAssetService gameAssetService,
+            IPremadeDetectionService premadeDetectionService)
+        {
+            _gameAssetService = gameAssetService;
+            _premadeDetectionService = premadeDetectionService;
             InitializeComponent();
 
             _teamInfoPanel = new Panel
@@ -202,7 +217,7 @@ namespace LOL_GameAssistant.BaseViewForm
             LayoutRow();
         }
 
-        public async Task SetDataAsync(GameDetailModel.GameInfo detail, GameDetailModel.ParticipantsItem gamer, string? puuid)
+        public async Task SetDataAsync(MatchDetail detail, MatchParticipant gamer, string? puuid)
         {
             try
             {
@@ -217,7 +232,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 lblResult.Text = win ? "胜利" : "失败";
                 lblResult.ForeColor = win ? Color.FromArgb(46, 125, 50) : Color.FromArgb(198, 40, 40);
-                string championName = ChampionMap.GetChampion(gamer.championId)?.RealName ?? $"英雄{gamer.championId}";
+                string championName = GetChampionDisplayName(gamer.championId);
                 var playerIdentity = detail.GetPlayerIdentity(puuid);
                 string playerName = !string.IsNullOrWhiteSpace(playerIdentity?.gameName)
                     ? playerIdentity.gameName
@@ -231,7 +246,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblKda.Text = gamer.GetKdaText();
                 lblDuration.Text = detail.GetDurationText();
 
-                string champName = ChampionMap.GetChampion(gamer.championId)?.RealName ?? $"英雄{gamer.championId}";
+                string champName = GetChampionDisplayName(gamer.championId);
                 var tip = new ToolTip();
                 tip.SetToolTip(picChampion, $"{playerName} · {champName} · {modeText} · {detail.GetDurationText()}\n{gamer.GetKdaText()} · {(win ? "胜利" : "失败")}");
 
@@ -241,10 +256,14 @@ namespace LOL_GameAssistant.BaseViewForm
                     SetTeamQueueStatus("检测中", "正在根据近期同队记录识别本场队伍类型");
                 }
 
-                var icon = await Game_Api.GetGameChampionIconAsync(gamer.championId);
+                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(gamer.championId));
                 if (icon != null && !IsDisposed)
                 {
                     picChampion.Image = icon;
+                }
+                else
+                {
+                    icon?.Dispose();
                 }
                 Invalidate();
             }
@@ -273,8 +292,8 @@ namespace LOL_GameAssistant.BaseViewForm
                     return;
                 }
 
-                var identities = detail.participantIdentities ?? new List<GameDetailModel.ParticipantIdentitiesItem>();
-                var team = (detail.participants ?? new List<GameDetailModel.ParticipantsItem>())
+                var identities = detail.participantIdentities;
+                var team = detail.participants
                     .Where(participant => participant.teamId == current.teamId)
                     .Select(participant =>
                     {
@@ -293,7 +312,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 await TeamQueueDetectionGate.WaitAsync();
                 try
                 {
-                    var result = await PremadeDetector.DetectAsync(team, new List<(string Puuid, string Name)>());
+                    var result = await _premadeDetectionService.DetectAsync(
+                        team.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray(),
+                        Array.Empty<TeamMemberIdentity>());
                     if (IsDisposed || !ReferenceEquals(detail, _detail)) return;
 
                     SetTeamQueueStatus(result.GetTeamQueueStatus(0), result.GetTeamQueueDetail(0));
@@ -330,14 +351,14 @@ namespace LOL_GameAssistant.BaseViewForm
         /// 在记录行下方显示本人所在队伍的 4 名队友及其英雄、KDA 和胜负信息。
         /// </summary>
         private void BuildTeammateInfo(
-            GameDetailModel.GameInfo detail,
-            GameDetailModel.ParticipantsItem gamer,
+            MatchDetail detail,
+            MatchParticipant gamer,
             string? puuid)
         {
             _teammatesPanel.Controls.Clear();
 
-            var identities = detail.participantIdentities ?? new List<GameDetailModel.ParticipantIdentitiesItem>();
-            var teammates = (detail.participants ?? new List<GameDetailModel.ParticipantsItem>())
+            var identities = detail.participantIdentities;
+            var teammates = detail.participants
                 .Where(p => p.teamId == gamer.teamId)
                 .Where(p => p.participantId != gamer.participantId)
                 .OrderBy(p => p.participantId)
@@ -388,8 +409,8 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         private Control CreateTeammateCard(
-            GameDetailModel.ParticipantsItem participant,
-            GameDetailModel.Player? identity,
+            MatchParticipant participant,
+            MatchPlayer? identity,
             int cardWidth)
         {
             var card = new Panel
@@ -410,7 +431,7 @@ namespace LOL_GameAssistant.BaseViewForm
             card.Controls.Add(avatar);
 
             string name = identity?.gameName ?? identity?.summonerName ?? $"玩家{participant.participantId}";
-            string champion = ChampionMap.GetChampion(participant.championId)?.RealName ?? $"英雄{participant.championId}";
+            string champion = GetChampionDisplayName(participant.championId);
             bool win = participant.IsWin();
             var nameLabel = new Label
             {
@@ -484,19 +505,45 @@ namespace LOL_GameAssistant.BaseViewForm
             control.DoubleClick += (_, _) => OpenDetail();
         }
 
-        private static async Task LoadAvatarAsync(RoundPictureBox box, int championId)
+        private async Task LoadAvatarAsync(RoundPictureBox box, int championId)
         {
             try
             {
-                var icon = await Game_Api.GetGameChampionIconAsync(championId);
+                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(championId));
                 if (icon != null && !box.IsDisposed)
                 {
                     box.Image = icon;
+                }
+                else
+                {
+                    icon?.Dispose();
                 }
             }
             catch
             {
                 // 队友头像加载失败不影响文字信息。
+            }
+        }
+
+        private static string GetChampionDisplayName(int championId)
+        {
+            string name = AppCompositionRoot.ChampionCatalog.GetDisplayName(championId);
+            return string.IsNullOrWhiteSpace(name) ? $"英雄{championId}" : name;
+        }
+
+        /// <summary>资源服务返回原始内容，由表现层解码为控件所需的位图。</summary>
+        private static Image? ToImage(GameAsset? asset)
+        {
+            try
+            {
+                if (asset == null || asset.IsEmpty) return null;
+                using var stream = new MemoryStream(asset.Content);
+                using var source = Image.FromStream(stream);
+                return new Bitmap(source);
+            }
+            catch
+            {
+                return null;
             }
         }
 

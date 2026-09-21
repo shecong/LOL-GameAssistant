@@ -1,5 +1,7 @@
-using LOL_GameAssistant.Entity;
-using LOL_GameAssistant.LoLApi;
+using LOL_GameAssistant.Application.Friends;
+using LOL_GameAssistant.Application.Profiles;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.Friends;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -12,10 +14,27 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly Label _emptyLabel;
         private readonly FlowLayoutPanel _friendList;
         private readonly Button _refreshButton;
+        private readonly IFriendDirectoryService _friendDirectoryService;
+        private readonly IFriendSpectateService _friendSpectateService;
+        private readonly IProfileIconService _profileIconService;
         private bool _loading;
 
-        public FriendsForm()
+        public FriendsForm() : this(
+            AppCompositionRoot.FriendDirectoryService,
+            AppCompositionRoot.FriendSpectateService,
+            AppCompositionRoot.ProfileIconService)
         {
+        }
+
+        /// <summary>表现层仅依赖应用服务，便于替换数据来源或使用测试替身。</summary>
+        internal FriendsForm(
+            IFriendDirectoryService friendDirectoryService,
+            IFriendSpectateService friendSpectateService,
+            IProfileIconService profileIconService)
+        {
+            _friendDirectoryService = friendDirectoryService;
+            _friendSpectateService = friendSpectateService;
+            _profileIconService = profileIconService;
             BackColor = Color.FromArgb(245, 247, 250);
             AutoScaleMode = AutoScaleMode.Dpi;
             Dock = DockStyle.Fill;
@@ -102,7 +121,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             try
             {
-                var friends = await Game_Api.GetFriendsAsync();
+                var friends = await _friendDirectoryService.GetFriendsAsync();
                 RenderFriends(friends);
             }
             catch (Exception ex)
@@ -119,7 +138,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        private void RenderFriends(List<FriendModel> friends)
+        private void RenderFriends(IReadOnlyList<FriendProfile> friends)
         {
             _friendList.SuspendLayout();
             try
@@ -127,8 +146,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 _friendList.Controls.Clear();
 
                 var ordered = friends
-                    .OrderByDescending(IsOnline)
-                    .ThenBy(GetDisplayName, StringComparer.CurrentCultureIgnoreCase)
+                    .OrderByDescending(friend => friend.IsOnline)
+                    .ThenBy(friend => friend.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
                 _emptyLabel.Visible = ordered.Count == 0;
@@ -139,13 +158,13 @@ namespace LOL_GameAssistant.BaseViewForm
                     return;
                 }
 
-                int onlineCount = ordered.Count(IsOnline);
+                int onlineCount = ordered.Count(friend => friend.IsOnline);
                 _statusLabel.Text =
                     $"共 {ordered.Count} 位好友 · 在线 {onlineCount} 位 · 更新时间 {DateTime.Now:HH:mm:ss} · 双击好友查看战绩";
 
                 foreach (var friend in ordered)
                 {
-                    var card = new FriendCard(friend)
+                    var card = new FriendCard(friend, _friendSpectateService, _profileIconService)
                     {
                         Width = GetCardWidth()
                     };
@@ -174,53 +193,41 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        private static bool IsOnline(FriendModel friend)
-        {
-            string availability = friend.Availability?.Trim().ToLowerInvariant() ?? "";
-            return availability is not ("offline" or "invisible" or "unknown" or "");
-        }
-
-        private static string GetDisplayName(FriendModel friend)
-        {
-            if (!string.IsNullOrWhiteSpace(friend.DisplayName)) return friend.DisplayName.Trim();
-            if (!string.IsNullOrWhiteSpace(friend.GameName))
-            {
-                string name = friend.GameName.Trim();
-                if (!string.IsNullOrWhiteSpace(friend.TagLine) && !name.Contains('#'))
-                    return $"{name}#{friend.TagLine.TrimStart('#')}";
-                return name;
-            }
-            return string.IsNullOrWhiteSpace(friend.SummonerName) ? "未知好友" : friend.SummonerName.Trim();
-        }
-
         private sealed class FriendCard : Panel
         {
-            private readonly FriendModel _friend;
+            private readonly FriendProfile _friend;
+            private readonly IFriendSpectateService _spectateService;
+            private readonly IProfileIconService _profileIconService;
             private bool _querying;
+            private bool _spectating;
 
-            public FriendCard(FriendModel friend)
+            public FriendCard(
+                FriendProfile friend,
+                IFriendSpectateService spectateService,
+                IProfileIconService profileIconService)
             {
                 _friend = friend;
-                Height = 78;
+                _spectateService = spectateService;
+                _profileIconService = profileIconService;
+                Height = 82;
                 Margin = new Padding(6);
                 Padding = new Padding(8);
                 BackColor = Color.White;
                 BorderStyle = BorderStyle.FixedSingle;
                 Cursor = string.IsNullOrWhiteSpace(friend.Puuid) ? Cursors.Default : Cursors.Hand;
 
-                int iconId = friend.Icon > 0 ? friend.Icon : friend.Lol?.Icon ?? 0;
                 var avatar = new RoundPictureBox
                 {
                     Size = new Size(54, 54),
                     Location = new Point(8, 10),
                     BorderWidth = 2,
-                    BorderColor = GetStatusColor(friend.Availability),
+                    BorderColor = GetStatusColor(friend.Presence),
                     Cursor = Cursor
                 };
                 Controls.Add(avatar);
-                _ = LoadAvatarAsync(avatar, iconId);
+                _ = LoadAvatarAsync(avatar, friend.ProfileIconId, _profileIconService);
 
-                string displayName = GetDisplayName(friend);
+                string displayName = friend.DisplayName;
                 var nameLabel = new Label
                 {
                     AutoEllipsis = true,
@@ -239,31 +246,46 @@ namespace LOL_GameAssistant.BaseViewForm
                     Location = new Point(74, 36),
                     Size = new Size(300, 21),
                     Font = new Font("Microsoft YaHei UI", 8.5F),
-                    ForeColor = GetStatusColor(friend.Availability),
+                    ForeColor = GetStatusColor(friend.Presence),
                     Text = GetStatusText(friend),
                     BackColor = Color.Transparent,
                     Cursor = Cursor
                 };
                 Controls.Add(statusLabel);
 
+                bool canQuery = !string.IsNullOrWhiteSpace(friend.Puuid);
+                bool canSpectate = friend.CanSpectate;
+                long gameId = friend.ActiveGameId ?? 0;
                 var actionLabel = new Label
                 {
                     AutoSize = false,
                     Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                    Location = new Point(330, 27),
-                    Size = new Size(140, 22),
+                    Location = new Point(330, 52),
+                    Size = new Size(140, 18),
                     Font = new Font("Microsoft YaHei UI", 8F),
                     ForeColor = Color.FromArgb(117, 117, 117),
-                    Text = string.IsNullOrWhiteSpace(friend.Puuid) ? "暂无战绩入口" : "双击查看战绩",
+                    Text = canSpectate ? "对局中，可发起观战" : canQuery ? "双击卡片查看战绩" : "暂无可用操作",
                     TextAlign = ContentAlignment.MiddleRight,
                     BackColor = Color.Transparent,
                     Cursor = Cursor
                 };
                 Controls.Add(actionLabel);
 
-                string? note = string.IsNullOrWhiteSpace(friend.StatusMessage)
-                    ? friend.Note
-                    : friend.StatusMessage;
+                var queryButton = CreateActionButton("战绩", Color.FromArgb(30, 136, 229));
+                queryButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                queryButton.Location = new Point(Width - 158, 14);
+                queryButton.Enabled = canQuery;
+                queryButton.Click += (_, _) => OpenBattleQuery();
+                Controls.Add(queryButton);
+
+                var spectateButton = CreateActionButton("观战", Color.FromArgb(123, 31, 162));
+                spectateButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                spectateButton.Location = new Point(Width - 82, 14);
+                spectateButton.Enabled = canSpectate;
+                spectateButton.Click += async (_, _) => await StartSpectateAsync(gameId, spectateButton, actionLabel);
+                Controls.Add(spectateButton);
+
+                string? note = friend.StatusMessage;
                 var toolTip = new ToolTip();
                 toolTip.SetToolTip(this, BuildToolTip(displayName, note));
                 toolTip.SetToolTip(avatar, BuildToolTip(displayName, note));
@@ -284,6 +306,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             private void AttachDoubleClick(Control control)
             {
+                if (control is Button) return;
                 control.DoubleClick += (_, _) => OpenBattleQuery();
                 foreach (Control child in control.Controls)
                 {
@@ -298,6 +321,44 @@ namespace LOL_GameAssistant.BaseViewForm
                 _ = BattleQueryForm.QueryPlayerAsync(_friend.Puuid);
             }
 
+            /// <summary>用户点击观战按钮后才调用 LCU，不会自动观战任何好友。</summary>
+            private async Task StartSpectateAsync(long gameId, Button button, Label actionLabel)
+            {
+                if (_spectating || string.IsNullOrWhiteSpace(_friend.Puuid) || gameId <= 0) return;
+                _spectating = true;
+                button.Enabled = false;
+                actionLabel.Text = "正在向客户端发起观战...";
+                try
+                {
+                    SpectateResult result = await _spectateService.LaunchAsync(new SpectateRequest(_friend.Puuid, gameId));
+                    actionLabel.Text = result.Message;
+                    if (result.Succeeded) AntdUI.Message.success(Program.GameMain, result.Message);
+                    else AntdUI.Message.error(Program.GameMain, result.Message);
+                }
+                finally
+                {
+                    _spectating = false;
+                    button.Enabled = _friend.CanSpectate;
+                }
+            }
+
+            private static Button CreateActionButton(string text, Color color)
+            {
+                var button = new Button
+                {
+                    AutoSize = false,
+                    BackColor = color,
+                    Cursor = Cursors.Hand,
+                    FlatStyle = FlatStyle.Flat,
+                    ForeColor = Color.White,
+                    Size = new Size(70, 28),
+                    Text = text,
+                    UseVisualStyleBackColor = false
+                };
+                button.FlatAppearance.BorderSize = 0;
+                return button;
+            }
+
             private static string BuildToolTip(string name, string? note)
             {
                 return string.IsNullOrWhiteSpace(note)
@@ -305,50 +366,46 @@ namespace LOL_GameAssistant.BaseViewForm
                     : $"{name}\n{note}\n双击查看该好友战绩";
             }
 
-            private static string GetStatusText(FriendModel friend)
+            private static string GetStatusText(FriendProfile friend)
             {
-                string availability = friend.Availability?.Trim().ToLowerInvariant() ?? "";
-                string status = availability switch
+                string status = friend.Presence switch
                 {
-                    "online" or "chat" => "在线",
-                    "away" => "离开",
-                    "dnd" => "请勿打扰",
-                    "mobile" => "手机在线",
-                    "ingame" or "ingameother" => "游戏中",
-                    "spectator" => "观战中",
-                    "offline" or "invisible" => "离线",
+                    FriendPresence.Online => "在线",
+                    FriendPresence.Away => "离开",
+                    FriendPresence.DoNotDisturb => "请勿打扰",
+                    FriendPresence.Mobile => "手机在线",
+                    FriendPresence.InGame => "游戏中",
+                    FriendPresence.Spectating => "观战中",
+                    FriendPresence.Offline => "离线",
                     _ => "状态未知"
                 };
 
-                if (!string.IsNullOrWhiteSpace(friend.Lol?.GameQueueType) &&
-                    availability is "ingame" or "ingameother")
+                if (!string.IsNullOrWhiteSpace(friend.GameQueueType) && friend.Presence == FriendPresence.InGame)
                 {
-                    status += $" · {friend.Lol.GameQueueType}";
+                    status += $" · {friend.GameQueueType}";
                 }
                 return status;
             }
 
-            private static Color GetStatusColor(string? availability)
+            private static Color GetStatusColor(FriendPresence presence)
             {
-                return availability?.Trim().ToLowerInvariant() switch
+                return presence switch
                 {
-                    "online" or "chat" or "mobile" => Color.FromArgb(46, 125, 50),
-                    "away" or "dnd" => Color.FromArgb(245, 124, 0),
-                    "ingame" or "ingameother" or "spectator" => Color.FromArgb(30, 136, 229),
+                    FriendPresence.Online or FriendPresence.Mobile => Color.FromArgb(46, 125, 50),
+                    FriendPresence.Away or FriendPresence.DoNotDisturb => Color.FromArgb(245, 124, 0),
+                    FriendPresence.InGame or FriendPresence.Spectating => Color.FromArgb(30, 136, 229),
                     _ => Color.FromArgb(158, 158, 158)
                 };
             }
 
-            private static async Task LoadAvatarAsync(RoundPictureBox box, int iconId)
+            private static async Task LoadAvatarAsync(RoundPictureBox box, int iconId, IProfileIconService profileIconService)
             {
                 if (iconId <= 0) return;
                 try
                 {
-                    using Stream stream = await Assets_api.GetImg(iconId.ToString());
-                    if (stream == Stream.Null) return;
-                    using var memory = new MemoryStream();
-                    await stream.CopyToAsync(memory);
-                    memory.Position = 0;
+                    byte[]? bytes = await profileIconService.GetProfileIconAsync(iconId);
+                    if (bytes == null || bytes.Length == 0) return;
+                    using var memory = new MemoryStream(bytes);
                     using var temp = Image.FromStream(memory);
                     var image = new Bitmap(temp);
                     if (box.IsDisposed)

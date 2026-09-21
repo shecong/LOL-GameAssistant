@@ -1,12 +1,23 @@
 ﻿using Newtonsoft.Json.Linq;
 using System.Diagnostics;
+using LOL_GameAssistant.Application.ApplicationInfo;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.ApplicationInfo;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
     public partial class AboutForm : UserControl
     {
-        public AboutForm()
+        private readonly IUpdateReleaseService _updateReleaseService;
+
+        public AboutForm() : this(AppCompositionRoot.UpdateReleaseService)
         {
+        }
+
+        /// <summary>关于页仅通过应用端口查询发布版本。</summary>
+        internal AboutForm(IUpdateReleaseService updateReleaseService)
+        {
+            _updateReleaseService = updateReleaseService;
             InitializeComponent();
             this.Load += AboutForm_Load;
         }
@@ -52,45 +63,28 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private async Task CheckForUpdateAsync()
         {
-            using var http = new System.Net.Http.HttpClient();
-            http.DefaultRequestHeaders.Add("User-Agent", "LOL-GameAssistant");
-            http.Timeout = TimeSpan.FromSeconds(10);
-
-            string json = await http.GetStringAsync("https://api.github.com/repos/shecong/LOL-GameAssistant/releases/latest");
-            var data = JObject.Parse(json);
-
-            string? tagName = data["tag_name"]?.ToString();
-            string? htmlUrl = data["html_url"]?.ToString();
-            string? releaseBody = data["body"]?.ToString();
-
-            if (string.IsNullOrEmpty(tagName))
+            UpdateRelease? release = await _updateReleaseService.GetLatestAsync();
+            if (release == null)
             {
                 AntdUI.Message.warn(ParentForm!, "未获取到版本信息");
                 return;
             }
 
-            string versionStr = tagName.TrimStart('v', 'V');
-            if (!Version.TryParse(versionStr, out var latestVer))
-            {
-                AntdUI.Message.warn(ParentForm!, $"无法解析版本号: {tagName}");
-                return;
-            }
-
             var currentVer = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
 
-            if (currentVer != null && latestVer > currentVer)
+            if (currentVer != null && release.Version > currentVer)
             {
-                string msg = $"发现新版本 {tagName}！\n\n"
+                string msg = $"发现新版本 {release.TagName}！\n\n"
                            + $"当前版本: {currentVer.Major}.{currentVer.Minor}.{currentVer.Build}\n"
-                           + $"最新版本: {tagName}\n";
+                           + $"最新版本: {release.TagName}\n";
 
-                if (!string.IsNullOrEmpty(releaseBody))
+                if (!string.IsNullOrEmpty(release.ReleaseNotes))
                 {
-                    msg += $"\n更新内容:\n{releaseBody}";
+                    msg += $"\n更新内容:\n{release.ReleaseNotes}";
                 }
 
                 AntdUI.Message.info(ParentForm!, msg);
-                OpenUrl(htmlUrl ?? "https://github.com/shecong/LOL-GameAssistant/releases");
+                OpenUrl(release.ReleaseUrl);
             }
             else
             {

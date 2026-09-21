@@ -1,7 +1,10 @@
-﻿using LOL_GameAssistant.Entity;
-using LOL_GameAssistant.LoLApi;
-using Newtonsoft.Json;
-using static LOL_GameAssistant.Entity.PlayerModel;
+using LOL_GameAssistant.Application.Lobby;
+using LOL_GameAssistant.Application.Players;
+using LOL_GameAssistant.Application.Teams;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.LeagueClient;
+using LOL_GameAssistant.Domain.Teams;
+using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -14,6 +17,9 @@ namespace LOL_GameAssistant.BaseViewForm
         private bool _refreshing;
         private string _lastSignature = "";
         private string? _myPuuid;
+        private readonly ILobbyService _lobbyService;
+        private readonly IPlayerProfileService _playerProfileService;
+        private readonly IPremadeDetectionService _premadeDetectionService;
         private string _premadeSignature = "";
         private string _teamTitleBase1 = "蓝方";
         private string _teamTitleBase2 = "红方";
@@ -27,8 +33,22 @@ namespace LOL_GameAssistant.BaseViewForm
         private const int PlayerCardHorizontalMargin = 10;
         private const int PlayerCardVerticalMargin = 10;
 
-        public LiveGameForm()
+        public LiveGameForm() : this(
+            AppCompositionRoot.LobbyService,
+            AppCompositionRoot.PlayerProfileService,
+            AppCompositionRoot.PremadeDetectionService)
         {
+        }
+
+        /// <summary>实时对局页通过应用服务读取游戏流程与当前玩家资料。</summary>
+        internal LiveGameForm(
+            ILobbyService lobbyService,
+            IPlayerProfileService playerProfileService,
+            IPremadeDetectionService premadeDetectionService)
+        {
+            _lobbyService = lobbyService;
+            _playerProfileService = playerProfileService;
+            _premadeDetectionService = premadeDetectionService;
             InitializeComponent();
             _teamQueueTag1 = CreateTeamQueueTag();
             _teamQueueTag2 = CreateTeamQueueTag();
@@ -148,7 +168,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 var phase = GameMain.gameFlowPhase;
                 if (force || !IsRenderablePhase(phase))
                 {
-                    string? livePhase = await Game_Api.GameFlowPhaseServer();
+                    string? livePhase = await _lobbyService.GetGameFlowPhaseAsync();
                     Program.GameMain?.ApplyGameFlowPhase(livePhase);
                     if (Enum.TryParse(livePhase, true, out GameFlowPhase parsed)) phase = parsed;
                 }
@@ -156,28 +176,28 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (phase == GameFlowPhase.ChampSelect ||
                     phase == GameFlowPhase.Lobby)
                 {
-                    LobbyGameInfo? gameInfo = await Game_Api.GameNowServer();
-                    if (gameInfo?.GameConfig == null)
+                    LobbySnapshot? gameInfo = await _lobbyService.GetLobbyAsync();
+                    if (gameInfo == null)
                     {
                         lblGameInfo.Text = "未获取到大厅信息";
                         return;
                     }
 
-                    SetGameInfo(gameInfo.GameConfig.GameMode, gameInfo.GameConfig.QueueId);
+                    SetGameInfo(gameInfo.GameMode, gameInfo.QueueId);
                     // 大厅/选人阶段优先取本地成员 puuid，判断我方队伍
-                    string? myPuuid = string.IsNullOrEmpty(gameInfo.LocalMember?.Puuid)
+                    string? myPuuid = string.IsNullOrEmpty(gameInfo.LocalPlayerPuuid)
                         ? await GetMyPuuidAsync()
-                        : gameInfo.LocalMember.Puuid;
+                        : gameInfo.LocalPlayerPuuid;
                     RenderTeams(
-                        gameInfo.GameConfig.CustomTeam100 ?? new List<Member>(),
-                        gameInfo.GameConfig.CustomTeam200 ?? new List<Member>(),
+                        gameInfo.Team100,
+                        gameInfo.Team200,
                         force,
                         myPuuid);
                 }
                 else if (phase == GameFlowPhase.InProgress)
                 {
-                    GameSessionResponse? session = await Game_Api.GameLineInfoServer();
-                    if (session?.GameData == null)
+                    ActiveGameSnapshot? session = await _lobbyService.GetCurrentSessionAsync();
+                    if (session == null)
                     {
                         lblGameInfo.Text = "未获取到对局信息";
                         return;
@@ -187,8 +207,8 @@ namespace LOL_GameAssistant.BaseViewForm
                     // 对局中通过当前召唤师接口获取 puuid
                     string? myPuuid = await GetMyPuuidAsync();
                     RenderTeams(
-                        session.GameData.TeamOne ?? new List<TeamMember>(),
-                        session.GameData.TeamTwo ?? new List<TeamMember>(),
+                        session.TeamOne,
+                        session.TeamTwo,
                         force,
                         myPuuid);
                 }
@@ -222,12 +242,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (!string.IsNullOrEmpty(_myPuuid)) return _myPuuid;
             try
             {
-                string json = await Assets_api.GetUser();
-                if (!string.IsNullOrEmpty(json))
-                {
-                    var info = JsonConvert.DeserializeObject<Plyaer>(json);
-                    _myPuuid = info?.puuid;
-                }
+                _myPuuid = (await _playerProfileService.GetCurrentAsync())?.Puuid;
             }
             catch
             {
@@ -244,20 +259,11 @@ namespace LOL_GameAssistant.BaseViewForm
             lblGameInfo.Text = $"{phase}{modeText}{queueText}";
         }
 
-        private void RenderTeams(List<Member> team1, List<Member> team2, bool force, string? myPuuid)
+        private void RenderTeams(IReadOnlyList<GameTeamMember> team1, IReadOnlyList<GameTeamMember> team2, bool force, string? myPuuid)
         {
             RenderTeamsCore(
-                team1.Select(m => (m.Puuid, m.SummonerName, m.IsBot ? m.BotChampionId : 0, m.FirstPositionPreference, m.IsBot)).ToList(),
-                team2.Select(m => (m.Puuid, m.SummonerName, m.IsBot ? m.BotChampionId : 0, m.FirstPositionPreference, m.IsBot)).ToList(),
-                force,
-                myPuuid);
-        }
-
-        private void RenderTeams(List<TeamMember> team1, List<TeamMember> team2, bool force, string? myPuuid)
-        {
-            RenderTeamsCore(
-                team1.Select(m => (m.Puuid, m.SummonerName, m.ChampionId, m.SelectedPosition, false)).ToList(),
-                team2.Select(m => (m.Puuid, m.SummonerName, m.ChampionId, m.SelectedPosition, false)).ToList(),
+                team1.Select(m => (m.Puuid, m.SummonerName, m.ChampionId, m.Position, m.IsBot)).ToList(),
+                team2.Select(m => (m.Puuid, m.SummonerName, m.ChampionId, m.Position, m.IsBot)).ToList(),
                 force,
                 myPuuid);
         }
@@ -348,9 +354,9 @@ namespace LOL_GameAssistant.BaseViewForm
 
             try
             {
-                var result = await PremadeDetector.DetectAsync(
-                    team1.Select(m => (m.Puuid, m.Name)).ToList(),
-                    team2.Select(m => (m.Puuid, m.Name)).ToList());
+                var result = await _premadeDetectionService.DetectAsync(
+                    team1.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray(),
+                    team2.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray());
 
                 // 等待期间阵容已变化则丢弃本次结果
                 if (IsDisposed || signature != _lastSignature) return;
@@ -369,7 +375,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 将开黑检测结果应用到表头与玩家卡片。
         /// </summary>
-        private void ApplyPremadeResult(PremadeDetector.PremadeResult result)
+        private void ApplyPremadeResult(PremadeDetectionResult result)
         {
             string summary1 = result.GetTeamSummary(0);
             string summary2 = result.GetTeamSummary(1);
@@ -392,13 +398,13 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private static void ApplyPremadeToPanel(
             Control panel,
-            PremadeDetector.PremadeResult result)
+            PremadeDetectionResult result)
         {
             foreach (Control card in panel.Controls)
             {
                 if (card is not LivePlayerForm player || player.Puuid == null) continue;
                 var group = result.GroupByPuuid.GetValueOrDefault(player.Puuid);
-                player.SetPremadeGroup(group?.Index, group?.Names);
+                player.SetPremadeGroup(group?.Index, group?.Names?.ToList());
             }
         }
 

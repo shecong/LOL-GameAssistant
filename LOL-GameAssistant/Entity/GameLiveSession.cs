@@ -1,5 +1,4 @@
-﻿
-namespace LOL_GameAssistant.Entity
+﻿namespace LOL_GameAssistant.Entity
 {
     /// <summary>
     /// 对局中实时会话模型（LCU /lol-gameflow/v1/session）。

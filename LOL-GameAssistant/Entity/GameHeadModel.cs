@@ -1,5 +1,4 @@
-﻿
-namespace LOL_GameAssistant.Entity
+﻿namespace LOL_GameAssistant.Entity
 {
     /// <summary>
     /// 比赛记录 JSON 模型（LCU /lol-match-history/v1/products/lol/{puuid}/matches）。

@@ -1,5 +1,5 @@
-using System.Collections.Concurrent;
 using LOL_GameAssistant.Entity;
+using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.LoLApi
 {

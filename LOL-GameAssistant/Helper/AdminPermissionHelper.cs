@@ -46,12 +46,12 @@ namespace LOL_GameAssistant.Helper
                 {
                     UseShellExecute = true,
                     WorkingDirectory = Environment.CurrentDirectory,
-                    FileName = Application.ExecutablePath,
+                    FileName = System.Windows.Forms.Application.ExecutablePath,
                     Verb = "runas"
                 };
 
                 Process.Start(startInfo);
-                Application.Exit();
+                System.Windows.Forms.Application.Exit();
             }
             catch (Exception ex)
             {

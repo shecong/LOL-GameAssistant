@@ -1,9 +1,13 @@
-﻿using System.Drawing.Drawing2D;
-using LOL_GameAssistant.Entity;
+﻿using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.LoLApi;
-using Newtonsoft.Json;
-using static LOL_GameAssistant.Entity.PlayerModel;
+using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Matches;
+using LOL_GameAssistant.Application.Players;
+using LOL_GameAssistant.Application.Profiles;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.Players;
+using System.Drawing.Drawing2D;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -14,6 +18,10 @@ namespace LOL_GameAssistant.BaseViewForm
     {
         private readonly string? _playerPuuid;
         private readonly int _championId;
+        private readonly IPlayerProfileService _playerProfileService;
+        private readonly IProfileIconService _profileIconService;
+        private readonly IMatchHistoryService _matchHistoryService;
+        private readonly IGameAssetService _gameAssetService;
         private readonly string _position;
         private readonly bool _isBot;
         private readonly bool _isAlly;
@@ -50,6 +58,34 @@ namespace LOL_GameAssistant.BaseViewForm
             bool isBot = false,
             bool isAlly = false,
             bool teamKnown = false)
+            : this(
+                playerPuuid,
+                fallbackName,
+                championId,
+                position,
+                isBot,
+                isAlly,
+                teamKnown,
+                AppCompositionRoot.PlayerProfileService,
+                AppCompositionRoot.ProfileIconService,
+                AppCompositionRoot.MatchHistoryService,
+                AppCompositionRoot.GameAssetService)
+        {
+        }
+
+        /// <summary>实时玩家卡片通过应用服务查询资料、战绩与只读资源。</summary>
+        internal LivePlayerForm(
+            string? playerPuuid,
+            string? fallbackName,
+            int championId,
+            string? position,
+            bool isBot,
+            bool isAlly,
+            bool teamKnown,
+            IPlayerProfileService playerProfileService,
+            IProfileIconService profileIconService,
+            IMatchHistoryService matchHistoryService,
+            IGameAssetService gameAssetService)
         {
             InitializeComponent();
             SetStyle(
@@ -58,6 +94,10 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _playerPuuid = playerPuuid;
             _championId = championId;
+            _playerProfileService = playerProfileService;
+            _profileIconService = profileIconService;
+            _matchHistoryService = matchHistoryService;
+            _gameAssetService = gameAssetService;
             _position = position ?? "";
             _isBot = isBot;
             _isAlly = isAlly;
@@ -267,21 +307,17 @@ namespace LOL_GameAssistant.BaseViewForm
             // ── 玩家信息（名称/等级/头像） ──
             string displayName = lblName.Text ?? "未知玩家";
             string? tagLine = "";
-            string? level = null;
-            string? profileIconId = null;
+            int? level = null;
+            int profileIconId = 0;
             try
             {
-                string json = await Assets_api.GetUser(_playerPuuid);
-                if (!string.IsNullOrEmpty(json))
+                PlayerProfile? info = await _playerProfileService.GetByPuuidAsync(_playerPuuid);
+                if (info != null)
                 {
-                    var info = JsonConvert.DeserializeObject<Plyaer>(json);
-                    if (info != null)
-                    {
-                        if (!string.IsNullOrEmpty(info.gameName)) displayName = info.gameName;
-                        tagLine = info.tagLine;
-                        level = info.summonerLevel;
-                        profileIconId = info.profileIconId;
-                    }
+                    if (!string.IsNullOrEmpty(info.GameName)) displayName = info.GameName;
+                    tagLine = info.TagLine;
+                    level = info.SummonerLevel;
+                    profileIconId = info.ProfileIconId;
                 }
             }
             catch
@@ -292,7 +328,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (IsDisposed) return;
             lblName.Text = displayName;
             string positionText = GetPositionText(_position);
-            lblSub.Text = string.IsNullOrEmpty(level)
+            lblSub.Text = !level.HasValue
                 ? (string.IsNullOrEmpty(tagLine) ? positionText : $"#{tagLine} {positionText}")
                 : $"Lv.{level}  #{tagLine} {positionText}".Trim();
 
@@ -300,7 +336,7 @@ namespace LOL_GameAssistant.BaseViewForm
             await LoadCurrentChampionAsync();
 
             // ── 近 10 场战绩 ──
-            var matchlists = await Game_Api.GetUserGame(_playerPuuid, "0", (RecentGamesCount - 1).ToString());
+            var matchlists = await _matchHistoryService.GetPageAsync(_playerPuuid, 0, RecentGamesCount - 1);
             if (matchlists?.Games?.Games == null || IsDisposed) return;
 
             var games = matchlists.Games.Games
@@ -315,15 +351,15 @@ namespace LOL_GameAssistant.BaseViewForm
                 await semaphore.WaitAsync();
                 try
                 {
-                    var detail = await Game_Api.GetGameDetail(head.GameId);
+                    var detail = await _matchHistoryService.GetDetailAsync(head.GameId);
                     if (detail == null || string.IsNullOrEmpty(_playerPuuid))
-                        return (detail: (GameDetailModel.GameInfo?)null, gamer: (GameDetailModel.ParticipantsItem?)null);
+                        return (detail: (MatchDetail?)null, gamer: (MatchParticipant?)null);
                     var gamer = detail.GetParticipant(_playerPuuid);
                     return (detail, gamer);
                 }
                 catch
                 {
-                    return (detail: (GameDetailModel.GameInfo?)null, gamer: (GameDetailModel.ParticipantsItem?)null);
+                    return (detail: (MatchDetail?)null, gamer: (MatchParticipant?)null);
                 }
                 finally
                 {
@@ -383,11 +419,12 @@ namespace LOL_GameAssistant.BaseViewForm
             lblSummary.Text = "";
             if (_championId > 0)
             {
-                lblChampionNow.Text = $"当前: {ChampionMap.GetChampion(_championId)?.RealName ?? $"英雄{_championId}"}";
+                lblChampionNow.Text = $"当前: {GetChampionDisplayName(_championId)}";
                 lblChampionNow.Visible = true;
                 RecalcHeaderLayout();
-                var icon = await Game_Api.GetGameChampionIconAsync(_championId);
+                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(_championId));
                 if (icon != null && !IsDisposed) picCurrent.Image = icon;
+                else icon?.Dispose();
             }
             panelMatches.Controls.Clear();
             panelMatches.Controls.Add(new AntdUI.Label
@@ -399,18 +436,17 @@ namespace LOL_GameAssistant.BaseViewForm
             });
         }
 
-        private async Task LoadProfileIconAsync(string? profileIconId)
+        private async Task LoadProfileIconAsync(int profileIconId)
         {
-            if (string.IsNullOrEmpty(profileIconId)) return;
+            if (profileIconId <= 0) return;
             try
             {
-                using Stream? stream = await Assets_api.GetImg(profileIconId);
-                if (stream != null && stream != Stream.Null && !IsDisposed)
+                byte[]? imageBytes = await _profileIconService.GetProfileIconAsync(profileIconId);
+                if (imageBytes is { Length: > 0 } && !IsDisposed)
                 {
-                    using var ms = new MemoryStream();
-                    await stream.CopyToAsync(ms);
-                    ms.Position = 0;
+                    using var ms = new MemoryStream(imageBytes);
                     using var temp = Image.FromStream(ms);
+                    _ownedProfileImage?.Dispose();
                     _ownedProfileImage = new Bitmap(temp);
                     picProfile.Image = _ownedProfileImage;
                 }
@@ -426,16 +462,39 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_championId <= 0) return;
             try
             {
-                lblChampionNow.Text = $"当前: {ChampionMap.GetChampion(_championId)?.RealName ?? $"英雄{_championId}"}";
+                lblChampionNow.Text = $"当前: {GetChampionDisplayName(_championId)}";
                 lblChampionNow.Visible = true;
                 RecalcHeaderLayout();
-                var icon = await Game_Api.GetGameChampionIconAsync(_championId);
+                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(_championId));
                 if (icon != null && !IsDisposed) picCurrent.Image = icon;
+                else icon?.Dispose();
             }
             catch
             {
                 // 当前英雄加载失败不影响卡片
             }
+        }
+
+        /// <summary>将应用服务的二进制英雄资源解码为当前 WinForms 控件所需的位图。</summary>
+        private static Image? ToImage(GameAsset? asset)
+        {
+            try
+            {
+                if (asset == null || asset.IsEmpty) return null;
+                using var stream = new MemoryStream(asset.Content);
+                using var source = Image.FromStream(stream);
+                return new Bitmap(source);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string GetChampionDisplayName(int championId)
+        {
+            string name = AppCompositionRoot.ChampionCatalog.GetDisplayName(championId);
+            return string.IsNullOrWhiteSpace(name) ? $"英雄{championId}" : name;
         }
 
         private static string GetPositionText(string position)

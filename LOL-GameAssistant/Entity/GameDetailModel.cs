@@ -1,6 +1,4 @@
-﻿using Newtonsoft.Json;
-
-namespace LOL_GameAssistant.Entity
+﻿namespace LOL_GameAssistant.Entity
 {
     /// <summary>
     /// 单场对局详情 JSON 模型（LCU /lol-match-history/v1/games/{gameId}）。
@@ -143,6 +141,7 @@ namespace LOL_GameAssistant.Entity
             public int visionWardsBoughtInGame { get; set; }
             public int wardsKilled { get; set; }
             public int wardsPlaced { get; set; }
+
             /// <summary>
             /// LCU 通常返回布尔值，也兼容旧数据中的 Win/Fail 字符串或 1/0。
             /// </summary>

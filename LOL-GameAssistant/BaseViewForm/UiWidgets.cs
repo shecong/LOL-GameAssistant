@@ -10,14 +10,19 @@ namespace LOL_GameAssistant.BaseViewForm
     {
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Color StartColor { get; set; } = Color.Transparent;
+
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Color EndColor { get; set; } = Color.Transparent;
+
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public float Angle { get; set; } = 0f;
+
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int CornerRadius { get; set; } = 8;
+
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool DrawBorder { get; set; }
+
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Color BorderColor { get; set; } = Color.Transparent;
 
@@ -75,6 +80,7 @@ namespace LOL_GameAssistant.BaseViewForm
     {
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int BorderWidth { get; set; } = 2;
+
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Color BorderColor { get; set; } = Color.FromArgb(220, 255, 255, 255);
 
@@ -127,6 +133,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Color DotColor { get; set; } = Color.FromArgb(76, 175, 80);
+
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int MaxRadius { get; set; } = 9;
 

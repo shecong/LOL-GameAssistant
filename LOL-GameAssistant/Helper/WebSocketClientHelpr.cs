@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Net.WebSockets;
+﻿using System.Net.WebSockets;
 using System.Text;
 
 namespace LOL_GameAssistant.Helper
@@ -21,6 +20,7 @@ namespace LOL_GameAssistant.Helper
 
         // 自动重连字段
         private bool _reconnectEnabled = true;
+
         private int _reconnectDelayMs = 5000;
         private int _maxReconnectDelayMs = 30000;
         private CancellationTokenSource? _reconnectCts;

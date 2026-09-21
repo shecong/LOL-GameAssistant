@@ -1,22 +1,33 @@
-﻿using LOL_GameAssistant.Entity;
-using LOL_GameAssistant.LoLApi;
-using Newtonsoft.Json;
+﻿using LOL_GameAssistant.Domain.Matches;
 using System.Data;
+using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.LeagueClient;
+using LOL_GameAssistant.Application.Matches;
+using LOL_GameAssistant.Application.Players;
+using LOL_GameAssistant.Application.Profiles;
+using LOL_GameAssistant.Application.Ranked;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.Players;
+using LOL_GameAssistant.Domain.Ranked;
 using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
-using static LOL_GameAssistant.Entity.LolRankedDataParser;
-using static LOL_GameAssistant.Entity.PlayerModel;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
     public partial class HomeForm : UserControl
     {
-        public Plyaer? userinfo = new Plyaer();
+        public PlayerProfile? userinfo;
 
-        public Plyaer? userOhterinfo = new Plyaer();
+        public PlayerProfile? userOhterinfo;
 
         private IInfoMsgForm _infoMsgForm;
+        private readonly IPlayerProfileService _playerProfileService;
+        private readonly IProfileIconService _profileIconService;
+        private readonly ILeagueClientConnection _leagueClientConnection;
+        private readonly IMatchHistoryService _matchHistoryService;
+        private readonly IRankedStatsService _rankedStatsService;
+        private readonly IGameDataVersionService _gameDataVersionService;
 
-        private GameHeadModel.MatchHistoryResponse? matchlists;
+        private MatchHistoryResponse? matchlists;
 
         /// <summary>
         /// 首页战绩一次拉取的场数上限。
@@ -35,10 +46,35 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         public static int UserStatus = 1;
 
-        public HomeForm(IInfoMsgForm infoMsgForm)
+        public HomeForm(IInfoMsgForm infoMsgForm) : this(
+            infoMsgForm,
+            AppCompositionRoot.PlayerProfileService,
+            AppCompositionRoot.ProfileIconService,
+            AppCompositionRoot.LeagueClientConnection,
+            AppCompositionRoot.MatchHistoryService,
+            AppCompositionRoot.RankedStatsService,
+            AppCompositionRoot.GameDataVersionService)
+        {
+        }
+
+        /// <summary>首页通过应用端口读取连接、资料与头像，不直接处理 LCU token 或 JSON。</summary>
+        internal HomeForm(
+            IInfoMsgForm infoMsgForm,
+            IPlayerProfileService playerProfileService,
+            IProfileIconService profileIconService,
+            ILeagueClientConnection leagueClientConnection,
+            IMatchHistoryService matchHistoryService,
+            IRankedStatsService rankedStatsService,
+            IGameDataVersionService gameDataVersionService)
         {
             InitializeComponent();
             _infoMsgForm = infoMsgForm;
+            _playerProfileService = playerProfileService;
+            _profileIconService = profileIconService;
+            _leagueClientConnection = leagueClientConnection;
+            _matchHistoryService = matchHistoryService;
+            _rankedStatsService = rankedStatsService;
+            _gameDataVersionService = gameDataVersionService;
         }
 
         /// <summary>
@@ -57,42 +93,38 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <returns></returns>
         private async Task LoadGame()
         {
-            //获取客户端登陆
-            GetlolLcu._infoMsgForm = _infoMsgForm;
-            (string? port, string? token) = GetlolLcu.GetAuth();
-            if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
+            // 连接与认证由基础设施层处理；首页只决定未连接时的展示状态。
+            if (!_leagueClientConnection.TryConnect())
             {
-                AntdUI.Message.error(Program.GameMain, "未找到正在  运行的LOL客户端，请确保客户端已启动并登录。");
-                _infoMsgForm.AddMsg("未找到正在运行的LOL客户端，请确保客户端已启动并登录。");
+                // 助手允许先于 LOL 客户端启动。此时不能继续访问依赖 LCU 的接口，
+                // 等主窗体的重连逻辑发现客户端后会调用 RefreshAsync 再加载首页。
+                play_name.Text = "等待 LOL 客户端";
+                play_number.Text = "启动客户端并登录后自动连接";
+                play_QF.Text = "";
+                _infoMsgForm.AddMsg("未检测到 LOL 客户端，首页保持待连接状态。");
+                return;
             }
-            else
-            {
-                HttpClentHelper.Port = port;
-                HttpClentHelper.Token = token;
-                _infoMsgForm.AddMsg($"LCU 连接成功，端口: {port}");
-            }
+            _infoMsgForm.AddMsg("LCU 连接成功。");
             //获取游戏版本号
-            await Game_Api.GetGameversion();
+            await _gameDataVersionService.EnsureCurrentVersionAsync();
             //获取当前召唤师信息
-            userinfo = JsonConvert.DeserializeObject<Plyaer>(await Assets_api.GetUser());
+            userinfo = await _playerProfileService.GetCurrentAsync();
             if (userinfo != null)
             {
                 UserStatus = 1;
                 //获取头像
-                Stream headicon = await Assets_api.GetImg(userinfo.profileIconId);
-                if (headicon != null)
+                byte[]? headicon = await _profileIconService.GetProfileIconAsync(userinfo.ProfileIconId);
+                if (headicon is { Length: > 0 })
                 {
-                    // 使用 Image.FromStream() 方法将 Stream 转换为 Image
-                    Image profileImage = Image.FromStream(headicon);
-                    this.play_HeadIcon.Image = profileImage;
+                    ReplaceProfileIcon(headicon);
                 }
-                this.play_name.Text = userinfo.gameName;
-                this.play_number.Text = $"#{userinfo.tagLine}";
-                this.inp_playname.Text = $"{userinfo.gameName}#{userinfo.tagLine}";
+                this.play_name.Text = userinfo.GameName;
+                this.play_number.Text = $"#{userinfo.TagLine}";
+                this.inp_playname.Text = userinfo.RiotId;
                 this.play_QF.Text = "";
-                this.play_dj.Text = userinfo.summonerLevel;
-                this.play_next.Text = Convert.ToString(userinfo.xpUntilNextLevel);
-                this.play_jd.Value = (float)userinfo.xpSinceLastLevel / (float)(userinfo.xpSinceLastLevel + userinfo.xpUntilNextLevel);
+                this.play_dj.Text = userinfo.SummonerLevel.ToString();
+                this.play_next.Text = userinfo.XpUntilNextLevel.ToString();
+                this.play_jd.Value = CalculateLevelProgress(userinfo);
 
                 //获取当前召唤师游戏赛季信息
                 await GetGameSJAsync(userinfo);
@@ -128,41 +160,32 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <returns></returns>
         private async Task LoadGame(string puuid)
         {
-            //获取客户端登陆
-            GetlolLcu._infoMsgForm = _infoMsgForm;
-            (string? port, string? token) = GetlolLcu.GetAuth();
-            if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
+            if (!_leagueClientConnection.TryConnect())
             {
                 AntdUI.Message.error(Program.GameMain, "未找到正在  运行的LOL客户端，请确保客户端已启动并登录。");
                 _infoMsgForm.AddMsg("未找到正在运行的LOL客户端，请确保客户端已启动并登录。");
+                return;
             }
-            else
-            {
-                HttpClentHelper.Port = port;
-                HttpClentHelper.Token = token;
-                _infoMsgForm.AddMsg($"LCU 连接成功，端口: {port}");
-            }
+            _infoMsgForm.AddMsg("LCU 连接成功。");
             //获取游戏版本号
-            await Game_Api.GetGameversion();
+            await _gameDataVersionService.EnsureCurrentVersionAsync();
             //获取当前召唤师信息
-            userOhterinfo = JsonConvert.DeserializeObject<Plyaer>(await Assets_api.GetUser(puuid));
+            userOhterinfo = await _playerProfileService.GetByPuuidAsync(puuid);
             if (userOhterinfo != null)
             {
                 UserStatus = 2;
                 //获取头像
-                Stream headicon = await Assets_api.GetImg(userOhterinfo.profileIconId);
-                if (headicon != null)
+                byte[]? headicon = await _profileIconService.GetProfileIconAsync(userOhterinfo.ProfileIconId);
+                if (headicon is { Length: > 0 })
                 {
-                    // 使用 Image.FromStream() 方法将 Stream 转换为 Image
-                    Image profileImage = Image.FromStream(headicon);
-                    this.play_HeadIcon.Image = profileImage;
+                    ReplaceProfileIcon(headicon);
                 }
-                this.play_name.Text = userOhterinfo.gameName;
-                this.play_number.Text = $"#{userOhterinfo.tagLine}";
+                this.play_name.Text = userOhterinfo.GameName;
+                this.play_number.Text = $"#{userOhterinfo.TagLine}";
                 this.play_QF.Text = "";
-                this.play_dj.Text = userOhterinfo.summonerLevel;
-                this.play_next.Text = Convert.ToString(userOhterinfo.xpUntilNextLevel);
-                this.play_jd.Value = (float)userOhterinfo.xpSinceLastLevel / (float)(userOhterinfo.xpSinceLastLevel + userOhterinfo.xpUntilNextLevel);
+                this.play_dj.Text = userOhterinfo.SummonerLevel.ToString();
+                this.play_next.Text = userOhterinfo.XpUntilNextLevel.ToString();
+                this.play_jd.Value = CalculateLevelProgress(userOhterinfo);
 
                 //获取当前召唤师游戏赛季信息
                 await GetGameSJAsync(userOhterinfo);
@@ -176,10 +199,10 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         /// <param name="userinfo"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private async Task GetGameInfo(Plyaer? userinfo)
+        private async Task GetGameInfo(PlayerProfile? userinfo)
         {
             if (userinfo == null) return;
-            matchlists = await Game_Api.GetUserGame(userinfo.puuid, "0", (RecentGamesLimit - 1).ToString());
+            matchlists = await _matchHistoryService.GetPageAsync(userinfo.Puuid, 0, RecentGamesLimit - 1);
 
             //加载分页
             InitPagin(matchlists);
@@ -194,7 +217,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 获取玩家的比赛记录（分页）
         /// </summary>
-        private async Task GetGameInfo(Plyaer userinfo, int pageindex)
+        private async Task GetGameInfo(PlayerProfile userinfo, int pageindex)
         {
             stackPanel1.Controls.Clear();
             if (userinfo == null || matchlists?.Games?.Games == null) return;
@@ -229,7 +252,7 @@ namespace LOL_GameAssistant.BaseViewForm
                         Width = cardWidth,
                         Margin = new Padding(0, 0, CardGap, 10)
                     };
-                    await record.setInfo(head, userinfo.puuid);
+                    await record.setInfo(head, userinfo.Puuid);
                     return record;
                 }
                 catch
@@ -254,16 +277,15 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         /// <param name="plyaer"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private async Task GetGameSJAsync(Plyaer? userinfo = null)
+        private async Task GetGameSJAsync(PlayerProfile? userinfo = null)
         {
             if (userinfo == null) return;
-            LolRankedDataParser lolparser = new LolRankedDataParser();
-            var gameinfo = await Game_Api.GetRankedStatsAsync(userinfo.puuid, isCurrentUser: UserStatus == 1);
+            var gameinfo = await _rankedStatsService.GetAsync(userinfo.Puuid, isCurrentUser: UserStatus == 1);
             if (gameinfo == null) return;
             //获取单双排信息
-            LolRankedDataParser.RankedEntry? solo = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_SOLO_5x5);
+            RankedQueue? solo = gameinfo.GetQueue(RankedQueues.Solo5x5);
             //获取灵活5v5信息
-            LolRankedDataParser.RankedEntry? flex = lolparser.GetQueueData(gameinfo, QueueTypes.RANKED_FLEX_SR);
+            RankedQueue? flex = gameinfo.GetQueue(RankedQueues.Flex5x5);
 
             //===== 单双排（排位赛）卡片 =====
             if (solo != null)
@@ -320,33 +342,56 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             //===== 底部六项数据（以单双排为主，与左侧卡片对应） =====
-            this.game_dws.Text = GetPlacementText(solo);
-            this.game_jjs.Text = GetPromotionText(solo);
+            this.game_dws.Text = solo?.GetPlacementText() ?? "-";
+            this.game_jjs.Text = solo?.GetPromotionText() ?? "-";
             this.game_jjscount.Text = solo == null ? "-" : $"{solo.TotalGames} 场";
             this.game_dqsd.Text = solo == null ? "-" : $"{solo.LeaguePoints} LP";
-            this.game_sjend.Text = GetSeasonEndText(gameinfo, QueueTypes.RANKED_SOLO_5x5);
-            string ratedTierName = solo == null ? "" : GetRatedTierName(solo.RatedTier);
+            this.game_sjend.Text = gameinfo.GetSeasonEndText(RankedQueues.Solo5x5);
+            string ratedTierName = solo == null ? "" : RankedDisplayRules.GetRatedTierName(solo.RatedTier);
             this.game_ycf.Text = solo != null && solo.RatedRating > 0
                 ? $"{solo.RatedRating}" + (string.IsNullOrEmpty(ratedTierName) ? "" : $"（{ratedTierName}）")
                 : "-";
         }
 
         /// <summary>
+        /// 将基础设施层返回的头像字节复制成独立图像，避免流释放后 WinForms 绘制失败。
+        /// </summary>
+        private void ReplaceProfileIcon(byte[] imageBytes)
+        {
+            try
+            {
+                using var stream = new MemoryStream(imageBytes);
+                using var sourceImage = Image.FromStream(stream);
+                play_HeadIcon.Image = new Bitmap(sourceImage);
+            }
+            catch (ArgumentException)
+            {
+                // LCU 偶发返回非图像响应时保留当前头像，避免中断首页刷新。
+            }
+        }
+
+        /// <summary>
+        /// 根据玩家经验计算进度条比例，并处理满级或缺少经验数据的边界情况。
+        /// </summary>
+        private static float CalculateLevelProgress(PlayerProfile player)
+        {
+            int totalExperience = player.XpSinceLastLevel + player.XpUntilNextLevel;
+            if (totalExperience <= 0) return 0F;
+
+            return Math.Clamp((float)player.XpSinceLastLevel / totalExperience, 0F, 1F);
+        }
+
+        /// <summary>
         /// 判断是否已获得有效段位。
         /// </summary>
-        private static bool HasRank(LolRankedDataParser.RankedEntry? entry)
-        {
-            return entry != null
-                && !string.IsNullOrEmpty(entry.Tier)
-                && !string.Equals(entry.Tier, "NONE", StringComparison.OrdinalIgnoreCase);
-        }
+        private static bool HasRank(RankedQueue? entry) => RankedDisplayRules.HasRank(entry);
 
         /// <summary>
         /// 分页加载方法
         /// </summary>
         /// <param name="matchlists"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private void InitPagin(GameHeadModel.MatchHistoryResponse? matchlists)
+        private void InitPagin(MatchHistoryResponse? matchlists)
         {
             if (matchlists != null && matchlists.Games != null && matchlists.Games.Games != null && matchlists.Games.Games.Count > 0)
             {
@@ -492,17 +537,9 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 _infoMsgForm.AddMsg($"正在通过 Riot ID 搜索: {gameName}#{tagLine}");
 
-                // 尝试通过 LCU API 直接搜索
-                string summonerJson = await Assets_api.SearchSummonerByRiotId(gameName, tagLine);
-                if (!string.IsNullOrEmpty(summonerJson))
-                {
-                    try
-                    {
-                        var player = JsonConvert.DeserializeObject<Plyaer>(summonerJson);
-                        puuid = player?.puuid;
-                    }
-                    catch { }
-                }
+                // 资料搜索封装在应用服务中，首页不再处理 LCU 返回的 JSON。
+                PlayerProfile? player = await _playerProfileService.FindByRiotIdAsync(gameName, tagLine);
+                puuid = player?.Puuid;
 
                 // API 搜索失败，退回 match history 扫描
                 if (string.IsNullOrEmpty(puuid))
@@ -532,6 +569,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             await LoadGame(puuid);
         }
+
         /// <summary>
         /// 循环历史游戏数据找到匹配的puuid
         /// </summary>
@@ -582,4 +620,3 @@ namespace LOL_GameAssistant.BaseViewForm
         }
     }
 }
-

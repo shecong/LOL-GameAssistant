@@ -1,6 +1,8 @@
-﻿using LOL_GameAssistant.Entity;
+﻿using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.LoLApi;
+using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.GameData;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -10,18 +12,26 @@ namespace LOL_GameAssistant.BaseViewForm
     /// </summary>
     public partial class MatchDetailForm : Form
     {
-        private readonly GameDetailModel.GameInfo _gameInfo;
+        private readonly MatchDetail _gameInfo;
         private readonly string _puuid;
+        private readonly IGameAssetService _gameAssetService;
 
         /// <summary>点击玩家头像后选中的玩家 puuid（用于跳转战绩查询）。</summary>
         public string? SelectedPlayerPuuid { get; private set; }
 
-        public MatchDetailForm(GameDetailModel.GameInfo? gameInfo, string? puuid)
+        public MatchDetailForm(MatchDetail? gameInfo, string? puuid)
+            : this(gameInfo, puuid, AppCompositionRoot.GameAssetService)
+        {
+        }
+
+        /// <summary>对局详情只经由资源应用服务读取装备名与英雄头像。</summary>
+        internal MatchDetailForm(MatchDetail? gameInfo, string? puuid, IGameAssetService gameAssetService)
         {
             if (gameInfo == null) throw new ArgumentNullException(nameof(gameInfo));
             if (string.IsNullOrEmpty(puuid)) throw new ArgumentNullException(nameof(puuid));
             _gameInfo = gameInfo;
             _puuid = puuid;
+            _gameAssetService = gameAssetService;
             InitializeComponent();
             this.Load += async (_, _) => await LoadDataAsync();
         }
@@ -29,7 +39,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 打开对局详情；若用户点击了某位玩家头像，关闭后自动跳转到战绩查询该玩家。
         /// </summary>
-        public static void OpenAndHandle(GameDetailModel.GameInfo detail, string? puuid, Control? parent)
+        public static void OpenAndHandle(MatchDetail detail, string? puuid, Control? parent)
         {
             var form = new MatchDetailForm(detail, puuid)
             {
@@ -54,8 +64,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblTitle.Text = $"{_gameInfo.GetModeText()} · {(isWin ? "胜利" : "失败")} · {_gameInfo.GetDurationText()}";
                 lblTitle.ForeColor = isWin ? Color.FromArgb(46, 125, 50) : Color.FromArgb(198, 40, 40);
 
-                var champ = ChampionMap.GetChampion(gamer.championId);
-                string champName = champ?.RealName ?? $"英雄{gamer.championId}";
+                string champName = GetChampionDisplayName(gamer.championId);
                 lblChampion.Text = $"{champName}  |  等级 {gamer.stats?.champLevel}";
                 lblKda.Text = $"KDA: {gamer.GetKdaText()}  ({gamer.GetKdaRatio()})";
 
@@ -70,7 +79,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 int[] items = { s?.item0 ?? 0, s?.item1 ?? 0, s?.item2 ?? 0,
                                 s?.item3 ?? 0, s?.item4 ?? 0, s?.item5 ?? 0, s?.item6 ?? 0 };
-                var nameTasks = items.Where(i => i > 0).Select(Game_Api.GetItemNameAsync).ToList();
+                var nameTasks = items.Where(i => i > 0).Select(itemId => _gameAssetService.GetItemNameAsync(itemId)).ToList();
                 var resolvedNames = nameTasks.Count > 0 ? await Task.WhenAll(nameTasks) : Array.Empty<string?>();
                 int nameIndex = 0;
                 var itemNames = items.Select(itemId =>
@@ -98,8 +107,8 @@ namespace LOL_GameAssistant.BaseViewForm
             flowAlly.Controls.Clear();
             flowEnemy.Controls.Clear();
 
-            var participants = _gameInfo.participants ?? new List<GameDetailModel.ParticipantsItem>();
-            var identities = _gameInfo.participantIdentities ?? new List<GameDetailModel.ParticipantIdentitiesItem>();
+            var participants = _gameInfo.participants;
+            var identities = _gameInfo.participantIdentities;
             int myTeamId = _gameInfo.GetParticipant(_puuid)?.teamId ?? 100;
 
             foreach (var p in participants.OrderBy(p => p.participantId))
@@ -119,8 +128,8 @@ namespace LOL_GameAssistant.BaseViewForm
         /// 创建单个玩家信息卡片（头像、名称、英雄、KDA、伤害、胜负）。
         /// </summary>
         private Control CreatePlayerCell(
-            GameDetailModel.ParticipantsItem p,
-            GameDetailModel.Player? identity,
+            MatchParticipant p,
+            MatchPlayer? identity,
             bool isMe)
         {
             bool win = p.IsWin();
@@ -167,7 +176,7 @@ namespace LOL_GameAssistant.BaseViewForm
             });
             var championLabel = new Label
             {
-                Text = ChampionMap.GetChampion(p.championId)?.RealName ?? $"英雄{p.championId}",
+                Text = GetChampionDisplayName(p.championId),
                 Location = new Point(70, 28),
                 Size = new Size(200, 20),
                 Font = new Font("Microsoft YaHei UI", 8.5F),
@@ -225,12 +234,38 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 异步加载英雄头像（全局缓存）。
         /// </summary>
-        private static async Task LoadAvatarAsync(RoundPictureBox box, int championId)
+        private async Task LoadAvatarAsync(RoundPictureBox box, int championId)
         {
-            var icon = await Game_Api.GetGameChampionIconAsync(championId);
+            Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(championId));
             if (icon != null && !box.IsDisposed)
             {
                 box.Image = icon;
+            }
+            else
+            {
+                icon?.Dispose();
+            }
+        }
+
+        private static string GetChampionDisplayName(int championId)
+        {
+            string name = AppCompositionRoot.ChampionCatalog.GetDisplayName(championId);
+            return string.IsNullOrWhiteSpace(name) ? $"英雄{championId}" : name;
+        }
+
+        /// <summary>二进制资源在窗体边界解码，避免应用服务依赖 WinForms。</summary>
+        private static Image? ToImage(GameAsset? asset)
+        {
+            try
+            {
+                if (asset == null || asset.IsEmpty) return null;
+                using var stream = new MemoryStream(asset.Content);
+                using var source = Image.FromStream(stream);
+                return new Bitmap(source);
+            }
+            catch
+            {
+                return null;
             }
         }
 

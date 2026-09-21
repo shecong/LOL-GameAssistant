@@ -1,0 +1,199 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using LOL_GameAssistant.Domain.Settings;
+
+namespace LOL_GameAssistant.Helper;
+
+/// <summary>
+/// 处理用户主动触发的局内快捷弹幕。
+/// 仅在 LOL 对局窗口位于前台时发送一次，不提供后台循环、定时或批量刷屏能力。
+/// </summary>
+public sealed class QuickMessageSenderController : NativeWindow, IDisposable
+{
+    private const int WmHotkey = 0x0312;
+    private const int HotkeyId = 0x4C4F4C;
+    private const uint InputKeyboard = 1;
+    private const uint KeyEventFKeyUp = 0x0002;
+    private const uint KeyEventFUnicode = 0x0004;
+
+    private readonly Form _owner;
+    private Keys _registeredKey = Keys.None;
+    private string _message = "";
+    private int _minimumIntervalSeconds = 3;
+    private DateTime _lastSentAtUtc = DateTime.MinValue;
+    private bool _disposed;
+
+    public QuickMessageSenderController(Form owner)
+    {
+        _owner = owner;
+        AssignHandle(owner.Handle);
+    }
+
+    /// <summary>应用保存后的配置，并重新注册当前快捷键。</summary>
+    public void Apply(AssistantSettings config)
+    {
+        Unregister();
+        _message = config.QuickMessageText?.Trim() ?? "";
+        _minimumIntervalSeconds = Math.Clamp(config.QuickMessageSendIntervalSeconds, 2, 30);
+        if (!config.QuickMessageAutoSendEnabled || string.IsNullOrWhiteSpace(_message)) return;
+
+        Keys key = WindowHoldController.ParseKey(config.QuickMessageHotkey);
+        if (!RegisterHotKey(Handle, HotkeyId, 0, (uint)key))
+        {
+            GameMain.infoMsg.AddMsg("快捷弹幕键注册失败，可能已被系统或其它程序占用。");
+            return;
+        }
+        _registeredKey = key;
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WmHotkey && m.WParam == (IntPtr)HotkeyId)
+        {
+            SendOnce();
+            return;
+        }
+        base.WndProc(ref m);
+    }
+
+    /// <summary>
+    /// 由用户热键触发一次发送。通过前台窗口验证和最小间隔避免向错误程序或连续误触发送内容。
+    /// </summary>
+    private void SendOnce()
+    {
+        if (string.IsNullOrWhiteSpace(_message)) return;
+
+        DateTime now = DateTime.UtcNow;
+        TimeSpan elapsed = now - _lastSentAtUtc;
+        if (elapsed.TotalSeconds < _minimumIntervalSeconds)
+        {
+            int remaining = Math.Max(1, _minimumIntervalSeconds - (int)Math.Floor(elapsed.TotalSeconds));
+            GameMain.infoMsg.AddMsg($"快捷弹幕冷却中，请在 {remaining} 秒后再试。");
+            return;
+        }
+
+        if (!IsLeagueGameForeground())
+        {
+            GameMain.infoMsg.AddMsg("未发送快捷弹幕：请先将英雄联盟对局窗口切到前台。");
+            return;
+        }
+
+        // LOL 默认 Enter 打开聊天框，再按一次 Enter 提交；字符使用 Unicode 输入，支持中文。
+        SendVirtualKey((ushort)Keys.Enter);
+        SendUnicodeText(_message);
+        SendVirtualKey((ushort)Keys.Enter);
+        _lastSentAtUtc = now;
+        GameMain.infoMsg.AddMsg("快捷弹幕已发送。");
+    }
+
+    /// <summary>只允许向实际对局进程写入按键，避免热键在其它应用前台时误发送。</summary>
+    private static bool IsLeagueGameForeground()
+    {
+        IntPtr window = GetForegroundWindow();
+        if (window == IntPtr.Zero) return false;
+
+        GetWindowThreadProcessId(window, out uint processId);
+        if (processId == 0) return false;
+        try
+        {
+            using Process process = Process.GetProcessById((int)processId);
+            return string.Equals(process.ProcessName, "League of Legends", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void SendVirtualKey(ushort key)
+    {
+        var inputs = new[]
+        {
+            CreateKeyboardInput(key, 0, 0),
+            CreateKeyboardInput(key, 0, KeyEventFKeyUp)
+        };
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
+    private static void SendUnicodeText(string text)
+    {
+        var inputs = new List<INPUT>(text.Length * 2);
+        foreach (char character in text)
+        {
+            inputs.Add(CreateKeyboardInput(0, character, KeyEventFUnicode));
+            inputs.Add(CreateKeyboardInput(0, character, KeyEventFUnicode | KeyEventFKeyUp));
+        }
+
+        if (inputs.Count > 0)
+            SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
+    }
+
+    private static INPUT CreateKeyboardInput(ushort virtualKey, ushort scanCode, uint flags) => new()
+    {
+        Type = InputKeyboard,
+        Data = new InputUnion
+        {
+            Keyboard = new KEYBDINPUT
+            {
+                WVk = virtualKey,
+                WScan = scanCode,
+                DwFlags = flags
+            }
+        }
+    };
+
+    private void Unregister()
+    {
+        if (_registeredKey == Keys.None) return;
+        UnregisterHotKey(Handle, HotkeyId);
+        _registeredKey = Keys.None;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Unregister();
+        ReleaseHandle();
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT
+    {
+        public uint Type;
+        public InputUnion Data;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion
+    {
+        [FieldOffset(0)] public KEYBDINPUT Keyboard;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort WVk;
+        public ushort WScan;
+        public uint DwFlags;
+        public uint Time;
+        public IntPtr DwExtraInfo;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint SendInput(uint inputCount, INPUT[] inputs, int inputSize);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool RegisterHotKey(IntPtr windowHandle, int id, uint modifiers, uint virtualKeyCode);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnregisterHotKey(IntPtr windowHandle, int id);
+}

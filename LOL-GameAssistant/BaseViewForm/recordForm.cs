@@ -1,16 +1,39 @@
-﻿using LOL_GameAssistant.Entity;
-using LOL_GameAssistant.LoLApi;
+﻿using LOL_GameAssistant.Domain.Matches;
 using System.Data;
+using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Matches;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.MatchAnalysis;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
     public partial class recordForm : UserControl
     {
-        private GameDetailModel.GameInfo? _gameDetail;
+        private MatchDetail? _gameDetail;
         private string? _playerPuuid;
-        public recordForm()
+        private readonly IMatchHistoryService _matchHistoryService;
+        private readonly IGameAssetService _gameAssetService;
+        private readonly Label _performanceTag = new();
+        private readonly ToolTip _performanceTip = new();
+
+        public recordForm() : this(AppCompositionRoot.MatchHistoryService, AppCompositionRoot.GameAssetService)
         {
+        }
+
+        /// <summary>战绩卡片仅依赖应用服务，图像解码保留在 WinForms 表现层。</summary>
+        internal recordForm(IMatchHistoryService matchHistoryService, IGameAssetService gameAssetService)
+        {
+            _matchHistoryService = matchHistoryService;
+            _gameAssetService = gameAssetService;
             InitializeComponent();
+            _performanceTag.AutoSize = false;
+            _performanceTag.Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold);
+            _performanceTag.TextAlign = ContentAlignment.MiddleCenter;
+            _performanceTag.Location = new Point(506, 30);
+            _performanceTag.Size = new Size(80, 22);
+            Controls.Add(_performanceTag);
+            _performanceTag.BringToFront();
             AttachDoubleClickToAllControls(this);
         }
 
@@ -21,12 +44,12 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 加载单场战绩信息（支持传入已缓存的对局详情，避免重复请求）。
         /// </summary>
-        public async Task setInfo(GameHeadModel.GameInfo? head, String? puuid, GameDetailModel.GameInfo? detail = null)
+        public async Task setInfo(MatchHistoryGame? head, String? puuid, MatchDetail? detail = null)
         {
             if (head == null || string.IsNullOrEmpty(puuid)) return;
             _playerPuuid = puuid;
 
-            _gameDetail = detail ?? await Game_Api.GetGameDetail(head.GameId);
+            _gameDetail = detail ?? await _matchHistoryService.GetDetailAsync(head.GameId);
             if (_gameDetail == null) return;
 
             var gamer = _gameDetail.GetParticipant(puuid);
@@ -37,7 +60,7 @@ namespace LOL_GameAssistant.BaseViewForm
             try
             {
                 //头像
-                ReplaceImage(game_pic, await LoadImageAsync(() => Game_Api.GetGameYXImg(gamer.championId)));
+                ReplaceImage(game_pic, await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(gamer.championId)));
                 this.game_win.Text = win ? "胜利" : "失败";
                 this.game_win.ForeColor = win ? System.Drawing.Color.FromArgb(76, 175, 80) : System.Drawing.Color.FromArgb(244, 67, 54);
                 this.game_type.Text = _gameDetail.GetModeText();
@@ -51,8 +74,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 this.game_cs.Text = $"补刀 {cs}";
                 this.game_damage.Text = $"伤害 {stats?.totalDamageDealtToChampions ?? 0}";
                 this.game_gold.Text = $"金币 {stats?.goldEarned ?? 0}";
-                ReplaceImage(pic_D, await LoadImageAsync(() => Game_Api.GetGameZHSJNImg(gamer.Spell1Id)));
-                ReplaceImage(pic_F, await LoadImageAsync(() => Game_Api.GetGameZHSJNImg(gamer.Spell2Id)));
+                ApplyPostGamePerformanceTag(EvaluatePostGamePerformance(_gameDetail, puuid));
+                ReplaceImage(pic_D, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell1Id)));
+                ReplaceImage(pic_F, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell2Id)));
                 //游戏装备
                 if (gamer.stats != null)
                 {
@@ -61,7 +85,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     for (int i = 0; i < boxes.Length; i++)
                     {
                         int itemId = items[i];
-                        ReplaceImage(boxes[i], await LoadImageAsync(() => Game_Api.GetGameZBImg(itemId.ToString())));
+                        ReplaceImage(boxes[i], await LoadImageAsync(() => _gameAssetService.GetItemIconAsync(itemId)));
                     }
                 }
                 BuildTeamAvatars(_gameDetail, puuid);
@@ -72,16 +96,62 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>将 LCU 战绩 DTO 转换为领域快照后交给纯领域服务评测。</summary>
+        private static MatchPerformanceAssessment EvaluatePostGamePerformance(MatchDetail game, string puuid)
+        {
+            var snapshots = game.participants
+                .Where(item => item.stats != null)
+                .Select(item => new MatchPerformanceSnapshot(
+                    game.participantIdentities
+                        .FirstOrDefault(identity => identity.participantId == item.participantId)?.player?.puuid
+                        ?? $"participant-{item.participantId}",
+                    item.teamId,
+                    item.IsWin(),
+                    item.stats!.kills,
+                    item.stats.deaths,
+                    item.stats.assists,
+                    item.stats.totalDamageDealtToChampions,
+                    item.stats.goldEarned,
+                    item.stats.visionScore))
+                .ToList();
+            MatchPerformanceSnapshot? player = snapshots.FirstOrDefault(item => item.PlayerId == puuid);
+            return MatchPerformanceEvaluator.Evaluate(player, snapshots);
+        }
+
+        private void ApplyPostGamePerformanceTag(MatchPerformanceAssessment assessment)
+        {
+            string tag = assessment.Tier switch
+            {
+                MatchPerformanceTier.Upper => "上等马",
+                MatchPerformanceTier.Lower => "下等马",
+                _ => "中等马"
+            };
+            _performanceTag.Text = tag;
+            _performanceTag.ForeColor = assessment.Tier switch
+            {
+                MatchPerformanceTier.Upper => Color.FromArgb(27, 94, 32),
+                MatchPerformanceTier.Lower => Color.FromArgb(183, 28, 28),
+                _ => Color.FromArgb(85, 85, 85)
+            };
+            _performanceTag.BackColor = assessment.Tier switch
+            {
+                MatchPerformanceTier.Upper => Color.FromArgb(232, 245, 233),
+                MatchPerformanceTier.Lower => Color.FromArgb(255, 235, 238),
+                _ => Color.FromArgb(245, 245, 245)
+            };
+            _performanceTip.SetToolTip(_performanceTag, $"仅评测当前玩家已结束的本局表现 · {assessment.Score} 分\n{assessment.Detail}");
+        }
+
         /// <summary>
         /// 构建本局 10 名玩家头像：区分我方（含自己，金色描边）与敌方。
         /// </summary>
-        private void BuildTeamAvatars(GameDetailModel.GameInfo detail, string? puuid)
+        private void BuildTeamAvatars(MatchDetail detail, string? puuid)
         {
             flowAlly.Controls.Clear();
             flowEnemy.Controls.Clear();
 
-            var participants = detail.participants ?? new List<GameDetailModel.ParticipantsItem>();
-            var identities = detail.participantIdentities ?? new List<GameDetailModel.ParticipantIdentitiesItem>();
+            var participants = detail.participants;
+            var identities = detail.participantIdentities;
             int myTeamId = detail.GetParticipant(puuid)?.teamId ?? 100;
 
             foreach (var p in participants.OrderBy(p => p.participantId))
@@ -124,26 +194,29 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 异步加载英雄头像到圆形控件（全局缓存，不重复下载）。
         /// </summary>
-        private static async Task LoadAvatarAsync(RoundPictureBox box, int championId)
+        private async Task LoadAvatarAsync(RoundPictureBox box, int championId)
         {
-            var icon = await Game_Api.GetGameChampionIconAsync(championId);
+            Image? icon = await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(championId));
             if (icon != null && !box.IsDisposed)
             {
                 box.Image = icon;
+            }
+            else
+            {
+                icon?.Dispose();
             }
         }
 
         /// <summary>
         /// 异步加载图片：复制到 MemoryStream 后转为独立 Bitmap，避免流被释放导致 GDI+ 报错。
         /// </summary>
-        private static async Task<Image?> LoadImageAsync(Func<Task<Stream>> loader)
+        private static async Task<Image?> LoadImageAsync(Func<Task<GameAsset?>> loader)
         {
             try
             {
-                using Stream? stream = await loader();
-                if (stream == null || stream == Stream.Null) return null;
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms);
+                GameAsset? asset = await loader();
+                if (asset == null || asset.IsEmpty) return null;
+                using var ms = new MemoryStream(asset.Content);
                 ms.Position = 0;
                 using var temp = Image.FromStream(ms);
                 return new Bitmap(temp);

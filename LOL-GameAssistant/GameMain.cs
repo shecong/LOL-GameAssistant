@@ -1,15 +1,13 @@
 ﻿using LOL_GameAssistant.BaseViewForm;
-using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.LoLApi;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System.Text;
-using System.Text.Json.Nodes;
-using System.Threading.Tasks;
-using static LOL_GameAssistant.Entity.LolRankedDataParser;
-using static LOL_GameAssistant.Entity.PlayerModel;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using LOL_GameAssistant.Application.ChampionSelect;
+using LOL_GameAssistant.Application.LeagueClient;
+using LOL_GameAssistant.Application.Lobby;
+using LOL_GameAssistant.Application.Settings;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.LeagueClient;
+using LOL_GameAssistant.Domain.Settings;
+using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
 
 namespace LOL_GameAssistant
 {
@@ -21,14 +19,19 @@ namespace LOL_GameAssistant
         public static SettingForm settingForm = new SettingForm();
         public static LiveGameForm liveGameForm = new LiveGameForm();
         public static BattleQueryForm battleQueryForm = new BattleQueryForm();
-        public Plyaer? userinfo = new Plyaer();
+        public static CoachForm coachForm = new CoachForm();
 
-        private WebSocketClient? _wsClient;
+        private readonly ILeagueClientEventStream _eventStream;
+        private readonly ILobbyService _lobbyService;
+        private readonly IChampionSelectService _championSelectService;
+        private readonly IApplicationSettingsStore _settingsStore;
         private CancellationTokenSource? _lcuRetryCts;
         private NotifyIcon? _trayIcon;
         private CancellationTokenSource? _autoActionCts;
         private GameFlowPhase? _lastNotifiedEndPhase;
         private bool _restoringFromTray;
+        private readonly WindowHoldController _windowHoldController;
+        private readonly QuickMessageSenderController _quickMessageController;
 
         /// <summary>
         /// 游戏状态枚举
@@ -39,8 +42,11 @@ namespace LOL_GameAssistant
         /// 当前是否停留在“对局”标签页。
         /// </summary>
         private const int FriendsTabIndex = 1;
+
         private const int LiveGameTabIndex = 2;
         private const int BattleQueryTabIndex = 3;
+        private const int CoachTabIndex = 7;
+        private readonly AntdUI.TabPage _coachTab;
 
         public bool IsLiveGameTabActive => tabs1.SelectedIndex == LiveGameTabIndex;
 
@@ -55,9 +61,42 @@ namespace LOL_GameAssistant
             }
         }
 
-        public GameMain()
+        public GameMain() : this(
+            AppCompositionRoot.LeagueClientEventStream,
+            AppCompositionRoot.LobbyService,
+            AppCompositionRoot.ChampionSelectService,
+            AppCompositionRoot.ApplicationSettingsStore)
         {
+        }
+
+        /// <summary>主窗体仅接收连接与大厅应用端口，认证细节保留在基础设施层。</summary>
+        internal GameMain(
+            ILeagueClientEventStream eventStream,
+            ILobbyService lobbyService,
+            IChampionSelectService championSelectService,
+            IApplicationSettingsStore settingsStore)
+        {
+            _eventStream = eventStream;
+            _lobbyService = lobbyService;
+            _championSelectService = championSelectService;
+            _settingsStore = settingsStore;
             InitializeComponent();
+            _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
+            tabs1.Controls.Add(_coachTab);
+            tabs1.Pages.Add(_coachTab);
+            _windowHoldController = new WindowHoldController(this);
+            _quickMessageController = new QuickMessageSenderController(this);
+            _eventStream.EventReceived += LeagueClientEventReceived;
+            _eventStream.ErrorOccurred += WebSocketError;
+            _eventStream.ConnectionChanged += WebSocketChange;
+            _eventStream.Reconnecting += WebSocketReconnecting;
+        }
+
+        /// <summary>应用设置页中的透明度和“按住置顶”快捷键。</summary>
+        public void ApplyWindowSettings(AssistantSettings config)
+        {
+            _windowHoldController.Apply(config);
+            _quickMessageController.Apply(config);
         }
 
         public async void GameMain_Load(object sender, EventArgs e)
@@ -87,6 +126,10 @@ namespace LOL_GameAssistant
             {
                 _ = liveGameForm.AddView(force: true);
             }
+            else if (tabs1.SelectedIndex == CoachTabIndex)
+            {
+                _ = coachForm.RefreshRecommendationAsync(manual: true);
+            }
         }
 
         /// <summary>
@@ -113,7 +156,7 @@ namespace LOL_GameAssistant
         {
             try
             {
-                string? phase = await Game_Api.GameFlowPhaseServer();
+                string? phase = await _lobbyService.GetGameFlowPhaseAsync();
                 if (string.IsNullOrEmpty(phase)) return;
 
                 // 先写回全局阶段，否则 AddView 读到的是默认值，会什么都不做
@@ -158,6 +201,10 @@ namespace LOL_GameAssistant
             tabPage3.Controls.Clear();
             battleQueryForm.Dock = DockStyle.Fill;
             tabPage3.Controls.Add(battleQueryForm);
+            //加载智能建议
+            _coachTab.Controls.Clear();
+            coachForm.Dock = DockStyle.Fill;
+            _coachTab.Controls.Add(coachForm);
             //关于
             tab4_grid1.Controls.Add(new AboutForm() { Dock = DockStyle.Fill });
             //加载设置
@@ -187,48 +234,12 @@ namespace LOL_GameAssistant
 
         private async Task ConnectWebSocketCoreAsync()
         {
-            // 获取 LCU 认证信息
-            (string? port, string? token) = GetlolLcu.GetAuth();
-            if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
+            // 认证发现、协议连接和订阅都由基础设施层完成；主窗体只处理事件结果。
+            if (!await _eventStream.ConnectAsync().ConfigureAwait(false))
             {
-                infoMsg.AddMsg("未检测到 LOL 客户端，每 10 秒重试获取 LCU 端口...");
+                AddInfoMessage("未检测到 LOL 客户端，每 10 秒重试获取 LCU 端口...");
                 _ = RetryLcuDetectionAsync();
-                return;
             }
-
-            await ConnectWebSocketWithAuth(port, token);
-        }
-
-        /// <summary>
-        /// 携带认证信息连接 WebSocket
-        /// </summary>
-        private async Task ConnectWebSocketWithAuth(string port, string token)
-        {
-            // 同步更新 HTTP 客户端认证信息，确保晚于客户端启动时
-            // 的自动匹配/自动接受/战绩请求也能正常调用 LCU。
-            HttpClentHelper.Port = port;
-            HttpClentHelper.Token = token;
-
-            // 释放旧客户端
-            if (_wsClient != null)
-            {
-                await _wsClient.CloseAsync();
-                _wsClient.Dispose();
-            }
-
-            _wsClient = new WebSocketClient(
-                $"wss://127.0.0.1:{port}",
-                Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{token}"))
-            );
-
-            // 订阅事件
-            _wsClient.OnMessage += msg => WebSocketMessage(msg);
-            _wsClient.OnError += err => WebSocketError(err.Message);
-            _wsClient.OnConnectChanged += connected => WebSocketChange(connected);
-            _wsClient.OnReconnecting += msg => infoMsg.AddMsg(msg);
-
-            // 连接（客户端内部自动启用重连）
-            await _wsClient.ConnectAsync();
         }
 
         /// <summary>
@@ -251,11 +262,19 @@ namespace LOL_GameAssistant
                     break;
                 }
 
-                (string? port, string? newToken) = GetlolLcu.GetAuth();
-                if (!string.IsNullOrEmpty(port) && !string.IsNullOrEmpty(newToken))
+                bool connected;
+                try
                 {
-                    infoMsg.AddMsg("检测到 LOL 客户端已启动，正在连接 WebSocket...");
-                    await ConnectWebSocketWithAuth(port, newToken);
+                    connected = await _eventStream.ConnectAsync(forceRefresh: true, cancellationToken: token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (connected)
+                {
+                    AddInfoMessage("检测到 LOL 客户端已启动，正在连接 WebSocket...");
                     break;
                 }
             }
@@ -263,7 +282,7 @@ namespace LOL_GameAssistant
 
         /// <summary>
         /// 把后台线程回调切回 UI 线程执行。
-        /// WebSocket 事件由线程池线程回调（见 WebSocketClient.OnMessage 的 Task.Run），
+        /// LCU 事件流由后台线程回调，
         /// 在池线程上操作控件会在 native 层破坏窗口句柄：Release 未挂调试器时
         /// CheckForIllegalCrossThreadCalls 为 false，不会抛"跨线程操作无效"，
         /// 只会莫名其妙地报"创建窗口句柄时出错"。
@@ -298,7 +317,7 @@ namespace LOL_GameAssistant
                 // 客户端是后启动的，刷新首页玩家数据
                 _ = home.RefreshAsync();
                 // 连接成功后重新订阅事件（重连后 LCU 侧需要重新订阅）
-                _ = _wsClient?.SendAsync("[5, \"OnJsonApiEvent\"]");
+                _ = _eventStream.SubscribeToJsonApiEventsAsync();
             }
             else
             {
@@ -309,78 +328,30 @@ namespace LOL_GameAssistant
 
         private void WebSocketError(string err)
         {
-            infoMsg.AddMsg(err);
+            AddInfoMessage(err);
         }
 
-        private void WebSocketMessage(string msg)
+        private void WebSocketReconnecting(string message)
         {
-            if (RunOnUiThread(() => WebSocketMessage(msg))) return;
-
-            //infoMsg.AddMsg(msg);
-            // 解析JSON数组
-            try
-            {
-                var jsonArray = JsonNode.Parse(msg)?.AsArray();
-                if (jsonArray == null || jsonArray.Count < 3) return;
-                // 提取数组元素
-                var messageId = jsonArray[0]?.GetValue<int>() ?? 0;  // 第一个元素：消息ID（如8）
-                var eventName = jsonArray[1]?.GetValue<string>();    // 第二个元素：事件名称
-                var dataNode = jsonArray[2];                         // 第三个元素：数据对象
-                                                                     // 根据事件类型处理
-                switch (eventName)
-                {
-                    case "OnJsonApiEvent":
-                        HandleJsonApiEvent(dataNode);
-                        break;
-
-                    // 可以添加其他事件类型
-                    default:
-                        Console.WriteLine($"未知事件: {eventName}");
-                        Console.WriteLine($"完整消息: {msg}");
-                        break;
-                }
-            }
-            catch (Exception)
-            {
-                return;
-            }
+            AddInfoMessage(message);
         }
 
-        /// <summary>
-        /// 处理 OnJsonApiEvent 事件
-        /// </summary>
-        private void HandleJsonApiEvent(JsonNode? dataNode)
+        /// <summary>所有后台连接反馈都通过此方法切回界面线程。</summary>
+        private void AddInfoMessage(string message)
         {
-            try
+            if (RunOnUiThread(() => AddInfoMessage(message))) return;
+            infoMsg.AddMsg(message);
+        }
+
+        /// <summary>处理基础设施已解析的 LCU 事件；表现层不再解析 WebSocket 原始 JSON。</summary>
+        private void LeagueClientEventReceived(LeagueClientEvent gameEvent)
+        {
+            if (RunOnUiThread(() => LeagueClientEventReceived(gameEvent))) return;
+
+            if (string.Equals(gameEvent.Uri, "/lol-gameflow/v1/gameflow-phase", StringComparison.Ordinal))
             {
-                if (dataNode == null)
-                {
-                    return;
-                }
-
-                // 提取事件数据
-                var uri = dataNode["uri"]?.GetValue<string>();
-                _ = dataNode["eventType"]?.GetValue<string>(); // eventType reserved for future use
-                var data = dataNode["data"];
-
-                // 根据URI进行特定处理
-                if (!string.IsNullOrEmpty(uri))
-                {
-                    switch (uri)
-                    {
-                        case "/lol-gameflow/v1/gameflow-phase":
-                            _ = gameflowphaseStatus(Convert.ToString(data));
-                            if (data != null) infoMsg.AddMsg(data.ToString());
-                            break;
-
-                        default:
-                            break;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"处理事件失败: {ex.Message}");
+                _ = gameflowphaseStatus(gameEvent.Data);
+                infoMsg.AddMsg(gameEvent.Data);
             }
         }
 
@@ -472,7 +443,7 @@ namespace LOL_GameAssistant
             try
             {
                 // 读取持久化配置（避免设置页未打开时读取到内存默认值）
-                var config = Entity.SettingCache.Load();
+                var config = _settingsStore.Load();
                 bool autoBanEnabled = config.AutoBan;
                 bool autoPickEnabled = config.AutoPick;
                 var cachedBanIds = ResolveChampionIds(config.BanChampions);
@@ -487,7 +458,7 @@ namespace LOL_GameAssistant
                 while (autoBanEnabled && cachedBanIds.Count > 0 &&
                        gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
                 {
-                    if (await Select_Api.AutoBanAsync(cachedBanIds))
+                    if (await _championSelectService.AutoBanAsync(cachedBanIds))
                     {
                         infoMsg.AddMsg("自动禁用英雄成功");
                     }
@@ -518,7 +489,7 @@ namespace LOL_GameAssistant
             {
                 try
                 {
-                    if (await Select_Api.AutoPickAsync(pickChampionIds))
+                    if (await _championSelectService.AutoPickAsync(pickChampionIds))
                     {
                         infoMsg.AddMsg("自动选用英雄成功");
                         return;
@@ -538,20 +509,10 @@ namespace LOL_GameAssistant
         /// </summary>
         private static List<int> ResolveChampionIds(List<string> names)
         {
-            var map = Helper.ChampionMap.GetChampionMap();
-            var result = new List<int>();
-            foreach (var name in names)
-            {
-                foreach (var kv in map)
-                {
-                    if (string.Equals(kv.Value.RealName, name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        result.Add(kv.Key);
-                        break;
-                    }
-                }
-            }
-            return result;
+            return names
+                .Select(AppCompositionRoot.ChampionCatalog.FindIdByDisplayName)
+                .OfType<int>()
+                .ToList();
         }
 
         /// <summary>
@@ -561,7 +522,7 @@ namespace LOL_GameAssistant
         {
             try
             {
-                var config = Entity.SettingCache.Load();
+                var config = _settingsStore.Load();
                 if (!config.NotifyOnGameEnd) return Task.CompletedTask;
                 if (_lastNotifiedEndPhase == gameFlowPhase) return Task.CompletedTask;
                 _lastNotifiedEndPhase = gameFlowPhase;
@@ -658,7 +619,7 @@ namespace LOL_GameAssistant
                 _trayIcon.Visible = false;
                 _trayIcon.Dispose();
             }
-            Application.Exit();
+            System.Windows.Forms.Application.Exit();
         }
 
         /// <summary>
@@ -666,7 +627,7 @@ namespace LOL_GameAssistant
         /// </summary>
         private void GameMain_FormClosing(object? sender, FormClosingEventArgs e)
         {
-            if (e.CloseReason == CloseReason.UserClosing && Entity.SettingCache.Load().MinimizeToTray)
+            if (e.CloseReason == CloseReason.UserClosing && _settingsStore.Load().MinimizeToTray)
             {
                 e.Cancel = true;
                 Hide();
@@ -681,7 +642,9 @@ namespace LOL_GameAssistant
                 _autoActionCts?.Cancel();
                 _lcuRetryCts?.Cancel();
                 _trayIcon?.Dispose();
-                _wsClient?.Dispose();
+                _eventStream.Dispose();
+                _windowHoldController.Dispose();
+                _quickMessageController.Dispose();
             }
         }
 
@@ -693,7 +656,7 @@ namespace LOL_GameAssistant
             // 从托盘恢复时会先改 WindowState 再 Show()，这一瞬间不能把窗口又藏回去
             if (_restoringFromTray) return;
 
-            if (WindowState == FormWindowState.Minimized && Entity.SettingCache.Load().MinimizeToTray)
+            if (WindowState == FormWindowState.Minimized && _settingsStore.Load().MinimizeToTray)
             {
                 Hide();
                 UpdateTrayVisibility();
