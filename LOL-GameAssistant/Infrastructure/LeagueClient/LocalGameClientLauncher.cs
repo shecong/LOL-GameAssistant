@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.LeagueClient;
 
@@ -107,15 +108,92 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     {
         string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        string systemDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
-
-        return new[]
+        var candidates = new List<string>
         {
             Path.Combine(programFiles, "Riot Games", "League of Legends", "LeagueClient.exe"),
             Path.Combine(programFilesX86, "Riot Games", "League of Legends", "LeagueClient.exe"),
             Path.Combine(programFiles, "Tencent Games", "League of Legends", "LeagueClient.exe"),
-            Path.Combine(programFilesX86, "Tencent Games", "League of Legends", "LeagueClient.exe"),
-            Path.Combine(systemDrive, "Riot Games", "League of Legends", "LeagueClient.exe")
-        }.Distinct(StringComparer.OrdinalIgnoreCase);
+            Path.Combine(programFilesX86, "Tencent Games", "League of Legends", "LeagueClient.exe")
+        };
+
+        // 国服常见于 WeGame 或非系统盘。只检查确定的安装相对路径，
+        // 不递归扫描整块磁盘，避免启动助手时造成长时间卡顿。
+        foreach (DriveInfo drive in DriveInfo.GetDrives().Where(drive => drive.IsReady && drive.DriveType == DriveType.Fixed))
+        {
+            string root = drive.RootDirectory.FullName;
+            candidates.Add(Path.Combine(root, "Riot Games", "League of Legends", "LeagueClient.exe"));
+            candidates.Add(Path.Combine(root, "Tencent Games", "League of Legends", "LeagueClient.exe"));
+            candidates.Add(Path.Combine(root, "WeGameApps", "rail_apps", "LOL", "LeagueClient.exe"));
+            candidates.Add(Path.Combine(root, "Program Files", "Riot Games", "League of Legends", "LeagueClient.exe"));
+        }
+
+        candidates.AddRange(GetRiotInstallManifestLocations());
+
+        return candidates.Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Riot Client 会把实际产品目录写入 ProgramData 的安装清单；这能覆盖自定义盘符、
+    /// 非默认目录和客户端升级后的路径。读取失败时仅跳过，不影响手动配置路径。
+    /// </summary>
+    private static IEnumerable<string> GetRiotInstallManifestLocations()
+    {
+        var candidates = new List<string>();
+        string manifest = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "Riot Games",
+            "RiotClientInstalls.json");
+        if (!File.Exists(manifest)) return candidates;
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
+            foreach (string value in ReadJsonStrings(document.RootElement))
+            {
+                if (string.IsNullOrWhiteSpace(value)) continue;
+                if (File.Exists(value) && string.Equals(Path.GetFileName(value), "LeagueClient.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add(value);
+                    continue;
+                }
+                if (Directory.Exists(value))
+                {
+                    candidates.Add(Path.Combine(value, "LeagueClient.exe"));
+                }
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+        catch (JsonException)
+        {
+        }
+        return candidates;
+    }
+
+    private static IEnumerable<string> ReadJsonStrings(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.String:
+                string? value = element.GetString();
+                if (!string.IsNullOrWhiteSpace(value)) yield return value;
+                yield break;
+            case JsonValueKind.Array:
+                foreach (JsonElement child in element.EnumerateArray())
+                foreach (string item in ReadJsonStrings(child))
+                    yield return item;
+                yield break;
+            case JsonValueKind.Object:
+                foreach (JsonProperty property in element.EnumerateObject())
+                foreach (string item in ReadJsonStrings(property.Value))
+                    yield return item;
+                yield break;
+            default:
+                yield break;
+        }
     }
 }

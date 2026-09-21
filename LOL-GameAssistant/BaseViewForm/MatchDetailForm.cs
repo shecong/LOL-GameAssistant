@@ -1,10 +1,13 @@
 ﻿using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Teams;
+using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -17,9 +20,14 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly MatchDetail _gameInfo;
         private readonly string _puuid;
         private readonly IGameAssetService _gameAssetService;
+        private readonly IMatchHistoryService _matchHistoryService;
         private readonly IPremadeDetectionService _premadeDetectionService;
         private readonly Dictionary<string, Label> _premadeTagsByPuuid = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Label> _performanceTagsByPuuid = new(StringComparer.Ordinal);
         private readonly ToolTip _assetToolTip = new();
+        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchDetail[]> Details)> RecentModeDetailCache = new();
+        private static readonly TimeSpan RecentModeDetailCacheTtl = TimeSpan.FromMinutes(3);
+        private static readonly SemaphoreSlim RecentModeDetailLoadGate = new(4, 4);
 
         /// <summary>点击玩家头像后选中的玩家 puuid（用于跳转战绩查询）。</summary>
         public string? SelectedPlayerPuuid { get; private set; }
@@ -37,6 +45,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _gameInfo = gameInfo;
             _puuid = puuid;
             _gameAssetService = gameAssetService;
+            _matchHistoryService = AppCompositionRoot.MatchHistoryService;
             _premadeDetectionService = AppCompositionRoot.PremadeDetectionService;
             InitializeComponent();
             this.Load += async (_, _) => await LoadDataAsync();
@@ -114,6 +123,7 @@ namespace LOL_GameAssistant.BaseViewForm
             flowAlly.Controls.Clear();
             flowEnemy.Controls.Clear();
             _premadeTagsByPuuid.Clear();
+            _performanceTagsByPuuid.Clear();
 
             var participants = _gameInfo.participants;
             var identities = _gameInfo.participantIdentities;
@@ -132,6 +142,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             _ = DetectPremadesAsync(myTeamId);
+            _ = ApplyRecentModePerformanceTagsAsync();
         }
 
         /// <summary>
@@ -202,6 +213,22 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
             }
             panel.Controls.Add(championLabel);
+            if (!string.IsNullOrWhiteSpace(playerPuuid))
+            {
+                var performanceTag = new Label
+                {
+                    AutoSize = false,
+                    BackColor = Color.FromArgb(238, 241, 245),
+                    ForeColor = Color.FromArgb(90, 90, 90),
+                    Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold),
+                    Location = new Point(270, 8),
+                    Size = new Size(82, 22),
+                    Text = "评估中",
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                panel.Controls.Add(performanceTag);
+                _performanceTagsByPuuid[playerPuuid] = performanceTag;
+            }
             panel.Controls.Add(new Label
             {
                 Text = win ? "胜利" : "失败",
@@ -326,6 +353,154 @@ namespace LOL_GameAssistant.BaseViewForm
                     lblEnemyHeader.Text = "敌方 · 组队情况未知";
                 }
             }
+        }
+
+        /// <summary>
+        /// 详情页的“上/中/下等马”依据玩家近期同模式已结束对局计算，而非这一局的偶然表现。
+        /// 每名玩家先显示“评估中”，网络请求则在后台并发受限地完成，不阻塞详情窗口。
+        /// </summary>
+        private async Task ApplyRecentModePerformanceTagsAsync()
+        {
+            string[] playerPuuids = _performanceTagsByPuuid.Keys.ToArray();
+            await Task.WhenAll(playerPuuids.Select(ApplyRecentModePerformanceTagAsync));
+        }
+
+        private async Task ApplyRecentModePerformanceTagAsync(string puuid)
+        {
+            try
+            {
+                MatchDetail[] details = await GetRecentModeDetailsAsync(puuid);
+                var assessments = new List<MatchPerformanceAssessment>();
+                var wins = new List<bool>();
+                foreach (MatchDetail detail in details.Where(detail => SameMode(detail, _gameInfo)).Take(12))
+                {
+                    MatchParticipant? participant = detail.GetParticipant(puuid);
+                    if (participant?.stats == null) continue;
+                    assessments.Add(EvaluatePerformance(detail, puuid));
+                    wins.Add(participant.IsWin());
+                }
+
+                RecentModePerformanceAssessment assessment = RecentModePerformanceEvaluator.Evaluate(
+                    _gameInfo.GetModeText(), assessments, wins);
+                SetPerformanceTag(puuid, assessment);
+            }
+            catch
+            {
+                if (_performanceTagsByPuuid.TryGetValue(puuid, out Label? tag) && !tag.IsDisposed)
+                {
+                    tag.Text = "数据不足";
+                    tag.BackColor = Color.FromArgb(245, 245, 245);
+                    tag.ForeColor = SystemColors.GrayText;
+                    _assetToolTip.SetToolTip(tag, "近期同模式战绩暂时无法读取，未作表现判定。");
+                }
+            }
+        }
+
+        private async Task<MatchDetail[]> GetRecentModeDetailsAsync(string puuid)
+        {
+            string key = $"{puuid}|{GetModeCacheKey(_gameInfo)}";
+            if (RecentModeDetailCache.TryGetValue(key, out var cached) &&
+                DateTime.UtcNow - cached.CachedAt < RecentModeDetailCacheTtl)
+                return await cached.Details;
+
+            Task<MatchDetail[]> task = LoadRecentModeDetailsAsync(puuid);
+            RecentModeDetailCache[key] = (DateTime.UtcNow, task);
+            try
+            {
+                return await task;
+            }
+            catch
+            {
+                RecentModeDetailCache.TryRemove(key, out _);
+                throw;
+            }
+        }
+
+        private async Task<MatchDetail[]> LoadRecentModeDetailsAsync(string puuid)
+        {
+            MatchHistoryResponse? history = await _matchHistoryService.GetPageAsync(puuid, 0, 29);
+            var heads = history?.Games?.Games
+                .Where(head => SameMode(head, _gameInfo))
+                .OrderByDescending(head => head.GameCreation)
+                .Take(12)
+                .ToList() ?? new List<MatchHistoryGame>();
+
+            var tasks = heads.Select(async head =>
+            {
+                await RecentModeDetailLoadGate.WaitAsync();
+                try { return await _matchHistoryService.GetDetailAsync(head.GameId); }
+                finally { RecentModeDetailLoadGate.Release(); }
+            });
+            return (await Task.WhenAll(tasks)).Where(detail => detail != null).Cast<MatchDetail>().ToArray();
+        }
+
+        private static bool SameMode(MatchHistoryGame candidate, MatchDetail current)
+        {
+            string currentQueue = current.queueId ?? current._queueId ?? "";
+            if (int.TryParse(currentQueue, out int queueId) && candidate.QueueId > 0)
+                return candidate.QueueId == queueId;
+            return string.Equals(candidate.GameMode, current.gameMode, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(candidate.GameMode, current.GetModeText(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool SameMode(MatchDetail candidate, MatchDetail current)
+        {
+            string candidateQueue = candidate.queueId ?? candidate._queueId ?? "";
+            string currentQueue = current.queueId ?? current._queueId ?? "";
+            if (!string.IsNullOrWhiteSpace(candidateQueue) && !string.IsNullOrWhiteSpace(currentQueue))
+                return string.Equals(candidateQueue, currentQueue, StringComparison.Ordinal);
+            return string.Equals(candidate.GetModeText(), current.GetModeText(), StringComparison.Ordinal);
+        }
+
+        private static string GetModeCacheKey(MatchDetail detail)
+        {
+            string queue = detail.queueId ?? detail._queueId ?? "";
+            return string.IsNullOrWhiteSpace(queue) ? detail.GetModeText() : queue;
+        }
+
+        private static MatchPerformanceAssessment EvaluatePerformance(MatchDetail game, string puuid)
+        {
+            var snapshots = game.participants
+                .Where(participant => participant.stats != null)
+                .Select(participant => new MatchPerformanceSnapshot(
+                    game.participantIdentities.FirstOrDefault(identity => identity.participantId == participant.participantId)?.player?.puuid
+                    ?? $"participant-{participant.participantId}",
+                    participant.teamId,
+                    participant.IsWin(),
+                    participant.stats!.kills,
+                    participant.stats.deaths,
+                    participant.stats.assists,
+                    participant.stats.totalDamageDealtToChampions,
+                    participant.stats.goldEarned,
+                    participant.stats.visionScore))
+                .ToList();
+            return MatchPerformanceEvaluator.Evaluate(snapshots.FirstOrDefault(snapshot => snapshot.PlayerId == puuid), snapshots);
+        }
+
+        private void SetPerformanceTag(string puuid, RecentModePerformanceAssessment assessment)
+        {
+            if (IsDisposed || !_performanceTagsByPuuid.TryGetValue(puuid, out Label? tag) || tag.IsDisposed) return;
+            if (assessment.SampleSize == 0)
+            {
+                tag.Text = "数据不足";
+                tag.BackColor = Color.FromArgb(245, 245, 245);
+                tag.ForeColor = SystemColors.GrayText;
+                _assetToolTip.SetToolTip(tag, assessment.Detail);
+                return;
+            }
+            tag.Text = assessment.Tier switch
+            {
+                MatchPerformanceTier.Upper => "上等马",
+                MatchPerformanceTier.Lower => "下等马",
+                _ => "中等马"
+            };
+            (tag.BackColor, tag.ForeColor) = assessment.Tier switch
+            {
+                MatchPerformanceTier.Upper => (Color.FromArgb(232, 245, 233), Color.FromArgb(27, 94, 32)),
+                MatchPerformanceTier.Lower => (Color.FromArgb(255, 235, 238), Color.FromArgb(183, 28, 28)),
+                _ => (Color.FromArgb(245, 245, 245), Color.FromArgb(85, 85, 85))
+            };
+            _assetToolTip.SetToolTip(tag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");
         }
 
         private List<TeamMemberIdentity> BuildTeamIdentities(int teamId) => _gameInfo.participants

@@ -27,26 +27,73 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         _championCatalog = championCatalog;
     }
 
-    public async Task<OpggBuildApplyResult> ApplyForChampionAsync(
+    public async Task<OpggBuildChoices> GetBuildChoicesAsync(
         int championId,
         string? position,
         CancellationToken cancellationToken = default)
     {
         if (championId <= 0)
-            return OpggBuildApplyResult.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
+            return OpggBuildChoices.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
 
         try
         {
             string role = NormalizePosition(position);
-            OpggBuild build = await FetchBuildAsync(championId, role, cancellationToken).ConfigureAwait(false);
-            if (build.RunePerks.Count < 6)
-                return OpggBuildApplyResult.Failure("OP.GG 没有返回完整符文数据，本次未写入客户端。");
-            if (build.CoreItems.Count < 3)
-                return OpggBuildApplyResult.Failure("OP.GG 没有返回至少三件核心装备，本次未写入客户端。");
+            IReadOnlyList<OpggBuildOption> options = await FetchBuildOptionsAsync(championId, role, cancellationToken).ConfigureAwait(false);
+            if (options.Count == 0)
+                return OpggBuildChoices.Failure("OP.GG 没有返回至少三件核心装备的可选方案。");
 
             string championName = _championCatalog.GetDisplayName(championId);
             if (string.IsNullOrWhiteSpace(championName)) championName = $"英雄{championId}";
-            string label = $"{championName} {GetPositionName(role)}";
+            return new OpggBuildChoices(true, "请选择要应用的出装路线。", championName, GetPositionName(role), options);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            return OpggBuildChoices.Failure("无法连接 OP.GG 推荐数据，请检查网络后重试。");
+        }
+        catch (JsonException)
+        {
+            return OpggBuildChoices.Failure("OP.GG 返回的数据格式已变化，本次未写入客户端。");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return OpggBuildChoices.Failure(ex.Message);
+        }
+        catch
+        {
+            return OpggBuildChoices.Failure("获取 OP.GG 出装失败，请稍后重试。");
+        }
+    }
+
+    public async Task<OpggBuildApplyResult> ApplyBuildAsync(
+        int championId,
+        string? position,
+        OpggBuildOption option,
+        CancellationToken cancellationToken = default)
+    {
+        if (championId <= 0)
+            return OpggBuildApplyResult.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
+        if (option.RunePerkIds.Count < 6)
+            return OpggBuildApplyResult.Failure("所选方案缺少完整符文数据，本次未写入客户端。");
+        if (option.CoreItemIds.Count < 3)
+            return OpggBuildApplyResult.Failure("所选方案没有至少三件核心装备，本次未写入客户端。");
+
+        try
+        {
+            string role = NormalizePosition(position);
+            string championName = _championCatalog.GetDisplayName(championId);
+            if (string.IsNullOrWhiteSpace(championName)) championName = $"英雄{championId}";
+            string label = $"{championName} {GetPositionName(role)} · 方案 {option.Order}";
+            var build = new OpggBuild(
+                option.PrimaryStyleId,
+                option.SubStyleId,
+                option.RunePerkIds.ToList(),
+                option.StarterItemIds.ToList(),
+                option.CoreItemIds.ToList(),
+                option.SituationalItemIds.ToList());
 
             string runeResult = await ApplyRunePageAsync(build, label, cancellationToken).ConfigureAwait(false);
             string itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
@@ -56,22 +103,27 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         {
             throw;
         }
-        catch (HttpRequestException)
-        {
-            return OpggBuildApplyResult.Failure("无法连接 OP.GG 推荐数据，请检查网络后重试。");
-        }
-        catch (JsonException)
-        {
-            return OpggBuildApplyResult.Failure("OP.GG 返回的数据格式已变化，本次未写入客户端。");
-        }
         catch (InvalidOperationException ex)
         {
             return OpggBuildApplyResult.Failure(ex.Message);
         }
         catch
         {
-            return OpggBuildApplyResult.Failure("一键配置失败。请确认 LOL 客户端已登录且正处于选人或大厅阶段。");
+            return OpggBuildApplyResult.Failure("一键配置失败。请确认 LOL 客户端已登录且正处于可编辑符文的选人阶段。");
         }
+    }
+
+    public async Task<OpggBuildApplyResult> ApplyForChampionAsync(
+        int championId,
+        string? position,
+        CancellationToken cancellationToken = default)
+    {
+        OpggBuildChoices choices = await GetBuildChoicesAsync(championId, position, cancellationToken).ConfigureAwait(false);
+        if (!choices.Succeeded) return OpggBuildApplyResult.Failure(choices.Message);
+        OpggBuildOption? first = choices.Options.FirstOrDefault();
+        return first == null
+            ? OpggBuildApplyResult.Failure("OP.GG 没有可应用的出装路线。")
+            : await ApplyBuildAsync(championId, position, first, cancellationToken).ConfigureAwait(false);
     }
 
     private static HttpClient CreateHttpClient()
@@ -85,7 +137,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     /// OP.GG 的接口接受数值英雄 ID，因此不依赖中文名称到英文 slug 的不稳定映射。
     /// 该接口返回符文、出装、召唤师技能等同一份英雄构建数据。
     /// </summary>
-    private static async Task<OpggBuild> FetchBuildAsync(int championId, string role, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<OpggBuildOption>> FetchBuildOptionsAsync(int championId, string role, CancellationToken cancellationToken)
     {
         string url = $"https://lol-api-champion.op.gg/api/global/champions/ranked/{championId}/{role}";
         using HttpResponseMessage response = await OpggHttp.GetAsync(url, cancellationToken).ConfigureAwait(false);
@@ -98,9 +150,6 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         JObject? rune = data["runes"]?.OfType<JObject>()
             .OrderByDescending(item => item.Value<int?>("play") ?? 0)
             .FirstOrDefault();
-        JObject? firstCore = data["core_items"]?.OfType<JObject>()
-            .OrderByDescending(item => item.Value<int?>("play") ?? 0)
-            .FirstOrDefault();
         JObject? firstStarter = data["starter_items"]?.OfType<JObject>()
             .OrderByDescending(item => item.Value<int?>("play") ?? 0)
             .FirstOrDefault();
@@ -108,28 +157,44 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             .OrderByDescending(item => item.Value<int?>("play") ?? 0)
             .FirstOrDefault();
 
-        var core = ReadIds(firstCore?["ids"]);
         int boot = ReadIds(firstBoots?["ids"]).FirstOrDefault();
-        if (boot > 0 && !core.Contains(boot)) core.Insert(Math.Min(1, core.Count), boot);
+        List<int> runePerks = ReadIds(rune?["primary_rune_ids"])
+            .Concat(ReadIds(rune?["secondary_rune_ids"]))
+            .Concat(ReadIds(rune?["stat_mod_ids"]))
+            .ToList();
+        if ((rune?.Value<int?>("primary_page_id") ?? 0) <= 0 ||
+            (rune?.Value<int?>("secondary_page_id") ?? 0) <= 0 || runePerks.Count < 6)
+            throw new InvalidOperationException("OP.GG 没有返回完整符文数据，本次未写入客户端。");
 
-        var alternateFrequency = new Dictionary<int, int>();
-        foreach (JObject item in data["core_items"]?.OfType<JObject>().Skip(1).Take(8) ?? Enumerable.Empty<JObject>())
+        var allCore = data["core_items"]?.OfType<JObject>()
+            .OrderByDescending(item => item.Value<int?>("play") ?? 0)
+            .ToList() ?? new List<JObject>();
+        var options = new List<OpggBuildOption>();
+        foreach (JObject coreVariant in allCore.Where(item => ReadIds(item["ids"]).Count >= 3).Take(5))
         {
-            int weight = Math.Max(1, item.Value<int?>("play") ?? 1);
-            foreach (int id in ReadIds(item["ids"]).Where(id => !core.Contains(id)))
-                alternateFrequency[id] = alternateFrequency.GetValueOrDefault(id) + weight;
-        }
+            var core = ReadIds(coreVariant["ids"]);
+            if (boot > 0 && !core.Contains(boot)) core.Insert(Math.Min(1, core.Count), boot);
+            var alternateFrequency = new Dictionary<int, int>();
+            foreach (JObject alternate in allCore.Where(item => !ReferenceEquals(item, coreVariant)).Take(8))
+            {
+                int weight = Math.Max(1, alternate.Value<int?>("play") ?? 1);
+                foreach (int id in ReadIds(alternate["ids"]).Where(id => !core.Contains(id)))
+                    alternateFrequency[id] = alternateFrequency.GetValueOrDefault(id) + weight;
+            }
 
-        return new OpggBuild(
-            rune?.Value<int?>("primary_page_id") ?? 0,
-            rune?.Value<int?>("secondary_page_id") ?? 0,
-            ReadIds(rune?["primary_rune_ids"])
-                .Concat(ReadIds(rune?["secondary_rune_ids"]))
-                .Concat(ReadIds(rune?["stat_mod_ids"]))
-                .ToList(),
-            ReadIds(firstStarter?["ids"]),
-            core,
-            alternateFrequency.OrderByDescending(item => item.Value).Select(item => item.Key).Take(6).ToList());
+            int matches = coreVariant.Value<int?>("play") ?? 0;
+            options.Add(new OpggBuildOption(
+                options.Count + 1,
+                ReadIds(firstStarter?["ids"]),
+                core,
+                alternateFrequency.OrderByDescending(item => item.Value).Select(item => item.Key).Take(6).ToList(),
+                rune!.Value<int?>("primary_page_id") ?? 0,
+                rune.Value<int?>("secondary_page_id") ?? 0,
+                runePerks,
+                matches,
+                coreVariant.Value<int?>("win") ?? 0));
+        }
+        return options;
     }
 
     private async Task<string> ApplyRunePageAsync(OpggBuild build, string label, CancellationToken cancellationToken)

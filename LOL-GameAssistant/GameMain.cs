@@ -25,6 +25,7 @@ namespace LOL_GameAssistant
         private readonly ILobbyService _lobbyService;
         private readonly IChampionSelectService _championSelectService;
         private readonly IApplicationSettingsStore _settingsStore;
+        private readonly IGameClientLauncher _gameClientLauncher;
         private CancellationTokenSource? _lcuRetryCts;
         private NotifyIcon? _trayIcon;
         private CancellationTokenSource? _autoActionCts;
@@ -32,6 +33,7 @@ namespace LOL_GameAssistant
         private bool _restoringFromTray;
         private readonly WindowHoldController _windowHoldController;
         private readonly QuickMessageSenderController _quickMessageController;
+        private bool _autoClientLaunchAttempted;
 
         /// <summary>
         /// 游戏状态枚举
@@ -65,7 +67,8 @@ namespace LOL_GameAssistant
             AppCompositionRoot.LeagueClientEventStream,
             AppCompositionRoot.LobbyService,
             AppCompositionRoot.ChampionSelectService,
-            AppCompositionRoot.ApplicationSettingsStore)
+            AppCompositionRoot.ApplicationSettingsStore,
+            AppCompositionRoot.GameClientLauncher)
         {
         }
 
@@ -74,12 +77,14 @@ namespace LOL_GameAssistant
             ILeagueClientEventStream eventStream,
             ILobbyService lobbyService,
             IChampionSelectService championSelectService,
-            IApplicationSettingsStore settingsStore)
+            IApplicationSettingsStore settingsStore,
+            IGameClientLauncher gameClientLauncher)
         {
             _eventStream = eventStream;
             _lobbyService = lobbyService;
             _championSelectService = championSelectService;
             _settingsStore = settingsStore;
+            _gameClientLauncher = gameClientLauncher;
             InitializeComponent();
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
             tabs1.Controls.Add(_coachTab);
@@ -108,9 +113,29 @@ namespace LOL_GameAssistant
             Resize += GameMain_Resize;
             tabs1.SelectedIndexChanged += Tabs1_SelectedIndexChanged;
 
+            // 设置页并不一定会被用户打开；在主窗体启动时立即恢复已保存的快捷键，
+            // 使快捷消息不依赖设置页的 Load 事件才开始注册。
+            AssistantSettings startupSettings = _settingsStore.Load();
+            ApplyWindowSettings(startupSettings);
+            TryAutoLaunchLeagueClient(startupSettings);
             //初始化模块
             LoadAllForm();
             _ = InitializeLiveGameAsync();
+        }
+
+        /// <summary>
+        /// 自动启动属于主窗口生命周期，而不是设置页生命周期。
+        /// 这样即使用户从未切换到“设置”标签，保存过的开关也会在助手启动时执行一次。
+        /// </summary>
+        private void TryAutoLaunchLeagueClient(AssistantSettings settings)
+        {
+            if (_autoClientLaunchAttempted) return;
+            _autoClientLaunchAttempted = true;
+
+            if (!settings.AutoLaunchGameClient) return;
+
+            GameClientLaunchResult result = _gameClientLauncher.Start(settings.GameClientPath);
+            AddInfoMessage($"自动启动 LOL：{result.Message}");
         }
 
         /// <summary>
@@ -421,6 +446,8 @@ namespace LOL_GameAssistant
                 case "terminatedinerror":
                 case "endofgame":
                     //结束对局：通知 + 刷新战绩
+                    // 该局已经结束，释放对局页的开黑检测结果；下一局必须重新检测。
+                    liveGameForm.ResetRosterCache();
                     await NotifyGameEndedAsync();
                     _ = liveGameForm.AddView();
                     break;

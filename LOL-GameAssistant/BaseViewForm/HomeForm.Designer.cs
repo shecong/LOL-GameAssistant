@@ -118,7 +118,7 @@
             rootGrid.Name = "rootGrid";
             rootGrid.Padding = new Padding(10);
             rootGrid.RowCount = 3;
-            rootGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
+            rootGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));
             rootGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 224F));
             rootGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             rootGrid.Size = new Size(1331, 830);
@@ -137,7 +137,7 @@
             searchCard.Name = "searchCard";
             searchCard.Padding = new Padding(10);
             searchCard.StartColor = Color.FromArgb(245, 250, 255);
-            searchCard.Size = new Size(1311, 48);
+            searchCard.Size = new Size(1311, 60);
             searchCard.TabIndex = 0;
             // 
             // flowSearch
@@ -206,7 +206,7 @@
             playerCard.DrawBorder = true;
             playerCard.BorderColor = Color.FromArgb(24, 0, 0, 0);
             playerCard.EndColor = Color.FromArgb(255, 255, 255);
-            playerCard.Location = new Point(10, 68);
+            playerCard.Location = new Point(10, 80);
             playerCard.Margin = new Padding(0, 0, 8, 10);
             playerCard.Name = "playerCard";
             playerCard.Padding = new Padding(14);
@@ -326,10 +326,10 @@
             rankedCard.DrawBorder = true;
             rankedCard.BorderColor = Color.FromArgb(24, 0, 0, 0);
             rankedCard.EndColor = Color.FromArgb(255, 255, 255);
-            rankedCard.Location = new Point(455, 68);
+            rankedCard.Location = new Point(455, 80);
             rankedCard.Margin = new Padding(0, 0, 0, 10);
             rankedCard.Name = "rankedCard";
-            rankedCard.Padding = new Padding(14);
+            rankedCard.Padding = new Padding(14, 36, 14, 14);
             rankedCard.StartColor = Color.FromArgb(252, 253, 255);
             rankedCard.Size = new Size(866, 206);
             rankedCard.TabIndex = 2;
@@ -508,9 +508,9 @@
             // 
             // pic_dsp
             // 
-            pic_dsp.Location = new Point(14, 18);
+            pic_dsp.Location = new Point(14, 12);
             pic_dsp.Name = "pic_dsp";
-            pic_dsp.Size = new Size(56, 56);
+            pic_dsp.Size = new Size(44, 44);
             pic_dsp.SizeMode = PictureBoxSizeMode.Zoom;
             pic_dsp.TabIndex = 0;
             pic_dsp.TabStop = false;
@@ -519,7 +519,7 @@
             // 
             game_dspT.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold);
             game_dspT.ForeColor = Color.FromArgb(30, 136, 229);
-            game_dspT.Location = new Point(80, 16);
+            game_dspT.Location = new Point(66, 10);
             game_dspT.Name = "game_dspT";
             game_dspT.Size = new Size(180, 26);
             game_dspT.TabIndex = 1;
@@ -529,7 +529,7 @@
             // 
             game_dsp_sl.Font = new Font("Microsoft YaHei UI", 9F);
             game_dsp_sl.ForeColor = SystemColors.GrayText;
-            game_dsp_sl.Location = new Point(80, 44);
+            game_dsp_sl.Location = new Point(66, 34);
             game_dsp_sl.Name = "game_dsp_sl";
             game_dsp_sl.Size = new Size(180, 20);
             game_dsp_sl.TabIndex = 2;
@@ -539,7 +539,7 @@
             // 
             game_dsp_win.Font = new Font("Microsoft YaHei UI", 9F);
             game_dsp_win.ForeColor = Color.FromArgb(46, 125, 50);
-            game_dsp_win.Location = new Point(16, 90);
+            game_dsp_win.Location = new Point(14, 66);
             game_dsp_win.Name = "game_dsp_win";
             game_dsp_win.Size = new Size(120, 22);
             game_dsp_win.TabIndex = 3;
@@ -549,7 +549,7 @@
             // 
             game_dsp_loss.Font = new Font("Microsoft YaHei UI", 9F);
             game_dsp_loss.ForeColor = Color.FromArgb(198, 40, 40);
-            game_dsp_loss.Location = new Point(150, 90);
+            game_dsp_loss.Location = new Point(125, 66);
             game_dsp_loss.Name = "game_dsp_loss";
             game_dsp_loss.Size = new Size(120, 22);
             game_dsp_loss.TabIndex = 4;
@@ -559,7 +559,7 @@
             // 
             game_dsp_lp.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
             game_dsp_lp.ForeColor = Color.FromArgb(255, 152, 0);
-            game_dsp_lp.Location = new Point(16, 118);
+            game_dsp_lp.Location = new Point(14, 92);
             game_dsp_lp.Name = "game_dsp_lp";
             game_dsp_lp.Size = new Size(120, 22);
             game_dsp_lp.TabIndex = 5;
@@ -569,7 +569,7 @@
             // 
             game_dsp_highest.Font = new Font("Microsoft YaHei UI", 9F);
             game_dsp_highest.ForeColor = SystemColors.GrayText;
-            game_dsp_highest.Location = new Point(150, 118);
+            game_dsp_highest.Location = new Point(125, 92);
             game_dsp_highest.Name = "game_dsp_highest";
             game_dsp_highest.Size = new Size(220, 22);
             game_dsp_highest.TabIndex = 6;
@@ -598,9 +598,9 @@
             // 
             // pic_lhp
             // 
-            pic_lhp.Location = new Point(14, 18);
+            pic_lhp.Location = new Point(14, 12);
             pic_lhp.Name = "pic_lhp";
-            pic_lhp.Size = new Size(56, 56);
+            pic_lhp.Size = new Size(44, 44);
             pic_lhp.SizeMode = PictureBoxSizeMode.Zoom;
             pic_lhp.TabIndex = 0;
             pic_lhp.TabStop = false;
@@ -609,7 +609,7 @@
             // 
             game_lhpT.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold);
             game_lhpT.ForeColor = Color.FromArgb(211, 47, 47);
-            game_lhpT.Location = new Point(80, 16);
+            game_lhpT.Location = new Point(66, 10);
             game_lhpT.Name = "game_lhpT";
             game_lhpT.Size = new Size(180, 26);
             game_lhpT.TabIndex = 1;
@@ -619,7 +619,7 @@
             // 
             game_lhp_sl.Font = new Font("Microsoft YaHei UI", 9F);
             game_lhp_sl.ForeColor = SystemColors.GrayText;
-            game_lhp_sl.Location = new Point(80, 44);
+            game_lhp_sl.Location = new Point(66, 34);
             game_lhp_sl.Name = "game_lhp_sl";
             game_lhp_sl.Size = new Size(180, 20);
             game_lhp_sl.TabIndex = 2;
@@ -629,7 +629,7 @@
             // 
             game_lhp_win.Font = new Font("Microsoft YaHei UI", 9F);
             game_lhp_win.ForeColor = Color.FromArgb(46, 125, 50);
-            game_lhp_win.Location = new Point(16, 90);
+            game_lhp_win.Location = new Point(14, 66);
             game_lhp_win.Name = "game_lhp_win";
             game_lhp_win.Size = new Size(120, 22);
             game_lhp_win.TabIndex = 3;
@@ -639,7 +639,7 @@
             // 
             game_lhp_loss.Font = new Font("Microsoft YaHei UI", 9F);
             game_lhp_loss.ForeColor = Color.FromArgb(198, 40, 40);
-            game_lhp_loss.Location = new Point(150, 90);
+            game_lhp_loss.Location = new Point(125, 66);
             game_lhp_loss.Name = "game_lhp_loss";
             game_lhp_loss.Size = new Size(120, 22);
             game_lhp_loss.TabIndex = 4;
@@ -649,7 +649,7 @@
             // 
             game_lhp_lp.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
             game_lhp_lp.ForeColor = Color.FromArgb(255, 152, 0);
-            game_lhp_lp.Location = new Point(16, 118);
+            game_lhp_lp.Location = new Point(14, 92);
             game_lhp_lp.Name = "game_lhp_lp";
             game_lhp_lp.Size = new Size(120, 22);
             game_lhp_lp.TabIndex = 5;
@@ -659,7 +659,7 @@
             // 
             game_lhp_highest.Font = new Font("Microsoft YaHei UI", 9F);
             game_lhp_highest.ForeColor = SystemColors.GrayText;
-            game_lhp_highest.Location = new Point(150, 118);
+            game_lhp_highest.Location = new Point(125, 92);
             game_lhp_highest.Name = "game_lhp_highest";
             game_lhp_highest.Size = new Size(220, 22);
             game_lhp_highest.TabIndex = 6;
@@ -674,12 +674,12 @@
             historyCard.DrawBorder = true;
             historyCard.BorderColor = Color.FromArgb(24, 0, 0, 0);
             historyCard.EndColor = Color.FromArgb(255, 255, 255);
-            historyCard.Location = new Point(10, 302);
+            historyCard.Location = new Point(10, 314);
             historyCard.Margin = new Padding(0, 0, 0, 0);
             historyCard.Name = "historyCard";
             historyCard.Padding = new Padding(14, 8, 14, 10);
             historyCard.StartColor = Color.FromArgb(252, 253, 255);
-            historyCard.Size = new Size(1311, 518);
+            historyCard.Size = new Size(1311, 506);
             historyCard.TabIndex = 3;
             // 
             // historyHeader

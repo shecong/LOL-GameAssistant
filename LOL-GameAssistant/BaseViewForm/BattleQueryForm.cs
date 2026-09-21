@@ -105,12 +105,12 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 BackColor = BackColor,
                 Dock = DockStyle.Top,
-                Height = 46,
-                Padding = new Padding(18, 8, 18, 4)
+                Height = 60,
+                Padding = new Padding(18, 9, 18, 7)
             };
             _historyTitle.AutoSize = false;
             _historyTitle.Dock = DockStyle.Top;
-            _historyTitle.Height = 22;
+            _historyTitle.Height = 24;
             _historyTitle.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
             _historyTitle.ForeColor = Color.FromArgb(38, 50, 56);
             _historyTitle.Text = "最近对局";
@@ -118,11 +118,12 @@ namespace LOL_GameAssistant.BaseViewForm
             _historyHint.Dock = DockStyle.Fill;
             _historyHint.Font = new Font("Microsoft YaHei UI", 8.5F);
             _historyHint.ForeColor = SystemColors.GrayText;
-            _historyHint.Text = "输入 Riot ID 或 PUUID 查询；双击对局卡片可查看详情";
+            _historyHint.Text = "输入 Riot ID（名称#TAG）或 PUUID 查询；双击对局卡片可查看详情";
             historyHeader.Controls.Add(_historyHint);
             historyHeader.Controls.Add(_historyTitle);
             panelHistory.Controls.Add(historyHeader);
-            historyHeader.BringToFront();
+            // Dock 布局按 Z 序逆序占用空间；放到底层可先占顶部，避免覆盖对局列表。
+            historyHeader.SendToBack();
         }
 
         private void UpdateHistoryHeader(int totalGames = 0)
@@ -130,7 +131,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _historyTitle.Text = totalGames > 0 ? $"最近对局 · {totalGames} 场" : "最近对局";
             _historyHint.Text = totalGames > 0
                 ? "点击战绩卡可查看详情；展开内容会显示同局队友与组队推断。"
-                : "输入 Riot ID 或 PUUID 查询；双击对局卡片可查看详情";
+                : "输入 Riot ID（名称#TAG）或 PUUID 查询；双击对局卡片可查看详情";
         }
 
         /// <summary>
@@ -871,12 +872,29 @@ namespace LOL_GameAssistant.BaseViewForm
             RefreshFavoriteState();
         }
 
-        private void BtnLoadFavorite_Click(object? sender, EventArgs e)
+        private async void BtnLoadFavorite_Click(object? sender, EventArgs e)
         {
-            if (cboFavorites.SelectedIndex < 0 || cboFavorites.SelectedIndex >= _favorites.Count) return;
-            var fav = _favorites[cboFavorites.SelectedIndex];
-            inpSearch.Text = fav.Puuid;
-            _ = PerformSearchAsync();
+            string input;
+            if (cboFavorites.SelectedIndex >= 0 && cboFavorites.SelectedIndex < _favorites.Count)
+            {
+                input = _favorites[cboFavorites.SelectedIndex].Puuid;
+            }
+            else
+            {
+                // 左侧框既可选择收藏，也可直接输入 Riot ID；此前未选择收藏时会静默返回，
+                // 用户会误以为“加载”按钮无效。
+                input = cboFavorites.Text.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                lblStatus.Text = "请从收藏列表选择玩家，或在左侧输入 Riot ID 后加载";
+                AntdUI.Message.warn(ParentForm!, "请选择收藏玩家或输入 Riot ID");
+                return;
+            }
+
+            inpSearch.Text = input;
+            await PerformSearchAsync(input);
         }
 
         private void RefreshFavoriteList(string? selectedPuuid)
@@ -890,6 +908,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (fav.Puuid == selectedPuuid) selectedIndex = i;
             }
             cboFavorites.SelectedIndex = selectedIndex >= 0 ? selectedIndex : -1;
+            btnLoadFavorite.Enabled = true;
         }
 
         private void RefreshFavoriteState()

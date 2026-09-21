@@ -105,7 +105,7 @@ public sealed class CoachForm : UserControl
         if (_refreshing || IsDisposed) return;
         _applyOpgg.Enabled = false;
         _status.ForeColor = Color.DimGray;
-        _status.Text = "正在从 OP.GG 获取符文与出装，并写入 LOL 客户端…";
+        _status.Text = "正在从 OP.GG 获取可选出装路线…";
         try
         {
             var context = await _aiCoachingService.CollectContextAsync();
@@ -116,8 +116,26 @@ public sealed class CoachForm : UserControl
                 return;
             }
 
+            OpggBuildChoices choices = await _opggBuildApplyService
+                .GetBuildChoicesAsync(context.MyChampionId, context.MyRole);
+            if (!choices.Succeeded)
+            {
+                _status.ForeColor = Color.Firebrick;
+                _status.Text = choices.Message;
+                return;
+            }
+
+            using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService);
+            if (picker.ShowDialog(FindForm() ?? Program.GameMain) != DialogResult.OK || picker.SelectedOption == null)
+            {
+                _status.ForeColor = Color.DimGray;
+                _status.Text = "已取消 OP.GG 出装配置。";
+                return;
+            }
+
+            _status.Text = $"正在应用 OP.GG 方案 {picker.SelectedOption.Order}…";
             OpggBuildApplyResult result = await _opggBuildApplyService
-                .ApplyForChampionAsync(context.MyChampionId, context.MyRole);
+                .ApplyBuildAsync(context.MyChampionId, context.MyRole, picker.SelectedOption);
             _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
             _status.Text = result.Message;
         }

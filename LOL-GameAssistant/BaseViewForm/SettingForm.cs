@@ -80,11 +80,7 @@ namespace LOL_GameAssistant.BaseViewForm
             await LoadBase();
             ApplySideEffects(_config);
 
-            if (_config.AutoLaunchGameClient)
-            {
-                // 设置页只在首次加载后触发一次自动启动，之后普通的设置保存不会反复拉起客户端。
-                LaunchLeagueClient(showMessage: false);
-            }
+            // 自动启动由 GameMain 的启动生命周期统一执行，避免依赖用户是否打开“设置”标签。
         }
 
         private void InitializeSegmentedSettings()

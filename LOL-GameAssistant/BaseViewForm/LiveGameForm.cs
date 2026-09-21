@@ -20,7 +20,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ILobbyService _lobbyService;
         private readonly IPlayerProfileService _playerProfileService;
         private readonly IPremadeDetectionService _premadeDetectionService;
-        private string _premadeSignature = "";
+        // 缓存的是整局阵容的检测任务，而不是只记录“已经检测过”。这样强制刷新重建卡片后，
+        // 已完成的结果能立即重新应用；尚在执行的任务也会被复用，不会重复拉取十人的近期战绩。
+        private readonly Dictionary<string, Task<PremadeDetectionResult>> _premadeResultCache = new(StringComparer.Ordinal);
+        private string _activePremadeCacheKey = "";
+        private int _premadeCacheGeneration;
         private string _teamTitleBase1 = "蓝方";
         private string _teamTitleBase2 = "红方";
         private readonly AntdUI.Label _teamQueueTag1;
@@ -148,7 +152,9 @@ namespace LOL_GameAssistant.BaseViewForm
         public void ResetRosterCache()
         {
             _lastSignature = "";
-            _premadeSignature = "";
+            _activePremadeCacheKey = "";
+            _premadeResultCache.Clear();
+            unchecked { _premadeCacheGeneration++; }
             _teamQueueTag1.Visible = false;
             _teamQueueTag2.Visible = false;
         }
@@ -289,17 +295,16 @@ namespace LOL_GameAssistant.BaseViewForm
             int queueId,
             string? gameMode)
         {
-            string signature = string.Join(
-                ",",
-                team1.Concat(team2)
-                    .Select(t => t.Puuid)
-                    .Where(p => !string.IsNullOrEmpty(p))
-                    .OrderBy(p => p, StringComparer.Ordinal));
+            // 必须保留队伍归属：同一批玩家换边时，旧的开黑小组不能直接套用。
+            // 不包含队列/模式，确保选人阶段进入游戏内时仍然沿用本局已经得到的结果。
+            string signature = BuildPremadeCacheKey(team1, team2);
 
             // 阵容未变化时跳过重建，避免自动刷新反复销毁/重建控件
             if (!force && signature == _lastSignature && panelTeam1.Controls.Count > 0)
                 return;
             _lastSignature = signature;
+            _activePremadeCacheKey = signature;
+            int cacheGeneration = _premadeCacheGeneration;
 
             int count1 = team1.Count(m => !string.IsNullOrWhiteSpace(m.Puuid) || m.IsBot);
             int count2 = team2.Count(m => !string.IsNullOrWhiteSpace(m.Puuid) || m.IsBot);
@@ -352,34 +357,65 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _teamTitleBase1 = lblTeamTitle1.Text;
             _teamTitleBase2 = lblTeamTitle2.Text;
-            _ = ApplyPremadeDetectionAsync(team1, team2, signature);
+            _ = ApplyPremadeDetectionAsync(team1, team2, signature, cacheGeneration);
+        }
+
+        /// <summary>
+        /// 生成本局开黑检测缓存键。蓝红两队分别排序，既能稳定命中缓存，又不会把换边阵容误判为同一局。
+        /// </summary>
+        private static string BuildPremadeCacheKey(
+            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
+            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2)
+        {
+            static string TeamKey(IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team) =>
+                string.Join(",", team
+                    .Select(member => member.Puuid)
+                    .Where(puuid => !string.IsNullOrWhiteSpace(puuid))
+                    .OrderBy(puuid => puuid, StringComparer.Ordinal));
+
+            return $"blue:{TeamKey(team1)}|red:{TeamKey(team2)}";
         }
 
         /// <summary>
         /// 异步执行开黑检测：拉取每人近期战绩，统计同队次数后更新表头与卡片标记。
-        /// 阵容未变化时跳过，避免自动刷新反复计算。
+        /// 当前对局未结束时按阵容复用检测任务/结果，强制刷新只重绘界面，不重复发起检测。
         /// </summary>
         private async Task ApplyPremadeDetectionAsync(
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2,
-            string signature)
+            string cacheKey,
+            int cacheGeneration)
         {
-            if (_premadeSignature == signature) return;
-            _premadeSignature = signature;
+            Task<PremadeDetectionResult> resultTask;
+            if (!_premadeResultCache.TryGetValue(cacheKey, out resultTask!))
+            {
+                resultTask = _premadeDetectionService.DetectAsync(
+                    team1.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray(),
+                    team2.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray());
+                _premadeResultCache[cacheKey] = resultTask;
+            }
 
             try
             {
-                var result = await _premadeDetectionService.DetectAsync(
-                    team1.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray(),
-                    team2.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray());
+                var result = await resultTask;
 
-                // 等待期间阵容已变化则丢弃本次结果
-                if (IsDisposed || signature != _lastSignature) return;
+                // 等待期间阵容/对局已变化则丢弃本次结果。
+                // generation 防止上一局的异步任务在新一局恰好遇到相同阵容时误回填。
+                if (IsDisposed || cacheGeneration != _premadeCacheGeneration ||
+                    cacheKey != _activePremadeCacheKey) return;
                 ApplyPremadeResult(result);
             }
             catch
             {
-                if (!IsDisposed && signature == _lastSignature)
+                // 失败结果不缓存，当前局下一次刷新可以重新尝试；但不要删除已经属于新一局的任务。
+                if (_premadeResultCache.TryGetValue(cacheKey, out var cachedTask) &&
+                    ReferenceEquals(cachedTask, resultTask))
+                {
+                    _premadeResultCache.Remove(cacheKey);
+                }
+
+                if (!IsDisposed && cacheGeneration == _premadeCacheGeneration &&
+                    cacheKey == _activePremadeCacheKey)
                 {
                     SetTeamQueueTag(_teamQueueTag1, "未知", "组队检测暂不可用");
                     SetTeamQueueTag(_teamQueueTag2, "未知", "组队检测暂不可用");

@@ -67,12 +67,12 @@
             panelSearch.Location = new Point(0, 0);
             panelSearch.Name = "panelSearch";
             panelSearch.Padding = new Padding(10, 10, 10, 8);
-            panelSearch.Size = new Size(1510, 56);
+            panelSearch.Size = new Size(1510, 62);
             panelSearch.TabIndex = 0;
             // 
             // cboFavorites
             // 
-            cboFavorites.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboFavorites.DropDownStyle = ComboBoxStyle.DropDown;
             cboFavorites.FormattingEnabled = true;
             cboFavorites.Location = new Point(10, 12);
             cboFavorites.Margin = new Padding(0, 2, 6, 2);
@@ -182,7 +182,7 @@
             panelPlayer.Controls.Add(panelRanked);
             panelPlayer.Controls.Add(avatarPlayer);
             panelPlayer.Dock = DockStyle.Top;
-            panelPlayer.Location = new Point(0, 56);
+            panelPlayer.Location = new Point(0, 62);
             panelPlayer.Name = "panelPlayer";
             panelPlayer.Padding = new Padding(8);
             panelPlayer.Size = new Size(1510, 118);
@@ -285,9 +285,9 @@
             panelContent.Controls.Add(panelStats);
             panelContent.Controls.Add(panelHistory);
             panelContent.Dock = DockStyle.Fill;
-            panelContent.Location = new Point(0, 174);
+            panelContent.Location = new Point(0, 180);
             panelContent.Name = "panelContent";
-            panelContent.Size = new Size(1510, 571);
+            panelContent.Size = new Size(1510, 565);
             panelContent.TabIndex = 2;
             // 
             // panelHistory
