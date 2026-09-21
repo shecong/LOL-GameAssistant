@@ -142,8 +142,19 @@ namespace LOL_GameAssistant.BaseViewForm
             _refreshing = true;
             try
             {
-                if (GameMain.gameFlowPhase == GameFlowPhase.ChampSelect ||
-                    GameMain.gameFlowPhase == GameFlowPhase.Lobby)
+                // 缓存的 gameFlowPhase 只由 WebSocket 事件驱动，而 LCU 订阅时不会补发当前阶段，
+                // 所以启动/重连时若已经在大厅或对局中，这个值会停在默认值，
+                // 表现就是"点刷新没反应"。用户主动刷新、或当前阶段不可渲染时，主动问一次 LCU。
+                var phase = GameMain.gameFlowPhase;
+                if (force || !IsRenderablePhase(phase))
+                {
+                    string? livePhase = await Game_Api.GameFlowPhaseServer();
+                    Program.GameMain?.ApplyGameFlowPhase(livePhase);
+                    if (Enum.TryParse(livePhase, true, out GameFlowPhase parsed)) phase = parsed;
+                }
+
+                if (phase == GameFlowPhase.ChampSelect ||
+                    phase == GameFlowPhase.Lobby)
                 {
                     LobbyGameInfo? gameInfo = await Game_Api.GameNowServer();
                     if (gameInfo?.GameConfig == null)
@@ -163,7 +174,7 @@ namespace LOL_GameAssistant.BaseViewForm
                         force,
                         myPuuid);
                 }
-                else if (GameMain.gameFlowPhase == GameFlowPhase.InProgress)
+                else if (phase == GameFlowPhase.InProgress)
                 {
                     GameSessionResponse? session = await Game_Api.GameLineInfoServer();
                     if (session?.GameData == null)
@@ -181,12 +192,27 @@ namespace LOL_GameAssistant.BaseViewForm
                         force,
                         myPuuid);
                 }
+                else
+                {
+                    // 当前阶段拿不到阵容（匹配中、结算中、空闲等）。
+                    // 至少要给出阶段提示，否则点了刷新界面毫无变化，看起来就像按钮坏了。
+                    if (panelTeam1.Controls.Count == 0 && panelTeam2.Controls.Count == 0)
+                    {
+                        lblGameInfo.Text = $"{phase.GetChineseName()} · 当前阶段暂无对局数据";
+                    }
+                }
             }
             finally
             {
                 _refreshing = false;
             }
         }
+
+        /// <summary>
+        /// 该阶段能否拿到阵容数据（其余阶段如匹配中/结算中/空闲都取不到）。
+        /// </summary>
+        private static bool IsRenderablePhase(GameFlowPhase phase) =>
+            phase is GameFlowPhase.Lobby or GameFlowPhase.ChampSelect or GameFlowPhase.InProgress;
 
         /// <summary>
         /// 获取当前登录召唤师的 puuid（带缓存，用于判断队友/对手）。
@@ -272,8 +298,12 @@ namespace LOL_GameAssistant.BaseViewForm
             panelTeam2.SuspendLayout();
             try
             {
-                panelTeam1.Controls.Clear();
-                panelTeam2.Controls.Clear();
+                // 必须 Dispose 而不是只 Clear：Controls.Clear() 只解除父子关系，
+                // 卡片自带的 ToolTip（每个都是一份 native 窗口）、发光定时器、头像图片
+                // 以及卡片自身的窗口句柄都会残留。自动刷新每 30 秒重建一次整组卡片，
+                // 累积到进程 USER 对象上限后，程序就再也创建不了窗口（"创建窗口句柄时出错"）。
+                DisposeChildren(panelTeam1);
+                DisposeChildren(panelTeam2);
 
                 AddPlayerCards(panelTeam1, team1, myPuuid);
                 AddPlayerCards(panelTeam2, team2, myPuuid);
@@ -432,6 +462,20 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             int contentHeight = panel.Padding.Vertical + rows * (PlayerCardHeight + PlayerCardVerticalMargin);
             return contentHeight > panel.ClientSize.Height;
+        }
+
+        /// <summary>
+        /// 释放面板中的旧卡片：只 Clear 不 Dispose 会让卡片连同 ToolTip、定时器、
+        /// 头像图片和窗口句柄一起泄漏，重建次数多了就会耗光窗口句柄。
+        /// </summary>
+        private static void DisposeChildren(Control parent)
+        {
+            var children = parent.Controls.Cast<Control>().ToArray();
+            parent.Controls.Clear();
+            foreach (var child in children)
+            {
+                child.Dispose();
+            }
         }
 
         private static void AddPlayerCards(

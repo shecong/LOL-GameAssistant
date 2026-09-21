@@ -120,7 +120,7 @@ namespace LOL_GameAssistant.LoLApi
                     .Where(p => !string.IsNullOrEmpty(p.Puuid))
                     .DistinctBy(p => p.Puuid)
                     .Select(p => p.Puuid)
-                    .ToList());
+                    .ToList()).ConfigureAwait(false);
             return DetectCore(team1, team2, histories);
         }
 
@@ -261,7 +261,7 @@ namespace LOL_GameAssistant.LoLApi
             using var gate = new SemaphoreSlim(6, 6);
             var tasks = puuids.Select(async puuid =>
             {
-                await gate.WaitAsync();
+                await gate.WaitAsync().ConfigureAwait(false);
                 try
                 {
                     if (HistoryCache.TryGetValue(puuid, out var cached) &&
@@ -270,7 +270,7 @@ namespace LOL_GameAssistant.LoLApi
                         return (puuid, cached.Data);
                     }
 
-                    var data = await Game_Api.GetUserGame(puuid, "0", (HistoryCount - 1).ToString());
+                    var data = await Game_Api.GetUserGame(puuid, "0", (HistoryCount - 1).ToString()).ConfigureAwait(false);
                     HistoryCache[puuid] = (DateTime.Now, data);
                     return (puuid, data);
                 }

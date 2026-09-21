@@ -14,10 +14,10 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<List<FriendModel>> GetFriendsAsync()
         {
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync("/lol-chat/v1/friends");
+            Stream? responseStream = await client.GetAsync("/lol-chat/v1/friends").ConfigureAwait(false);
             if (responseStream == null) return new List<FriendModel>();
 
-            return await responseStream.ReadAsJsonAsync<List<FriendModel>>()
+            return await responseStream.ReadAsJsonAsync<List<FriendModel>>().ConfigureAwait(false)
                 ?? new List<FriendModel>();
         }
     }

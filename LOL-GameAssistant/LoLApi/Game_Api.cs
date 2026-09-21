@@ -58,9 +58,9 @@ namespace LOL_GameAssistant.LoLApi
         {
             if ((DateTime.Now - _lastVersionFetch).TotalHours < 6 && !string.IsNullOrEmpty(gameversion)) return;
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync("https://ddragon.leagueoflegends.com/api/versions.json");
+            Stream? responseStream = await client.GetAsync("https://ddragon.leagueoflegends.com/api/versions.json").ConfigureAwait(false);
             if (responseStream == null) return;
-            List<string>? version = await responseStream.ReadAsJsonAsync<List<string>>();
+            List<string>? version = await responseStream.ReadAsJsonAsync<List<string>>().ConfigureAwait(false);
             if (version != null && version.Count > 0)
             {
                 gameversion = version[0];
@@ -74,15 +74,15 @@ namespace LOL_GameAssistant.LoLApi
         private static async Task<List<ZBModel>> GetItemsAsync()
         {
             if (zBData is { Count: > 0 }) return zBData;
-            await DataGate.WaitAsync();
+            await DataGate.WaitAsync().ConfigureAwait(false);
             try
             {
                 if (zBData is { Count: > 0 }) return zBData;
                 HttpClentHelper client = new HttpClentHelper();
-                Stream? stream = await client.GetAsync("/lol-game-data/assets/v1/items.json");
+                Stream? stream = await client.GetAsync("/lol-game-data/assets/v1/items.json").ConfigureAwait(false);
                 if (stream != null)
                 {
-                    var data = await stream.ReadAsJsonAsync<List<ZBModel>>();
+                    var data = await stream.ReadAsJsonAsync<List<ZBModel>>().ConfigureAwait(false);
                     if (data != null) zBData = data;
                 }
             }
@@ -99,15 +99,15 @@ namespace LOL_GameAssistant.LoLApi
         private static async Task<List<JNModel>> GetSpellsAsync()
         {
             if (jNData is { Count: > 0 }) return jNData;
-            await DataGate.WaitAsync();
+            await DataGate.WaitAsync().ConfigureAwait(false);
             try
             {
                 if (jNData is { Count: > 0 }) return jNData;
                 HttpClentHelper client = new HttpClentHelper();
-                Stream? stream = await client.GetAsync("/lol-game-data/assets/v1/summoner-spells.json");
+                Stream? stream = await client.GetAsync("/lol-game-data/assets/v1/summoner-spells.json").ConfigureAwait(false);
                 if (stream != null)
                 {
-                    var data = await stream.ReadAsJsonAsync<List<JNModel>>();
+                    var data = await stream.ReadAsJsonAsync<List<JNModel>>().ConfigureAwait(false);
                     if (data != null) jNData = data;
                 }
             }
@@ -124,7 +124,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<string?> GetItemNameAsync(int itemId)
         {
             if (itemId <= 0) return null;
-            var items = await GetItemsAsync();
+            var items = await GetItemsAsync().ConfigureAwait(false);
             return items.FirstOrDefault(p => string.Equals(p.id, itemId.ToString(), StringComparison.Ordinal))?.name;
         }
 
@@ -134,7 +134,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<string?> GetSpellNameAsync(int spellId)
         {
             if (spellId <= 0) return null;
-            var spells = await GetSpellsAsync();
+            var spells = await GetSpellsAsync().ConfigureAwait(false);
             return spells.FirstOrDefault(p => string.Equals(p.id, spellId.ToString(), StringComparison.Ordinal))?.name;
         }
 
@@ -144,7 +144,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<Stream> GetGameUserImg(string key)
         {
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/profileicon/{key}.png");
+            Stream? responseStream = await client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/profileicon/{key}.png").ConfigureAwait(false);
             return responseStream ?? Stream.Null;
         }
 
@@ -162,12 +162,12 @@ namespace LOL_GameAssistant.LoLApi
                 return ms;
             }
 
-            var items = await GetItemsAsync();
+            var items = await GetItemsAsync().ConfigureAwait(false);
             string? path = items.FirstOrDefault(p => string.Equals(p.id, key, StringComparison.Ordinal))?.iconPath;
             if (string.IsNullOrEmpty(path)) return Stream.Null;
 
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync(path);
+            Stream? responseStream = await client.GetAsync(path).ConfigureAwait(false);
             return responseStream ?? Stream.Null;
         }
 
@@ -177,12 +177,12 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<Stream> GetGameZHSJNImg(string key)
         {
             if (string.IsNullOrEmpty(key) || key == "0") return Stream.Null;
-            var spells = await GetSpellsAsync();
+            var spells = await GetSpellsAsync().ConfigureAwait(false);
             string? path = spells.FirstOrDefault(p => string.Equals(p.id, key, StringComparison.Ordinal))?.iconPath;
             if (string.IsNullOrEmpty(path)) return Stream.Null;
 
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync(path);
+            Stream? responseStream = await client.GetAsync(path).ConfigureAwait(false);
             return responseStream ?? Stream.Null;
         }
 
@@ -192,7 +192,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<Stream> GetGameYXImg(int id)
         {
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync($"/lol-game-data/assets/v1/champion-icons/{id}.png");
+            Stream? responseStream = await client.GetAsync($"/lol-game-data/assets/v1/champion-icons/{id}.png").ConfigureAwait(false);
             return responseStream ?? Stream.Null;
         }
 
@@ -206,10 +206,10 @@ namespace LOL_GameAssistant.LoLApi
 
             try
             {
-                using Stream? stream = await GetGameYXImg(championId);
+                using Stream? stream = await GetGameYXImg(championId).ConfigureAwait(false);
                 if (stream == null || stream == Stream.Null) return null;
                 using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms);
+                await stream.CopyToAsync(ms).ConfigureAwait(false);
                 ms.Position = 0;
                 using var temp = Image.FromStream(ms);
                 var image = new Bitmap(temp);

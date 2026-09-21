@@ -22,6 +22,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private const int RecentGamesCount = 10;
         private Image? _ownedProfileImage;
         private ToolTip? _premadeTip;
+        private ToolTip? _copyTip;
+        private readonly bool _showCopyButton;
 
         /// <summary>当前卡片对应玩家的 puuid（供开黑检测结果回填）。</summary>
         public string? Puuid => _playerPuuid;
@@ -67,7 +69,13 @@ namespace LOL_GameAssistant.BaseViewForm
 
             lblName.Text = string.IsNullOrEmpty(fallbackName) ? "未知玩家" : fallbackName!;
             lblSub.Text = _isBot ? "机器人" : "";
-            btnCopy.Visible = !_isBot && !string.IsNullOrEmpty(_playerPuuid);
+
+            // AntdUI 控件的 Visible setter 会立刻 CreateControl()：构造期卡片还没有父窗口，
+            // 句柄会先挂在临时 parking window 上，挂到队伍面板后还要再建一次。
+            // 既白白多耗一份窗口句柄，也是"创建窗口句柄时出错"的现场。
+            // 因此构造期只设成安全默认值（设 false 不会建句柄），真实状态等句柄建立后再应用。
+            btnCopy.Visible = false;
+            _showCopyButton = !_isBot && !string.IsNullOrEmpty(_playerPuuid);
 
             // 队友/对手标识：同队显示“队友”（蓝色），异队显示“对手”（红色）
             lblTeamTag.Text = isAlly ? "队友" : "对手";
@@ -76,7 +84,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 isAlly ? 226 : 253,
                 isAlly ? 240 : 236,
                 isAlly ? 253 : 236);
-            lblTeamTag.Visible = teamKnown;
             if (teamKnown)
             {
                 headerPanel.BackColor = Color.FromArgb(
@@ -86,11 +93,11 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             // 复制按钮悬停提示：显示可复制的完整 ID
-            var copyTip = new ToolTip();
-            copyTip.SetToolTip(btnCopy, "复制该玩家 PUUID（可用于精确查询）");
+            _copyTip = new ToolTip();
+            _copyTip.SetToolTip(btnCopy, "复制该玩家 PUUID（可用于精确查询）");
             if (!string.IsNullOrEmpty(_playerPuuid))
             {
-                copyTip.SetToolTip(this, $"PUUID: {_playerPuuid}");
+                _copyTip.SetToolTip(this, $"PUUID: {_playerPuuid}");
             }
 
             _glowTimer = new System.Windows.Forms.Timer { Interval = 15 };
@@ -99,6 +106,8 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 _glowTimer.Dispose();
                 _ownedProfileImage?.Dispose();
+                _copyTip?.Dispose();
+                _premadeTip?.Dispose();
             };
 
             this.MouseEnter += (_, _) => StartGlow(true);
@@ -112,7 +121,29 @@ namespace LOL_GameAssistant.BaseViewForm
             this.Resize += (_, _) => RecalcHeaderLayout();
             panelMatches.SizeChanged += (_, _) => ResizeMatchRows();
             RecalcHeaderLayout();
-            this.Load += async (_, _) => await LoadAsync();
+            this.Load += async (_, _) =>
+            {
+                ApplyDeferredVisibility();
+                await LoadAsync();
+            };
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyDeferredVisibility();
+        }
+
+        /// <summary>
+        /// 卡片挂到队伍面板、句柄建立之后再设置子控件可见性。
+        /// 构造期控件还没有父窗口，此时设 Visible 会让 AntdUI 提前建一份句柄（挂在临时窗口上），
+        /// 挂载后还要再建一次，既多耗句柄也是"创建窗口句柄时出错"的现场。
+        /// </summary>
+        private void ApplyDeferredVisibility()
+        {
+            if (IsDisposed) return;
+            btnCopy.Visible = _showCopyButton;
+            lblTeamTag.Visible = _teamKnown;
         }
 
         /// <summary>
@@ -424,6 +455,11 @@ namespace LOL_GameAssistant.BaseViewForm
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
+
+            // 展开动画会把卡片高度插值到 0，此时 Width-3 / Height-3 为 0 或负数，
+            // GDI+ 不接受空矩形，会抛 ArgumentException 打断绘制。
+            if (Width <= 3 || Height <= 3) return;
+
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 

@@ -28,6 +28,7 @@ namespace LOL_GameAssistant
         private NotifyIcon? _trayIcon;
         private CancellationTokenSource? _autoActionCts;
         private GameFlowPhase? _lastNotifiedEndPhase;
+        private bool _restoringFromTray;
 
         /// <summary>
         /// 游戏状态枚举
@@ -61,12 +62,15 @@ namespace LOL_GameAssistant
 
         public async void GameMain_Load(object sender, EventArgs e)
         {
-            //初始化模块
-            await LoadAllForm();
+            // 托盘与窗口事件先挂好：它们不依赖 LCU/网络，
+            // 若放在 await 之后，客户端探测卡住时这段时间窗口既没有托盘图标也没有关闭拦截。
             InitializeTray();
             FormClosing += GameMain_FormClosing;
             Resize += GameMain_Resize;
             tabs1.SelectedIndexChanged += Tabs1_SelectedIndexChanged;
+
+            //初始化模块
+            LoadAllForm();
             _ = InitializeLiveGameAsync();
         }
 
@@ -86,6 +90,23 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>
+        /// 用 LCU 返回的阶段字符串更新全局阶段与表头显示。
+        /// 不能只依赖 WebSocket 事件：LCU 只在阶段"变化"时推送，订阅当下不会补发当前阶段，
+        /// 因此启动或重连时可能一直停在旧值，导致"刷新"按钮点了没反应。
+        /// </summary>
+        public void ApplyGameFlowPhase(string? phaseText)
+        {
+            if (string.IsNullOrEmpty(phaseText)) return;
+            if (!Enum.TryParse(phaseText, true, out GameFlowPhase parsed)) return;
+
+            gameFlowPhase = parsed;
+            string label = parsed.GetChineseName();
+            // 该全局阶段值可能由后台线程写入，表头更新统一切回 UI 线程
+            if (RunOnUiThread(() => { gameFlowPhaseName.Text = label; })) return;
+            gameFlowPhaseName.Text = label;
+        }
+
+        /// <summary>
         /// 程序启动时检测客户端是否已在对局流程中，若是则立即加载对局信息。
         /// </summary>
         private async Task InitializeLiveGameAsync()
@@ -94,6 +115,10 @@ namespace LOL_GameAssistant
             {
                 string? phase = await Game_Api.GameFlowPhaseServer();
                 if (string.IsNullOrEmpty(phase)) return;
+
+                // 先写回全局阶段，否则 AddView 读到的是默认值，会什么都不做
+                ApplyGameFlowPhase(phase);
+
                 if (Enum.TryParse(phase, true, out GameFlowPhase parsed) &&
                     (parsed == GameFlowPhase.Lobby ||
                      parsed == GameFlowPhase.ChampSelect ||
@@ -113,7 +138,7 @@ namespace LOL_GameAssistant
         /// </summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        private async Task LoadAllForm()
+        private void LoadAllForm()
         {
             //使用websokect连接
             ConnectWebSocket();
@@ -154,16 +179,20 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>
-        /// 启动 WebSocket 连接（首次调用）
+        /// 启动 WebSocket 连接（首次调用）。
+        /// LCU 探测内部是 WMI 查询（Win32_Process），同步跑在 UI 线程上会让窗口白屏假死，
+        /// 因此探测与连接整体放到后台线程；需要更新界面的地方都会自己切回 UI 线程。
         /// </summary>
-        public async void ConnectWebSocket()
+        public void ConnectWebSocket() => _ = Task.Run(ConnectWebSocketCoreAsync);
+
+        private async Task ConnectWebSocketCoreAsync()
         {
             // 获取 LCU 认证信息
             (string? port, string? token) = GetlolLcu.GetAuth();
             if (string.IsNullOrEmpty(port) || string.IsNullOrEmpty(token))
             {
                 infoMsg.AddMsg("未检测到 LOL 客户端，每 10 秒重试获取 LCU 端口...");
-                _ = Task.Run(() => RetryLcuDetectionAsync());
+                _ = RetryLcuDetectionAsync();
                 return;
             }
 
@@ -233,10 +262,36 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>
+        /// 把后台线程回调切回 UI 线程执行。
+        /// WebSocket 事件由线程池线程回调（见 WebSocketClient.OnMessage 的 Task.Run），
+        /// 在池线程上操作控件会在 native 层破坏窗口句柄：Release 未挂调试器时
+        /// CheckForIllegalCrossThreadCalls 为 false，不会抛"跨线程操作无效"，
+        /// 只会莫名其妙地报"创建窗口句柄时出错"。
+        /// </summary>
+        /// <returns>true 表示已转投到 UI 线程（或窗口正在退出），调用方应立即返回。</returns>
+        private bool RunOnUiThread(Action action)
+        {
+            if (IsDisposed || !IsHandleCreated) return true;
+            if (!InvokeRequired) return false;
+
+            try
+            {
+                BeginInvoke(action);
+            }
+            catch (InvalidOperationException)
+            {
+                // 窗口正在销毁，丢弃本次回调
+            }
+            return true;
+        }
+
+        /// <summary>
         /// WebSocket 连接状态变化处理
         /// </summary>
         private void WebSocketChange(bool connected)
         {
+            if (RunOnUiThread(() => WebSocketChange(connected))) return;
+
             if (connected)
             {
                 infoMsg.AddMsg("WebSocket已连接");
@@ -259,6 +314,8 @@ namespace LOL_GameAssistant
 
         private void WebSocketMessage(string msg)
         {
+            if (RunOnUiThread(() => WebSocketMessage(msg))) return;
+
             //infoMsg.AddMsg(msg);
             // 解析JSON数组
             try
@@ -334,6 +391,9 @@ namespace LOL_GameAssistant
         private async Task gameflowphaseStatus(String? statustype)
         {
             if (string.IsNullOrEmpty(statustype)) return;
+            // 下面会直接操作对局页控件（AddView / ResetRosterCache），必须回到 UI 线程
+            if (RunOnUiThread(() => { _ = gameflowphaseStatus(statustype); })) return;
+
             string phase = statustype.ToLowerInvariant();
 
             //修改主页状态
@@ -345,8 +405,8 @@ namespace LOL_GameAssistant
                 {
                     _lastNotifiedEndPhase = null;
                 }
-                this.BeginInvoke(new Action(() =>
-                { this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}"; }));
+                // 已在 UI 线程上，直接更新表头即可
+                this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
             }
             switch (phase)
             {
@@ -509,9 +569,11 @@ namespace LOL_GameAssistant
                 infoMsg.AddMsg("对局已结束，可查看战绩详情");
                 if (_trayIcon != null)
                 {
+                    // 气泡提示要求托盘图标可见；提示显示期间先保持图标，
+                    // 6 秒后再交回"窗口隐藏才显示图标"的规则，避免把最后的入口关掉。
                     _trayIcon.Visible = true;
                     _trayIcon.ShowBalloonTip(5000, "LOL GameAssistant", "对局已结束，可查看战绩详情。", ToolTipIcon.Info);
-                    _trayIcon.Visible = config.MinimizeToTray;
+                    _ = Task.Delay(6000).ContinueWith(_ => RunOnUiThread(UpdateTrayVisibility));
                 }
             }
             catch
@@ -521,41 +583,69 @@ namespace LOL_GameAssistant
             return Task.CompletedTask;
         }
 
-        /// </summary>
         private void InitializeTray()
         {
             _trayIcon = new NotifyIcon
             {
                 Text = "LOL GameAssistant 运行中",
+                Icon = SystemIcons.Application,
                 Visible = false
             };
-
-            try
-            {
-                _trayIcon.Icon = SystemIcons.Application;
-            }
-            catch
-            {
-                _trayIcon.Icon = SystemIcons.Application;
-            }
 
             var menu = new ContextMenuStrip();
             menu.Items.Add("显示窗口", null, (_, _) => ShowWindow());
             menu.Items.Add("-");
             menu.Items.Add("退出", null, (_, _) => ExitApp());
             _trayIcon.ContextMenuStrip = menu;
+            // 单击也要能唤回窗口：只挂双击时，习惯单击托盘图标的人会以为程序打不开了。
+            _trayIcon.MouseClick += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Left) ShowWindow();
+            };
             _trayIcon.DoubleClick += (_, _) => ShowWindow();
         }
 
         /// <summary>
-        /// 从托盘恢复窗口
+        /// 托盘图标可见性 = 主窗口是否隐藏。
+        /// 不要把它和"关闭时最小化到托盘"配置绑在一起：一旦窗口被藏起来而图标又没显示，
+        /// 这个进程就再没有任何入口能被唤回（只能去任务管理器结束）。
+        /// </summary>
+        private void UpdateTrayVisibility()
+        {
+            if (_trayIcon != null) _trayIcon.Visible = !Visible;
+        }
+
+        /// <summary>
+        /// 从托盘恢复窗口。
+        /// 两处都要设置：Show() 之前先恢复 Normal，否则窗口会以"最小化"状态显示出来；
+        /// Show() 之后再兜一次，因为窗口处于隐藏状态时这个赋值可能被忽略，窗口会停在最小化。
+        /// 恢复过程中用 _restoringFromTray 屏蔽 GameMain_Resize 的隐藏逻辑。
         /// </summary>
         private void ShowWindow()
         {
-            Show();
-            WindowState = FormWindowState.Normal;
-            BringToFront();
-            if (_trayIcon != null) _trayIcon.Visible = false;
+            if (IsDisposed) return;
+
+            _restoringFromTray = true;
+            try
+            {
+                if (WindowState != FormWindowState.Normal)
+                    WindowState = FormWindowState.Normal;
+
+                Show();
+
+                if (WindowState == FormWindowState.Minimized)
+                    WindowState = FormWindowState.Normal;
+
+                Activate();
+                BringToFront();
+            }
+            finally
+            {
+                _restoringFromTray = false;
+            }
+
+            // 窗口确实显示出来了才收起托盘图标；恢复失败时保留图标，不丢掉最后的入口。
+            UpdateTrayVisibility();
         }
 
         /// <summary>
@@ -580,10 +670,10 @@ namespace LOL_GameAssistant
             {
                 e.Cancel = true;
                 Hide();
+                UpdateTrayVisibility();
                 if (_trayIcon != null)
                 {
-                    _trayIcon.Visible = true;
-                    _trayIcon.ShowBalloonTip(2000, "LOL GameAssistant", "已最小化到系统托盘，双击图标恢复窗口", ToolTipIcon.Info);
+                    _trayIcon.ShowBalloonTip(2000, "LOL GameAssistant", "已最小化到系统托盘，单击或双击图标恢复窗口", ToolTipIcon.Info);
                 }
             }
             else
@@ -600,12 +690,15 @@ namespace LOL_GameAssistant
         /// </summary>
         private void GameMain_Resize(object? sender, EventArgs e)
         {
+            // 从托盘恢复时会先改 WindowState 再 Show()，这一瞬间不能把窗口又藏回去
+            if (_restoringFromTray) return;
+
             if (WindowState == FormWindowState.Minimized && Entity.SettingCache.Load().MinimizeToTray)
             {
                 Hide();
+                UpdateTrayVisibility();
                 if (_trayIcon != null)
                 {
-                    _trayIcon.Visible = true;
                     _trayIcon.ShowBalloonTip(2000, "LOL GameAssistant", "已最小化到系统托盘", ToolTipIcon.Info);
                 }
             }

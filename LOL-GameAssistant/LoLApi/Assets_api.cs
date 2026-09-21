@@ -20,30 +20,30 @@ namespace LOL_GameAssistant.LoLApi
                 { "name", gameName },
                 { "tagLine", tagLine }
             };
-            Stream? response = await client.GetAsync("/lol-summoner/v1/summoners", queryParams);
+            Stream? response = await client.GetAsync("/lol-summoner/v1/summoners", queryParams).ConfigureAwait(false);
 
             if (response == null)
             {
                 // 方式二：通过 REST 路径搜索
-                response = await client.GetAsync($"/lol-summoner/v1/summoners/by-name/{Uri.EscapeDataString(gameName)}/{Uri.EscapeDataString(tagLine)}");
+                response = await client.GetAsync($"/lol-summoner/v1/summoners/by-name/{Uri.EscapeDataString(gameName)}/{Uri.EscapeDataString(tagLine)}").ConfigureAwait(false);
             }
 
             if (response == null)
             {
                 // 方式三：不带 tagLine 的遗留搜索
-                response = await client.GetAsync($"/lol-summoner/v1/summoners/by-name/{Uri.EscapeDataString(gameName)}");
+                response = await client.GetAsync($"/lol-summoner/v1/summoners/by-name/{Uri.EscapeDataString(gameName)}").ConfigureAwait(false);
             }
 
             if (response == null) return string.Empty;
 
             using var reader = new StreamReader(response, Encoding.UTF8);
-            return await reader.ReadToEndAsync();
+            return await reader.ReadToEndAsync().ConfigureAwait(false);
         }
 
         public static async Task<string> GetUser()
         {
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync("/lol-summoner/v1/current-summoner");
+            Stream? responseStream = await client.GetAsync("/lol-summoner/v1/current-summoner").ConfigureAwait(false);
             if (responseStream == null)
             {
                 return String.Empty;
@@ -51,7 +51,7 @@ namespace LOL_GameAssistant.LoLApi
             using (var reader = new StreamReader(responseStream, Encoding.UTF8))
             {
                 // 4. ReadToEndAsync() 会将流中的所有内容异步读取到一个字符串中
-                string content = await reader.ReadToEndAsync();
+                string content = await reader.ReadToEndAsync().ConfigureAwait(false);
                 return content;
             }
         }
@@ -62,7 +62,7 @@ namespace LOL_GameAssistant.LoLApi
             Dictionary<string, String> dic = new Dictionary<string, string>();
             dic.Add("puuid", puuid);
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync($"/lol-summoner/v2/summoners/puuid/{puuid}");
+            Stream? responseStream = await client.GetAsync($"/lol-summoner/v2/summoners/puuid/{puuid}").ConfigureAwait(false);
             if (responseStream == null)
             {
                 return String.Empty;
@@ -70,7 +70,7 @@ namespace LOL_GameAssistant.LoLApi
             using (var reader = new StreamReader(responseStream, Encoding.UTF8))
             {
                 // 4. ReadToEndAsync() 会将流中的所有内容异步读取到一个字符串中
-                string content = await reader.ReadToEndAsync();
+                string content = await reader.ReadToEndAsync().ConfigureAwait(false);
                 return content;
             }
         }
@@ -78,7 +78,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<Stream> GetImg(String? id)
         {
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync($@"/lol-game-data/assets/v1/profile-icons/{id}.jpg");
+            Stream? responseStream = await client.GetAsync($@"/lol-game-data/assets/v1/profile-icons/{id}.jpg").ConfigureAwait(false);
             if (responseStream == null)
             {
                 return Stream.Null;

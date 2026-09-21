@@ -14,7 +14,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task OpenGameServer()
         {
             using var client = new HttpClentHelper();
-            using Stream? response = await client.PostAsync("/lol-lobby/v2/lobby/matchmaking/search");
+            using Stream? response = await client.PostAsync("/lol-lobby/v2/lobby/matchmaking/search").ConfigureAwait(false);
         }
 
         /// <summary>
@@ -23,7 +23,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task GameTrueServer()
         {
             using var client = new HttpClentHelper();
-            using Stream? response = await client.PostAsync("/lol-matchmaking/v1/ready-check/accept");
+            using Stream? response = await client.PostAsync("/lol-matchmaking/v1/ready-check/accept").ConfigureAwait(false);
         }
 
         /// <summary>
@@ -32,9 +32,9 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<LobbyGameInfo?> GameNowServer()
         {
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync("/lol-lobby/v2/lobby");
+            Stream? responseStream = await client.GetAsync("/lol-lobby/v2/lobby").ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsJsonAsync<LobbyGameInfo>();
+            return await responseStream.ReadAsJsonAsync<LobbyGameInfo>().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -43,9 +43,9 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<string?> GameFlowPhaseServer()
         {
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync("/lol-gameflow/v1/gameflow-phase");
+            Stream? responseStream = await client.GetAsync("/lol-gameflow/v1/gameflow-phase").ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsJsonAsync<string>();
+            return await responseStream.ReadAsJsonAsync<string>().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -54,9 +54,9 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<GameSessionResponse?> GameLineInfoServer()
         {
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync("/lol-gameflow/v1/session");
+            Stream? responseStream = await client.GetAsync("/lol-gameflow/v1/session").ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsJsonAsync<GameSessionResponse>();
+            return await responseStream.ReadAsJsonAsync<GameSessionResponse>().ConfigureAwait(false);
         }
     }
 }

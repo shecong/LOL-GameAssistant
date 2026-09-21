@@ -19,6 +19,13 @@ namespace LOL_GameAssistant.BaseViewForm
         private GameHeadModel.MatchHistoryResponse? matchlists;
 
         /// <summary>
+        /// 首页战绩一次拉取的场数上限。
+        /// 原先是一次请求要 9999 局，响应体改为整体缓冲后会造成明显的内存尖峰，
+        /// 收敛为最近 200 局（仍是单次请求，本地分页够用）；更长的历史走"战绩查询"页。
+        /// </summary>
+        private const int RecentGamesLimit = 200;
+
+        /// <summary>
         /// 防止客户端后启动时重复刷新首页。
         /// </summary>
         private bool _refreshingFromConnection;
@@ -172,7 +179,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private async Task GetGameInfo(Plyaer? userinfo)
         {
             if (userinfo == null) return;
-            matchlists = await Game_Api.GetUserGame(userinfo.puuid, "0", "9999");
+            matchlists = await Game_Api.GetUserGame(userinfo.puuid, "0", (RecentGamesLimit - 1).ToString());
 
             //加载分页
             InitPagin(matchlists);

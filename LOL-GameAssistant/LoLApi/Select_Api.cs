@@ -15,9 +15,9 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<ChampSelectSession?> GetSessionAsync()
         {
             using var client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync("/lol-champ-select/v1/session");
+            Stream? responseStream = await client.GetAsync("/lol-champ-select/v1/session").ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsJsonAsync<ChampSelectSession>();
+            return await responseStream.ReadAsJsonAsync<ChampSelectSession>().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -33,7 +33,7 @@ namespace LOL_GameAssistant.LoLApi
             using Stream? response = await client.PatchAsync(
                 $"/lol-champ-select/v1/session/actions/{actionId}",
                 body: body
-            );
+            ).ConfigureAwait(false);
             return response != null;
         }
 
@@ -44,7 +44,7 @@ namespace LOL_GameAssistant.LoLApi
         /// <returns>是否成功执行了禁用动作</returns>
         public static async Task<bool> AutoBanAsync(List<int> banChampionIds)
         {
-            return await ExecuteAutoActionAsync(banChampionIds, "ban");
+            return await ExecuteAutoActionAsync(banChampionIds, "ban").ConfigureAwait(false);
         }
 
         /// <summary>
@@ -54,7 +54,7 @@ namespace LOL_GameAssistant.LoLApi
         /// <returns>是否成功执行了选用动作</returns>
         public static async Task<bool> AutoPickAsync(List<int> pickChampionIds)
         {
-            return await ExecuteAutoActionAsync(pickChampionIds, "pick");
+            return await ExecuteAutoActionAsync(pickChampionIds, "pick").ConfigureAwait(false);
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace LOL_GameAssistant.LoLApi
         {
             if (desiredChampionIds.Count == 0) return false;
 
-            var session = await GetSessionAsync();
+            var session = await GetSessionAsync().ConfigureAwait(false);
             if (session == null) return false;
 
             // 收集所有已被禁用/选用的英雄ID（不可用）
@@ -89,7 +89,7 @@ namespace LOL_GameAssistant.LoLApi
             if (championToUse == null) return false;
 
             // 执行动作
-            return await PerformActionAsync(currentAction.Id, championToUse.Value);
+            return await PerformActionAsync(currentAction.Id, championToUse.Value).ConfigureAwait(false);
         }
 
         /// <summary>

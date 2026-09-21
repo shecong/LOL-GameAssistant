@@ -16,9 +16,9 @@ namespace LOL_GameAssistant.LoLApi
             if (string.IsNullOrEmpty(puuid)) return null;
             HttpClentHelper client = new HttpClentHelper();
             Stream? responseStream = await client.GetAsync(
-                $"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex ?? "0"}&endIndex={endIndex ?? "9999"}");
+                $"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex ?? "0"}&endIndex={endIndex ?? "9999"}").ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsJsonAsync<GameHeadModel.MatchHistoryResponse>();
+            return await responseStream.ReadAsJsonAsync<GameHeadModel.MatchHistoryResponse>().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -48,7 +48,7 @@ namespace LOL_GameAssistant.LoLApi
             while (begIndex < maxGames)
             {
                 int endIndex = begIndex + pageSize - 1;
-                var page = await GetUserGame(puuid, begIndex.ToString(), endIndex.ToString());
+                var page = await GetUserGame(puuid, begIndex.ToString(), endIndex.ToString()).ConfigureAwait(false);
                 var games = page?.Games?.Games;
                 if (games == null || games.Count == 0) break;
 
@@ -71,9 +71,9 @@ namespace LOL_GameAssistant.LoLApi
         {
             if (useCache && DetailCache.TryGetValue(gameId, out var cached)) return cached;
             HttpClentHelper client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync($"/lol-match-history/v1/games/{gameId}");
+            Stream? responseStream = await client.GetAsync($"/lol-match-history/v1/games/{gameId}").ConfigureAwait(false);
             if (responseStream == null) return null;
-            var game = await responseStream.ReadAsJsonAsync<GameDetailModel.GameInfo>();
+            var game = await responseStream.ReadAsJsonAsync<GameDetailModel.GameInfo>().ConfigureAwait(false);
             if (game != null)
             {
                 if (DetailCache.Count >= DetailCacheMax) DetailCache.Clear();
@@ -88,7 +88,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<GameDetailModel.GameInfo?> GetGameDetail(string? gameId, bool useCache = true)
         {
             if (!long.TryParse(gameId, out long id)) return null;
-            return await GetGameDetail(id, useCache);
+            return await GetGameDetail(id, useCache).ConfigureAwait(false);
         }
 
         /// <summary>

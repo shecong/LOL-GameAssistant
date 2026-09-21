@@ -44,6 +44,11 @@ namespace LOL_GameAssistant.BaseViewForm
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            // 展开动画会把高度插值到 0，极端尺寸下 Width-1 / Height-1 会变成 0 或负数。
+            // GDI+ 不接受空矩形（LinearGradientBrush 会直接抛 ArgumentException"cannot have
+            // a width or height equal to 0"），所以尺寸不够时干脆不画。
+            if (Width <= 1 || Height <= 1) return;
+
             base.OnPaint(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
@@ -83,6 +88,9 @@ namespace LOL_GameAssistant.BaseViewForm
 
         protected override void OnPaint(PaintEventArgs pe)
         {
+            // 尺寸过小时 Width-3 / Height-3 为负数，GDI+ 矩形不接受
+            if (Width <= 3 || Height <= 3) return;
+
             var g = pe.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var rect = new Rectangle(1, 1, Width - 3, Height - 3);

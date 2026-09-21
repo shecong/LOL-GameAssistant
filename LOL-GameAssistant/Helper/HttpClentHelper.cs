@@ -89,7 +89,7 @@ public class HttpClentHelper : IDisposable
         }
 
         // 使用信号量控制并发
-        await _semaphore.WaitAsync(cancellationToken);
+        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             // 构建基础URL
@@ -122,59 +122,49 @@ public class HttpClentHelper : IDisposable
                 request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             }
 
-            // 发送请求
-            Console.WriteLine($"正在发送 {httpMethod} 请求到: {requestUrl}");
-            if (!string.IsNullOrEmpty(body))
-            {
-                Console.WriteLine($"请求体: {body}");
-            }
-
             HttpResponseMessage response;
             try
             {
-                // 使用 HttpCompletionOption.ResponseHeadersRead 以流式处理响应
-                response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                // 缓冲整个响应体（HttpClient 默认行为）：这样 HttpClient.Timeout 能覆盖到
+                // body 读取，不会出现"响应头已到、读 body 却无限期挂住"的情况。
+                response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             }
-            catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (TaskCanceledException)
             {
-                Console.WriteLine("请求被取消");
+                // 主动取消或超时
                 return null;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"请求发送异常: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"请求发送异常: {ex.Message}");
                 return null;
             }
 
-            if (response.IsSuccessStatusCode)
+            using (response)
             {
-                var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-                return new ResponseStream(stream, response);
-            }
-            else
-            {
-                using (response)
+                if (!response.IsSuccessStatusCode)
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    Console.WriteLine($"请求失败: {response.StatusCode}");
-                    Console.WriteLine($"错误详情: {errorContent}");
+                    System.Diagnostics.Debug.WriteLine($"请求失败: {response.StatusCode} {requestUrl}");
+                    return null;
                 }
-                return null;
+
+                byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+                return new MemoryStream(bytes);
             }
         }
         catch (HttpRequestException ex)
         {
-            Console.WriteLine($"请求异常: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"请求异常: {ex.Message}");
             return null;
         }
         catch (TaskCanceledException)
         {
-            Console.WriteLine("请求超时，请检查LOL客户端是否正在运行");
+            System.Diagnostics.Debug.WriteLine("请求超时，请检查LOL客户端是否正在运行");
             return null;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"未知错误: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"未知错误: {ex.Message}");
             return null;
         }
         finally
@@ -230,49 +220,5 @@ public class HttpClentHelper : IDisposable
     {
         // 静态 HttpClient 不需要手动释放，但可以实现 IDisposable 接口以保持模式一致
         // 如果需要释放资源，可以在这里添加
-    }
-
-    /// <summary>
-    /// 将响应的生命周期绑定到返回流，调用方释放流时同步释放 HTTP 响应。
-    /// </summary>
-    private sealed class ResponseStream(Stream inner, HttpResponseMessage response) : Stream
-    {
-        private readonly Stream _inner = inner;
-        private HttpResponseMessage? _response = response;
-
-        public override bool CanRead => _inner.CanRead;
-        public override bool CanSeek => _inner.CanSeek;
-        public override bool CanWrite => _inner.CanWrite;
-        public override long Length => _inner.Length;
-        public override long Position { get => _inner.Position; set => _inner.Position = value; }
-        public override void Flush() => _inner.Flush();
-        public override Task FlushAsync(CancellationToken cancellationToken) => _inner.FlushAsync(cancellationToken);
-        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
-        public override int Read(Span<byte> buffer) => _inner.Read(buffer);
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => _inner.ReadAsync(buffer, cancellationToken);
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _inner.ReadAsync(buffer, offset, count, cancellationToken);
-        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
-        public override void SetLength(long value) => _inner.SetLength(value);
-        public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
-        public override void Write(ReadOnlySpan<byte> buffer) => _inner.Write(buffer);
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => _inner.WriteAsync(buffer, cancellationToken);
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _inner.WriteAsync(buffer, offset, count, cancellationToken);
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _inner.Dispose();
-                Interlocked.Exchange(ref _response, null)?.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await _inner.DisposeAsync().ConfigureAwait(false);
-            Interlocked.Exchange(ref _response, null)?.Dispose();
-            GC.SuppressFinalize(this);
-        }
     }
 }

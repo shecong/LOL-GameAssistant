@@ -52,14 +52,38 @@ namespace LOL_GameAssistant
 
         private static void HandleException(Exception ex)
         {
-            // 记录日志
-            string logMessage = $"[{DateTime.Now}] 异常信息: {ex.Message}\n堆栈跟踪: {ex.StackTrace}\n";
-            System.IO.File.AppendAllText("error.log", logMessage);
+            try
+            {
+                // 用相对路径时，开机自启（注册表 Run 项没有工作目录，CWD 是 System32）
+                // 会写失败；而这里本身就在异常处理路径上，再抛一次会直接把进程带崩。
+                string logPath = System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory, "error.log");
+                string logMessage = $"[{DateTime.Now}] 异常信息: {ex.Message}\n堆栈跟踪: {ex.StackTrace}\n";
+                System.IO.File.AppendAllText(logPath, logMessage);
+            }
+            catch
+            {
+                // 日志写不进去也不能影响后续处理
+            }
+
+            try
+            {
+                GameMain.infoMsg.AddMsg($"{ex.Message}");
+            }
+            catch
+            {
+                // 日志窗口不可用时忽略
+            }
 
             // 显示友好错误信息
-            AntdUI.Message.error(GameMain, $"程序发生错误: {ex.Message}\n请查看日志文件获取详细信息。");
-
-            GameMain.infoMsg.AddMsg($"{ex.Message}");
+            try
+            {
+                AntdUI.Message.error(GameMain, $"程序发生错误: {ex.Message}\n请查看日志文件获取详细信息。");
+            }
+            catch
+            {
+                // 提示失败（例如窗口句柄已耗尽）时忽略，避免异常处理器自身再抛
+            }
             // 可以选择是否退出应用
             // Application.Exit();
         }

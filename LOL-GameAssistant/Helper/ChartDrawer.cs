@@ -21,9 +21,12 @@ namespace LOL_GameAssistant.Helper
             List<(double kda, bool win)> data, string title)
         {
             int ml = 45, mr = 15, mt = 28, mb = 28;
-            var ca = new Rectangle(bounds.X + ml, bounds.Y + mt,
-                bounds.Width - ml - mr, bounds.Height - mt - mb);
-            if (data.Count == 0 || ca.Width <= 0 || ca.Height <= 0) return;
+            // 先算尺寸再构造矩形：bounds 太小时宽高会算成负数，
+            // 而 Rectangle 的构造函数对负值直接抛异常，写在下面的判空根本来不及。
+            int caWidth = bounds.Width - ml - mr;
+            int caHeight = bounds.Height - mt - mb;
+            if (data.Count == 0 || caWidth <= 0 || caHeight <= 0) return;
+            var ca = new Rectangle(bounds.X + ml, bounds.Y + mt, caWidth, caHeight);
 
             g.FillRectangle(Brushes.White, bounds);
             using (var f = new Font("Microsoft YaHei UI", 10, FontStyle.Bold))
@@ -86,9 +89,11 @@ namespace LOL_GameAssistant.Helper
             List<(string name, int games, double winRate)> data, string title)
         {
             int ml = 110, mr = 20, mt = 28, mb = 10;
-            var ca = new Rectangle(bounds.X + ml, bounds.Y + mt,
-                bounds.Width - ml - mr, bounds.Height - mt - mb);
-            if (data.Count == 0 || ca.Height <= 0) return;
+            // 同 DrawKdaTrend：先校验尺寸，避免 Rectangle 构造函数先抛异常
+            int caWidth = bounds.Width - ml - mr;
+            int caHeight = bounds.Height - mt - mb;
+            if (data.Count == 0 || caWidth <= 0 || caHeight <= 0) return;
+            var ca = new Rectangle(bounds.X + ml, bounds.Y + mt, caWidth, caHeight);
 
             g.FillRectangle(Brushes.White, bounds);
             using (var f = new Font("Microsoft YaHei UI", 10, FontStyle.Bold))

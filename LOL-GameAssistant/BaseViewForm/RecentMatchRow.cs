@@ -502,6 +502,10 @@ namespace LOL_GameAssistant.BaseViewForm
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            // 滑入/布局过程中行高可能被压到极小，Width-3 / Height-3 会变成 0 或负数，
+            // GDI+ 不接受空矩形，会抛 ArgumentException。
+            if (Width <= 3 || Height <= 3) return;
+
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
