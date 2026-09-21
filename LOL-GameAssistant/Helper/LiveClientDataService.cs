@@ -38,9 +38,11 @@ internal static class LocalLiveClientDataReader
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList() ?? new List<string>();
 
+            int? gameTime = await GetGameTimeSecondsAsync(cancellationToken).ConfigureAwait(false);
             return new LocalLiveClientOwnState(
                 json["championStats"]?["currentGold"]?.Value<int>() ?? 0,
-                items);
+                items,
+                gameTime ?? 0);
         }
         catch (HttpRequestException)
         {
@@ -72,6 +74,23 @@ internal static class LocalLiveClientDataReader
             return null;
         }
     }
+
+    public static async Task<int?> GetGameTimeSecondsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using HttpResponseMessage response = await Client.GetAsync(
+                "https://127.0.0.1:2999/liveclientdata/gamestats",
+                cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return null;
+            string content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return (int)Math.Max(0, JObject.Parse(content)["gameTime"]?.Value<double>() ?? 0);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
 
-internal sealed record LocalLiveClientOwnState(int CurrentGold, IReadOnlyList<string> Items);
+internal sealed record LocalLiveClientOwnState(int CurrentGold, IReadOnlyList<string> Items, int GameTimeSeconds);

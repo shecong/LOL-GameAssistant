@@ -76,6 +76,7 @@ public sealed class AiGameContextService : IAiGameContextService
                                      session.MyTeam.FirstOrDefault(member => member.Puuid == myPuuid);
         int championId = me?.ChampionId ?? GetCurrentMyActionChampion(session);
         string champion = _championCatalog.GetDisplayName(championId);
+        string role = string.IsNullOrWhiteSpace(me?.AssignedPosition) ? "通用" : me.AssignedPosition;
         var enemies = session.TheirTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         var allies = session.MyTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         string matchup = enemies.FirstOrDefault() ?? "";
@@ -85,10 +86,11 @@ public sealed class AiGameContextService : IAiGameContextService
             Phase = phase,
             Mode = "峡谷选人",
             MyChampion = champion,
-            MyRole = "待选择位置",
+            MyChampionId = championId,
+            MyRole = role,
             AlliedChampions = allies,
             EnemyChampions = enemies,
-            LaneKnowledge = _laneKnowledgeService.GetAdvice(champion, "通用", matchup)
+            LaneKnowledge = _laneKnowledgeService.GetAdvice(champion, role, matchup)
         };
     }
 
@@ -116,8 +118,10 @@ public sealed class AiGameContextService : IAiGameContextService
             Phase = phase,
             Mode = mode,
             MyChampion = champion,
+            MyChampionId = me?.ChampionId ?? 0,
             MyRole = role,
             CurrentGold = ownState?.CurrentGold ?? 0,
+            GameTimeSeconds = ownState?.GameTimeSeconds ?? 0,
             CurrentItems = ownState?.Items ?? Array.Empty<string>(),
             AlliedChampions = allies,
             EnemyChampions = enemies,

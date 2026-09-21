@@ -1,6 +1,7 @@
 using LOL_GameAssistant.Application.Friends;
 using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Application.ApplicationInfo;
+using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.GameData;
@@ -94,6 +95,10 @@ public static class AppCompositionRoot
 
     /// <summary>选人读取和自动禁用、选用服务。</summary>
     public static IChampionSelectService ChampionSelectService { get; } = new LegacyChampionSelectService();
+
+    /// <summary>OP.GG 公开推荐到本机 LCU 符文页和自定义物品集的一键配置。</summary>
+    public static IOpggBuildApplyService OpggBuildApplyService { get; } =
+        new OpggBuildApplyService(LcuRequestSender, ChampionCatalog);
 
     /// <summary>仅读取本机当前玩家实时状态的服务。</summary>
     public static ILiveClientGameStateService LiveClientGameStateService { get; } = new LiveClientGameStateService();

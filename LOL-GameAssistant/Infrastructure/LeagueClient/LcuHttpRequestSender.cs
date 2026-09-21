@@ -36,4 +36,21 @@ public sealed class LcuHttpRequestSender : ILcuRequestSender
             cancellationToken: cancellationToken).ConfigureAwait(false);
         return response != null;
     }
+
+    public async Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
+    {
+        using var client = new HttpClentHelper();
+        using Stream? response = await client.PutAsync(
+            endpoint,
+            body: jsonBody,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return response != null;
+    }
+
+    public async Task<bool> DeleteAsync(string endpoint, CancellationToken cancellationToken = default)
+    {
+        using var client = new HttpClentHelper();
+        using Stream? response = await client.DeleteAsync(endpoint, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return response != null;
+    }
 }

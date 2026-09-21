@@ -25,6 +25,12 @@ public sealed class LegacyGameAssetService : IGameAssetService
         return Game_Api.GetItemNameAsync(itemId);
     }
 
+    public Task<string?> GetSummonerSpellNameAsync(int spellId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Game_Api.GetSpellNameAsync(spellId);
+    }
+
     private static async Task<GameAsset?> CopyAssetAsync(
         Func<Task<Stream>> loadStream,
         CancellationToken cancellationToken)

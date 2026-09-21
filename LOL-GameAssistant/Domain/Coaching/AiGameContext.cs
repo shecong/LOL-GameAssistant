@@ -9,14 +9,18 @@ public sealed class AiGameContext
     public string Phase { get; init; } = "未知";
     public string Mode { get; init; } = "峡谷对局";
     public string MyChampion { get; init; } = "未选择英雄";
+    public int MyChampionId { get; init; }
     public string MyRole { get; init; } = "未知位置";
     public int CurrentGold { get; init; }
+    public int GameTimeSeconds { get; init; }
     public IReadOnlyList<string> CurrentItems { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> AlliedChampions { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> EnemyChampions { get; init; } = Array.Empty<string>();
     public string LaneKnowledge { get; init; } = "暂无匹配到的专项知识点。";
 
     public bool IsAram => Mode.Contains("大乱斗", StringComparison.Ordinal);
+
+    public string GameTimeText => $"{Math.Max(0, GameTimeSeconds) / 60}:{Math.Max(0, GameTimeSeconds) % 60:D2}";
 
     /// <summary>将领域上下文规整为模型请求使用的文本，不暴露身份和认证信息。</summary>
     public string ToPromptText()
@@ -29,6 +33,7 @@ public sealed class AiGameContext
         模式：{Mode}
         我的英雄：{MyChampion}
         位置：{MyRole}
+        游戏时间：{GameTimeText}
         当前金币：{CurrentGold}
         已购装备：{items}
         已知己方英雄：{allies}

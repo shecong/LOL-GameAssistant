@@ -75,6 +75,10 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("championId")]
         public int ChampionId { get; set; }
 
+        /// <summary>匹配系统分配的位置，例如 TOP、JUNGLE、MIDDLE、BOTTOM、UTILITY。</summary>
+        [JsonProperty("assignedPosition")]
+        public string? AssignedPosition { get; set; }
+
         [JsonProperty("summonerId")]
         public long SummonerId { get; set; }
 

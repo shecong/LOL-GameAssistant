@@ -5,6 +5,7 @@ using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Domain.MatchAnalysis;
+using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -16,6 +17,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IGameAssetService _gameAssetService;
         private readonly Label _performanceTag = new();
         private readonly ToolTip _performanceTip = new();
+        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchDetail[]> Details)> RecentDetailCache = new();
+        private static readonly TimeSpan RecentDetailCacheTtl = TimeSpan.FromMinutes(3);
 
         public recordForm() : this(AppCompositionRoot.MatchHistoryService, AppCompositionRoot.GameAssetService)
         {
@@ -74,7 +77,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 this.game_cs.Text = $"补刀 {cs}";
                 this.game_damage.Text = $"伤害 {stats?.totalDamageDealtToChampions ?? 0}";
                 this.game_gold.Text = $"金币 {stats?.goldEarned ?? 0}";
-                ApplyPostGamePerformanceTag(EvaluatePostGamePerformance(_gameDetail, puuid));
+                await ApplyRecentModePerformanceTagAsync(_gameDetail, puuid);
                 ReplaceImage(pic_D, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell1Id)));
                 ReplaceImage(pic_F, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell2Id)));
                 //游戏装备
@@ -96,7 +99,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        /// <summary>将 LCU 战绩 DTO 转换为领域快照后交给纯领域服务评测。</summary>
+        /// <summary>将单局 DTO 转换为领域快照后交给纯领域服务评测。</summary>
         private static MatchPerformanceAssessment EvaluatePostGamePerformance(MatchDetail game, string puuid)
         {
             var snapshots = game.participants
@@ -118,7 +121,76 @@ namespace LOL_GameAssistant.BaseViewForm
             return MatchPerformanceEvaluator.Evaluate(player, snapshots);
         }
 
-        private void ApplyPostGamePerformanceTag(MatchPerformanceAssessment assessment)
+        /// <summary>
+        /// “上/中/下等马”只依据该玩家最近同一模式的已结束战绩，而非当前单局。
+        /// 同一玩家的详情在短时间内共享缓存，首页同时渲染多张卡片不会重复拉取。
+        /// </summary>
+        private async Task ApplyRecentModePerformanceTagAsync(MatchDetail currentGame, string puuid)
+        {
+            string mode = currentGame.GetModeText();
+            MatchDetail[] allRecent = await GetRecentDetailsAsync(puuid);
+            var comparable = allRecent
+                .Where(detail => SameMode(detail, currentGame))
+                .OrderByDescending(detail => detail.gameCreationDate)
+                .Take(12)
+                .ToList();
+            var assessments = new List<MatchPerformanceAssessment>();
+            var wins = new List<bool>();
+            foreach (var detail in comparable)
+            {
+                var participant = detail.GetParticipant(puuid);
+                if (participant?.stats == null) continue;
+                assessments.Add(EvaluatePostGamePerformance(detail, puuid));
+                wins.Add(participant.IsWin());
+            }
+            ApplyPostGamePerformanceTag(RecentModePerformanceEvaluator.Evaluate(mode, assessments, wins));
+        }
+
+        private async Task<MatchDetail[]> GetRecentDetailsAsync(string puuid)
+        {
+            if (RecentDetailCache.TryGetValue(puuid, out var cached) && DateTime.UtcNow - cached.CachedAt < RecentDetailCacheTtl)
+                return await cached.Details;
+
+            Task<MatchDetail[]> task = LoadRecentDetailsAsync(puuid);
+            RecentDetailCache[puuid] = (DateTime.UtcNow, task);
+            try
+            {
+                return await task;
+            }
+            catch
+            {
+                RecentDetailCache.TryRemove(puuid, out _);
+                throw;
+            }
+        }
+
+        private async Task<MatchDetail[]> LoadRecentDetailsAsync(string puuid)
+        {
+            var history = await _matchHistoryService.GetPageAsync(puuid, 0, 29);
+            var heads = history?.Games?.Games
+                .OrderByDescending(game => game.GameCreation)
+                .Take(30)
+                .ToList() ?? new List<MatchHistoryGame>();
+            using var gate = new SemaphoreSlim(4, 4);
+            var tasks = heads.Select(async head =>
+            {
+                await gate.WaitAsync();
+                try { return await _matchHistoryService.GetDetailAsync(head.GameId); }
+                finally { gate.Release(); }
+            }).ToList();
+            return (await Task.WhenAll(tasks)).Where(detail => detail != null).Cast<MatchDetail>().ToArray();
+        }
+
+        private static bool SameMode(MatchDetail candidate, MatchDetail current)
+        {
+            string candidateQueue = candidate.queueId ?? candidate._queueId ?? "";
+            string currentQueue = current.queueId ?? current._queueId ?? "";
+            if (!string.IsNullOrWhiteSpace(candidateQueue) && !string.IsNullOrWhiteSpace(currentQueue))
+                return string.Equals(candidateQueue, currentQueue, StringComparison.Ordinal);
+            return string.Equals(candidate.GetModeText(), current.GetModeText(), StringComparison.Ordinal);
+        }
+
+        private void ApplyPostGamePerformanceTag(RecentModePerformanceAssessment assessment)
         {
             string tag = assessment.Tier switch
             {
@@ -139,7 +211,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 MatchPerformanceTier.Lower => Color.FromArgb(255, 235, 238),
                 _ => Color.FromArgb(245, 245, 245)
             };
-            _performanceTip.SetToolTip(_performanceTag, $"仅评测当前玩家已结束的本局表现 · {assessment.Score} 分\n{assessment.Detail}");
+            _performanceTip.SetToolTip(_performanceTag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");
         }
 
         /// <summary>

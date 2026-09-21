@@ -55,6 +55,7 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
             {
                 CellId = member.CellId,
                 ChampionId = member.ChampionId,
+                AssignedPosition = member.AssignedPosition ?? "",
                 Puuid = member.Puuid ?? ""
             }).ToList();
     }

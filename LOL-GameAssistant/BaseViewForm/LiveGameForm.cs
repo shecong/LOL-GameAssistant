@@ -192,7 +192,9 @@ namespace LOL_GameAssistant.BaseViewForm
                         gameInfo.Team100,
                         gameInfo.Team200,
                         force,
-                        myPuuid);
+                        myPuuid,
+                        gameInfo.QueueId,
+                        gameInfo.GameMode);
                 }
                 else if (phase == GameFlowPhase.InProgress)
                 {
@@ -203,14 +205,17 @@ namespace LOL_GameAssistant.BaseViewForm
                         return;
                     }
 
-                    SetGameInfo("", 0);
+                    string liveGameMode = await AppCompositionRoot.LiveClientGameStateService.GetGameModeAsync() ?? "";
+                    SetGameInfo(liveGameMode, 0);
                     // 对局中通过当前召唤师接口获取 puuid
                     string? myPuuid = await GetMyPuuidAsync();
                     RenderTeams(
                         session.TeamOne,
                         session.TeamTwo,
                         force,
-                        myPuuid);
+                        myPuuid,
+                        0,
+                        liveGameMode);
                 }
                 else
                 {
@@ -259,20 +264,30 @@ namespace LOL_GameAssistant.BaseViewForm
             lblGameInfo.Text = $"{phase}{modeText}{queueText}";
         }
 
-        private void RenderTeams(IReadOnlyList<GameTeamMember> team1, IReadOnlyList<GameTeamMember> team2, bool force, string? myPuuid)
+        private void RenderTeams(
+            IReadOnlyList<GameTeamMember> team1,
+            IReadOnlyList<GameTeamMember> team2,
+            bool force,
+            string? myPuuid,
+            int queueId,
+            string? gameMode)
         {
             RenderTeamsCore(
                 team1.Select(m => (m.Puuid, m.SummonerName, m.ChampionId, m.Position, m.IsBot)).ToList(),
                 team2.Select(m => (m.Puuid, m.SummonerName, m.ChampionId, m.Position, m.IsBot)).ToList(),
                 force,
-                myPuuid);
+                myPuuid,
+                queueId,
+                gameMode);
         }
 
         private void RenderTeamsCore(
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2,
             bool force,
-            string? myPuuid)
+            string? myPuuid,
+            int queueId,
+            string? gameMode)
         {
             string signature = string.Join(
                 ",",
@@ -311,8 +326,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 DisposeChildren(panelTeam1);
                 DisposeChildren(panelTeam2);
 
-                AddPlayerCards(panelTeam1, team1, myPuuid);
-                AddPlayerCards(panelTeam2, team2, myPuuid);
+                AddPlayerCards(panelTeam1, team1, myPuuid, team1Mine, queueId, gameMode);
+                AddPlayerCards(panelTeam2, team2, myPuuid, team2Mine, queueId, gameMode);
             }
             finally
             {
@@ -487,7 +502,10 @@ namespace LOL_GameAssistant.BaseViewForm
         private static void AddPlayerCards(
             FlowLayoutPanel panel,
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members,
-            string? myPuuid)
+            string? myPuuid,
+            bool teamIsAlly,
+            int currentQueueId,
+            string? currentGameMode)
         {
             if (members.Count == 0)
             {
@@ -503,7 +521,7 @@ namespace LOL_GameAssistant.BaseViewForm
             foreach (var member in members)
             {
                 // 同一队 = 我方；未知我方 puuid 时不显示队友/对手标识
-                bool isAlly = myPuuid != null && member.Puuid == myPuuid;
+                bool isAlly = teamIsAlly;
                 bool teamKnown = myPuuid != null;
                 var card = new LivePlayerForm(
                     member.Puuid,
@@ -512,7 +530,9 @@ namespace LOL_GameAssistant.BaseViewForm
                     member.Position,
                     member.IsBot,
                     isAlly,
-                    teamKnown)
+                    teamKnown,
+                    currentQueueId,
+                    currentGameMode)
                 {
                     Width = PlayerCardPreferredWidth,
                     Height = PlayerCardHeight,

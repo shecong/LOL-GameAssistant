@@ -11,6 +11,11 @@ public sealed class CloudAiSettings
     public bool DynamicRefreshEnabled { get; set; }
     public int DynamicRefreshSeconds { get; set; } = 30;
     public bool ShowRecommendationPopup { get; set; }
+    public bool RecommendationOverlayEnabled { get; set; }
+    public string RecommendationOverlayPosition { get; set; } = "BottomLeft";
+    public int RecommendationOverlayOffsetX { get; set; } = 24;
+    public int RecommendationOverlayOffsetY { get; set; } = 48;
+    public int RecommendationOverlayDurationSeconds { get; set; } = 8;
     public bool AnakinEnabled { get; set; }
     public string AnakinEncryptedApiKey { get; set; } = "";
 
@@ -47,6 +52,10 @@ public sealed class CloudAiSettings
         EncryptedApiKey ??= "";
         AnakinEncryptedApiKey ??= "";
         DynamicRefreshSeconds = Math.Clamp(DynamicRefreshSeconds, 15, 600);
+        RecommendationOverlayPosition = string.IsNullOrWhiteSpace(RecommendationOverlayPosition) ? "BottomLeft" : RecommendationOverlayPosition;
+        RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, 0, 600);
+        RecommendationOverlayOffsetY = Math.Clamp(RecommendationOverlayOffsetY, 0, 600);
+        RecommendationOverlayDurationSeconds = Math.Clamp(RecommendationOverlayDurationSeconds, 3, 30);
     }
 }
 

@@ -1,8 +1,10 @@
 ﻿using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.Teams;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -15,6 +17,9 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly MatchDetail _gameInfo;
         private readonly string _puuid;
         private readonly IGameAssetService _gameAssetService;
+        private readonly IPremadeDetectionService _premadeDetectionService;
+        private readonly Dictionary<string, Label> _premadeTagsByPuuid = new(StringComparer.Ordinal);
+        private readonly ToolTip _assetToolTip = new();
 
         /// <summary>点击玩家头像后选中的玩家 puuid（用于跳转战绩查询）。</summary>
         public string? SelectedPlayerPuuid { get; private set; }
@@ -32,8 +37,10 @@ namespace LOL_GameAssistant.BaseViewForm
             _gameInfo = gameInfo;
             _puuid = puuid;
             _gameAssetService = gameAssetService;
+            _premadeDetectionService = AppCompositionRoot.PremadeDetectionService;
             InitializeComponent();
             this.Load += async (_, _) => await LoadDataAsync();
+            Disposed += (_, _) => _assetToolTip.Dispose();
         }
 
         /// <summary>
@@ -106,6 +113,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             flowAlly.Controls.Clear();
             flowEnemy.Controls.Clear();
+            _premadeTagsByPuuid.Clear();
 
             var participants = _gameInfo.participants;
             var identities = _gameInfo.participantIdentities;
@@ -122,6 +130,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 else
                     flowEnemy.Controls.Add(cell);
             }
+
+            _ = DetectPremadesAsync(myTeamId);
         }
 
         /// <summary>
@@ -135,7 +145,7 @@ namespace LOL_GameAssistant.BaseViewForm
             bool win = p.IsWin();
             var panel = new Panel
             {
-                Size = new Size(455, 76),
+                Size = new Size(455, 118),
                 Margin = new Padding(0, 0, 0, 6),
                 BackColor = isMe ? Color.FromArgb(255, 249, 230) : Color.FromArgb(250, 250, 252)
             };
@@ -143,7 +153,7 @@ namespace LOL_GameAssistant.BaseViewForm
             var avatar = new RoundPictureBox
             {
                 Size = new Size(54, 54),
-                Location = new Point(8, 10),
+                Location = new Point(8, 12),
                 BorderWidth = isMe ? 3 : 1,
                 BorderColor = isMe ? Color.FromArgb(255, 193, 7) : Color.FromArgb(120, 255, 255, 255)
             };
@@ -157,8 +167,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (!string.IsNullOrEmpty(playerPuuid))
             {
                 avatar.Cursor = Cursors.Hand;
-                var tip = new ToolTip();
-                tip.SetToolTip(avatar, $"双击查询 {displayName} 的战绩");
+                _assetToolTip.SetToolTip(avatar, $"双击查询 {displayName} 的战绩");
                 avatar.DoubleClick += (_, _) =>
                 {
                     SelectedPlayerPuuid = playerPuuid;
@@ -169,16 +178,16 @@ namespace LOL_GameAssistant.BaseViewForm
             panel.Controls.Add(new Label
             {
                 Text = displayName,
-                Location = new Point(70, 6),
-                Size = new Size(240, 22),
+                Location = new Point(70, 8),
+                Size = new Size(190, 22),
                 Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold),
                 BackColor = Color.Transparent
             });
             var championLabel = new Label
             {
-                Text = GetChampionDisplayName(p.championId),
-                Location = new Point(70, 28),
-                Size = new Size(200, 20),
+                Text = $"{GetChampionDisplayName(p.championId)} · KDA {p.GetKdaText()} ({p.GetKdaRatio()})",
+                Location = new Point(70, 31),
+                Size = new Size(225, 20),
                 Font = new Font("Microsoft YaHei UI", 8.5F),
                 ForeColor = SystemColors.GrayText,
                 BackColor = Color.Transparent
@@ -195,40 +204,149 @@ namespace LOL_GameAssistant.BaseViewForm
             panel.Controls.Add(championLabel);
             panel.Controls.Add(new Label
             {
-                Text = $"KDA {p.GetKdaText()} ({p.GetKdaRatio()})",
-                Location = new Point(70, 48),
-                Size = new Size(200, 20),
-                Font = new Font("Microsoft YaHei UI", 9F),
-                BackColor = Color.Transparent
-            });
-            panel.Controls.Add(new Label
-            {
                 Text = win ? "胜利" : "失败",
-                Location = new Point(330, 6),
-                Size = new Size(80, 22),
+                Location = new Point(365, 8),
+                Size = new Size(72, 22),
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
                 ForeColor = win ? Color.FromArgb(46, 125, 50) : Color.FromArgb(198, 40, 40),
                 BackColor = Color.Transparent
             });
             panel.Controls.Add(new Label
             {
-                Text = $"伤害 {p.stats?.totalDamageDealtToChampions ?? 0}",
-                Location = new Point(330, 30),
-                Size = new Size(120, 20),
+                Text = $"伤害 {p.stats?.totalDamageDealtToChampions ?? 0:N0} · 补刀 {(p.stats?.totalMinionsKilled ?? 0) + (p.stats?.neutralMinionsKilled ?? 0)}",
+                Location = new Point(70, 54),
+                Size = new Size(250, 18),
                 Font = new Font("Microsoft YaHei UI", 8.5F),
                 ForeColor = SystemColors.GrayText,
                 BackColor = Color.Transparent
             });
-            panel.Controls.Add(new Label
+            AddSummonerSpellIcons(panel, p, 300, 30);
+            AddItemIcons(panel, p, 70, 78);
+
+            if (!string.IsNullOrWhiteSpace(playerPuuid))
             {
-                Text = $"补刀 {(p.stats?.totalMinionsKilled ?? 0) + (p.stats?.neutralMinionsKilled ?? 0)}",
-                Location = new Point(330, 50),
-                Size = new Size(120, 20),
-                Font = new Font("Microsoft YaHei UI", 8.5F),
-                ForeColor = SystemColors.GrayText,
-                BackColor = Color.Transparent
-            });
+                var premadeTag = new Label
+                {
+                    AutoSize = false,
+                    BackColor = Color.FromArgb(255, 243, 224),
+                    ForeColor = Color.FromArgb(191, 104, 0),
+                    Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold),
+                    Location = new Point(365, 30),
+                    Size = new Size(70, 20),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Visible = false
+                };
+                panel.Controls.Add(premadeTag);
+                _premadeTagsByPuuid[playerPuuid] = premadeTag;
+            }
             return panel;
+        }
+
+        private void AddSummonerSpellIcons(Panel panel, MatchParticipant participant, int x, int y)
+        {
+            int[] spells = { participant.Spell1Id, participant.Spell2Id };
+            for (int index = 0; index < spells.Length; index++)
+            {
+                var icon = new PictureBox
+                {
+                    Location = new Point(x + index * 28, y),
+                    Size = new Size(24, 24),
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    BackColor = Color.FromArgb(238, 241, 245)
+                };
+                panel.Controls.Add(icon);
+                int spellId = spells[index];
+                _ = LoadSpellIconAsync(icon, spellId);
+            }
+        }
+
+        private void AddItemIcons(Panel panel, MatchParticipant participant, int x, int y)
+        {
+            int[] items =
+            {
+                participant.stats?.item0 ?? 0, participant.stats?.item1 ?? 0, participant.stats?.item2 ?? 0,
+                participant.stats?.item3 ?? 0, participant.stats?.item4 ?? 0, participant.stats?.item5 ?? 0,
+                participant.stats?.item6 ?? 0
+            };
+            for (int index = 0; index < items.Length; index++)
+            {
+                var icon = new PictureBox
+                {
+                    Location = new Point(x + index * 29, y),
+                    Size = new Size(25, 25),
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    BackColor = Color.FromArgb(238, 241, 245)
+                };
+                panel.Controls.Add(icon);
+                int itemId = items[index];
+                _ = LoadItemIconAsync(icon, itemId);
+            }
+        }
+
+        private async Task LoadSpellIconAsync(PictureBox box, int spellId)
+        {
+            if (spellId <= 0) return;
+            Image? image = ToImage(await _gameAssetService.GetSummonerSpellIconAsync(spellId));
+            if (image != null && !box.IsDisposed) box.Image = image;
+            else image?.Dispose();
+            string? name = await _gameAssetService.GetSummonerSpellNameAsync(spellId);
+            if (!box.IsDisposed) _assetToolTip.SetToolTip(box, name ?? $"召唤师技能 {spellId}");
+        }
+
+        private async Task LoadItemIconAsync(PictureBox box, int itemId)
+        {
+            if (itemId <= 0)
+            {
+                _assetToolTip.SetToolTip(box, "空装备栏");
+                return;
+            }
+            Image? image = ToImage(await _gameAssetService.GetItemIconAsync(itemId));
+            if (image != null && !box.IsDisposed) box.Image = image;
+            else image?.Dispose();
+            string? name = await _gameAssetService.GetItemNameAsync(itemId);
+            if (!box.IsDisposed) _assetToolTip.SetToolTip(box, name ?? $"装备 {itemId}");
+        }
+
+        private async Task DetectPremadesAsync(int myTeamId)
+        {
+            try
+            {
+                var teamOne = BuildTeamIdentities(myTeamId);
+                var teamTwo = BuildTeamIdentities(_gameInfo.participants.FirstOrDefault(participant => participant.teamId != myTeamId)?.teamId ?? 0);
+                if (teamOne.Count < 2 || teamTwo.Count < 2) return;
+                var result = await _premadeDetectionService.DetectAsync(teamOne, teamTwo);
+                if (IsDisposed) return;
+                ApplyPremadeResult(result);
+            }
+            catch
+            {
+                if (!IsDisposed)
+                {
+                    lblAllyHeader.Text = "我方 · 组队情况未知";
+                    lblEnemyHeader.Text = "敌方 · 组队情况未知";
+                }
+            }
+        }
+
+        private List<TeamMemberIdentity> BuildTeamIdentities(int teamId) => _gameInfo.participants
+            .Where(participant => participant.teamId == teamId)
+            .Select(participant => _gameInfo.participantIdentities.FirstOrDefault(identity => identity.participantId == participant.participantId)?.player)
+            .Where(player => !string.IsNullOrWhiteSpace(player?.puuid))
+            .Select(player => new TeamMemberIdentity(player!.puuid, player.gameName ?? player.summonerName ?? "玩家"))
+            .ToList();
+
+        private void ApplyPremadeResult(PremadeDetectionResult result)
+        {
+            lblAllyHeader.Text = $"我方 · {result.GetTeamQueueStatus(0)}";
+            lblEnemyHeader.Text = $"敌方 · {result.GetTeamQueueStatus(1)}";
+            foreach (var pair in _premadeTagsByPuuid)
+            {
+                PremadeGroup? group = result.GroupByPuuid.GetValueOrDefault(pair.Key);
+                pair.Value.Visible = group != null;
+                if (group == null) continue;
+                pair.Value.Text = $"开黑 {group.Index}";
+                _assetToolTip.SetToolTip(pair.Value, $"{group.Puuids.Count} 人组队：{string.Join("、", group.Names)}（近期多次同队推断）");
+            }
         }
 
         /// <summary>

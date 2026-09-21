@@ -22,6 +22,9 @@ public sealed class WindowHoldController : IDisposable
     private bool _onlyWhenLeagueFocused = true;
     private bool _holding;
     private bool _topMostBeforeHold;
+    private bool _visibleBeforeHold;
+    private bool _minimizedBeforeHold;
+    private readonly System.Windows.Forms.Timer _releaseWatchdog = new() { Interval = 40 };
     private bool _disposed;
 
     public WindowHoldController(Form window)
@@ -29,6 +32,7 @@ public sealed class WindowHoldController : IDisposable
         _window = window;
         _callback = HookCallback;
         InstallHook();
+        _releaseWatchdog.Tick += (_, _) => RestoreIfKeyReleased();
     }
 
     public void Apply(AssistantSettings config)
@@ -105,16 +109,37 @@ public sealed class WindowHoldController : IDisposable
     {
         if (_window.IsDisposed) return;
         _topMostBeforeHold = _window.TopMost;
+        _visibleBeforeHold = _window.Visible;
+        _minimizedBeforeHold = _window.WindowState == FormWindowState.Minimized;
         if (!_window.Visible) _window.Show();
         if (_window.WindowState == FormWindowState.Minimized)
             _window.WindowState = FormWindowState.Normal;
         _window.TopMost = true;
-        _window.BringToFront();
+        // 不 Activate / BringToFront：否则按下显示时助手会抢走游戏焦点，
+        // 一些键盘驱动也会因此吞掉原按键的 KeyUp。
+        _releaseWatchdog.Start();
     }
 
     private void EndHold()
     {
-        if (!_window.IsDisposed) _window.TopMost = _topMostBeforeHold;
+        _releaseWatchdog.Stop();
+        if (_window.IsDisposed) return;
+        _window.TopMost = _topMostBeforeHold;
+        if (!_visibleBeforeHold)
+            _window.Hide();
+        else if (_minimizedBeforeHold)
+            _window.WindowState = FormWindowState.Minimized;
+    }
+
+    /// <summary>
+    /// KeyUp 被 IME、叠加层或切换前台窗口吞掉时，仍按物理键状态及时恢复。
+    /// </summary>
+    private void RestoreIfKeyReleased()
+    {
+        if (!_holding || _disposed) return;
+        if ((GetAsyncKeyState((int)_hotkey) & 0x8000) != 0) return;
+        _holding = false;
+        EndHold();
     }
 
     private static bool IsLeagueForeground()
@@ -142,6 +167,8 @@ public sealed class WindowHoldController : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _releaseWatchdog.Stop();
+        _releaseWatchdog.Dispose();
         if (_hook != IntPtr.Zero)
         {
             UnhookWindowsHookEx(_hook);
@@ -169,4 +196,7 @@ public sealed class WindowHoldController : IDisposable
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processId);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
 }

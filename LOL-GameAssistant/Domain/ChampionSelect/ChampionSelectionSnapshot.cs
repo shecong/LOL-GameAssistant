@@ -27,5 +27,6 @@ public sealed class ChampionSelectionMember
 {
     public int CellId { get; init; }
     public int ChampionId { get; init; }
+    public string AssignedPosition { get; init; } = "";
     public string Puuid { get; init; } = "";
 }

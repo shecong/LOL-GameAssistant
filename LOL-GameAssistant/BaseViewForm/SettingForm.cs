@@ -42,7 +42,12 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly CheckBox _dynamicRefresh = new() { Text = "游戏中自动刷新建议", AutoSize = true };
         private readonly NumericUpDown _dynamicSeconds = new() { Minimum = 15, Maximum = 600, Width = 100 };
         private readonly CheckBox _showPopup = new() { Text = "建议刷新后弹出提醒", AutoSize = true };
-        private readonly CheckBox _anakinEnabled = new() { Text = "启用 Anakin / OP.GG 预留连接", AutoSize = true };
+        private readonly CheckBox _overlayEnabled = new() { Text = "游戏内显示建议浮窗", AutoSize = true };
+        private readonly ComboBox _overlayPosition = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
+        private readonly NumericUpDown _overlayOffsetX = new() { Minimum = 0, Maximum = 600, Width = 80 };
+        private readonly NumericUpDown _overlayOffsetY = new() { Minimum = 0, Maximum = 600, Width = 80 };
+        private readonly NumericUpDown _overlayDuration = new() { Minimum = 3, Maximum = 30, Width = 80 };
+        private readonly CheckBox _anakinEnabled = new() { Text = "启用旧版 Anakin 连接", AutoSize = true };
         private readonly TextBox _anakinKey = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true, PlaceholderText = "留空则保留已保存的密钥" };
         private bool _clearAiKey;
         private bool _clearAnakinKey;
@@ -253,7 +258,7 @@ namespace LOL_GameAssistant.BaseViewForm
             var messageIntervalPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             messageIntervalPanel.Controls.Add(_quickMessageInterval);
             messageIntervalPanel.Controls.Add(new Label { Text = "秒（2–30）", AutoSize = true, Padding = new Padding(6, 6, 0, 0) });
-            var messageNote = CreateNote("按下快捷键后，程序仅在《英雄联盟》对局窗口位于前台时自动执行“打开聊天框 → 输入预设内容 → 发送”一次。为避免误触，发送之间会受最小间隔限制；不会后台循环刷屏。");
+            var messageNote = CreateNote("按下快捷键后，程序仅在《英雄联盟》对局窗口位于前台时自动执行“打开聊天框 → 通过剪贴板粘贴预设内容 → 发送”一次，确保中文与特殊字符不被输入法吞掉。为避免误触，发送之间会受最小间隔限制；不会后台循环刷屏。");
 
             AddSegmentRow(layout, 0, "窗口透明度：", opacityPanel);
             AddSegmentRow(layout, 1, "按住置顶键：", _hotkey);
@@ -308,6 +313,17 @@ namespace LOL_GameAssistant.BaseViewForm
             refreshPanel.Controls.Add(new Label { Text = "间隔（秒）", AutoSize = true, Padding = new Padding(10, 5, 0, 0) });
             refreshPanel.Controls.Add(_dynamicSeconds);
 
+            _showPopup.Text = "兼容旧版弹窗提醒";
+            _overlayPosition.Items.AddRange(new object[] { "左下", "左上", "右下", "右上", "屏幕中央" });
+            var overlayOffsetPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+            overlayOffsetPanel.Controls.Add(new Label { Text = "横向", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
+            overlayOffsetPanel.Controls.Add(_overlayOffsetX);
+            overlayOffsetPanel.Controls.Add(new Label { Text = "纵向", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
+            overlayOffsetPanel.Controls.Add(_overlayOffsetY);
+            overlayOffsetPanel.Controls.Add(new Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
+            overlayOffsetPanel.Controls.Add(_overlayDuration);
+            var overlayNote = CreateNote("浮窗默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
+
             var clearAnakinButton = new Button { Text = "清除已保存密钥", AutoSize = true, Dock = DockStyle.Right };
             clearAnakinButton.Click += (_, _) =>
             {
@@ -317,7 +333,7 @@ namespace LOL_GameAssistant.BaseViewForm
             var anakinPanel = new Panel { Dock = DockStyle.Fill, Height = 32 };
             anakinPanel.Controls.Add(_anakinKey);
             anakinPanel.Controls.Add(clearAnakinButton);
-            var anakinNote = CreateNote("Anakin 当前 OP.GG 动作没有英雄、符文或出装数据；此项仅保存未来可用的连接，不会用于抓取或自动配置客户端。API Key 会使用当前 Windows 用户的 DPAPI 加密保存。");
+            var anakinNote = CreateNote("OP.GG 一键配置无需 Anakin Key：在“智能建议”页选定英雄后，点击“OP.GG 一键配置当前英雄”即可写入符文与自定义物品集。此项仅兼容保留旧配置；API Key 会使用当前 Windows 用户的 DPAPI 加密保存。");
 
             AddSegmentRow(layout, 0, "云端 AI：", _aiEnabled);
             AddSegmentRow(layout, 1, "服务商：", providerPanel);
@@ -326,11 +342,15 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 4, "API Key：", keyPanel);
             AddSegmentRow(layout, 5, "密钥状态：", _apiKeyStatus);
             AddSegmentRow(layout, 6, "动态建议：", refreshPanel);
-            AddSegmentRow(layout, 7, "提示方式：", _showPopup);
-            AddSegmentRow(layout, 8, "OP.GG 连接：", _anakinEnabled);
-            AddSegmentRow(layout, 9, "Anakin Key：", anakinPanel);
-            AddSegmentRow(layout, 10, "说明：", anakinNote);
-            AddSaveRow(layout, 11, "保存 AI 设置");
+            AddSegmentRow(layout, 7, "旧版提醒：", _showPopup);
+            AddSegmentRow(layout, 8, "游戏内浮窗：", _overlayEnabled);
+            AddSegmentRow(layout, 9, "浮窗位置：", _overlayPosition);
+            AddSegmentRow(layout, 10, "位置与时长：", overlayOffsetPanel);
+            AddSegmentRow(layout, 11, "浮窗说明：", overlayNote);
+            AddSegmentRow(layout, 12, "旧版连接：", _anakinEnabled);
+            AddSegmentRow(layout, 13, "旧版 Key：", anakinPanel);
+            AddSegmentRow(layout, 14, "说明：", anakinNote);
+            AddSaveRow(layout, 15, "保存 AI 设置");
             return panel;
         }
 
@@ -414,6 +434,11 @@ namespace LOL_GameAssistant.BaseViewForm
             _dynamicRefresh.Checked = ai.DynamicRefreshEnabled;
             _dynamicSeconds.Value = ai.DynamicRefreshSeconds;
             _showPopup.Checked = ai.ShowRecommendationPopup;
+            _overlayEnabled.Checked = ai.RecommendationOverlayEnabled;
+            _overlayPosition.SelectedIndex = OverlayPositionToIndex(ai.RecommendationOverlayPosition);
+            _overlayOffsetX.Value = ai.RecommendationOverlayOffsetX;
+            _overlayOffsetY.Value = ai.RecommendationOverlayOffsetY;
+            _overlayDuration.Value = ai.RecommendationOverlayDurationSeconds;
             _anakinEnabled.Checked = ai.AnakinEnabled;
             _apiKeyStatus.Text = string.IsNullOrWhiteSpace(ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
         }
@@ -443,6 +468,11 @@ namespace LOL_GameAssistant.BaseViewForm
             ai.DynamicRefreshEnabled = _dynamicRefresh.Checked;
             ai.DynamicRefreshSeconds = (int)_dynamicSeconds.Value;
             ai.ShowRecommendationPopup = _showPopup.Checked;
+            ai.RecommendationOverlayEnabled = _overlayEnabled.Checked;
+            ai.RecommendationOverlayPosition = IndexToOverlayPosition(_overlayPosition.SelectedIndex);
+            ai.RecommendationOverlayOffsetX = (int)_overlayOffsetX.Value;
+            ai.RecommendationOverlayOffsetY = (int)_overlayOffsetY.Value;
+            ai.RecommendationOverlayDurationSeconds = (int)_overlayDuration.Value;
             ai.AnakinEnabled = _anakinEnabled.Checked;
             if (_clearAiKey) ai.EncryptedApiKey = "";
             else if (!string.IsNullOrWhiteSpace(_apiKey.Text)) ai.EncryptedApiKey = _settingsSecretProtector.Protect(_apiKey.Text);
@@ -505,6 +535,24 @@ namespace LOL_GameAssistant.BaseViewForm
             e.SuppressKeyPress = true;
             e.Handled = true;
         }
+
+        private static int OverlayPositionToIndex(string? value) => value switch
+        {
+            "TopLeft" => 1,
+            "BottomRight" => 2,
+            "TopRight" => 3,
+            "Center" => 4,
+            _ => 0
+        };
+
+        private static string IndexToOverlayPosition(int index) => index switch
+        {
+            1 => "TopLeft",
+            2 => "BottomRight",
+            3 => "TopRight",
+            4 => "Center",
+            _ => "BottomLeft"
+        };
 
         private void ApplyProviderDefaults()
         {

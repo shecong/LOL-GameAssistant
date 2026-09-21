@@ -15,4 +15,6 @@ public interface IGameAssetService
     Task<GameAsset?> GetSummonerSpellIconAsync(int spellId, CancellationToken cancellationToken = default);
 
     Task<string?> GetItemNameAsync(int itemId, CancellationToken cancellationToken = default);
+
+    Task<string?> GetSummonerSpellNameAsync(int spellId, CancellationToken cancellationToken = default);
 }

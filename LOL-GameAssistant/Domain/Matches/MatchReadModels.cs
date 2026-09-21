@@ -20,6 +20,8 @@ public sealed class MatchHistoryGame
 {
     public long GameId { get; set; }
     public long GameCreation { get; set; }
+    public string GameMode { get; set; } = "";
+    public int QueueId { get; set; }
     public List<MatchIdentity> ParticipantIdentities { get; set; } = new();
 }
 

@@ -9,9 +9,12 @@ public sealed class LiveClientGameStateService : ILiveClientGameStateService
     public async Task<LivePlayerState?> GetOwnStateAsync(CancellationToken cancellationToken = default)
     {
         LocalLiveClientOwnState? state = await LocalLiveClientDataReader.GetOwnStateAsync(cancellationToken).ConfigureAwait(false);
-        return state == null ? null : new LivePlayerState(state.CurrentGold, state.Items);
+        return state == null ? null : new LivePlayerState(state.CurrentGold, state.Items, state.GameTimeSeconds);
     }
 
     public Task<string?> GetGameModeAsync(CancellationToken cancellationToken = default) =>
         LocalLiveClientDataReader.GetGameModeAsync(cancellationToken);
+
+    public Task<int?> GetGameTimeSecondsAsync(CancellationToken cancellationToken = default) =>
+        LocalLiveClientDataReader.GetGameTimeSecondsAsync(cancellationToken);
 }

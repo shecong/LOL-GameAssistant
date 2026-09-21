@@ -24,6 +24,8 @@ internal static class LegacyMatchReadModelMapper
                     {
                         GameId = item.GameId,
                         GameCreation = item.GameCreation,
+                        GameMode = item.GameMode ?? "",
+                        QueueId = item.QueueId,
                         ParticipantIdentities = (item.ParticipantIdentities ?? new List<GameHeadModel.ParticipantIdentity>())
                             .Select(identity => new MatchIdentity
                             {

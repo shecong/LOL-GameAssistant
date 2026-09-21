@@ -1,4 +1,5 @@
 using LOL_GameAssistant.Application.Coaching;
+using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.Settings;
@@ -13,27 +14,42 @@ public sealed class CoachForm : UserControl
     private readonly System.Windows.Forms.Timer _refreshTimer = new();
     private readonly Label _status = new() { AutoSize = true, ForeColor = Color.DimGray };
     private readonly Button _refresh = new() { Text = "获取当前建议", AutoSize = true };
+    private readonly Button _applyOpgg = new() { Text = "OP.GG 一键配置当前英雄", AutoSize = true };
     private readonly RichTextBox _validation = new() { Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.FixedSingle, BackColor = Color.WhiteSmoke };
     private readonly RichTextBox _recommendation = new() { Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
     private readonly IAiCoachingService _aiCoachingService;
     private readonly IApplicationSettingsStore _settingsStore;
+    private readonly IOpggBuildApplyService _opggBuildApplyService;
+    private readonly RecommendationOverlayForm _overlay = new();
     private bool _refreshing;
     private DateTime _lastRefreshAt = DateTime.MinValue;
 
-    public CoachForm() : this(AppCompositionRoot.AiCoachingService, AppCompositionRoot.ApplicationSettingsStore)
+    public CoachForm() : this(
+        AppCompositionRoot.AiCoachingService,
+        AppCompositionRoot.ApplicationSettingsStore,
+        AppCompositionRoot.OpggBuildApplyService)
     {
     }
 
     /// <summary>教练面板经由应用端口读取上下文与云端建议。</summary>
-    internal CoachForm(IAiCoachingService aiCoachingService, IApplicationSettingsStore settingsStore)
+    internal CoachForm(
+        IAiCoachingService aiCoachingService,
+        IApplicationSettingsStore settingsStore,
+        IOpggBuildApplyService opggBuildApplyService)
     {
         _aiCoachingService = aiCoachingService;
         _settingsStore = settingsStore;
+        _opggBuildApplyService = opggBuildApplyService;
         Dock = DockStyle.Fill;
         BuildUi();
         _refresh.Click += async (_, _) => await RefreshRecommendationAsync(manual: true);
+        _applyOpgg.Click += async (_, _) => await ApplyOpggBuildAsync();
         _refreshTimer.Tick += async (_, _) => await RefreshRecommendationAsync(manual: false);
-        Disposed += (_, _) => _refreshTimer.Dispose();
+        Disposed += (_, _) =>
+        {
+            _refreshTimer.Dispose();
+            _overlay.Dispose();
+        };
     }
 
     public void ConfigureAi(CloudAiSettings ai)
@@ -65,10 +81,9 @@ public sealed class CoachForm : UserControl
                 ? $"已由 {config.Ai.Provider} 更新 · {_lastRefreshAt:HH:mm:ss}"
                 : $"本地建议 · {_lastRefreshAt:HH:mm:ss}";
 
-            if (!manual && config.Ai.ShowRecommendationPopup && ParentForm != null)
-            {
-                AntdUI.Message.info(ParentForm, "装备与对线建议已刷新");
-            }
+            if (string.Equals(result.Context.Phase, "InProgress", StringComparison.OrdinalIgnoreCase) &&
+                (config.Ai.RecommendationOverlayEnabled || config.Ai.ShowRecommendationPopup))
+                _overlay.ShowRecommendation(result.Recommendation, config.Ai);
         }
         catch (Exception ex)
         {
@@ -85,6 +100,38 @@ public sealed class CoachForm : UserControl
         }
     }
 
+    private async Task ApplyOpggBuildAsync()
+    {
+        if (_refreshing || IsDisposed) return;
+        _applyOpgg.Enabled = false;
+        _status.ForeColor = Color.DimGray;
+        _status.Text = "正在从 OP.GG 获取符文与出装，并写入 LOL 客户端…";
+        try
+        {
+            var context = await _aiCoachingService.CollectContextAsync();
+            if (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
+            {
+                _status.ForeColor = Color.DarkGoldenrod;
+                _status.Text = "请在英雄选择阶段并锁定英雄后使用一键配置。";
+                return;
+            }
+
+            OpggBuildApplyResult result = await _opggBuildApplyService
+                .ApplyForChampionAsync(context.MyChampionId, context.MyRole);
+            _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
+            _status.Text = result.Message;
+        }
+        catch (Exception ex)
+        {
+            _status.ForeColor = Color.Firebrick;
+            _status.Text = "OP.GG 一键配置失败：" + ex.Message;
+        }
+        finally
+        {
+            if (!IsDisposed) _applyOpgg.Enabled = true;
+        }
+    }
+
     private void BuildUi()
     {
         var header = new FlowLayoutPanel
@@ -95,6 +142,7 @@ public sealed class CoachForm : UserControl
             WrapContents = false
         };
         header.Controls.Add(_refresh);
+        header.Controls.Add(_applyOpgg);
         header.Controls.Add(_status);
         _status.Padding = new Padding(8, 6, 0, 0);
 

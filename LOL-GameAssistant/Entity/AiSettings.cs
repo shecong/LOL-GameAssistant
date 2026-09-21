@@ -33,7 +33,22 @@ public class AiSettings
     [JsonProperty("showRecommendationPopup")]
     public bool ShowRecommendationPopup { get; set; }
 
-    /// <summary>Anakin 仅作为未来 OP.GG 数据动作的可选连接，不参与当前推荐。</summary>
+    [JsonProperty("recommendationOverlayEnabled")]
+    public bool RecommendationOverlayEnabled { get; set; }
+
+    [JsonProperty("recommendationOverlayPosition")]
+    public string RecommendationOverlayPosition { get; set; } = "BottomLeft";
+
+    [JsonProperty("recommendationOverlayOffsetX")]
+    public int RecommendationOverlayOffsetX { get; set; } = 24;
+
+    [JsonProperty("recommendationOverlayOffsetY")]
+    public int RecommendationOverlayOffsetY { get; set; } = 48;
+
+    [JsonProperty("recommendationOverlayDurationSeconds")]
+    public int RecommendationOverlayDurationSeconds { get; set; } = 8;
+
+    /// <summary>兼容旧版 Anakin 连接配置；当前 OP.GG 一键配置不依赖它。</summary>
     [JsonProperty("anakinEnabled")]
     public bool AnakinEnabled { get; set; }
 
@@ -74,6 +89,10 @@ public class AiSettings
         EncryptedApiKey ??= "";
         AnakinEncryptedApiKey ??= "";
         DynamicRefreshSeconds = Math.Clamp(DynamicRefreshSeconds, 15, 600);
+        RecommendationOverlayPosition = string.IsNullOrWhiteSpace(RecommendationOverlayPosition) ? "BottomLeft" : RecommendationOverlayPosition;
+        RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, 0, 600);
+        RecommendationOverlayOffsetY = Math.Clamp(RecommendationOverlayOffsetY, 0, 600);
+        RecommendationOverlayDurationSeconds = Math.Clamp(RecommendationOverlayDurationSeconds, 3, 30);
     }
 }
 

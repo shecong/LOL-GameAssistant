@@ -6,6 +6,7 @@ using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Players;
 using System.Drawing.Drawing2D;
 
@@ -26,11 +27,14 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly bool _isBot;
         private readonly bool _isAlly;
         private readonly bool _teamKnown;
+        private readonly int _currentQueueId;
+        private readonly string _currentGameMode;
         private readonly Color _teamColor;
         private const int RecentGamesCount = 10;
         private Image? _ownedProfileImage;
         private ToolTip? _premadeTip;
         private ToolTip? _copyTip;
+        private readonly ToolTip _performanceTip = new();
         private readonly bool _showCopyButton;
 
         /// <summary>当前卡片对应玩家的 puuid（供开黑检测结果回填）。</summary>
@@ -57,7 +61,9 @@ namespace LOL_GameAssistant.BaseViewForm
             string? position = null,
             bool isBot = false,
             bool isAlly = false,
-            bool teamKnown = false)
+            bool teamKnown = false,
+            int currentQueueId = 0,
+            string? currentGameMode = null)
             : this(
                 playerPuuid,
                 fallbackName,
@@ -66,6 +72,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 isBot,
                 isAlly,
                 teamKnown,
+                currentQueueId,
+                currentGameMode,
                 AppCompositionRoot.PlayerProfileService,
                 AppCompositionRoot.ProfileIconService,
                 AppCompositionRoot.MatchHistoryService,
@@ -82,6 +90,8 @@ namespace LOL_GameAssistant.BaseViewForm
             bool isBot,
             bool isAlly,
             bool teamKnown,
+            int currentQueueId,
+            string? currentGameMode,
             IPlayerProfileService playerProfileService,
             IProfileIconService profileIconService,
             IMatchHistoryService matchHistoryService,
@@ -102,6 +112,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _isBot = isBot;
             _isAlly = isAlly;
             _teamKnown = teamKnown;
+            _currentQueueId = currentQueueId;
+            _currentGameMode = currentGameMode ?? "";
             _teamColor = !teamKnown || isAlly
                 ? Color.FromArgb(30, 136, 229)
                 : Color.FromArgb(211, 47, 47);
@@ -148,6 +160,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _ownedProfileImage?.Dispose();
                 _copyTip?.Dispose();
                 _premadeTip?.Dispose();
+                _performanceTip.Dispose();
             };
 
             this.MouseEnter += (_, _) => StartGlow(true);
@@ -377,7 +390,7 @@ namespace LOL_GameAssistant.BaseViewForm
             int wins = results.Count(r => r.gamer.IsWin());
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
-            lblSummary.Text = results.Count > 0 ? $"近{results.Count}场 {wins}胜{losses}负 · {rate}%" : "暂无战绩";
+            ApplyLivePerformanceTag(results, wins, losses, rate);
 
             // 清掉加载微光，手工定位渲染战绩行（新→旧）
             panelMatches.Controls.Clear();
@@ -398,6 +411,71 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             panelMatches.AutoScrollMinSize = new Size(panelMatches.ClientSize.Width, y);
             ResizeMatchRows();
+        }
+
+        /// <summary>对局页标签只统计与当前队列/模式相同的近期已结束战绩。</summary>
+        private void ApplyLivePerformanceTag(
+            IReadOnlyList<(MatchDetail detail, MatchParticipant gamer)> results,
+            int allWins,
+            int allLosses,
+            double allRate)
+        {
+            var comparable = results.Where(result => IsComparableMode(result.detail)).Take(12).ToList();
+            if (comparable.Count == 0)
+            {
+                lblSummary.Text = results.Count > 0
+                    ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
+                    : "暂无战绩";
+                _performanceTip.SetToolTip(lblSummary, "未识别到当前队列，暂不进行上/中/下等马判定。");
+                return;
+            }
+
+            var assessments = comparable.Select(result => EvaluateGamePerformance(result.detail, _playerPuuid!)).ToList();
+            var assessment = RecentModePerformanceEvaluator.Evaluate(
+                comparable[0].detail.GetModeText(),
+                assessments,
+                comparable.Select(result => result.gamer.IsWin()));
+            string label = assessment.Tier switch
+            {
+                MatchPerformanceTier.Upper => "上等马",
+                MatchPerformanceTier.Lower => "下等马",
+                _ => "中等马"
+            };
+            lblSummary.Text = $"{label} · {assessment.WinRate:F0}%";
+            lblSummary.ForeColor = assessment.Tier switch
+            {
+                MatchPerformanceTier.Upper => Color.FromArgb(27, 94, 32),
+                MatchPerformanceTier.Lower => Color.FromArgb(183, 28, 28),
+                _ => Color.FromArgb(85, 85, 85)
+            };
+            _performanceTip.SetToolTip(lblSummary, assessment.Detail);
+        }
+
+        private bool IsComparableMode(MatchDetail detail)
+        {
+            if (_currentQueueId > 0)
+                return int.TryParse(detail.queueId ?? detail._queueId, out int queueId) && queueId == _currentQueueId;
+            return !string.IsNullOrWhiteSpace(_currentGameMode) &&
+                   string.Equals(detail.gameMode, _currentGameMode, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static MatchPerformanceAssessment EvaluateGamePerformance(MatchDetail game, string puuid)
+        {
+            var snapshots = game.participants
+                .Where(participant => participant.stats != null)
+                .Select(participant => new MatchPerformanceSnapshot(
+                    game.participantIdentities.FirstOrDefault(identity => identity.participantId == participant.participantId)?.player?.puuid
+                        ?? $"participant-{participant.participantId}",
+                    participant.teamId,
+                    participant.IsWin(),
+                    participant.stats!.kills,
+                    participant.stats.deaths,
+                    participant.stats.assists,
+                    participant.stats.totalDamageDealtToChampions,
+                    participant.stats.goldEarned,
+                    participant.stats.visionScore))
+                .ToList();
+            return MatchPerformanceEvaluator.Evaluate(snapshots.FirstOrDefault(item => item.PlayerId == puuid), snapshots);
         }
 
         private void ShowShimmer()

@@ -50,7 +50,7 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
     {
         if (m.Msg == WmHotkey && m.WParam == (IntPtr)HotkeyId)
         {
-            SendOnce();
+            _ = SendOnceAsync();
             return;
         }
         base.WndProc(ref m);
@@ -59,7 +59,7 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
     /// <summary>
     /// 由用户热键触发一次发送。通过前台窗口验证和最小间隔避免向错误程序或连续误触发送内容。
     /// </summary>
-    private void SendOnce()
+    private async Task SendOnceAsync()
     {
         if (string.IsNullOrWhiteSpace(_message)) return;
 
@@ -78,12 +78,43 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
             return;
         }
 
-        // LOL 默认 Enter 打开聊天框，再按一次 Enter 提交；字符使用 Unicode 输入，支持中文。
+        // 游戏对 Unicode SendInput 的支持因输入法/渲染后端而异，中文尤其常被吞。
+        // 使用剪贴板粘贴可保持中文、英文和特殊字符完整，仍只在用户主动按下热键时发送一次。
         SendVirtualKey((ushort)Keys.Enter);
-        SendUnicodeText(_message);
+        await Task.Delay(70).ConfigureAwait(true);
+        if (!TryPasteText(_message))
+        {
+            GameMain.infoMsg.AddMsg("快捷弹幕未发送：无法写入剪贴板。");
+            return;
+        }
+        await Task.Delay(45).ConfigureAwait(true);
         SendVirtualKey((ushort)Keys.Enter);
         _lastSentAtUtc = now;
         GameMain.infoMsg.AddMsg("快捷弹幕已发送。");
+    }
+
+    private static bool TryPasteText(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+            var inputs = new[]
+            {
+                CreateKeyboardInput((ushort)Keys.ControlKey, 0, 0),
+                CreateKeyboardInput((ushort)Keys.V, 0, 0),
+                CreateKeyboardInput((ushort)Keys.V, 0, KeyEventFKeyUp),
+                CreateKeyboardInput((ushort)Keys.ControlKey, 0, KeyEventFKeyUp)
+            };
+            return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == inputs.Length;
+        }
+        catch (ExternalException)
+        {
+            return false;
+        }
+        catch (ThreadStateException)
+        {
+            return false;
+        }
     }
 
     /// <summary>只允许向实际对局进程写入按键，避免热键在其它应用前台时误发送。</summary>

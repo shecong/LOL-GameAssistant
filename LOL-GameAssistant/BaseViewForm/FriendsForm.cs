@@ -209,7 +209,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _friend = friend;
                 _spectateService = spectateService;
                 _profileIconService = profileIconService;
-                Height = 82;
+                Height = 78;
                 Margin = new Padding(6);
                 Padding = new Padding(8);
                 BackColor = Color.White;
@@ -264,24 +264,17 @@ namespace LOL_GameAssistant.BaseViewForm
                     Size = new Size(140, 18),
                     Font = new Font("Microsoft YaHei UI", 8F),
                     ForeColor = Color.FromArgb(117, 117, 117),
-                    Text = canSpectate ? "对局中，可发起观战" : canQuery ? "双击卡片查看战绩" : "暂无可用操作",
+                    Text = canSpectate ? "对局中 · 可发起观战" : canQuery ? "暂未开局 · 双击头像查看战绩" : "暂无可用操作",
                     TextAlign = ContentAlignment.MiddleRight,
                     BackColor = Color.Transparent,
                     Cursor = Cursor
                 };
                 Controls.Add(actionLabel);
 
-                var queryButton = CreateActionButton("战绩", Color.FromArgb(30, 136, 229));
-                queryButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                queryButton.Location = new Point(Width - 158, 14);
-                queryButton.Enabled = canQuery;
-                queryButton.Click += (_, _) => OpenBattleQuery();
-                Controls.Add(queryButton);
-
-                var spectateButton = CreateActionButton("观战", Color.FromArgb(123, 31, 162));
+                var spectateButton = CreateActionButton(canSpectate ? "观战" : "无对局", canSpectate ? Color.FromArgb(123, 31, 162) : Color.FromArgb(144, 164, 174));
                 spectateButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                spectateButton.Location = new Point(Width - 82, 14);
-                spectateButton.Enabled = canSpectate;
+                spectateButton.Location = new Point(Width - 92, 14);
+                spectateButton.Enabled = canQuery;
                 spectateButton.Click += async (_, _) => await StartSpectateAsync(gameId, spectateButton, actionLabel);
                 Controls.Add(spectateButton);
 
@@ -292,7 +285,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 toolTip.SetToolTip(nameLabel, BuildToolTip(displayName, note));
                 toolTip.SetToolTip(statusLabel, BuildToolTip(displayName, note));
 
-                AttachDoubleClick(this);
+                AttachDoubleClick(avatar);
                 MouseEnter += (_, _) => BackColor = Color.FromArgb(235, 242, 252);
                 MouseLeave += (_, _) => BackColor = Color.White;
             }
@@ -306,7 +299,6 @@ namespace LOL_GameAssistant.BaseViewForm
 
             private void AttachDoubleClick(Control control)
             {
-                if (control is Button) return;
                 control.DoubleClick += (_, _) => OpenBattleQuery();
                 foreach (Control child in control.Controls)
                 {
@@ -324,7 +316,13 @@ namespace LOL_GameAssistant.BaseViewForm
             /// <summary>用户点击观战按钮后才调用 LCU，不会自动观战任何好友。</summary>
             private async Task StartSpectateAsync(long gameId, Button button, Label actionLabel)
             {
-                if (_spectating || string.IsNullOrWhiteSpace(_friend.Puuid) || gameId <= 0) return;
+                if (_spectating || string.IsNullOrWhiteSpace(_friend.Puuid)) return;
+                if (gameId <= 0 || !_friend.CanSpectate)
+                {
+                    actionLabel.Text = "好友当前没有可观战对局";
+                    AntdUI.Message.info(FindForm() ?? Program.GameMain, "好友当前没有正在进行的可观战对局。");
+                    return;
+                }
                 _spectating = true;
                 button.Enabled = false;
                 actionLabel.Text = "正在向客户端发起观战...";

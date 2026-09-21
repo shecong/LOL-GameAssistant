@@ -13,4 +13,10 @@ public interface ILcuRequestSender
     Task<byte[]?> GetBytesAsync(string endpoint, CancellationToken cancellationToken = default);
 
     Task<bool> PostAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default);
+
+    /// <summary>向 LCU 覆盖写入一个 JSON 资源。</summary>
+    Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default);
+
+    /// <summary>删除一个 LCU 资源。调用方仅可删除自己创建、且明确标识过的资源。</summary>
+    Task<bool> DeleteAsync(string endpoint, CancellationToken cancellationToken = default);
 }

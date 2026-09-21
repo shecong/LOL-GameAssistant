@@ -86,6 +86,11 @@ internal static class LegacySettingsMapper
         DynamicRefreshEnabled = source.DynamicRefreshEnabled,
         DynamicRefreshSeconds = source.DynamicRefreshSeconds,
         ShowRecommendationPopup = source.ShowRecommendationPopup,
+        RecommendationOverlayEnabled = source.RecommendationOverlayEnabled,
+        RecommendationOverlayPosition = source.RecommendationOverlayPosition,
+        RecommendationOverlayOffsetX = source.RecommendationOverlayOffsetX,
+        RecommendationOverlayOffsetY = source.RecommendationOverlayOffsetY,
+        RecommendationOverlayDurationSeconds = source.RecommendationOverlayDurationSeconds,
         AnakinEnabled = source.AnakinEnabled,
         AnakinEncryptedApiKey = source.AnakinEncryptedApiKey
     };
@@ -100,6 +105,11 @@ internal static class LegacySettingsMapper
         DynamicRefreshEnabled = source.DynamicRefreshEnabled,
         DynamicRefreshSeconds = source.DynamicRefreshSeconds,
         ShowRecommendationPopup = source.ShowRecommendationPopup,
+        RecommendationOverlayEnabled = source.RecommendationOverlayEnabled,
+        RecommendationOverlayPosition = source.RecommendationOverlayPosition,
+        RecommendationOverlayOffsetX = source.RecommendationOverlayOffsetX,
+        RecommendationOverlayOffsetY = source.RecommendationOverlayOffsetY,
+        RecommendationOverlayDurationSeconds = source.RecommendationOverlayDurationSeconds,
         AnakinEnabled = source.AnakinEnabled,
         AnakinEncryptedApiKey = source.AnakinEncryptedApiKey
     };
