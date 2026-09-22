@@ -1,6 +1,7 @@
 ﻿using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 using System.Collections.Concurrent;
+using Newtonsoft.Json.Linq;
 
 namespace LOL_GameAssistant.LoLApi
 {
@@ -35,6 +36,10 @@ namespace LOL_GameAssistant.LoLApi
         /// 装备/技能数据加载互斥门。
         /// </summary>
         private static readonly SemaphoreSlim DataGate = new SemaphoreSlim(1, 1);
+
+        /// <summary>Data Dragon 符文 ID 到图标相对路径的只读缓存。</summary>
+        private static readonly SemaphoreSlim RuneDataGate = new SemaphoreSlim(1, 1);
+        private static IReadOnlyDictionary<int, string>? RuneIconPaths;
 
         /// <summary>
         /// 对局详情内存缓存，避免对同一场对局重复请求。
@@ -184,6 +189,62 @@ namespace LOL_GameAssistant.LoLApi
             HttpClentHelper client = new HttpClentHelper();
             Stream? responseStream = await client.GetAsync(path).ConfigureAwait(false);
             return responseStream ?? Stream.Null;
+        }
+
+        /// <summary>
+        /// 获取符文图标。OP.GG 返回的是符文 ID，而客户端装备资源不包含其展示路径，
+        /// 所以从 Data Dragon 的 runesReforged 索引一次性解析路径后再按需加载图标。
+        /// </summary>
+        public static async Task<Stream> GetGameRuneImg(int perkId)
+        {
+            if (perkId <= 0) return Stream.Null;
+            IReadOnlyDictionary<int, string> paths = await GetRuneIconPathsAsync().ConfigureAwait(false);
+            if (!paths.TryGetValue(perkId, out string? iconPath) || string.IsNullOrWhiteSpace(iconPath))
+                return Stream.Null;
+
+            HttpClentHelper client = new HttpClentHelper();
+            // 符文图片位于 Data Dragon 的共享 /cdn/img/perk-images 目录，
+            // 并不像英雄/装备一样放在版本化的 /cdn/{version}/img 路径下。
+            Stream? responseStream = await client.GetAsync(
+                $"https://ddragon.leagueoflegends.com/cdn/img/{iconPath.TrimStart('/')}").ConfigureAwait(false);
+            return responseStream ?? Stream.Null;
+        }
+
+        private static async Task<IReadOnlyDictionary<int, string>> GetRuneIconPathsAsync()
+        {
+            if (RuneIconPaths is { Count: > 0 } cached) return cached;
+
+            await RuneDataGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (RuneIconPaths is { Count: > 0 } loaded) return loaded;
+
+                HttpClentHelper client = new HttpClentHelper();
+                using Stream? stream = await client.GetAsync(
+                    $"https://ddragon.leagueoflegends.com/cdn/{gameversion}/data/zh_CN/runesReforged.json").ConfigureAwait(false);
+                if (stream == null || stream == Stream.Null) return new Dictionary<int, string>();
+
+                JArray? styles = await stream.ReadAsJsonAsync<JArray>().ConfigureAwait(false);
+                if (styles == null) return new Dictionary<int, string>();
+
+                var resolved = new Dictionary<int, string>();
+                foreach (JObject rune in styles
+                    .OfType<JObject>()
+                    .SelectMany(style => style["slots"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+                    .SelectMany(slot => slot["runes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>()))
+                {
+                    int id = rune.Value<int?>("id") ?? 0;
+                    string? icon = rune.Value<string>("icon");
+                    if (id > 0 && !string.IsNullOrWhiteSpace(icon)) resolved[id] = icon;
+                }
+
+                if (resolved.Count > 0) RuneIconPaths = resolved;
+                return resolved;
+            }
+            finally
+            {
+                RuneDataGate.Release();
+            }
         }
 
         /// <summary>

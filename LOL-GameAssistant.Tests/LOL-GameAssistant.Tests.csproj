@@ -11,8 +11,15 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\MatchPerformanceEvaluator.cs" Link="Domain\MatchPerformanceEvaluator.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Matches\MatchReadModels.cs" Link="Domain\MatchReadModels.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\GameData\ChampionReference.cs" Link="Domain\GameData\ChampionReference.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\Builds\IOpggBuildApplyService.cs" Link="Application\Builds\IOpggBuildApplyService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\GameData\IChampionCatalog.cs" Link="Application\GameData\IChampionCatalog.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\LeagueClient\ILcuRequestSender.cs" Link="Application\LeagueClient\ILcuRequestSender.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\OpggBuildApplyService.cs" Link="Infrastructure\LeagueClient\OpggBuildApplyService.cs" />
   </ItemGroup>
 </Project>

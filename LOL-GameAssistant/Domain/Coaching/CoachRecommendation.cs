@@ -8,10 +8,9 @@ public enum RecommendationPriority
     Important
 }
 
-/// <summary>建议来源，便于界面明确区分本地规则与云端补充。</summary>
+/// <summary>建议来源；时间线建议仅由 AI 服务生成。</summary>
 public enum RecommendationSource
 {
-    LocalRules,
     CloudAi
 }
 

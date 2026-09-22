@@ -23,6 +23,9 @@ internal static class LegacySettingsMapper
             QuickMessageLanguage = source.QuickMessageLanguage,
             QuickMessageText = source.QuickMessageText,
             QuickMessageHotkey = source.QuickMessageHotkey,
+            OpggBuildAssistantEnabled = source.OpggBuildAssistantEnabled,
+            ChampSelectKdaAnnouncementEnabled = source.ChampSelectKdaAnnouncementEnabled,
+            ChampSelectKdaAnnouncementTemplate = source.ChampSelectKdaAnnouncementTemplate,
             AutoMatch = source.AutoMatch,
             AutoAccept = source.AutoAccept,
             AutoBan = source.AutoBan,
@@ -59,6 +62,9 @@ internal static class LegacySettingsMapper
             QuickMessageLanguage = source.QuickMessageLanguage,
             QuickMessageText = source.QuickMessageText,
             QuickMessageHotkey = source.QuickMessageHotkey,
+            OpggBuildAssistantEnabled = source.OpggBuildAssistantEnabled,
+            ChampSelectKdaAnnouncementEnabled = source.ChampSelectKdaAnnouncementEnabled,
+            ChampSelectKdaAnnouncementTemplate = source.ChampSelectKdaAnnouncementTemplate,
             AutoMatch = source.AutoMatch,
             AutoAccept = source.AutoAccept,
             AutoBan = source.AutoBan,
@@ -81,7 +87,6 @@ internal static class LegacySettingsMapper
     private static CloudAiSettings ToDomain(AiSettings source) => new()
     {
         RecommendationEnabled = source.RecommendationEnabled,
-        Enabled = source.Enabled,
         Provider = (LOL_GameAssistant.Domain.Settings.AiProvider)(int)source.Provider,
         Model = source.Model,
         BaseUrl = source.BaseUrl,
@@ -93,15 +98,12 @@ internal static class LegacySettingsMapper
         RecommendationOverlayPosition = source.RecommendationOverlayPosition,
         RecommendationOverlayOffsetX = source.RecommendationOverlayOffsetX,
         RecommendationOverlayOffsetY = source.RecommendationOverlayOffsetY,
-        RecommendationOverlayDurationSeconds = source.RecommendationOverlayDurationSeconds,
-        AnakinEnabled = source.AnakinEnabled,
-        AnakinEncryptedApiKey = source.AnakinEncryptedApiKey
+        RecommendationOverlayDurationSeconds = source.RecommendationOverlayDurationSeconds
     };
 
     private static AiSettings ToLegacy(CloudAiSettings source) => new()
     {
         RecommendationEnabled = source.RecommendationEnabled,
-        Enabled = source.Enabled,
         Provider = (Entity.AiProvider)(int)source.Provider,
         Model = source.Model,
         BaseUrl = source.BaseUrl,
@@ -113,8 +115,6 @@ internal static class LegacySettingsMapper
         RecommendationOverlayPosition = source.RecommendationOverlayPosition,
         RecommendationOverlayOffsetX = source.RecommendationOverlayOffsetX,
         RecommendationOverlayOffsetY = source.RecommendationOverlayOffsetY,
-        RecommendationOverlayDurationSeconds = source.RecommendationOverlayDurationSeconds,
-        AnakinEnabled = source.AnakinEnabled,
-        AnakinEncryptedApiKey = source.AnakinEncryptedApiKey
+        RecommendationOverlayDurationSeconds = source.RecommendationOverlayDurationSeconds
     };
 }

@@ -3,11 +3,8 @@ namespace LOL_GameAssistant.Domain.Settings;
 /// <summary>云端模型的供应商与本地加密配置。</summary>
 public sealed class CloudAiSettings
 {
-    /// <summary>本地规则建议总开关；不依赖云端 API Key。</summary>
+    /// <summary>AI 时间线建议总开关；启用后仅由已配置的 AI 服务生成建议。</summary>
     public bool RecommendationEnabled { get; set; } = true;
-
-    /// <summary>是否启用可选的云端 AI 补充。</summary>
-    public bool Enabled { get; set; }
 
     public AiProvider Provider { get; set; } = AiProvider.OpenAI;
     public string Model { get; set; } = "";
@@ -21,9 +18,6 @@ public sealed class CloudAiSettings
     public int RecommendationOverlayOffsetX { get; set; } = 24;
     public int RecommendationOverlayOffsetY { get; set; } = 48;
     public int RecommendationOverlayDurationSeconds { get; set; } = 8;
-    public bool AnakinEnabled { get; set; }
-    public string AnakinEncryptedApiKey { get; set; } = "";
-
     public bool UsesClaudeProtocol => Provider == AiProvider.Claude;
 
     public string GetBaseUrl()
@@ -55,7 +49,6 @@ public sealed class CloudAiSettings
         Model ??= "";
         BaseUrl ??= "";
         EncryptedApiKey ??= "";
-        AnakinEncryptedApiKey ??= "";
         DynamicRefreshSeconds = Math.Clamp(DynamicRefreshSeconds, 15, 600);
         RecommendationOverlayPosition = string.IsNullOrWhiteSpace(RecommendationOverlayPosition) ? "BottomLeft" : RecommendationOverlayPosition;
         RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, -600, 600);

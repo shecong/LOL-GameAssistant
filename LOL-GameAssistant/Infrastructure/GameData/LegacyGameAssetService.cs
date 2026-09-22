@@ -16,6 +16,9 @@ public sealed class LegacyGameAssetService : IGameAssetService
     public Task<GameAsset?> GetItemIconAsync(int itemId, CancellationToken cancellationToken = default) =>
         CopyAssetAsync(() => Game_Api.GetGameZBImg(itemId.ToString()), cancellationToken);
 
+    public Task<GameAsset?> GetRuneIconAsync(int perkId, CancellationToken cancellationToken = default) =>
+        CopyAssetAsync(() => Game_Api.GetGameRuneImg(perkId), cancellationToken);
+
     public Task<GameAsset?> GetSummonerSpellIconAsync(int spellId, CancellationToken cancellationToken = default) =>
         CopyAssetAsync(() => Game_Api.GetGameZHSJNImg(spellId.ToString()), cancellationToken);
 

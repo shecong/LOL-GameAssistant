@@ -10,7 +10,8 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>
 /// OP.GG → LCU 的一键配置实现。
 /// 数据来自 OP.GG 的公开英雄接口；写入仅使用本机 LCU 的符文页与自定义物品集端点。
-/// 不读取游戏内存、不注入游戏进程，也不会删除用户创建的符文页或物品集。
+/// 不读取游戏内存、不注入游戏进程。仅当用户主动应用方案且符文页已满时，
+/// 会删除当前正在使用的符文页以腾出一个位置；不会清理其它自定义页或物品集。
 /// </summary>
 public sealed class OpggBuildApplyService : IOpggBuildApplyService
 {
@@ -215,8 +216,27 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
         JObject? inventory = await ReadObjectAsync("/lol-perks/v1/inventory", cancellationToken).ConfigureAwait(false);
         int pageLimit = inventory?.Value<int?>("ownedPageCount") ?? 2;
+        bool replacedCurrentPage = false;
         if (pages.Count >= pageLimit)
-            throw new InvalidOperationException("符文页数量已满。为保护你的自定义符文页，本助手不会自动删除它们；请先在客户端删除一个页面后重试。");
+        {
+            // 用户已明确选择“页满时删除当前页”。只处理 LCU 标记的当前页，
+            // 不猜测、不删除其它任意自定义符文页。
+            JObject? currentPage = pages.OfType<JObject>().FirstOrDefault(IsCurrentRunePage);
+            long? currentPageId = currentPage?.Value<long?>("id");
+            if (!currentPageId.HasValue)
+                throw new InvalidOperationException("符文页数量已满，但未识别到当前符文页；为避免误删其它页面，本次未写入。");
+
+            if (currentPage?.Value<bool?>("isDeletable") == false)
+                throw new InvalidOperationException("符文页数量已满，且当前符文页不可删除；请在客户端手动释放一个符文页后重试。");
+
+            if (!await _lcu.DeleteAsync($"/lol-perks/v1/pages/{currentPageId.Value}", cancellationToken).ConfigureAwait(false))
+                throw new InvalidOperationException("符文页数量已满，客户端拒绝删除当前符文页；本次未写入 OP.GG 配置。");
+
+            replacedCurrentPage = true;
+            pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
+            if (pages.Count >= pageLimit)
+                throw new InvalidOperationException("已删除当前符文页，但客户端未释放符文页容量；本次未写入 OP.GG 配置。");
+        }
 
         string pageName = ManagedRunePrefix + label;
         string body = JsonConvert.SerializeObject(new
@@ -239,8 +259,13 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         if (createdId.HasValue)
             await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(new { id = createdId.Value }), cancellationToken)
                 .ConfigureAwait(false);
-        return "符文页已设为当前";
+        return replacedCurrentPage
+            ? "符文页已设为当前（符文页已满，已替换原当前符文页）"
+            : "符文页已设为当前";
     }
+
+    private static bool IsCurrentRunePage(JObject page) =>
+        page.Value<bool?>("current") == true || page.Value<bool?>("isActive") == true;
 
     private async Task<string> ApplyItemSetAsync(
         OpggBuild build,

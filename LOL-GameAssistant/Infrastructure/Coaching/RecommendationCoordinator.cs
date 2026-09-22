@@ -10,10 +10,9 @@ namespace LOL_GameAssistant.Infrastructure.Coaching;
 /// </summary>
 public sealed class RecommendationCoordinator : IRecommendationCoordinator
 {
-    private static readonly TimeSpan CloudMinimumInterval = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan AiMinimumInterval = TimeSpan.FromSeconds(30);
     private readonly IAiCoachingService _aiCoachingService;
     private readonly IAiRecommendationProvider _aiRecommendationProvider;
-    private readonly ILocalRecommendationService _localRecommendationService;
     private readonly object _sync = new();
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
@@ -30,12 +29,10 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
 
     public RecommendationCoordinator(
         IAiCoachingService aiCoachingService,
-        IAiRecommendationProvider aiRecommendationProvider,
-        ILocalRecommendationService localRecommendationService)
+        IAiRecommendationProvider aiRecommendationProvider)
     {
         _aiCoachingService = aiCoachingService;
         _aiRecommendationProvider = aiRecommendationProvider;
-        _localRecommendationService = localRecommendationService;
     }
 
     public RecommendationState Current
@@ -66,7 +63,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
                 RecommendationStatus.Disabled,
                 Current.Context,
                 Array.Empty<CoachRecommendation>(),
-                "智能建议已关闭。可在设置中单独开启本地规则建议。",
+                "AI 时间线建议已关闭。",
                 DateTimeOffset.Now,
                 null), force: true);
             return;
@@ -184,67 +181,72 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
             }
 
             DateTimeOffset now = DateTimeOffset.Now;
-            var recommendations = _localRecommendationService.Create(context, now).ToList();
             bool liveDataUnavailable = string.Equals(context.Phase, "InProgress", StringComparison.OrdinalIgnoreCase) &&
                                        !context.HasLiveClientData;
-            RecommendationStatus status = liveDataUnavailable
-                ? RecommendationStatus.DataUnavailable
-                : RecommendationStatus.LocalRulesReady;
-            string diagnostic = liveDataUnavailable
-                ? "未读取到本机实时金币、装备和时间；当前仅保留基础建议，稍后会自动重试。"
-                : "本地时间线建议已更新，无需配置 API Key。";
             string fingerprint = BuildContextFingerprint(context);
 
-            if (settings.Ai.Enabled && !liveDataUnavailable)
+            if (string.IsNullOrWhiteSpace(settings.Ai.EncryptedApiKey) ||
+                string.IsNullOrWhiteSpace(settings.Ai.Model))
             {
-                if (string.IsNullOrWhiteSpace(settings.Ai.EncryptedApiKey) || string.IsNullOrWhiteSpace(settings.Ai.Model))
+                Publish(new RecommendationState(
+                    RecommendationStatus.ConfigurationRequired,
+                    context,
+                    Array.Empty<CoachRecommendation>(),
+                    "请在设置中填写 AI 服务商、模型名称和 API Key；未配置时不会生成本地替代建议。",
+                    now,
+                    GetNextRefreshAt(settings)), force: true);
+                return;
+            }
+
+            if (liveDataUnavailable)
+            {
+                Publish(new RecommendationState(
+                    RecommendationStatus.DataUnavailable,
+                    context,
+                    Array.Empty<CoachRecommendation>(),
+                    "尚未读取到本机实时金币、装备和时间；不会发送不完整的局内数据给 AI，稍后自动重试。",
+                    now,
+                    GetNextRefreshAt(settings)), force: true);
+                return;
+            }
+
+            IReadOnlyList<CoachRecommendation> recommendations;
+            RecommendationStatus status;
+            string diagnostic;
+            if (ShouldRequestAi(fingerprint, now, force))
+            {
+                _lastCloudRequestAt = now;
+                _lastCloudFingerprint = fingerprint;
+                AiRecommendationResult aiResult = await _aiRecommendationProvider
+                    .CreateAsync(settings.Ai, context, refreshToken)
+                    .ConfigureAwait(false);
+                if (!aiResult.FromAi || string.IsNullOrWhiteSpace(aiResult.Recommendation))
                 {
-                    status = RecommendationStatus.ConfigurationRequired;
-                    diagnostic = "本地规则建议已更新；云端增强未配置 API Key 或模型名称。";
-                }
-                else if (ShouldRequestCloud(fingerprint, now))
-                {
-                    _lastCloudRequestAt = now;
-                    _lastCloudFingerprint = fingerprint;
-                    AiRecommendationResult cloudResult = await _aiRecommendationProvider
-                        .CreateAsync(settings.Ai, context, refreshToken)
-                        .ConfigureAwait(false);
-                    if (cloudResult.FromAi && !string.IsNullOrWhiteSpace(cloudResult.Recommendation))
-                    {
-                        _lastCloudRecommendations = CloudRecommendationParser.Parse(cloudResult.Recommendation, now);
-                        recommendations.AddRange(_lastCloudRecommendations);
-                        status = RecommendationStatus.EnhancedByAi;
-                        diagnostic = $"本地规则已更新，并由 {settings.Ai.Provider} 提供云端补充。";
-                    }
-                    else
-                    {
-                        status = RecommendationStatus.LocalRulesReady;
-                        diagnostic = "本地规则建议已更新；云端增强不可用：" +
-                                     (string.IsNullOrWhiteSpace(cloudResult.Error) ? "服务没有返回可用内容。" : cloudResult.Error);
-                    }
+                    _lastCloudRecommendations = Array.Empty<CoachRecommendation>();
+                    status = RecommendationStatus.Failed;
+                    recommendations = Array.Empty<CoachRecommendation>();
+                    diagnostic = "AI 未返回可用建议：" +
+                                 (string.IsNullOrWhiteSpace(aiResult.Error) ? "服务没有返回内容。" : aiResult.Error);
                 }
                 else
                 {
-                    if (_lastCloudRecommendations.Count > 0)
-                    {
-                        recommendations.AddRange(_lastCloudRecommendations);
-                        status = RecommendationStatus.EnhancedByAi;
-                        diagnostic = "本地规则建议已更新；云端补充沿用最近一次有效结果，避免频繁请求。";
-                    }
-                    else
-                    {
-                        diagnostic = "本地规则建议已更新；云端增强将于局势发生变化后请求。";
-                    }
+                    _lastCloudRecommendations = CloudRecommendationParser.Parse(aiResult.Recommendation, now);
+                    status = RecommendationStatus.AiReady;
+                    recommendations = _lastCloudRecommendations;
+                    diagnostic = $"已将当前可见对局数据发送给 {settings.Ai.Provider} 并生成 AI 时间线建议。";
                 }
+            }
+            else
+            {
+                status = RecommendationStatus.AiReady;
+                recommendations = _lastCloudRecommendations;
+                diagnostic = "当前局势未发生需要重新请求的变化，显示最近一次 AI 时间线建议。";
             }
 
             var state = new RecommendationState(
                 status,
                 context,
-                recommendations
-                    .OrderByDescending(item => item.Priority)
-                    .ThenBy(item => item.Category, StringComparer.Ordinal)
-                    .ToArray(),
+                recommendations,
                 diagnostic,
                 now,
                 GetNextRefreshAt(settings));
@@ -297,8 +299,9 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         _timer.Change(interval, interval);
     }
 
-    private bool ShouldRequestCloud(string fingerprint, DateTimeOffset now) =>
-        fingerprint != _lastCloudFingerprint && now - _lastCloudRequestAt >= CloudMinimumInterval;
+    private bool ShouldRequestAi(string fingerprint, DateTimeOffset now, bool force) =>
+        force || ((fingerprint != _lastCloudFingerprint || _lastCloudRecommendations.Count == 0) &&
+                  now - _lastCloudRequestAt >= AiMinimumInterval);
 
     private static bool IsRecommendationPhase(string phase) =>
         string.Equals(phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
@@ -346,11 +349,10 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
 
     private static AssistantSettings Clone(AssistantSettings source) => new()
     {
-        Ai = new CloudAiSettings
-        {
-            RecommendationEnabled = source.Ai.RecommendationEnabled,
-            Enabled = source.Ai.Enabled,
-            Provider = source.Ai.Provider,
+            Ai = new CloudAiSettings
+            {
+                RecommendationEnabled = source.Ai.RecommendationEnabled,
+                Provider = source.Ai.Provider,
             Model = source.Ai.Model,
             BaseUrl = source.Ai.BaseUrl,
             EncryptedApiKey = source.Ai.EncryptedApiKey,
@@ -361,9 +363,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
             RecommendationOverlayPosition = source.Ai.RecommendationOverlayPosition,
             RecommendationOverlayOffsetX = source.Ai.RecommendationOverlayOffsetX,
             RecommendationOverlayOffsetY = source.Ai.RecommendationOverlayOffsetY,
-            RecommendationOverlayDurationSeconds = source.Ai.RecommendationOverlayDurationSeconds,
-            AnakinEnabled = source.Ai.AnakinEnabled,
-            AnakinEncryptedApiKey = source.Ai.AnakinEncryptedApiKey
+                RecommendationOverlayDurationSeconds = source.Ai.RecommendationOverlayDurationSeconds
         }
     };
 

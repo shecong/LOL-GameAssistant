@@ -20,9 +20,4 @@ public sealed class LegacyAiCoachingService : IAiCoachingService
     public Task<AiGameContext> CollectContextAsync(CancellationToken cancellationToken = default) =>
         _contextService.CollectAsync(cancellationToken);
 
-    public Task<AiRecommendationResult> GetRecommendationAsync(
-        CloudAiSettings settings,
-        AiGameContext context,
-        CancellationToken cancellationToken = default) =>
-        CloudAiRecommendationService.GetRecommendationAsync(settings, context, cancellationToken);
 }

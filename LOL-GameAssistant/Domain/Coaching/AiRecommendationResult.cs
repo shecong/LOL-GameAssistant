@@ -1,17 +1,16 @@
 namespace LOL_GameAssistant.Domain.Coaching;
 
-/// <summary>云端或本地校验生成的训练建议结果。</summary>
+/// <summary>AI 服务生成建议的结果；失败时不提供本地替代建议。</summary>
 public sealed record AiRecommendationResult(
     bool FromAi,
-    string LocalValidation,
+    string ContextSummary,
     string Recommendation,
     AiGameContext Context,
     string? Error)
 {
-    public static AiRecommendationResult LocalOnly(
-        string validation,
-        string recommendation,
+    public static AiRecommendationResult Unavailable(
+        string contextSummary,
         AiGameContext context,
         string? error = null) =>
-        new(false, validation, recommendation, context, error);
+        new(false, contextSummary, "", context, error);
 }

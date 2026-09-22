@@ -12,6 +12,9 @@ public interface IGameAssetService
 
     Task<GameAsset?> GetItemIconAsync(int itemId, CancellationToken cancellationToken = default);
 
+    /// <summary>获取符文（基石、普通符文或属性碎片）的展示图标；未找到时返回 null。</summary>
+    Task<GameAsset?> GetRuneIconAsync(int perkId, CancellationToken cancellationToken = default);
+
     Task<GameAsset?> GetSummonerSpellIconAsync(int spellId, CancellationToken cancellationToken = default);
 
     Task<string?> GetItemNameAsync(int itemId, CancellationToken cancellationToken = default);

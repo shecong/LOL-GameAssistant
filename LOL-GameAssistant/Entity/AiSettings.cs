@@ -10,10 +10,6 @@ public class AiSettings
     [JsonProperty("recommendationEnabled")]
     public bool RecommendationEnabled { get; set; } = true;
 
-    /// <summary>是否启用可选的云端 AI 补充。</summary>
-    [JsonProperty("enabled")]
-    public bool Enabled { get; set; }
-
     [JsonProperty("provider")]
     public AiProvider Provider { get; set; } = AiProvider.OpenAI;
 
@@ -52,13 +48,6 @@ public class AiSettings
     [JsonProperty("recommendationOverlayDurationSeconds")]
     public int RecommendationOverlayDurationSeconds { get; set; } = 8;
 
-    /// <summary>兼容旧版 Anakin 连接配置；当前 OP.GG 一键配置不依赖它。</summary>
-    [JsonProperty("anakinEnabled")]
-    public bool AnakinEnabled { get; set; }
-
-    [JsonProperty("anakinEncryptedApiKey")]
-    public string AnakinEncryptedApiKey { get; set; } = "";
-
     public bool UsesClaudeProtocol => Provider == AiProvider.Claude;
 
     public string GetBaseUrl()
@@ -91,7 +80,6 @@ public class AiSettings
         Model ??= "";
         BaseUrl ??= "";
         EncryptedApiKey ??= "";
-        AnakinEncryptedApiKey ??= "";
         DynamicRefreshSeconds = Math.Clamp(DynamicRefreshSeconds, 15, 600);
         RecommendationOverlayPosition = string.IsNullOrWhiteSpace(RecommendationOverlayPosition) ? "BottomLeft" : RecommendationOverlayPosition;
         RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, -600, 600);

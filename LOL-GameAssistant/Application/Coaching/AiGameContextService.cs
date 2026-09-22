@@ -75,7 +75,10 @@ public sealed class AiGameContextService : IAiGameContextService
 
         ChampionSelectionMember? me = session.MyTeam.FirstOrDefault(member => member.CellId == session.LocalPlayerCellId) ??
                                      session.MyTeam.FirstOrDefault(member => member.Puuid == myPuuid);
-        int championId = me?.ChampionId ?? GetCurrentMyActionChampion(session);
+        // 选人动作会比 myTeam.championId 更早更新；优先读取本人的 pick 动作，
+        // 才能在用户刚选定英雄时及时展示 OP.GG 方案，而不是等到锁定之后。
+        int selectedPickId = GetCurrentMyActionChampion(session);
+        int championId = selectedPickId > 0 ? selectedPickId : me?.ChampionId ?? 0;
         string champion = _championCatalog.GetDisplayName(championId);
         string role = string.IsNullOrWhiteSpace(me?.AssignedPosition) ? "通用" : me.AssignedPosition;
         var enemies = session.TheirTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
@@ -135,7 +138,10 @@ public sealed class AiGameContextService : IAiGameContextService
 
     private static int GetCurrentMyActionChampion(ChampionSelectionSnapshot session) =>
         session.Actions.SelectMany(group => group)
-            .FirstOrDefault(action => action.ActorCellId == session.LocalPlayerCellId && action.ChampionId > 0)?.ChampionId ?? 0;
+            .FirstOrDefault(action =>
+                action.ActorCellId == session.LocalPlayerCellId &&
+                string.Equals(action.Type, "pick", StringComparison.OrdinalIgnoreCase) &&
+                action.ChampionId > 0)?.ChampionId ?? 0;
 
     private async Task<string?> GetMyPuuidAsync(CancellationToken cancellationToken)
     {
@@ -146,7 +152,7 @@ public sealed class AiGameContextService : IAiGameContextService
         }
         catch
         {
-            // 本地资料端点短暂不可用时，仍返回可用的通用时间线建议。
+            // 本地资料端点短暂不可用时保留空身份；AI 时间线会等待下一次完整上下文刷新。
         }
         return _cachedMyPuuid;
     }

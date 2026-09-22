@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace LOL_GameAssistant.Infrastructure.Ai;
 
-/// <summary>把云端文本约束为可验证的建议卡片；服务不遵守 JSON 时安全降级为一张补充卡。</summary>
+/// <summary>把 AI 文本约束为可验证的建议卡片；服务不遵守 JSON 时保留为一张 AI 文本卡。</summary>
 internal static class CloudRecommendationParser
 {
     public static IReadOnlyList<CoachRecommendation> Parse(string content, DateTimeOffset now)
@@ -44,7 +44,7 @@ internal static class CloudRecommendationParser
         }
         catch (JsonException)
         {
-            // 部分兼容服务不稳定地遵从 JSON 格式，保留可读内容而不阻断本地建议。
+            // 部分兼容服务不稳定地遵从 JSON 格式，保留 AI 返回的可读内容。
         }
 
         string fallback = string.IsNullOrWhiteSpace(content) ? "云端服务没有返回可展示的补充建议。" : content.Trim();

@@ -51,6 +51,16 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("quickMessageHotkey")]
         public string QuickMessageHotkey { get; set; } = "F8";
 
+        /// <summary>是否在选人后显示 OP.GG 图文出装与符文选择器。</summary>
+        [JsonProperty("opggBuildAssistantEnabled")]
+        public bool OpggBuildAssistantEnabled { get; set; } = false;
+
+        [JsonProperty("champSelectKdaAnnouncementEnabled")]
+        public bool ChampSelectKdaAnnouncementEnabled { get; set; } = false;
+
+        [JsonProperty("champSelectKdaAnnouncementTemplate")]
+        public string ChampSelectKdaAnnouncementTemplate { get; set; } = "【选人近期 KDA 评估】\n{allies}";
+
         /// <summary>云端 AI 与推荐功能的设置。</summary>
         [JsonProperty("ai")]
         public AiSettings Ai { get; set; } = new();
@@ -118,6 +128,9 @@ namespace LOL_GameAssistant.Entity
             QuickMessageText ??= "";
             QuickMessageHotkey = string.IsNullOrWhiteSpace(QuickMessageHotkey) ? "F8" : QuickMessageHotkey;
             QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
+            ChampSelectKdaAnnouncementTemplate = string.IsNullOrWhiteSpace(ChampSelectKdaAnnouncementTemplate)
+                ? "【选人近期 KDA 评估】\n{allies}"
+                : ChampSelectKdaAnnouncementTemplate.Trim()[..Math.Min(800, ChampSelectKdaAnnouncementTemplate.Trim().Length)];
             Ai.Normalize();
         }
     }

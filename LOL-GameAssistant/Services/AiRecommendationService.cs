@@ -24,9 +24,7 @@ public static class CloudAiRecommendationService
         AiGameContext context,
         CancellationToken cancellationToken = default)
     {
-        string localValidation = BuildLocalValidation(context);
-        if (!settings.Enabled)
-            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "云端 AI 未启用，当前展示本地时间线建议。"), context, "云端 AI 未启用。");
+        string contextSummary = BuildContextSummary(context);
 
         string key;
         try
@@ -35,25 +33,22 @@ public static class CloudAiRecommendationService
         }
         catch
         {
-            return AiRecommendationResult.LocalOnly(
-                localValidation,
-                BuildLocalTimelineRecommendation(context, "无法读取已保存的 API Key，当前展示本地时间线建议。"),
-                context,
-                "无法读取已保存的 API Key，请重新保存。");
+            return AiRecommendationResult.Unavailable(
+                contextSummary, context, "无法读取已保存的 API Key，请重新保存。");
         }
         if (string.IsNullOrWhiteSpace(key))
-            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未配置 API Key，当前展示本地时间线建议。"), context, "未配置 API Key。");
+            return AiRecommendationResult.Unavailable(contextSummary, context, "未配置 API Key。");
         if (string.IsNullOrWhiteSpace(settings.Model))
-            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未填写模型名称，当前展示本地时间线建议。"), context, "未填写模型名称。");
+            return AiRecommendationResult.Unavailable(contextSummary, context, "未填写模型名称。");
         if (string.IsNullOrWhiteSpace(settings.GetBaseUrl()))
-            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未配置有效的服务地址，当前展示本地时间线建议。"), context, "未配置有效的服务地址。");
+            return AiRecommendationResult.Unavailable(contextSummary, context, "未配置有效的服务地址。");
 
         try
         {
             string content = settings.UsesClaudeProtocol
                 ? await CallClaudeAsync(settings, key, context, cancellationToken).ConfigureAwait(false)
                 : await CallOpenAiCompatibleAsync(settings, key, context, cancellationToken).ConfigureAwait(false);
-            return new AiRecommendationResult(true, localValidation, content.Trim(), context, null);
+            return new AiRecommendationResult(true, contextSummary, content.Trim(), context, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -62,8 +57,7 @@ public static class CloudAiRecommendationService
         catch (Exception ex)
         {
             // 不返回原始请求、响应或密钥；这些信息可能包含用户敏感配置。
-            return AiRecommendationResult.LocalOnly(localValidation,
-                BuildLocalTimelineRecommendation(context, "云端 AI 暂时不可用：" + ToFriendlyError(ex)), context, ToFriendlyError(ex));
+            return AiRecommendationResult.Unavailable(contextSummary, context, ToFriendlyError(ex));
         }
     }
 
@@ -134,11 +128,11 @@ public static class CloudAiRecommendationService
         return $"{scope}\n\n{context.ToPromptText()}";
     }
 
-    private static string BuildLocalValidation(AiGameContext context)
+    private static string BuildContextSummary(AiGameContext context)
     {
         var lines = new List<string>
         {
-            "本地校验",
+            "发送给 AI 的当前对局数据",
             $"模式：{context.Mode}",
             $"英雄：{context.MyChampion}（{context.MyRole}）"
         };
@@ -151,58 +145,6 @@ public static class CloudAiRecommendationService
             lines.Add($"游戏时间：{context.GameTimeText}");
         if (context.EnemyChampions.Count > 0)
             lines.Add("已知敌方阵容：" + string.Join("、", context.EnemyChampions));
-        lines.Add("对线知识：" + context.LaneKnowledge);
-        return string.Join(Environment.NewLine, lines);
-    }
-
-    /// <summary>
-    /// 云端不可用时仍根据公开可见的游戏时间、金币和已购装备给出能立即阅读的本地建议。
-    /// 它不推测敌方位置、冷却或任何未展示信息。
-    /// </summary>
-    private static string BuildLocalTimelineRecommendation(AiGameContext context, string prefix)
-    {
-        var lines = new List<string> { prefix };
-        if (!string.Equals(context.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
-        {
-            lines.Add("进入对局后会按游戏时间、当前金币与已购装备更新建议。");
-            lines.Add("对线知识：" + context.LaneKnowledge);
-            return string.Join(Environment.NewLine, lines);
-        }
-
-        int minute = Math.Max(0, context.GameTimeSeconds / 60);
-        lines.Add($"{context.GameTimeText} · {context.Mode} · {context.MyChampion}");
-        if (context.IsAram)
-        {
-            lines.Add(minute < 8
-                ? "前期：优先用可见金币补足第一件核心散件；团战前确认治疗包与队友位置。"
-                : "团战期：根据已购装备决定下一件核心或防御散件；交战前优先与队友同步进场。");
-        }
-        else if (minute < 8)
-        {
-            lines.Add("对线前期：优先保证经验和补刀；可见的敌方英雄在线时再选择换血，避免为无信息争夺冒险。 ");
-        }
-        else if (minute < 14)
-        {
-            lines.Add("对线转线期：清线后再考虑河道资源或边线支援；回城前留意当前金币是否能形成关键散件。 ");
-        }
-        else if (minute < 22)
-        {
-            lines.Add("中期：围绕下一条公开目标做视野和兵线准备；没有队友跟进时不要单独深入敌方野区。 ");
-        }
-        else
-        {
-            lines.Add("后期：优先保证存活和与队友同步；大额金币优先转为成装或保命位，再争夺公开地图目标。 ");
-        }
-
-        lines.Add(context.CurrentGold switch
-        {
-            >= 1800 => $"当前有 {context.CurrentGold} 金币：下一次安全回城可优先完成一件核心组件或成装。",
-            >= 900 => $"当前有 {context.CurrentGold} 金币：可在安全窗口补一到两个关键组件，避免长时间带着金币交战。",
-            >= 350 => $"当前有 {context.CurrentGold} 金币：可根据局势补基础组件或消耗品。",
-            _ => "当前金币不多：先维持兵线/经验节奏，等待更合适的购买窗口。"
-        });
-        if (context.CurrentItems.Count > 0)
-            lines.Add("已购装备：" + string.Join("、", context.CurrentItems));
         lines.Add("对线知识：" + context.LaneKnowledge);
         return string.Join(Environment.NewLine, lines);
     }

@@ -32,6 +32,8 @@ namespace LOL_GameAssistant
         private CancellationTokenSource? _lcuRetryCts;
         private NotifyIcon? _trayIcon;
         private CancellationTokenSource? _autoActionCts;
+        private CancellationTokenSource? _opggPromptCts;
+        private CancellationTokenSource? _phaseDataLoadCts;
         private GameFlowPhase? _lastNotifiedEndPhase;
         private bool _restoringFromTray;
         private readonly WindowHoldController _windowHoldController;
@@ -239,8 +241,13 @@ namespace LOL_GameAssistant
                      parsed == GameFlowPhase.ChampSelect ||
                      parsed == GameFlowPhase.InProgress))
                 {
-                    await liveGameForm.AddView(force: true);
+                    if (parsed is GameFlowPhase.ChampSelect or GameFlowPhase.InProgress)
+                        StartPhaseDataLoad(parsed);
+                    else
+                        await liveGameForm.AddView(force: true);
                 }
+                if (parsed == GameFlowPhase.ChampSelect)
+                    StartOpggChampSelectMonitor();
             }
             catch
             {
@@ -356,6 +363,63 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>
+        /// LCU WebSocket 订阅不会补发“当前阶段”。客户端晚于助手启动、或连接重建时，
+        /// 主动读取一次阶段并复用常规阶段处理，避免已经选人/进游戏却没有自动加载数据。
+        /// </summary>
+        private async Task SynchronizeCurrentGameFlowAsync()
+        {
+            try
+            {
+                string? phase = await _lobbyService.GetGameFlowPhaseAsync();
+                if (string.IsNullOrWhiteSpace(phase)) return;
+                if (RunOnUiThread(() => _ = SynchronizeCurrentGameFlowAsync())) return;
+                await gameflowphaseStatus(phase);
+            }
+            catch
+            {
+                // 连接建立的极短暂窗口内 LCU 可能还未准备好；后续事件或手动刷新会再次读取。
+            }
+        }
+
+        /// <summary>
+        /// 选人和刚进入游戏时，相关 LCU 端点会比 gameflow 事件晚就绪。
+        /// 立即加载后再做两次短延迟重试，确保无需用户手点刷新，同时用取消令牌防止旧局回填。
+        /// </summary>
+        private void StartPhaseDataLoad(GameFlowPhase expectedPhase)
+        {
+            StopPhaseDataLoad();
+            _phaseDataLoadCts = new CancellationTokenSource();
+            _ = LoadPhaseDataAsync(expectedPhase, _phaseDataLoadCts.Token);
+        }
+
+        private void StopPhaseDataLoad()
+        {
+            _phaseDataLoadCts?.Cancel();
+            _phaseDataLoadCts?.Dispose();
+            _phaseDataLoadCts = null;
+        }
+
+        private async Task LoadPhaseDataAsync(GameFlowPhase expectedPhase, CancellationToken cancellationToken)
+        {
+            try
+            {
+                foreach (int delayMilliseconds in new[] { 0, 1500, 4500 })
+                {
+                    if (delayMilliseconds > 0)
+                        await Task.Delay(delayMilliseconds, cancellationToken);
+                    if (IsDisposed || cancellationToken.IsCancellationRequested ||
+                        gameFlowPhase != expectedPhase) return;
+
+                    await liveGameForm.AddView(force: true);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // 正常阶段切换；不允许上一局的延迟加载覆盖新阵容。
+            }
+        }
+
+        /// <summary>
         /// 把后台线程回调切回 UI 线程执行。
         /// LCU 事件流由后台线程回调，
         /// 在池线程上操作控件会在 native 层破坏窗口句柄：Release 未挂调试器时
@@ -394,6 +458,7 @@ namespace LOL_GameAssistant
                 _ = home.RefreshAsync();
                 // 连接成功后重新订阅事件（重连后 LCU 侧需要重新订阅）
                 _ = _eventStream.SubscribeToJsonApiEventsAsync();
+                _ = SynchronizeCurrentGameFlowAsync();
             }
             else
             {
@@ -460,47 +525,53 @@ namespace LOL_GameAssistant
                 this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
             }
             _recommendationCoordinator.NotifyGamePhaseChanged(statustype);
+            if (!string.Equals(phase, "champselect", StringComparison.OrdinalIgnoreCase))
+                StopOpggChampSelectMonitor();
             switch (phase)
             {
                 case "none":
+                    StopPhaseDataLoad();
                     liveGameForm.ResetRosterCache();
                     break;
 
                 case "lobby":
+                    StopPhaseDataLoad();
                     //在大厅,如果有开启自动对局,则自动开启
                     SettingForm.OpenGame(settingForm);
                     _ = liveGameForm.AddView(force: true);
                     break;
 
                 case "matchmaking":
-
+                    StopPhaseDataLoad();
                     break;
 
                 case "readycheck":
+                    StopPhaseDataLoad();
                     //匹配中,如果有开启自动接受,则自动接受
                     SettingForm.GameTrue(settingForm);
                     liveGameForm.ResetRosterCache();
                     break;
 
                 case "champselect":
-                    //选择英雄阶段，执行禁用英雄和自动选择英雄|且刷新一次对局数据（ps：对手战绩此时查看不到）
-
-                    //刷新对局数据
-                    _ = liveGameForm.AddView(force: true);
+                    // 立即加载，并在选人会话/玩家列表就绪后自动重试两次。
+                    StartPhaseDataLoad(GameFlowPhase.ChampSelect);
                     _ = AutoBanPickLoopAsync();
+                    StartOpggChampSelectMonitor();
                     break;
 
-                case "GameStart":
+                case "gamestart":
+                    StopPhaseDataLoad();
                     break;
 
                 case "inprogress":
-                    //对局中，自动刷新对局数据
-                    _ = liveGameForm.AddView(force: true);
+                    // 游戏进程、实时客户端接口和全员阵容并非同时可用，使用同一套延迟加载策略。
+                    StartPhaseDataLoad(GameFlowPhase.InProgress);
                     break;
 
                 case "waitingforstats":
                 case "terminatedinerror":
                 case "endofgame":
+                    StopPhaseDataLoad();
                     //结束对局：通知 + 刷新战绩
                     // 该局已经结束，释放对局页的开黑检测结果；下一局必须重新检测。
                     liveGameForm.ResetRosterCache();
@@ -596,6 +667,48 @@ namespace LOL_GameAssistant
                 .Select(AppCompositionRoot.ChampionCatalog.FindIdByDisplayName)
                 .OfType<int>()
                 .ToList();
+        }
+
+        /// <summary>
+        /// 选人期间以较低频率检查当前已选英雄。实际弹窗和“同英雄只提示一次”由 CoachForm 管理，
+        /// 使该功能不依赖用户是否正停留在智能建议页。
+        /// </summary>
+        private void StartOpggChampSelectMonitor()
+        {
+            StopOpggChampSelectMonitor();
+            coachForm.ResetOpggChampSelectPrompt();
+            _opggPromptCts = new CancellationTokenSource();
+            _ = MonitorOpggChampSelectAsync(_opggPromptCts.Token);
+        }
+
+        private void StopOpggChampSelectMonitor()
+        {
+            _opggPromptCts?.Cancel();
+            _opggPromptCts?.Dispose();
+            _opggPromptCts = null;
+            coachForm.ResetOpggChampSelectPrompt();
+        }
+
+        private async Task MonitorOpggChampSelectAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                while (gameFlowPhase == GameFlowPhase.ChampSelect && !cancellationToken.IsCancellationRequested)
+                {
+                    if (_settingsStore.Load().OpggBuildAssistantEnabled)
+                        await coachForm.PromptOpggBuildIfNeededAsync(cancellationToken);
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(550), cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // 选人结束、离开客户端或关闭主窗口时正常停止。
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测失败", ex.Message);
+            }
         }
 
         /// <summary>
@@ -723,6 +836,8 @@ namespace LOL_GameAssistant
             else
             {
                 _autoActionCts?.Cancel();
+                StopOpggChampSelectMonitor();
+                StopPhaseDataLoad();
                 _lcuRetryCts?.Cancel();
                 _trayIcon?.Dispose();
                 _eventStream.Dispose();

@@ -32,6 +32,12 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly string _currentGameMode;
         private readonly Color _teamColor;
         private const int RecentGamesCount = 10;
+
+        /// <summary>评分取数范围：先拉 100 场摘要，再按同队列筛出评分样本。</summary>
+        private const int HistoryFetchCount = 100;
+
+        /// <summary>对局页/选人公告的评分样本下限，比其它页面的默认样本更稳。</summary>
+        public const int PerformanceSampleSize = 20;
         private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
@@ -42,9 +48,13 @@ namespace LOL_GameAssistant.BaseViewForm
         private ToolTip? _copyTip;
         private readonly ToolTip _performanceTip = new();
         private readonly bool _showCopyButton;
+        private bool _recentPerformancePublished;
 
         /// <summary>当前卡片对应玩家的 puuid（供开黑检测结果回填）。</summary>
         public string? Puuid => _playerPuuid;
+
+        /// <summary>近期同队列 KDA 已完成计算；选人页据此汇总十名玩家并发送一次聊天公告。</summary>
+        public event EventHandler<PlayerRecentPerformanceEventArgs>? RecentPerformanceReady;
 
         /// <summary>开黑小组配色（按组号轮换）。</summary>
         private static readonly Color[] PremadeColors =
@@ -198,7 +208,9 @@ namespace LOL_GameAssistant.BaseViewForm
             lblChampionNow.ForeColor = palette.Accent;
             if (!string.IsNullOrWhiteSpace(lblSummary.Text))
             {
-                lblSummary.ForeColor = lblSummary.Text.StartsWith("下等马", StringComparison.Ordinal)
+                lblSummary.ForeColor = lblSummary.Text.StartsWith("人机", StringComparison.Ordinal)
+                    ? Color.FromArgb(156, 39, 176)
+                    : lblSummary.Text.StartsWith("下等马", StringComparison.Ordinal)
                     ? Color.FromArgb(239, 83, 80)
                     : lblSummary.Text.StartsWith("上等马", StringComparison.Ordinal)
                         ? Color.FromArgb(102, 187, 106)
@@ -374,8 +386,21 @@ namespace LOL_GameAssistant.BaseViewForm
             await LoadCurrentChampionAsync();
 
             // ── 近 10 场战绩 ──
-            var matchlists = await GetRecentHistoryAsync(_playerPuuid);
-            if (matchlists?.Games?.Games == null || IsDisposed) return;
+            MatchHistoryResponse? matchlists;
+            try
+            {
+                matchlists = await GetRecentHistoryAsync(_playerPuuid);
+            }
+            catch
+            {
+                if (!IsDisposed) PublishRecentPerformance(CreateInsufficientPerformanceAssessment());
+                return;
+            }
+            if (matchlists?.Games?.Games == null || IsDisposed)
+            {
+                if (!IsDisposed) PublishRecentPerformance(CreateInsufficientPerformanceAssessment());
+                return;
+            }
 
             var games = matchlists.Games.Games
                 .OrderByDescending(g => g.GameCreation)
@@ -414,7 +439,9 @@ namespace LOL_GameAssistant.BaseViewForm
             int wins = results.Count(r => r.gamer.IsWin());
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
-            ApplyLivePerformanceTag(results, wins, losses, rate);
+            RecentModePerformanceAssessment assessment = ApplyLivePerformanceTag(
+                matchlists.Games.Games, results, wins, losses, rate);
+            PublishRecentPerformance(assessment);
 
             // 清掉加载微光，手工定位渲染战绩行（新→旧）
             panelMatches.Controls.Clear();
@@ -443,7 +470,7 @@ namespace LOL_GameAssistant.BaseViewForm
             GetCachedAsync(PlayerProfileCache, puuid, () => _playerProfileService.GetByPuuidAsync(puuid));
 
         private Task<MatchHistoryResponse?> GetRecentHistoryAsync(string puuid) =>
-            GetCachedAsync(RecentHistoryCache, puuid, () => _matchHistoryService.GetPageAsync(puuid, 0, RecentGamesCount - 1));
+            GetCachedAsync(RecentHistoryCache, puuid, () => _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1));
 
         private Task<MatchDetail?> GetMatchDetailAsync(long gameId) =>
             GetCachedAsync(MatchDetailCache, gameId, () => _matchHistoryService.GetDetailAsync(gameId));
@@ -465,77 +492,93 @@ namespace LOL_GameAssistant.BaseViewForm
             return task;
         }
 
-        /// <summary>对局页标签只统计与当前队列/模式相同的近期已结束战绩。</summary>
-        private void ApplyLivePerformanceTag(
+        /// <summary>
+        /// 评分只统计与当前队列相同的近期已结束对局，并排除重开局；
+        /// 数据取自战绩摘要（已含本人 KDA 与胜负），因此不必为评分逐场拉详情。
+        /// </summary>
+        private RecentModePerformanceAssessment ApplyLivePerformanceTag(
+            IReadOnlyList<MatchHistoryGame> history,
             IReadOnlyList<(MatchDetail detail, MatchParticipant gamer)> results,
             int allWins,
             int allLosses,
             double allRate)
         {
-            var comparable = results.Where(result => IsComparableMode(result.detail)).Take(12).ToList();
+            var comparable = history
+                .Where(IsComparableMode)
+                .Where(game => game.IsCompletedGame())
+                .OrderByDescending(game => game.GameCreation)
+                .Take(PerformanceSampleSize)
+                .ToList();
+
             if (comparable.Count == 0)
             {
                 lblSummary.Text = results.Count > 0
                     ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
                     : "暂无战绩";
                 _performanceTip.SetToolTip(lblSummary, "未识别到当前队列，暂不进行上/中/下等马判定。");
-                return;
+                return CreateInsufficientPerformanceAssessment();
             }
 
-            var assessments = comparable.Select(result => EvaluateGamePerformance(result.detail, _playerPuuid!)).ToList();
-            var assessment = RecentModePerformanceEvaluator.Evaluate(
-                comparable[0].detail.GetModeText(),
-                assessments,
-                comparable.Select(result => result.gamer.IsWin()));
+            var assessments = new List<MatchPerformanceAssessment>();
+            var wins = new List<bool>();
+            foreach (MatchHistoryGame game in comparable)
+            {
+                MatchParticipant? gamer = game.GetParticipant(_playerPuuid);
+                if (gamer?.stats == null) continue;
+                // 摘要里只有本人数据，缺少队内对比，因此这里只承载 KDA 供近期汇总使用。
+                assessments.Add(new MatchPerformanceAssessment(
+                    MatchPerformanceTier.Medium, 0, "",
+                    gamer.stats.kills, gamer.stats.deaths, gamer.stats.assists));
+                wins.Add(gamer.stats.Win);
+            }
+
+            RecentModePerformanceAssessment assessment = RecentModePerformanceEvaluator.Evaluate(
+                comparable[0].GetModeText(), assessments, wins, PerformanceSampleSize);
             if (!assessment.HasEnoughSample)
             {
-                lblSummary.Text = $"样本不足 · KDA {assessment.Kda:F2}";
+                lblSummary.Text = $"样本不足 {assessment.SampleSize}/{PerformanceSampleSize} · KDA {assessment.Kda:F2}";
                 lblSummary.ForeColor = UiTheme.Palette.TextSecondary;
                 _performanceTip.SetToolTip(lblSummary, assessment.Detail);
-                return;
+                return assessment;
             }
 
-            string label = assessment.Tier switch
-            {
-                MatchPerformanceTier.Upper => "上等马",
-                MatchPerformanceTier.Lower => "下等马",
-                _ => "中等马"
-            };
+            string label = RecentPerformanceLabelFormatter.GetText(assessment);
             lblSummary.Text = $"{label} · KDA {assessment.Kda:F2}";
-            lblSummary.ForeColor = assessment.Tier switch
+            lblSummary.ForeColor = assessment.Label switch
             {
-                MatchPerformanceTier.Upper => Color.FromArgb(27, 94, 32),
-                MatchPerformanceTier.Lower => Color.FromArgb(183, 28, 28),
+                RecentPerformanceLabel.Upper => Color.FromArgb(27, 94, 32),
+                RecentPerformanceLabel.Human => Color.FromArgb(123, 31, 162),
+                RecentPerformanceLabel.Lower => Color.FromArgb(183, 28, 28),
                 _ => Color.FromArgb(85, 85, 85)
             };
             _performanceTip.SetToolTip(lblSummary, assessment.Detail);
+            return assessment;
         }
 
-        private bool IsComparableMode(MatchDetail detail)
+        private RecentModePerformanceAssessment CreateInsufficientPerformanceAssessment() =>
+            RecentModePerformanceEvaluator.Evaluate(
+                string.IsNullOrWhiteSpace(_currentGameMode) ? "当前队列" : _currentGameMode,
+                Array.Empty<MatchPerformanceAssessment>(),
+                Array.Empty<bool>(),
+                PerformanceSampleSize);
+
+        private void PublishRecentPerformance(RecentModePerformanceAssessment assessment)
+        {
+            if (_recentPerformancePublished || IsDisposed || string.IsNullOrWhiteSpace(_playerPuuid)) return;
+            _recentPerformancePublished = true;
+            RecentPerformanceReady?.Invoke(this, new PlayerRecentPerformanceEventArgs(
+                _playerPuuid,
+                lblName.Text,
+                _isAlly,
+                assessment));
+        }
+
+        private bool IsComparableMode(MatchHistoryGame game)
         {
             if (_currentQueueId > 0)
-                return int.TryParse(detail.queueId ?? detail._queueId, out int queueId) && queueId == _currentQueueId;
+                return game.QueueId == _currentQueueId;
             return !string.IsNullOrWhiteSpace(_currentGameMode) &&
-                   string.Equals(detail.gameMode, _currentGameMode, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static MatchPerformanceAssessment EvaluateGamePerformance(MatchDetail game, string puuid)
-        {
-            var snapshots = game.participants
-                .Where(participant => participant.stats != null)
-                .Select(participant => new MatchPerformanceSnapshot(
-                    game.participantIdentities.FirstOrDefault(identity => identity.participantId == participant.participantId)?.player?.puuid
-                        ?? $"participant-{participant.participantId}",
-                    participant.teamId,
-                    participant.IsWin(),
-                    participant.stats!.kills,
-                    participant.stats.deaths,
-                    participant.stats.assists,
-                    participant.stats.totalDamageDealtToChampions,
-                    participant.stats.goldEarned,
-                    participant.stats.visionScore))
-                .ToList();
-            return MatchPerformanceEvaluator.Evaluate(snapshots.FirstOrDefault(item => item.PlayerId == puuid), snapshots);
+                   string.Equals(game.GameMode, _currentGameMode, StringComparison.OrdinalIgnoreCase);
         }
 
         private void ShowShimmer()
@@ -719,5 +762,26 @@ namespace LOL_GameAssistant.BaseViewForm
                 // 剪贴板被占用时忽略
             }
         }
+    }
+
+    /// <summary>玩家卡片完成同队列近期 KDA 计算后，提供给对局页汇总的一项结果。</summary>
+    public sealed class PlayerRecentPerformanceEventArgs : EventArgs
+    {
+        public PlayerRecentPerformanceEventArgs(
+            string puuid,
+            string? displayName,
+            bool isAlly,
+            RecentModePerformanceAssessment assessment)
+        {
+            Puuid = puuid;
+            DisplayName = displayName ?? "未知玩家";
+            IsAlly = isAlly;
+            Assessment = assessment;
+        }
+
+        public string Puuid { get; }
+        public string DisplayName { get; }
+        public bool IsAlly { get; }
+        public RecentModePerformanceAssessment Assessment { get; }
     }
 }

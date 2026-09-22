@@ -202,23 +202,20 @@ namespace LOL_GameAssistant.BaseViewForm
                 return;
             }
 
-            string tag = assessment.Tier switch
-            {
-                MatchPerformanceTier.Upper => "上等马",
-                MatchPerformanceTier.Lower => "下等马",
-                _ => "中等马"
-            };
+            string tag = RecentPerformanceLabelFormatter.GetText(assessment);
             _performanceTag.Text = tag;
-            _performanceTag.ForeColor = assessment.Tier switch
+            _performanceTag.ForeColor = assessment.Label switch
             {
-                MatchPerformanceTier.Upper => Color.FromArgb(27, 94, 32),
-                MatchPerformanceTier.Lower => Color.FromArgb(183, 28, 28),
+                RecentPerformanceLabel.Upper => Color.FromArgb(27, 94, 32),
+                RecentPerformanceLabel.Human => Color.FromArgb(123, 31, 162),
+                RecentPerformanceLabel.Lower => Color.FromArgb(183, 28, 28),
                 _ => Color.FromArgb(85, 85, 85)
             };
-            _performanceTag.BackColor = assessment.Tier switch
+            _performanceTag.BackColor = assessment.Label switch
             {
-                MatchPerformanceTier.Upper => Color.FromArgb(232, 245, 233),
-                MatchPerformanceTier.Lower => Color.FromArgb(255, 235, 238),
+                RecentPerformanceLabel.Upper => Color.FromArgb(232, 245, 233),
+                RecentPerformanceLabel.Human => Color.FromArgb(243, 229, 245),
+                RecentPerformanceLabel.Lower => Color.FromArgb(255, 235, 238),
                 _ => Color.FromArgb(245, 245, 245)
             };
             _performanceTip.SetToolTip(_performanceTag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");

@@ -1,8 +1,11 @@
+using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.ChampionSelect;
 using LOL_GameAssistant.Domain.LeagueClient;
+using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Teams;
 using LOL_GameAssistant.Helper;
 using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
@@ -21,6 +24,13 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ILobbyService _lobbyService;
         private readonly IPlayerProfileService _playerProfileService;
         private readonly IPremadeDetectionService _premadeDetectionService;
+        private readonly IChampionSelectService _championSelectService;
+
+        // 选人聊天只在一套确定的十人阵容全部完成近期战绩计算后发送一次，避免卡片异步完成时刷屏。
+        private readonly Dictionary<string, PlayerRecentPerformanceEventArgs> _champSelectAssessments = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _expectedChampSelectAssessmentPuuids = new(StringComparer.Ordinal);
+        private string _champSelectAssessmentSignature = "";
+        private bool _champSelectAssessmentSent;
 
         // 缓存的是整局阵容的检测任务，而不是只记录“已经检测过”。这样强制刷新重建卡片后，
         // 已完成的结果能立即重新应用；尚在执行的任务也会被复用，不会重复拉取十人的近期战绩。
@@ -43,7 +53,8 @@ namespace LOL_GameAssistant.BaseViewForm
         public LiveGameForm() : this(
             AppCompositionRoot.LobbyService,
             AppCompositionRoot.PlayerProfileService,
-            AppCompositionRoot.PremadeDetectionService)
+            AppCompositionRoot.PremadeDetectionService,
+            AppCompositionRoot.ChampionSelectService)
         {
         }
 
@@ -51,11 +62,13 @@ namespace LOL_GameAssistant.BaseViewForm
         internal LiveGameForm(
             ILobbyService lobbyService,
             IPlayerProfileService playerProfileService,
-            IPremadeDetectionService premadeDetectionService)
+            IPremadeDetectionService premadeDetectionService,
+            IChampionSelectService championSelectService)
         {
             _lobbyService = lobbyService;
             _playerProfileService = playerProfileService;
             _premadeDetectionService = premadeDetectionService;
+            _championSelectService = championSelectService;
             InitializeComponent();
             _teamQueueTag1 = CreateTeamQueueTag();
             _teamQueueTag2 = CreateTeamQueueTag();
@@ -180,11 +193,19 @@ namespace LOL_GameAssistant.BaseViewForm
         public void ResetRosterCache()
         {
             _lastSignature = "";
+            ResetChampSelectAssessments();
             _activePremadeCacheKey = "";
             _premadeResultCache.Clear();
             unchecked { _premadeCacheGeneration++; }
             _teamQueueTag1.Visible = false;
             _teamQueueTag2.Visible = false;
+        }
+
+        /// <summary>保存选人 KDA 公告设置后重新读取当前阵容，让新开关立即生效。</summary>
+        public void RefreshChampSelectKdaAnnouncement()
+        {
+            if (IsDisposed || GameMain.gameFlowPhase != GameFlowPhase.ChampSelect) return;
+            _ = AddView(force: true);
         }
 
         /// <summary>
@@ -207,8 +228,60 @@ namespace LOL_GameAssistant.BaseViewForm
                     if (Enum.TryParse(livePhase, true, out GameFlowPhase parsed)) phase = parsed;
                 }
 
-                if (phase == GameFlowPhase.ChampSelect ||
-                    phase == GameFlowPhase.Lobby)
+                if (phase == GameFlowPhase.ChampSelect)
+                {
+                    LobbySnapshot? gameInfo = await _lobbyService.GetLobbyAsync();
+                    ChampionSelectionSnapshot? selection = await _championSelectService.GetSessionAsync();
+                    if (selection != null)
+                    {
+                        string? selectionMyPuuid = selection.MyTeam
+                            .FirstOrDefault(member => member.CellId == selection.LocalPlayerCellId)?.Puuid;
+                        selectionMyPuuid ??= gameInfo?.LocalPlayerPuuid;
+                        selectionMyPuuid ??= await GetMyPuuidAsync();
+                        string mode = gameInfo?.GameMode ?? "选人阶段";
+                        int queueId = gameInfo?.QueueId ?? 0;
+                        SetGameInfo(mode, queueId);
+                        RenderTeamsCore(
+                            selection.MyTeam.Select(member => (
+                                member.Puuid,
+                                string.IsNullOrWhiteSpace(member.Puuid) ? $"玩家 {member.CellId}" : "加载玩家信息…",
+                                member.ChampionId,
+                                member.AssignedPosition,
+                                false)).ToList(),
+                            selection.TheirTeam.Select(member => (
+                                member.Puuid,
+                                string.IsNullOrWhiteSpace(member.Puuid) ? $"玩家 {member.CellId}" : "加载玩家信息…",
+                                member.ChampionId,
+                                member.AssignedPosition,
+                                false)).ToList(),
+                            force,
+                            selectionMyPuuid,
+                            queueId,
+                            mode);
+                        return;
+                    }
+
+                    // 极短暂的选人会话切换期可能拿不到 session，继续用大厅数据兜底展示。
+                    if (gameInfo == null)
+                    {
+                        lblGameInfo.Text = "未获取到选人阵容";
+                        return;
+                    }
+
+                    SetGameInfo(gameInfo.GameMode, gameInfo.QueueId);
+                    // 大厅/选人阶段优先取本地成员 puuid，判断我方队伍
+                    string? myPuuid = string.IsNullOrEmpty(gameInfo.LocalPlayerPuuid)
+                        ? await GetMyPuuidAsync()
+                        : gameInfo.LocalPlayerPuuid;
+                    RenderTeams(
+                        gameInfo.Team100,
+                        gameInfo.Team200,
+                        force,
+                        myPuuid,
+                        gameInfo.QueueId,
+                        gameInfo.GameMode);
+                }
+                else if (phase == GameFlowPhase.Lobby)
                 {
                     LobbySnapshot? gameInfo = await _lobbyService.GetLobbyAsync();
                     if (gameInfo == null)
@@ -218,7 +291,6 @@ namespace LOL_GameAssistant.BaseViewForm
                     }
 
                     SetGameInfo(gameInfo.GameMode, gameInfo.QueueId);
-                    // 大厅/选人阶段优先取本地成员 puuid，判断我方队伍
                     string? myPuuid = string.IsNullOrEmpty(gameInfo.LocalPlayerPuuid)
                         ? await GetMyPuuidAsync()
                         : gameInfo.LocalPlayerPuuid;
@@ -331,6 +403,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (!force && signature == _lastSignature && panelTeam1.Controls.Count > 0)
                 return;
             _lastSignature = signature;
+            PrepareChampSelectAssessments(signature, team1, team2, myPuuid);
             _activePremadeCacheKey = signature;
             int cacheGeneration = _premadeCacheGeneration;
 
@@ -402,6 +475,123 @@ namespace LOL_GameAssistant.BaseViewForm
                     .OrderBy(puuid => puuid, StringComparer.Ordinal));
 
             return $"blue:{TeamKey(team1)}|red:{TeamKey(team2)}";
+        }
+
+        /// <summary>
+        /// 按当前选人阵容建立一次性公告的等待清单，只登记我方玩家：
+        /// 敌方战绩照常显示在卡片上，但不参与公告汇总，公告也不再等他们。
+        /// 阵容未变时保留已完成结果，强制刷新不会重复发送；阵容变更时才丢弃上一套结果。
+        /// </summary>
+        private void PrepareChampSelectAssessments(
+            string signature,
+            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
+            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2,
+            string? myPuuid)
+        {
+            bool enabled = GameMain.gameFlowPhase == GameFlowPhase.ChampSelect &&
+                AppCompositionRoot.ApplicationSettingsStore.Load().ChampSelectKdaAnnouncementEnabled;
+            if (!enabled)
+            {
+                ResetChampSelectAssessments();
+                return;
+            }
+
+            if (string.Equals(signature, _champSelectAssessmentSignature, StringComparison.Ordinal)) return;
+
+            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> allyTeam =
+                myPuuid != null && team1.Any(member => member.Puuid == myPuuid)
+                    ? team1
+                    : myPuuid != null && team2.Any(member => member.Puuid == myPuuid)
+                        ? team2
+                        : Enumerable.Empty<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)>();
+
+            _champSelectAssessmentSignature = signature;
+            _champSelectAssessmentSent = false;
+            _champSelectAssessments.Clear();
+            _expectedChampSelectAssessmentPuuids.Clear();
+            foreach (string puuid in allyTeam
+                         .Where(member => !member.IsBot)
+                         .Select(member => member.Puuid)
+                         .Where(puuid => !string.IsNullOrWhiteSpace(puuid)))
+            {
+                _expectedChampSelectAssessmentPuuids.Add(puuid);
+            }
+        }
+
+        private void ResetChampSelectAssessments()
+        {
+            _champSelectAssessments.Clear();
+            _expectedChampSelectAssessmentPuuids.Clear();
+            _champSelectAssessmentSignature = "";
+            _champSelectAssessmentSent = false;
+        }
+
+        private void OnPlayerRecentPerformanceReady(object? sender, PlayerRecentPerformanceEventArgs result)
+        {
+            if (IsDisposed || _champSelectAssessmentSent ||
+                GameMain.gameFlowPhase != GameFlowPhase.ChampSelect ||
+                !_expectedChampSelectAssessmentPuuids.Contains(result.Puuid)) return;
+
+            _champSelectAssessments[result.Puuid] = result;
+            // 敌方卡片也会发布结果，因此必须按我方名单逐个确认，不能用收到的条数判断。
+            if (_expectedChampSelectAssessmentPuuids.Count == 0 ||
+                !_expectedChampSelectAssessmentPuuids.All(puuid => _champSelectAssessments.ContainsKey(puuid))) return;
+
+            string signature = _champSelectAssessmentSignature;
+            string message = BuildChampSelectKdaAnnouncement();
+            if (string.IsNullOrWhiteSpace(message)) return;
+
+            // 先锁住本局，LCU 故障也不能在每次自动刷新时重复尝试、污染选人聊天。
+            _champSelectAssessmentSent = true;
+            _ = SendChampSelectKdaAnnouncementAsync(signature, message);
+        }
+
+        private string BuildChampSelectKdaAnnouncement()
+        {
+            var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
+            if (!settings.ChampSelectKdaAnnouncementEnabled) return "";
+
+            var players = _champSelectAssessments.Values
+                .Where(item => item.IsAlly)
+                .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            string roster = string.Join("\n", players.Select(FormatChampSelectPerformance));
+            string message = RemoveEnemyPlaceholder(settings.ChampSelectKdaAnnouncementTemplate)
+                .Replace("{players}", roster, StringComparison.OrdinalIgnoreCase)
+                .Replace("{allies}", string.IsNullOrWhiteSpace(roster) ? "我方：暂未获取" : $"我方：\n{roster}", StringComparison.OrdinalIgnoreCase)
+                .Trim();
+            return message.Length <= 1200 ? message : message[..1200];
+        }
+
+        /// <summary>
+        /// 公告不再包含敌方，因此保存过的旧模板里 {enemies} 连同它独占的那一行一起删掉，
+        /// 否则聊天里会留下一行空白。
+        /// </summary>
+        private static string RemoveEnemyPlaceholder(string template) => template
+            .Replace("\r\n{enemies}", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("\n{enemies}", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{enemies}\r\n", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{enemies}\n", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{enemies}", "", StringComparison.OrdinalIgnoreCase);
+
+        private static string FormatChampSelectPerformance(PlayerRecentPerformanceEventArgs result)
+        {
+            RecentModePerformanceAssessment assessment = result.Assessment;
+            string name = string.IsNullOrWhiteSpace(result.DisplayName) ? "未知玩家" : result.DisplayName.Trim();
+            if (!assessment.HasEnoughSample)
+                return $"{name}：数据不足（{assessment.SampleSize}/{LivePlayerForm.PerformanceSampleSize}）";
+            return $"{name}：{RecentPerformanceLabelFormatter.GetText(assessment)} {assessment.Score}分 · KDA {assessment.Kda:F2} · 胜率 {assessment.WinRate:F0}%";
+        }
+
+        private async Task SendChampSelectKdaAnnouncementAsync(string signature, string message)
+        {
+            var result = await AppCompositionRoot.ChampionSelectChatService.SendAsync(message);
+            if (IsDisposed || signature != _champSelectAssessmentSignature) return;
+
+            string summary = result.Succeeded
+                ? "选人近期 KDA 评估已发送到聊天窗口。"
+                : $"选人近期 KDA 评估未发送：{result.Message}";
+            GameMain.infoMsg.AddMsg(summary);
         }
 
         /// <summary>
@@ -563,7 +753,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        private static void AddPlayerCards(
+        private void AddPlayerCards(
             FlowLayoutPanel panel,
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members,
             string? myPuuid,
@@ -603,6 +793,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     Margin = new Padding(0, 0, PlayerCardHorizontalMargin, PlayerCardVerticalMargin)
                 };
                 UiTheme.Apply(card);
+                card.RecentPerformanceReady += OnPlayerRecentPerformanceReady;
                 panel.Controls.Add(card);
             }
         }

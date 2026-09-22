@@ -504,16 +504,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 _assetToolTip.SetToolTip(tag, assessment.Detail);
                 return;
             }
-            tag.Text = assessment.Tier switch
+            tag.Text = RecentPerformanceLabelFormatter.GetText(assessment);
+            (tag.BackColor, tag.ForeColor) = assessment.Label switch
             {
-                MatchPerformanceTier.Upper => "上等马",
-                MatchPerformanceTier.Lower => "下等马",
-                _ => "中等马"
-            };
-            (tag.BackColor, tag.ForeColor) = assessment.Tier switch
-            {
-                MatchPerformanceTier.Upper => (Color.FromArgb(232, 245, 233), Color.FromArgb(27, 94, 32)),
-                MatchPerformanceTier.Lower => (Color.FromArgb(255, 235, 238), Color.FromArgb(183, 28, 28)),
+                RecentPerformanceLabel.Upper => (Color.FromArgb(232, 245, 233), Color.FromArgb(27, 94, 32)),
+                RecentPerformanceLabel.Human => (Color.FromArgb(243, 229, 245), Color.FromArgb(123, 31, 162)),
+                RecentPerformanceLabel.Lower => (Color.FromArgb(255, 235, 238), Color.FromArgb(183, 28, 28)),
                 _ => (Color.FromArgb(245, 245, 245), Color.FromArgb(85, 85, 85))
             };
             _assetToolTip.SetToolTip(tag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");

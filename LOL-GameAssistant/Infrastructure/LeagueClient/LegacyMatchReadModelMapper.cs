@@ -26,6 +26,8 @@ internal static class LegacyMatchReadModelMapper
                         GameCreation = item.GameCreation,
                         GameMode = item.GameMode ?? "",
                         QueueId = item.QueueId,
+                        GameDuration = item.GameDuration,
+                        EndOfGameResult = item.EndOfGameResult ?? "",
                         ParticipantIdentities = (item.ParticipantIdentities ?? new List<GameHeadModel.ParticipantIdentity>())
                             .Select(identity => new MatchIdentity
                             {
@@ -37,6 +39,19 @@ internal static class LegacyMatchReadModelMapper
                                     SummonerName = identity.Player.SummonerName ?? "",
                                     TagLine = identity.Player.TagLine ?? ""
                                 }
+                            })
+                            .ToList(),
+                        // 列表条目只带回被查询玩家本人的参赛数据，但已包含 KDA 与胜负，
+                        // 近期评分因此不必再逐场拉详情。
+                        Participants = (item.Participants ?? new List<GameHeadModel.Participant>())
+                            .Select(participant => new MatchParticipant
+                            {
+                                championId = participant.ChampionId,
+                                participantId = participant.ParticipantId,
+                                Spell1Id = participant.Spell1Id,
+                                Spell2Id = participant.Spell2Id,
+                                teamId = participant.TeamId,
+                                stats = ToDomain(participant.Stats)
                             })
                             .ToList()
                     })
@@ -112,6 +127,39 @@ internal static class LegacyMatchReadModelMapper
             tripleKills = source.tripleKills,
             visionScore = source.visionScore,
             Win = IsWin(source.win)
+        };
+    }
+
+    /// <summary>战绩列表摘要的参赛数据；字段与详情接口一致，但胜负已是布尔值。</summary>
+    private static MatchParticipantStats? ToDomain(GameHeadModel.ParticipantStats? source)
+    {
+        if (source == null) return null;
+        return new MatchParticipantStats
+        {
+            assists = source.Assists,
+            champLevel = source.ChampLevel,
+            deaths = source.Deaths,
+            doubleKills = source.DoubleKills,
+            goldEarned = source.GoldEarned,
+            item0 = source.Item0,
+            item1 = source.Item1,
+            item2 = source.Item2,
+            item3 = source.Item3,
+            item4 = source.Item4,
+            item5 = source.Item5,
+            item6 = source.Item6,
+            kills = source.Kills,
+            neutralMinionsKilled = source.NeutralMinionsKilled,
+            pentaKills = source.PentaKills,
+            quadraKills = source.QuadraKills,
+            totalDamageDealtToChampions = source.TotalDamageDealtToChampions,
+            totalDamageTaken = source.TotalDamageTaken,
+            totalHeal = source.TotalHeal,
+            totalMinionsKilled = source.TotalMinionsKilled,
+            totalTimeCrowdControlDealt = source.TotalTimeCrowdControlDealt,
+            tripleKills = source.TripleKills,
+            visionScore = source.VisionScore,
+            Win = source.Win
         };
     }
 

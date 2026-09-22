@@ -22,7 +22,41 @@ public sealed class MatchHistoryGame
     public long GameCreation { get; set; }
     public string GameMode { get; set; } = "";
     public int QueueId { get; set; }
+    public int GameDuration { get; set; }
+    public string EndOfGameResult { get; set; } = "";
     public List<MatchIdentity> ParticipantIdentities { get; set; } = new();
+
+    /// <summary>LCU 战绩列表每场只带回被查询玩家本人的参赛数据。</summary>
+    public List<MatchParticipant> Participants { get; set; } = new();
+}
+
+/// <summary>战绩列表摘要的业务计算。</summary>
+public static class MatchHistoryGameExtensions
+{
+    /// <summary>短于该时长且未标记重开的对局按重开处理。</summary>
+    private const int MinimumCountedDurationSeconds = 300;
+
+    /// <summary>
+    /// 是否计入近期评分：只排除能确认的重开局。
+    /// endOfGameResult 为空、gameDuration 为 0 时按可计入处理，
+    /// 否则客户端少返回一个字段就会让所有玩家一起退化成“数据不足”。
+    /// </summary>
+    public static bool IsCompletedGame(this MatchHistoryGame game) =>
+        !game.EndOfGameResult.StartsWith("Abort", StringComparison.OrdinalIgnoreCase) &&
+        !(game.GameDuration is > 0 and < MinimumCountedDurationSeconds);
+
+    public static MatchParticipant? GetParticipant(this MatchHistoryGame game, string? puuid)
+    {
+        if (string.IsNullOrWhiteSpace(puuid)) return null;
+        int? participantId = game.ParticipantIdentities
+            .FirstOrDefault(item => item.Player?.Puuid == puuid)?.ParticipantId;
+        return participantId is null
+            ? null
+            : game.Participants.FirstOrDefault(item => item.participantId == participantId.Value);
+    }
+
+    public static string GetModeText(this MatchHistoryGame game) =>
+        LolGameModeNames.GetModeText(game.QueueId.ToString(), game.GameMode);
 }
 
 /// <summary>战绩摘要中的参赛者身份。</summary>
@@ -147,11 +181,20 @@ public static class MatchDetailExtensions
     }
 
     /// <summary>对局记录只显示玩法模式名称，不使用地图名作为模式名。</summary>
-    public static string GetModeText(this MatchDetail? game)
+    public static string GetModeText(this MatchDetail? game) =>
+        game == null ? "未知模式" : LolGameModeNames.GetModeText(game.queueId ?? game._queueId, game.gameMode);
+}
+
+/// <summary>
+/// 队列与玩法模式到展示名称的唯一映射：战绩列表摘要与对局详情共用同一套名称，
+/// 避免同一队列在不同页面各自维护成不同叫法。
+/// </summary>
+public static class LolGameModeNames
+{
+    public static string GetModeText(string? queueId, string? gameMode)
     {
-        if (game == null) return "未知模式";
-        string queueId = (game.queueId ?? game._queueId ?? "").Trim();
-        if (int.TryParse(queueId, out int id))
+        string queue = (queueId ?? "").Trim();
+        if (int.TryParse(queue, out int id))
         {
             string? name = id switch
             {
@@ -173,7 +216,7 @@ public static class MatchDetailExtensions
             if (!string.IsNullOrEmpty(name)) return name;
         }
 
-        return game.gameMode.Trim().ToUpperInvariant() switch
+        return (gameMode ?? "").Trim().ToUpperInvariant() switch
         {
             "CLASSIC" => "峡谷对局",
             "ARAM" => "深渊大乱斗",
@@ -182,7 +225,7 @@ public static class MatchDetailExtensions
             "NEXUS_BLITZ" => "极限闪击",
             "ULTBOOK" => "终极魔典",
             "TFT" => "云顶之弈",
-            _ when !string.IsNullOrEmpty(queueId) => $"队列 {queueId}",
+            _ when !string.IsNullOrEmpty(queue) => $"队列 {queue}",
             _ => "其他模式"
         };
     }

@@ -6,8 +6,7 @@ public enum RecommendationStatus
     Disabled,
     Collecting,
     NoActiveGame,
-    LocalRulesReady,
-    EnhancedByAi,
+    AiReady,
     ConfigurationRequired,
     DataUnavailable,
     Failed

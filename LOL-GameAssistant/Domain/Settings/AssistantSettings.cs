@@ -20,6 +20,12 @@ public sealed class AssistantSettings
     public string QuickMessageLanguage { get; set; } = "中文";
     public string QuickMessageText { get; set; } = "我去支援，请注意地图。";
     public string QuickMessageHotkey { get; set; } = "F8";
+    /// <summary>在选人阶段选定英雄后，显示 OP.GG 图文出装/符文选择器。</summary>
+    public bool OpggBuildAssistantEnabled { get; set; }
+    /// <summary>选人阵容加载完成后，汇总近期 KDA 并通过 LCU 发送到选人聊天。</summary>
+    public bool ChampSelectKdaAnnouncementEnabled { get; set; }
+    /// <summary>选人 KDA 汇总消息模板，支持 {players}、{allies}、{enemies} 占位符。</summary>
+    public string ChampSelectKdaAnnouncementTemplate { get; set; } = "【选人近期 KDA 评估】\n{allies}\n{enemies}";
     public CloudAiSettings Ai { get; set; } = new();
     public bool AutoMatch { get; set; }
     public bool AutoAccept { get; set; }
@@ -47,6 +53,9 @@ public sealed class AssistantSettings
         QuickMessageText ??= "";
         QuickMessageHotkey = string.IsNullOrWhiteSpace(QuickMessageHotkey) ? "F8" : QuickMessageHotkey;
         QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
+        ChampSelectKdaAnnouncementTemplate = string.IsNullOrWhiteSpace(ChampSelectKdaAnnouncementTemplate)
+            ? "【选人近期 KDA 评估】\n{allies}\n{enemies}"
+            : ChampSelectKdaAnnouncementTemplate.Trim()[..Math.Min(800, ChampSelectKdaAnnouncementTemplate.Trim().Length)];
         CheckIntervalSeconds = Math.Max(1, CheckIntervalSeconds);
         AutoRefreshIntervalSeconds = Math.Max(10, AutoRefreshIntervalSeconds);
         BanChampions ??= new List<string>();

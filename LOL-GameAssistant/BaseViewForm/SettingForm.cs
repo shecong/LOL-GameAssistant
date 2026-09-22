@@ -33,8 +33,10 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly TextBox _quickMessageText = new() { Dock = DockStyle.Fill, Multiline = true, Height = 90 };
         private readonly TextBox _quickMessageHotkey = new() { ReadOnly = true, Width = 160, TabStop = true };
         private readonly NumericUpDown _quickMessageInterval = new() { Minimum = 2, Maximum = 30, Width = 100 };
-        private readonly CheckBox _recommendationEnabled = new() { Text = "启用本地时间线建议（无需 API Key）", AutoSize = true };
-        private readonly CheckBox _aiEnabled = new() { Text = "启用云端 AI 增强", AutoSize = true };
+        private readonly CheckBox _recommendationEnabled = new() { Text = "启用 AI 时间线建议", AutoSize = true };
+        private readonly CheckBox _opggBuildAssistantEnabled = new() { Text = "启用 OP.GG 选人出装与符文推荐", AutoSize = true };
+        private readonly CheckBox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
+        private readonly TextBox _champSelectKdaAnnouncementTemplate = new() { Dock = DockStyle.Fill, Multiline = true, Height = 86, ScrollBars = ScrollBars.Vertical };
         private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210 };
         private readonly TextBox _model = new() { Width = 290 };
         private readonly TextBox _baseUrl = new() { Dock = DockStyle.Fill };
@@ -48,10 +50,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly NumericUpDown _overlayOffsetX = new() { Minimum = -600, Maximum = 600, Width = 80 };
         private readonly NumericUpDown _overlayOffsetY = new() { Minimum = -600, Maximum = 600, Width = 80 };
         private readonly NumericUpDown _overlayDuration = new() { Minimum = 3, Maximum = 30, Width = 80 };
-        private readonly CheckBox _anakinEnabled = new() { Text = "启用旧版 Anakin 连接", AutoSize = true };
-        private readonly TextBox _anakinKey = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true, PlaceholderText = "留空则保留已保存的密钥" };
         private bool _clearAiKey;
-        private bool _clearAnakinKey;
         private static readonly string[] ResolutionPresets = { "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3840x2160" };
 
         public SettingForm() : this(
@@ -209,6 +208,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 config.AutoRefresh,
                 Math.Max(10, config.AutoRefreshIntervalSeconds));
             Program.GameMain.ApplyRecommendationSettings(config);
+            GameMain.coachForm.RefreshOpggAvailability();
+            GameMain.liveGameForm.RefreshChampSelectKdaAnnouncement();
         }
 
         private Panel CreateClientSegment()
@@ -287,10 +288,6 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 if (!string.IsNullOrWhiteSpace(_apiKey.Text)) _clearAiKey = false;
             };
-            _anakinKey.TextChanged += (_, _) =>
-            {
-                if (!string.IsNullOrWhiteSpace(_anakinKey.Text)) _clearAnakinKey = false;
-            };
 
             var providerPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             providerPanel.Controls.Add(_provider);
@@ -314,7 +311,7 @@ namespace LOL_GameAssistant.BaseViewForm
             refreshPanel.Controls.Add(new Label { Text = "间隔（秒）", AutoSize = true, Padding = new Padding(10, 5, 0, 0) });
             refreshPanel.Controls.Add(_dynamicSeconds);
 
-            _showPopup.Text = "兼容旧版弹窗提醒";
+            _showPopup.Text = "生成 AI 建议后显示提醒";
             _overlayPosition.Items.AddRange(new object[] { "左下", "左上", "右下", "右上", "屏幕中央" });
             var overlayOffsetPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             overlayOffsetPanel.Controls.Add(new Label { Text = "横向", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
@@ -324,37 +321,29 @@ namespace LOL_GameAssistant.BaseViewForm
             overlayOffsetPanel.Controls.Add(new Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayDuration);
             var overlayNote = CreateNote("浮窗默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
-            var privacyNote = CreateNote("隐私说明：只有启用“云端 AI 增强”并主动保存后，当前英雄、游戏阶段、装备与时间线摘要才会发送给所选服务商；不会发送 LCU Token、账号密码或本机聊天内容。关闭云端增强后只使用本地规则。");
+            var privacyNote = CreateNote("隐私说明：启用 AI 时间线建议并主动保存后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商以生成建议；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据，也不会显示替代建议。");
+            var opggNote = CreateNote("开启后，助手会在选人阶段检测到你已选定英雄时弹出图文方案。选中并点击应用后，才会从 OP.GG 读取公开推荐，并写入本机客户端的符文页与自定义物品集；取消不会修改任何内容。若符文页已满，将替换当前正在使用的符文页，不会清理其它自定义页。");
+            var kdaAnnouncementNote = CreateNote("仅在英雄选择阶段、我方阵容的战绩加载完成后通过 LCU 发送一次。严格规则：取最近 100 场里同队列的最近 20 场（不计重开局），KDA ＜ 1 为“人机”、1–2.19 为下等马、2.2–4.49 为中等马、≥ 4.5 为上等马；不足 20 场显示数据不足。只汇总我方玩家，不获取也不发送敌方。模板支持 {players}、{allies}，两者内容相同（均为我方名单）。\n默认文案如下，可直接编辑：\n【选人近期 KDA 评估】\n{allies}\n玩家：上等马 87分 · KDA 4.90 · 胜率 55%");
 
-            var clearAnakinButton = new Button { Text = "清除已保存密钥", AutoSize = true, Dock = DockStyle.Right };
-            clearAnakinButton.Click += (_, _) =>
-            {
-                _clearAnakinKey = true;
-                _anakinKey.Clear();
-            };
-            var anakinPanel = new Panel { Dock = DockStyle.Fill, Height = 32 };
-            anakinPanel.Controls.Add(_anakinKey);
-            anakinPanel.Controls.Add(clearAnakinButton);
-            var anakinNote = CreateNote("OP.GG 一键配置无需 Anakin Key：在“智能建议”页选定英雄后，点击“OP.GG 一键配置当前英雄”即可写入符文与自定义物品集。此项仅兼容保留旧配置；API Key 会使用当前 Windows 用户的 DPAPI 加密保存。");
-
-            AddSegmentRow(layout, 0, "智能建议：", _recommendationEnabled);
-            AddSegmentRow(layout, 1, "云端增强：", _aiEnabled);
-            AddSegmentRow(layout, 2, "服务商：", providerPanel);
-            AddSegmentRow(layout, 3, "模型名称：", _model);
-            AddSegmentRow(layout, 4, "接口地址：", _baseUrl);
-            AddSegmentRow(layout, 5, "API Key：", keyPanel);
-            AddSegmentRow(layout, 6, "密钥状态：", _apiKeyStatus);
-            AddSegmentRow(layout, 7, "数据与隐私：", privacyNote);
-            AddSegmentRow(layout, 8, "动态建议：", refreshPanel);
-            AddSegmentRow(layout, 9, "旧版提醒：", _showPopup);
-            AddSegmentRow(layout, 10, "游戏内浮窗：", _overlayEnabled);
-            AddSegmentRow(layout, 11, "浮窗位置：", _overlayPosition);
-            AddSegmentRow(layout, 12, "位置与时长：", overlayOffsetPanel);
-            AddSegmentRow(layout, 13, "浮窗说明：", overlayNote);
-            AddSegmentRow(layout, 14, "旧版连接：", _anakinEnabled);
-            AddSegmentRow(layout, 15, "旧版 Key：", anakinPanel);
-            AddSegmentRow(layout, 16, "说明：", anakinNote);
-            AddSaveRow(layout, 17, "保存 AI 设置");
+            AddSegmentRow(layout, 0, "AI 时间线：", _recommendationEnabled);
+            AddSegmentRow(layout, 1, "OP.GG 推荐：", _opggBuildAssistantEnabled);
+            AddSegmentRow(layout, 2, "OP.GG 说明：", opggNote);
+            AddSegmentRow(layout, 3, "选人 KDA 发送：", _champSelectKdaAnnouncementEnabled);
+            AddSegmentRow(layout, 4, "发送文案：", _champSelectKdaAnnouncementTemplate);
+            AddSegmentRow(layout, 5, "KDA 说明：", kdaAnnouncementNote);
+            AddSegmentRow(layout, 6, "服务商：", providerPanel);
+            AddSegmentRow(layout, 7, "模型名称：", _model);
+            AddSegmentRow(layout, 8, "接口地址：", _baseUrl);
+            AddSegmentRow(layout, 9, "API Key：", keyPanel);
+            AddSegmentRow(layout, 10, "密钥状态：", _apiKeyStatus);
+            AddSegmentRow(layout, 11, "数据与隐私：", privacyNote);
+            AddSegmentRow(layout, 12, "动态建议：", refreshPanel);
+            AddSegmentRow(layout, 13, "建议提醒：", _showPopup);
+            AddSegmentRow(layout, 14, "游戏内浮窗：", _overlayEnabled);
+            AddSegmentRow(layout, 15, "浮窗位置：", _overlayPosition);
+            AddSegmentRow(layout, 16, "位置与时长：", overlayOffsetPanel);
+            AddSegmentRow(layout, 17, "浮窗说明：", overlayNote);
+            AddSaveRow(layout, 18, "保存 AI 设置");
             return panel;
         }
 
@@ -432,7 +421,9 @@ namespace LOL_GameAssistant.BaseViewForm
 
             CloudAiSettings ai = _config.Ai;
             _recommendationEnabled.Checked = ai.RecommendationEnabled;
-            _aiEnabled.Checked = ai.Enabled;
+            _opggBuildAssistantEnabled.Checked = _config.OpggBuildAssistantEnabled;
+            _champSelectKdaAnnouncementEnabled.Checked = _config.ChampSelectKdaAnnouncementEnabled;
+            _champSelectKdaAnnouncementTemplate.Text = _config.ChampSelectKdaAnnouncementTemplate;
             _provider.SelectedItem = ai.Provider;
             if (_provider.SelectedIndex < 0) _provider.SelectedItem = LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
             _model.Text = ai.Model;
@@ -445,7 +436,6 @@ namespace LOL_GameAssistant.BaseViewForm
             _overlayOffsetX.Value = ai.RecommendationOverlayOffsetX;
             _overlayOffsetY.Value = ai.RecommendationOverlayOffsetY;
             _overlayDuration.Value = ai.RecommendationOverlayDurationSeconds;
-            _anakinEnabled.Checked = ai.AnakinEnabled;
             _apiKeyStatus.Text = string.IsNullOrWhiteSpace(ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
         }
 
@@ -467,7 +457,9 @@ namespace LOL_GameAssistant.BaseViewForm
 
             CloudAiSettings ai = _config.Ai;
             ai.RecommendationEnabled = _recommendationEnabled.Checked;
-            ai.Enabled = _aiEnabled.Checked;
+            _config.OpggBuildAssistantEnabled = _opggBuildAssistantEnabled.Checked;
+            _config.ChampSelectKdaAnnouncementEnabled = _champSelectKdaAnnouncementEnabled.Checked;
+            _config.ChampSelectKdaAnnouncementTemplate = _champSelectKdaAnnouncementTemplate.Text;
             ai.Provider = _provider.SelectedItem is LOL_GameAssistant.Domain.Settings.AiProvider provider
                 ? provider
                 : LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
@@ -481,20 +473,15 @@ namespace LOL_GameAssistant.BaseViewForm
             ai.RecommendationOverlayOffsetX = (int)_overlayOffsetX.Value;
             ai.RecommendationOverlayOffsetY = (int)_overlayOffsetY.Value;
             ai.RecommendationOverlayDurationSeconds = (int)_overlayDuration.Value;
-            ai.AnakinEnabled = _anakinEnabled.Checked;
             if (_clearAiKey) ai.EncryptedApiKey = "";
             else if (!string.IsNullOrWhiteSpace(_apiKey.Text)) ai.EncryptedApiKey = _settingsSecretProtector.Protect(_apiKey.Text);
-            if (_clearAnakinKey) ai.AnakinEncryptedApiKey = "";
-            else if (!string.IsNullOrWhiteSpace(_anakinKey.Text)) ai.AnakinEncryptedApiKey = _settingsSecretProtector.Protect(_anakinKey.Text);
             _config.Normalize();
 
             _settingsStore.Save(_config);
             ApplySideEffects(_config);
             label_cache_status.Text = $"已缓存: {_settingsStore.GetStoragePath()}";
             _apiKey.Clear();
-            _anakinKey.Clear();
             _clearAiKey = false;
-            _clearAnakinKey = false;
             _apiKeyStatus.Text = string.IsNullOrWhiteSpace(ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
             AntdUI.Message.success(Program.GameMain, "设置已保存");
         }

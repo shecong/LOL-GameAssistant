@@ -97,6 +97,10 @@ public static class AppCompositionRoot
     /// <summary>选人读取和自动禁用、选用服务。</summary>
     public static IChampionSelectService ChampionSelectService { get; } = new LegacyChampionSelectService();
 
+    /// <summary>向 LCU 当前英雄选择聊天会话发送一条消息。</summary>
+    public static IChampionSelectChatService ChampionSelectChatService { get; } =
+        new LcuChampionSelectChatService(LcuRequestSender);
+
     /// <summary>OP.GG 公开推荐到本机 LCU 符文页和自定义物品集的一键配置。</summary>
     public static IOpggBuildApplyService OpggBuildApplyService { get; } =
         new OpggBuildApplyService(LcuRequestSender, ChampionCatalog);
@@ -114,18 +118,16 @@ public static class AppCompositionRoot
         LaneKnowledgeService,
         ChampionCatalog);
 
-    private static readonly ILocalRecommendationService LocalRecommendationService = new TimelineRecommendationService();
-
     /// <summary>近期同队关系的开黑检测服务。</summary>
     public static IPremadeDetectionService PremadeDetectionService { get; } = new LegacyPremadeDetectionService();
 
     /// <summary>本机上下文与云端 AI 建议服务。</summary>
     public static IAiCoachingService AiCoachingService { get; } = new LegacyAiCoachingService(AiGameContextService);
 
-    /// <summary>可选云端 AI 增强的基础设施适配器。</summary>
+    /// <summary>根据当前可见对局数据生成时间线建议的 AI 适配器。</summary>
     public static IAiRecommendationProvider AiRecommendationProvider { get; } = new CloudAiRecommendationProvider();
 
     /// <summary>独立于页面生命周期的局内建议调度器。</summary>
     public static IRecommendationCoordinator RecommendationCoordinator { get; } =
-        new RecommendationCoordinator(AiCoachingService, AiRecommendationProvider, LocalRecommendationService);
+        new RecommendationCoordinator(AiCoachingService, AiRecommendationProvider);
 }
