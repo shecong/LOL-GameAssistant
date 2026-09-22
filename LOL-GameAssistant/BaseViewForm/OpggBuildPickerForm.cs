@@ -36,6 +36,9 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
+        // 选人阶段英雄联盟客户端在前台，而本窗口不占任务栏：
+        // 不置顶的话它可能开在客户端后面且完全看不出来。
+        TopMost = true;
         MinimumSize = new Size(880, 590);
         ClientSize = new Size(1040, 700);
         Padding = new Padding(14);
@@ -43,7 +46,12 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
         BuildUi();
         UiTheme.Apply(this);
-        Shown += async (_, _) => await LoadVisualsAsync();
+        Shown += async (_, _) =>
+        {
+            Activate();
+            BringToFront();
+            await LoadVisualsAsync();
+        };
         FormClosed += (_, _) => DisposeOwnedImages();
     }
 

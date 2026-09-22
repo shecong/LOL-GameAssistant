@@ -216,28 +216,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
         JObject? inventory = await ReadObjectAsync("/lol-perks/v1/inventory", cancellationToken).ConfigureAwait(false);
         int pageLimit = inventory?.Value<int?>("ownedPageCount") ?? 2;
-        bool replacedCurrentPage = false;
-        if (pages.Count >= pageLimit)
-        {
-            // 用户已明确选择“页满时删除当前页”。只处理 LCU 标记的当前页，
-            // 不猜测、不删除其它任意自定义符文页。
-            JObject? currentPage = pages.OfType<JObject>().FirstOrDefault(IsCurrentRunePage);
-            long? currentPageId = currentPage?.Value<long?>("id");
-            if (!currentPageId.HasValue)
-                throw new InvalidOperationException("符文页数量已满，但未识别到当前符文页；为避免误删其它页面，本次未写入。");
-
-            if (currentPage?.Value<bool?>("isDeletable") == false)
-                throw new InvalidOperationException("符文页数量已满，且当前符文页不可删除；请在客户端手动释放一个符文页后重试。");
-
-            if (!await _lcu.DeleteAsync($"/lol-perks/v1/pages/{currentPageId.Value}", cancellationToken).ConfigureAwait(false))
-                throw new InvalidOperationException("符文页数量已满，客户端拒绝删除当前符文页；本次未写入 OP.GG 配置。");
-
-            replacedCurrentPage = true;
-            pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
-            if (pages.Count >= pageLimit)
-                throw new InvalidOperationException("已删除当前符文页，但客户端未释放符文页容量；本次未写入 OP.GG 配置。");
-        }
-
+        int customPageCount = inventory?.Value<int?>("customPageCount") ?? CountCustomPages(pages);
         string pageName = ManagedRunePrefix + label;
         string body = JsonConvert.SerializeObject(new
         {
@@ -248,21 +227,48 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             current = true,
             order = 0
         });
-        if (!await _lcu.PostAsync("/lol-perks/v1/pages", body, cancellationToken).ConfigureAwait(false))
-            throw new InvalidOperationException("客户端拒绝创建符文页。请确认仍处于可编辑符文的阶段。");
 
-        // 少数客户端版本会忽略 POST 的 current 标志，补一次显式切换。
-        pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
-        long? createdId = pages.OfType<JObject>()
-            .FirstOrDefault(page => string.Equals(page.Value<string>("name"), pageName, StringComparison.Ordinal))?
-            .Value<long?>("id");
-        if (createdId.HasValue)
-            await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(new { id = createdId.Value }), cancellationToken)
-                .ConfigureAwait(false);
-        return replacedCurrentPage
-            ? "符文页已设为当前（符文页已满，已替换原当前符文页）"
-            : "符文页已设为当前";
+        if (customPageCount < pageLimit)
+        {
+            if (!await _lcu.PostAsync("/lol-perks/v1/pages", body, cancellationToken).ConfigureAwait(false))
+                throw new InvalidOperationException("客户端拒绝创建符文页。请确认仍处于可编辑符文的阶段。");
+
+            // 少数客户端版本会忽略 POST 的 current 标志，补一次显式切换。
+            pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
+            long? createdId = pages.OfType<JObject>()
+                .FirstOrDefault(page => string.Equals(page.Value<string>("name"), pageName, StringComparison.Ordinal))?
+                .Value<long?>("id");
+            if (createdId.HasValue)
+                await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(new { id = createdId.Value }), cancellationToken)
+                    .ConfigureAwait(false);
+            return "符文页已设为当前";
+        }
+
+        // 自定义符文页额度已满：就地改写当前正在使用的符文页，不删除任何页面。
+        // 这里不能拿 pages.Count 与 ownedPageCount 比较：选人阶段客户端自建的临时页也在 pages 里，
+        // 会让页数虚高、误判“已满”而去删用户的页面；而且删完再比较必然仍然“已满”，
+        // 结果是删了页却什么都没写入。
+        JObject? currentPage = pages.OfType<JObject>().FirstOrDefault(IsCurrentRunePage);
+        long? currentPageId = currentPage?.Value<long?>("id");
+        if (!currentPageId.HasValue)
+            throw new InvalidOperationException($"自定义符文页已满（{customPageCount}/{pageLimit}），且未识别到当前符文页；请先在客户端释放一个符文页后重试。");
+
+        if (currentPage?.Value<bool?>("isEditable") == false)
+            throw new InvalidOperationException($"自定义符文页已满（{customPageCount}/{pageLimit}），且当前符文页不可编辑；请先在客户端释放一个符文页后重试。");
+
+        if (!await _lcu.PutAsync($"/lol-perks/v1/pages/{currentPageId.Value}", body, cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException($"自定义符文页已满（{customPageCount}/{pageLimit}），客户端拒绝改写当前符文页；请先在客户端释放一个符文页后重试。");
+
+        // 与新建路径一样：个别版本会忽略 body 里的 current 标志，补一次显式切换。
+        await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(new { id = currentPageId.Value }), cancellationToken)
+            .ConfigureAwait(false);
+
+        return $"符文页已设为当前（自定义符文页已满 {customPageCount}/{pageLimit}，已改写当前使用的符文页）";
     }
+
+    /// <summary>自定义符文页数量；客户端未提供该字段时按“非临时页”估算。</summary>
+    private static int CountCustomPages(JArray pages) =>
+        pages.OfType<JObject>().Count(page => page.Value<bool?>("isTemporary") != true);
 
     private static bool IsCurrentRunePage(JObject page) =>
         page.Value<bool?>("current") == true || page.Value<bool?>("isActive") == true;

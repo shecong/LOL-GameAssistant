@@ -29,6 +29,12 @@ namespace LOL_GameAssistant.BaseViewForm
         private static readonly TimeSpan RecentModeDetailCacheTtl = TimeSpan.FromMinutes(3);
         private static readonly SemaphoreSlim RecentModeDetailLoadGate = new(4, 4);
 
+        /// <summary>判定取数范围：先拉最近这些场摘要，再从中筛出同模式对局。</summary>
+        private const int HistoryFetchCount = 100;
+
+        /// <summary>最多取最新这些场同模式对局参与判定。</summary>
+        private const int RecentSampleSize = 12;
+
         /// <summary>点击玩家头像后选中的玩家 puuid（用于跳转战绩查询）。</summary>
         public string? SelectedPlayerPuuid { get; private set; }
 
@@ -388,7 +394,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 MatchDetail[] details = await GetRecentModeDetailsAsync(puuid);
                 var assessments = new List<MatchPerformanceAssessment>();
                 var wins = new List<bool>();
-                foreach (MatchDetail detail in details.Where(detail => SameMode(detail, _gameInfo)).Take(12))
+                foreach (MatchDetail detail in details)
                 {
                     MatchParticipant? participant = detail.GetParticipant(puuid);
                     if (participant?.stats == null) continue;
@@ -434,11 +440,11 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private async Task<MatchDetail[]> LoadRecentModeDetailsAsync(string puuid)
         {
-            MatchHistoryResponse? history = await _matchHistoryService.GetPageAsync(puuid, 0, 29);
+            MatchHistoryResponse? history = await _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1);
             var heads = history?.Games?.Games
                 .Where(head => SameMode(head, _gameInfo))
                 .OrderByDescending(head => head.GameCreation)
-                .Take(12)
+                .Take(RecentSampleSize)
                 .ToList() ?? new List<MatchHistoryGame>();
 
             var tasks = heads.Select(async head =>
@@ -457,15 +463,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 return candidate.QueueId == queueId;
             return string.Equals(candidate.GameMode, current.gameMode, StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(candidate.GameMode, current.GetModeText(), StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool SameMode(MatchDetail candidate, MatchDetail current)
-        {
-            string candidateQueue = candidate.queueId ?? candidate._queueId ?? "";
-            string currentQueue = current.queueId ?? current._queueId ?? "";
-            if (!string.IsNullOrWhiteSpace(candidateQueue) && !string.IsNullOrWhiteSpace(currentQueue))
-                return string.Equals(candidateQueue, currentQueue, StringComparison.Ordinal);
-            return string.Equals(candidate.GetModeText(), current.GetModeText(), StringComparison.Ordinal);
         }
 
         private static string GetModeCacheKey(MatchDetail detail)

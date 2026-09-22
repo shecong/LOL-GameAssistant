@@ -4,6 +4,7 @@ using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.Coaching;
 using LOL_GameAssistant.Domain.Settings;
+using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -165,6 +166,7 @@ public sealed class CoachForm : UserControl
 
         // 在请求 OP.GG 前先标记本英雄，避免 LCU 的连续选人事件重复打开同一模态框。
         _opggPromptedChampionId = context.MyChampionId;
+        RuntimeDiagnostics.Report("OP.GG 选人推荐", "检测到英雄", $"英雄 {context.MyChampionId} · 位置 {context.MyRole}");
         await ApplyOpggBuildAsync(context, automatic: true, cancellationToken);
     }
 
@@ -239,11 +241,20 @@ public sealed class CoachForm : UserControl
             {
                 _status.ForeColor = Color.Firebrick;
                 _status.Text = choices.Message;
+                // 取数失败时不会弹窗，只写状态栏容易被忽略；同时写进消息区，让“没弹窗”总有原因可查。
+                GameMain.infoMsg.AddMsg($"OP.GG 未弹出方案：{choices.Message}");
+                RuntimeDiagnostics.Report("OP.GG 选人推荐", "取数失败", choices.Message);
                 return;
             }
 
+            RuntimeDiagnostics.Report("OP.GG 选人推荐", "已获取方案", $"{choices.ChampionName} {choices.PositionName} · {choices.Options.Count} 套，正在等待选择");
             using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService);
-            if (picker.ShowDialog(FindForm() ?? Program.GameMain) != DialogResult.OK || picker.SelectedOption == null)
+            DialogResult dialogResult = picker.ShowDialog(FindForm() ?? Program.GameMain);
+            // 能走到这里说明弹窗确实显示过；诊断里若一直停在“已获取方案”，
+            // 就说明窗口没能显示出来（被客户端挡住或落到屏幕外）。
+            RuntimeDiagnostics.Report("OP.GG 选人推荐", "弹窗已关闭",
+                picker.SelectedOption == null ? "未选择方案" : $"已选方案 {picker.SelectedOption.Order}");
+            if (dialogResult != DialogResult.OK || picker.SelectedOption == null)
             {
                 _status.ForeColor = Color.DimGray;
                 _status.Text = "已取消 OP.GG 出装配置。";
@@ -265,6 +276,7 @@ public sealed class CoachForm : UserControl
         {
             _status.ForeColor = Color.Firebrick;
             _status.Text = "OP.GG 一键配置失败：" + ex.Message;
+            GameMain.infoMsg.AddMsg("OP.GG 一键配置失败：" + ex.Message);
         }
         finally
         {

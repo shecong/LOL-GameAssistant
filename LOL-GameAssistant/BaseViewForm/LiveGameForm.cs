@@ -578,8 +578,6 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             RecentModePerformanceAssessment assessment = result.Assessment;
             string name = string.IsNullOrWhiteSpace(result.DisplayName) ? "未知玩家" : result.DisplayName.Trim();
-            if (!assessment.HasEnoughSample)
-                return $"{name}：数据不足（{assessment.SampleSize}/{LivePlayerForm.PerformanceSampleSize}）";
             return $"{name}：{RecentPerformanceLabelFormatter.GetText(assessment)} {assessment.Score}分 · KDA {assessment.Kda:F2} · 胜率 {assessment.WinRate:F0}%";
         }
 

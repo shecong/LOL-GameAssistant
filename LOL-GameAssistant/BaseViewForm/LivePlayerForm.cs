@@ -36,8 +36,8 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>评分取数范围：先拉 100 场摘要，再按同队列筛出评分样本。</summary>
         private const int HistoryFetchCount = 100;
 
-        /// <summary>对局页/选人公告的评分样本下限，比其它页面的默认样本更稳。</summary>
-        public const int PerformanceSampleSize = 20;
+        /// <summary>对局页/选人公告的评分样本下限；不足此数（含一场都没有）一律按下等马处理。</summary>
+        private const int PerformanceSampleSize = 20;
         private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
@@ -495,6 +495,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 评分只统计与当前队列相同的近期已结束对局，并排除重开局；
         /// 数据取自战绩摘要（已含本人 KDA 与胜负），因此不必为评分逐场拉详情。
+        /// 样本不足 <see cref="PerformanceSampleSize"/> 场（含一场都没有）一律按下等马处理。
         /// </summary>
         private RecentModePerformanceAssessment ApplyLivePerformanceTag(
             IReadOnlyList<MatchHistoryGame> history,
@@ -510,15 +511,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 .Take(PerformanceSampleSize)
                 .ToList();
 
-            if (comparable.Count == 0)
-            {
-                lblSummary.Text = results.Count > 0
-                    ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
-                    : "暂无战绩";
-                _performanceTip.SetToolTip(lblSummary, "未识别到当前队列，暂不进行上/中/下等马判定。");
-                return CreateInsufficientPerformanceAssessment();
-            }
-
             var assessments = new List<MatchPerformanceAssessment>();
             var wins = new List<bool>();
             foreach (MatchHistoryGame game in comparable)
@@ -532,18 +524,14 @@ namespace LOL_GameAssistant.BaseViewForm
                 wins.Add(gamer.stats.Win);
             }
 
-            RecentModePerformanceAssessment assessment = RecentModePerformanceEvaluator.Evaluate(
-                comparable[0].GetModeText(), assessments, wins, PerformanceSampleSize);
-            if (!assessment.HasEnoughSample)
-            {
-                lblSummary.Text = $"样本不足 {assessment.SampleSize}/{PerformanceSampleSize} · KDA {assessment.Kda:F2}";
-                lblSummary.ForeColor = UiTheme.Palette.TextSecondary;
-                _performanceTip.SetToolTip(lblSummary, assessment.Detail);
-                return assessment;
-            }
+            RecentModePerformanceAssessment assessment = comparable.Count == 0
+                ? CreateInsufficientPerformanceAssessment()
+                : RecentModePerformanceEvaluator.Evaluate(
+                    comparable[0].GetModeText(), assessments, wins, PerformanceSampleSize);
+            if (!assessment.HasEnoughSample) assessment = AsLowerTier(assessment);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);
-            lblSummary.Text = $"{label} · KDA {assessment.Kda:F2}";
+            lblSummary.Text = comparable.Count == 0 ? label : $"{label} · KDA {assessment.Kda:F2}";
             lblSummary.ForeColor = assessment.Label switch
             {
                 RecentPerformanceLabel.Upper => Color.FromArgb(27, 94, 32),
@@ -551,16 +539,33 @@ namespace LOL_GameAssistant.BaseViewForm
                 RecentPerformanceLabel.Lower => Color.FromArgb(183, 28, 28),
                 _ => Color.FromArgb(85, 85, 85)
             };
-            _performanceTip.SetToolTip(lblSummary, assessment.Detail);
+            string recentRecord = results.Count > 0
+                ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
+                : "暂无战绩";
+            _performanceTip.SetToolTip(lblSummary, comparable.Count == 0
+                ? $"没有可用于判定的同队列战绩，按下等马处理。{recentRecord}"
+                : assessment.Detail);
             return assessment;
         }
 
+        /// <summary>
+        /// 样本不足时不下“数据不足”的结论，直接按下等马处理；
+        /// 分数一并压回下等马区间，避免出现“下等马 87分”这种自相矛盾的一行。
+        /// </summary>
+        private static RecentModePerformanceAssessment AsLowerTier(RecentModePerformanceAssessment assessment) =>
+            assessment with
+            {
+                Tier = MatchPerformanceTier.Lower,
+                Label = RecentPerformanceLabel.Lower,
+                Score = Math.Min(assessment.Score, RecentModePerformanceEvaluator.LowerTierMaxScore)
+            };
+
         private RecentModePerformanceAssessment CreateInsufficientPerformanceAssessment() =>
-            RecentModePerformanceEvaluator.Evaluate(
+            AsLowerTier(RecentModePerformanceEvaluator.Evaluate(
                 string.IsNullOrWhiteSpace(_currentGameMode) ? "当前队列" : _currentGameMode,
                 Array.Empty<MatchPerformanceAssessment>(),
                 Array.Empty<bool>(),
-                PerformanceSampleSize);
+                PerformanceSampleSize));
 
         private void PublishRecentPerformance(RecentModePerformanceAssessment assessment)
         {

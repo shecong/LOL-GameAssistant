@@ -679,6 +679,7 @@ namespace LOL_GameAssistant
             coachForm.ResetOpggChampSelectPrompt();
             _opggPromptCts = new CancellationTokenSource();
             _ = MonitorOpggChampSelectAsync(_opggPromptCts.Token);
+            RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测中", "已进入选人阶段，开始检测已选英雄");
         }
 
         private void StopOpggChampSelectMonitor()
@@ -691,23 +692,34 @@ namespace LOL_GameAssistant
 
         private async Task MonitorOpggChampSelectAsync(CancellationToken cancellationToken)
         {
-            try
+            while (gameFlowPhase == GameFlowPhase.ChampSelect && !cancellationToken.IsCancellationRequested)
             {
-                while (gameFlowPhase == GameFlowPhase.ChampSelect && !cancellationToken.IsCancellationRequested)
+                // 异常只在单次轮询内消化：写在循环外的话，一次偶发失败会让整个选人阶段
+                // 再也不提示 OP.GG，而界面上没有任何反馈。
+                try
                 {
                     if (_settingsStore.Load().OpggBuildAssistantEnabled)
                         await coachForm.PromptOpggBuildIfNeededAsync(cancellationToken);
 
                     await Task.Delay(TimeSpan.FromMilliseconds(550), cancellationToken);
                 }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                // 选人结束、离开客户端或关闭主窗口时正常停止。
-            }
-            catch (Exception ex)
-            {
-                RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测失败", ex.Message);
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // 选人结束、离开客户端或关闭主窗口时正常停止。
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测失败", ex.Message);
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
             }
         }
 

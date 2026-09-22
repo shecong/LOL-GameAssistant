@@ -18,8 +18,15 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IGameAssetService _gameAssetService;
         private readonly Label _performanceTag = new();
         private readonly ToolTip _performanceTip = new();
-        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchDetail[]> Details)> RecentDetailCache = new();
-        private static readonly TimeSpan RecentDetailCacheTtl = TimeSpan.FromMinutes(3);
+
+        /// <summary>判定取数范围：先拉最近这些场摘要，再从中筛出同模式对局。</summary>
+        private const int HistoryFetchCount = 100;
+
+        /// <summary>最多取最新这些场同模式对局参与判定。</summary>
+        private const int RecentSampleSize = 12;
+
+        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryGame[]> Games)> RecentHistoryCache = new(StringComparer.Ordinal);
+        private static readonly TimeSpan RecentHistoryCacheTtl = TimeSpan.FromMinutes(3);
 
         public recordForm() : this(AppCompositionRoot.MatchHistoryService, AppCompositionRoot.GameAssetService)
         {
@@ -124,17 +131,19 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>
         /// “上/中/下等马”只依据该玩家最近同一模式的已结束战绩，而非当前单局。
-        /// 同一玩家的详情在短时间内共享缓存，首页同时渲染多张卡片不会重复拉取。
+        /// 先从最近 100 场摘要里筛出同模式对局，再只拉这些对局的详情参与判定；
+        /// 同一玩家的摘要与详情在短时间内共享缓存，首页同时渲染多张卡片不会重复拉取。
         /// </summary>
         private async Task ApplyRecentModePerformanceTagAsync(MatchDetail currentGame, string puuid)
         {
             string mode = currentGame.GetModeText();
-            MatchDetail[] allRecent = await GetRecentDetailsAsync(puuid);
-            var comparable = allRecent
-                .Where(detail => SameMode(detail, currentGame))
-                .OrderByDescending(detail => detail.gameCreationDate)
-                .Take(12)
-                .ToList();
+            MatchHistoryGame[] sameMode = (await GetRecentHistoryAsync(puuid))
+                .Where(game => SameMode(game, currentGame))
+                .OrderByDescending(game => game.GameCreation)
+                .Take(RecentSampleSize)
+                .ToArray();
+
+            MatchDetail[] comparable = await LoadDetailsAsync(sameMode);
             var assessments = new List<MatchPerformanceAssessment>();
             var wins = new List<bool>();
             foreach (var detail in comparable)
@@ -147,31 +156,35 @@ namespace LOL_GameAssistant.BaseViewForm
             ApplyPostGamePerformanceTag(RecentModePerformanceEvaluator.Evaluate(mode, assessments, wins));
         }
 
-        private async Task<MatchDetail[]> GetRecentDetailsAsync(string puuid)
+        private async Task<MatchHistoryGame[]> GetRecentHistoryAsync(string puuid)
         {
-            if (RecentDetailCache.TryGetValue(puuid, out var cached) && DateTime.UtcNow - cached.CachedAt < RecentDetailCacheTtl)
-                return await cached.Details;
+            if (RecentHistoryCache.TryGetValue(puuid, out var cached) && DateTime.UtcNow - cached.CachedAt < RecentHistoryCacheTtl)
+                return await cached.Games;
 
-            Task<MatchDetail[]> task = LoadRecentDetailsAsync(puuid);
-            RecentDetailCache[puuid] = (DateTime.UtcNow, task);
+            Task<MatchHistoryGame[]> task = LoadRecentHistoryAsync(puuid);
+            RecentHistoryCache[puuid] = (DateTime.UtcNow, task);
             try
             {
                 return await task;
             }
             catch
             {
-                RecentDetailCache.TryRemove(puuid, out _);
+                RecentHistoryCache.TryRemove(puuid, out _);
                 throw;
             }
         }
 
-        private async Task<MatchDetail[]> LoadRecentDetailsAsync(string puuid)
+        private async Task<MatchHistoryGame[]> LoadRecentHistoryAsync(string puuid)
         {
-            var history = await _matchHistoryService.GetPageAsync(puuid, 0, 29);
-            var heads = history?.Games?.Games
+            MatchHistoryResponse? history = await _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1);
+            return history?.Games?.Games
                 .OrderByDescending(game => game.GameCreation)
-                .Take(30)
-                .ToList() ?? new List<MatchHistoryGame>();
+                .Take(HistoryFetchCount)
+                .ToArray() ?? Array.Empty<MatchHistoryGame>();
+        }
+
+        private async Task<MatchDetail[]> LoadDetailsAsync(IReadOnlyList<MatchHistoryGame> heads)
+        {
             using var gate = new SemaphoreSlim(4, 4);
             var tasks = heads.Select(async head =>
             {
@@ -182,13 +195,13 @@ namespace LOL_GameAssistant.BaseViewForm
             return (await Task.WhenAll(tasks)).Where(detail => detail != null).Cast<MatchDetail>().ToArray();
         }
 
-        private static bool SameMode(MatchDetail candidate, MatchDetail current)
+        private static bool SameMode(MatchHistoryGame candidate, MatchDetail current)
         {
-            string candidateQueue = candidate.queueId ?? candidate._queueId ?? "";
             string currentQueue = current.queueId ?? current._queueId ?? "";
-            if (!string.IsNullOrWhiteSpace(candidateQueue) && !string.IsNullOrWhiteSpace(currentQueue))
-                return string.Equals(candidateQueue, currentQueue, StringComparison.Ordinal);
-            return string.Equals(candidate.GetModeText(), current.GetModeText(), StringComparison.Ordinal);
+            if (int.TryParse(currentQueue, out int queueId) && candidate.QueueId > 0)
+                return candidate.QueueId == queueId;
+            return string.Equals(candidate.GameMode, current.gameMode, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(candidate.GameMode, current.GetModeText(), StringComparison.OrdinalIgnoreCase);
         }
 
         private void ApplyPostGamePerformanceTag(RecentModePerformanceAssessment assessment)

@@ -322,8 +322,8 @@ namespace LOL_GameAssistant.BaseViewForm
             overlayOffsetPanel.Controls.Add(_overlayDuration);
             var overlayNote = CreateNote("浮窗默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
             var privacyNote = CreateNote("隐私说明：启用 AI 时间线建议并主动保存后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商以生成建议；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据，也不会显示替代建议。");
-            var opggNote = CreateNote("开启后，助手会在选人阶段检测到你已选定英雄时弹出图文方案。选中并点击应用后，才会从 OP.GG 读取公开推荐，并写入本机客户端的符文页与自定义物品集；取消不会修改任何内容。若符文页已满，将替换当前正在使用的符文页，不会清理其它自定义页。");
-            var kdaAnnouncementNote = CreateNote("仅在英雄选择阶段、我方阵容的战绩加载完成后通过 LCU 发送一次。严格规则：取最近 100 场里同队列的最近 20 场（不计重开局），KDA ＜ 1 为“人机”、1–2.19 为下等马、2.2–4.49 为中等马、≥ 4.5 为上等马；不足 20 场显示数据不足。只汇总我方玩家，不获取也不发送敌方。模板支持 {players}、{allies}，两者内容相同（均为我方名单）。\n默认文案如下，可直接编辑：\n【选人近期 KDA 评估】\n{allies}\n玩家：上等马 87分 · KDA 4.90 · 胜率 55%");
+            var opggNote = CreateNote("开启后，助手会在选人阶段检测到你已选定英雄时弹出图文方案。选中并点击应用后，才会从 OP.GG 读取公开推荐，并写入本机客户端的符文页与自定义物品集；取消不会修改任何内容。若自定义符文页已满，会就地改写当前正在使用的符文页（不删除任何页面），不会清理其它自定义页。");
+            var kdaAnnouncementNote = CreateNote("仅在英雄选择阶段、我方阵容的战绩加载完成后通过 LCU 发送一次。严格规则：取最近 100 场里同队列的最近 20 场（不计重开局），KDA ＜ 1 为“人机”、1–2.19 为下等马、2.2–4.49 为中等马、≥ 4.5 为上等马；不足 20 场（含一场都没有）直接判为下等马。只汇总我方玩家，不获取也不发送敌方。模板支持 {players}、{allies}，两者内容相同（均为我方名单）。\n默认文案如下，可直接编辑：\n【选人近期 KDA 评估】\n{allies}\n玩家：上等马 87分 · KDA 4.90 · 胜率 55%");
 
             AddSegmentRow(layout, 0, "AI 时间线：", _recommendationEnabled);
             AddSegmentRow(layout, 1, "OP.GG 推荐：", _opggBuildAssistantEnabled);

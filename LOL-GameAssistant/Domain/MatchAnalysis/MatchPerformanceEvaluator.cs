@@ -127,6 +127,9 @@ public static class RecentModePerformanceEvaluator
 {
     /// <summary>默认样本下限；选人公告等场景可传入更大的样本数。</summary>
     public const int RequiredSampleSize = 8;
+
+    /// <summary>下等马档位的分数上限，供样本不足时把分数压回该档使用。</summary>
+    public const int LowerTierMaxScore = 59;
     public const double HumanKdaThreshold = 1.0;
     public const double LowerKdaThreshold = 2.2;
     public const double UpperKdaThreshold = 4.5;
@@ -162,7 +165,7 @@ public static class RecentModePerformanceEvaluator
         {
             return new RecentModePerformanceAssessment(
                 MatchPerformanceTier.Medium, score, sampleSize, winRate,
-                $"最近仅 {sampleSize} 场{mode}，样本不足 {requiredSampleSize} 场，暂不贴表现标签。累计 KDA {kda:F2}。",
+                $"最近仅 {sampleSize} 场{mode}，不足 {requiredSampleSize} 场，样本偏少；累计 KDA {kda:F2}。",
                 kda, false, RecentPerformanceLabel.InsufficientData);
         }
 
@@ -188,7 +191,7 @@ public static class RecentModePerformanceEvaluator
         if (kda < HumanKdaThreshold)
             return Math.Clamp((int)Math.Round(kda * 29), 0, 29);
         if (kda < LowerKdaThreshold)
-            return Math.Clamp(30 + (int)Math.Round((kda - HumanKdaThreshold) / (LowerKdaThreshold - HumanKdaThreshold) * 29), 30, 59);
+            return Math.Clamp(30 + (int)Math.Round((kda - HumanKdaThreshold) / (LowerKdaThreshold - HumanKdaThreshold) * 29), 30, LowerTierMaxScore);
         if (kda < UpperKdaThreshold)
             return Math.Clamp(60 + (int)Math.Round((kda - LowerKdaThreshold) / (UpperKdaThreshold - LowerKdaThreshold) * 24), 60, 84);
         return Math.Clamp(85 + (int)Math.Round(Math.Min(2.5, kda - UpperKdaThreshold) / 2.5 * 15), 85, 100);
