@@ -6,6 +6,8 @@ namespace LOL_GameAssistant.Application.Players;
 public interface IPlayerProfileService
 {
     Task<PlayerProfile?> GetCurrentAsync(CancellationToken cancellationToken = default);
+
     Task<PlayerProfile?> GetByPuuidAsync(string puuid, CancellationToken cancellationToken = default);
+
     Task<PlayerProfile?> FindByRiotIdAsync(string gameName, string tagLine, CancellationToken cancellationToken = default);
 }

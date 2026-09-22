@@ -3,12 +3,17 @@ namespace LOL_GameAssistant.Domain.Settings;
 /// <summary>云端模型的供应商与本地加密配置。</summary>
 public sealed class CloudAiSettings
 {
+    /// <summary>本地规则建议总开关；不依赖云端 API Key。</summary>
+    public bool RecommendationEnabled { get; set; } = true;
+
+    /// <summary>是否启用可选的云端 AI 补充。</summary>
     public bool Enabled { get; set; }
+
     public AiProvider Provider { get; set; } = AiProvider.OpenAI;
     public string Model { get; set; } = "";
     public string BaseUrl { get; set; } = "";
     public string EncryptedApiKey { get; set; } = "";
-    public bool DynamicRefreshEnabled { get; set; }
+    public bool DynamicRefreshEnabled { get; set; } = true;
     public int DynamicRefreshSeconds { get; set; } = 30;
     public bool ShowRecommendationPopup { get; set; }
     public bool RecommendationOverlayEnabled { get; set; }
@@ -53,8 +58,8 @@ public sealed class CloudAiSettings
         AnakinEncryptedApiKey ??= "";
         DynamicRefreshSeconds = Math.Clamp(DynamicRefreshSeconds, 15, 600);
         RecommendationOverlayPosition = string.IsNullOrWhiteSpace(RecommendationOverlayPosition) ? "BottomLeft" : RecommendationOverlayPosition;
-        RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, 0, 600);
-        RecommendationOverlayOffsetY = Math.Clamp(RecommendationOverlayOffsetY, 0, 600);
+        RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, -600, 600);
+        RecommendationOverlayOffsetY = Math.Clamp(RecommendationOverlayOffsetY, -600, 600);
         RecommendationOverlayDurationSeconds = Math.Clamp(RecommendationOverlayDurationSeconds, 3, 30);
     }
 }

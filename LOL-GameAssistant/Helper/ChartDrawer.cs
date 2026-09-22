@@ -20,6 +20,7 @@ namespace LOL_GameAssistant.Helper
         public static void DrawKdaTrend(Graphics g, Rectangle bounds,
             List<(double kda, bool win)> data, string title)
         {
+            ThemePalette palette = UiTheme.Palette;
             int ml = 45, mr = 15, mt = 28, mb = 28;
             // 先算尺寸再构造矩形：bounds 太小时宽高会算成负数，
             // 而 Rectangle 的构造函数对负值直接抛异常，写在下面的判空根本来不及。
@@ -28,9 +29,12 @@ namespace LOL_GameAssistant.Helper
             if (data.Count == 0 || caWidth <= 0 || caHeight <= 0) return;
             var ca = new Rectangle(bounds.X + ml, bounds.Y + mt, caWidth, caHeight);
 
-            g.FillRectangle(Brushes.White, bounds);
+            using var background = new SolidBrush(palette.SurfaceRaised);
+            using var titleBrush = new SolidBrush(palette.TextPrimary);
+            using var axisTextBrush = new SolidBrush(palette.TextSecondary);
+            g.FillRectangle(background, bounds);
             using (var f = new Font("Microsoft YaHei UI", 10, FontStyle.Bold))
-                g.DrawString(title, f, Brushes.Black, bounds.X + 5, bounds.Y + 3);
+                g.DrawString(title, f, titleBrush, bounds.X + 5, bounds.Y + 3);
 
             double maxVal = Math.Max(8, data.Count > 0 ? data.Max(d => d.kda) * 1.25 : 8);
             int n = data.Count;
@@ -44,12 +48,12 @@ namespace LOL_GameAssistant.Helper
                 {
                     float y = ca.Bottom - (float)(i * ca.Height / ySteps);
                     g.DrawLine(gp, ca.Left, y, ca.Right, y);
-                    g.DrawString($"{maxVal * i / ySteps:F1}", lf, Brushes.DimGray, bounds.X + 3, y - 6);
+                    g.DrawString($"{maxVal * i / ySteps:F1}", lf, axisTextBrush, bounds.X + 3, y - 6);
                 }
                 for (int i = 0; i < Math.Min(n, 30); i += Math.Max(1, n / 8))
                 {
                     float x = ca.Left + (float)(i * ca.Width / Math.Max(1, n - 1));
-                    g.DrawString($"{i + 1}", lf, Brushes.DimGray, x - 4, ca.Bottom + 4);
+                    g.DrawString($"{i + 1}", lf, axisTextBrush, x - 4, ca.Bottom + 4);
                 }
                 g.DrawLine(ap, ca.Left, ca.Top, ca.Left, ca.Bottom);
                 g.DrawLine(ap, ca.Left, ca.Bottom, ca.Right, ca.Bottom);
@@ -88,6 +92,7 @@ namespace LOL_GameAssistant.Helper
         public static void DrawChampionBars(Graphics g, Rectangle bounds,
             List<(string name, int games, double winRate)> data, string title)
         {
+            ThemePalette palette = UiTheme.Palette;
             int ml = 110, mr = 20, mt = 28, mb = 10;
             // 同 DrawKdaTrend：先校验尺寸，避免 Rectangle 构造函数先抛异常
             int caWidth = bounds.Width - ml - mr;
@@ -95,9 +100,12 @@ namespace LOL_GameAssistant.Helper
             if (data.Count == 0 || caWidth <= 0 || caHeight <= 0) return;
             var ca = new Rectangle(bounds.X + ml, bounds.Y + mt, caWidth, caHeight);
 
-            g.FillRectangle(Brushes.White, bounds);
+            using var background = new SolidBrush(palette.SurfaceRaised);
+            using var titleBrush = new SolidBrush(palette.TextPrimary);
+            using var axisTextBrush = new SolidBrush(palette.TextSecondary);
+            g.FillRectangle(background, bounds);
             using (var f = new Font("Microsoft YaHei UI", 10, FontStyle.Bold))
-                g.DrawString(title, f, Brushes.Black, bounds.X + 5, bounds.Y + 3);
+                g.DrawString(title, f, titleBrush, bounds.X + 5, bounds.Y + 3);
 
             int maxG = data.Max(d => d.games);
             if (maxG == 0) return;
@@ -116,7 +124,7 @@ namespace LOL_GameAssistant.Helper
                     float y = sy + i * (bh + 3);
                     float bw = Math.Max(1, (float)data[i].games / maxG * ca.Width);
                     g.FillRectangle(barB, ca.Left, y, bw, bh);
-                    g.DrawString(data[i].name, lf, Brushes.DimGray, bounds.X + 3, y + 2);
+                    g.DrawString(data[i].name, lf, axisTextBrush, bounds.X + 3, y + 2);
                     g.DrawString($"{data[i].games}\u573A ({data[i].winRate:F1}%)", vf, whiteB, ca.Left + 4, y + 2);
                 }
             }

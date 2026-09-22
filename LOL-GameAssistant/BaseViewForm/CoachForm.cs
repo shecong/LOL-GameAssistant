@@ -1,108 +1,132 @@
-using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.Builds;
+using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.Coaching;
 using LOL_GameAssistant.Domain.Settings;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>
-/// 装备、符文、召唤师技能与对线知识的统一建议面板。
+/// 智能建议展示页。采集、定时和云端请求均由 RecommendationCoordinator 在后台管理，
+/// 因此本页未打开时，局内浮窗和建议状态仍会正常更新。
 /// </summary>
 public sealed class CoachForm : UserControl
 {
-    private readonly System.Windows.Forms.Timer _refreshTimer = new();
     private readonly Label _status = new() { AutoSize = true, ForeColor = Color.DimGray };
-    private readonly Button _refresh = new() { Text = "获取当前建议", AutoSize = true };
+    private readonly Button _refresh = new() { Text = "立即更新建议", AutoSize = true };
     private readonly Button _applyOpgg = new() { Text = "OP.GG 一键配置当前英雄", AutoSize = true };
     private readonly RichTextBox _validation = new() { Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.FixedSingle, BackColor = Color.WhiteSmoke };
     private readonly RichTextBox _recommendation = new() { Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
     private readonly IAiCoachingService _aiCoachingService;
+    private readonly IRecommendationCoordinator _recommendationCoordinator;
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly IOpggBuildApplyService _opggBuildApplyService;
     private readonly RecommendationOverlayForm _overlay = new();
-    private bool _refreshing;
-    private DateTime _lastRefreshAt = DateTime.MinValue;
+    private bool _applyingOpgg;
+    private string _lastOverlaySignature = "";
 
     public CoachForm() : this(
         AppCompositionRoot.AiCoachingService,
+        AppCompositionRoot.RecommendationCoordinator,
         AppCompositionRoot.ApplicationSettingsStore,
         AppCompositionRoot.OpggBuildApplyService)
     {
     }
 
-    /// <summary>教练面板经由应用端口读取上下文与云端建议。</summary>
     internal CoachForm(
         IAiCoachingService aiCoachingService,
+        IRecommendationCoordinator recommendationCoordinator,
         IApplicationSettingsStore settingsStore,
         IOpggBuildApplyService opggBuildApplyService)
     {
         _aiCoachingService = aiCoachingService;
+        _recommendationCoordinator = recommendationCoordinator;
         _settingsStore = settingsStore;
         _opggBuildApplyService = opggBuildApplyService;
         Dock = DockStyle.Fill;
         BuildUi();
         _refresh.Click += async (_, _) => await RefreshRecommendationAsync(manual: true);
         _applyOpgg.Click += async (_, _) => await ApplyOpggBuildAsync();
-        _refreshTimer.Tick += async (_, _) => await RefreshRecommendationAsync(manual: false);
+        _recommendationCoordinator.StateChanged += OnRecommendationStateChanged;
+        HandleCreated += (_, _) => RenderState(_recommendationCoordinator.Current);
         Disposed += (_, _) =>
         {
-            _refreshTimer.Dispose();
+            _recommendationCoordinator.StateChanged -= OnRecommendationStateChanged;
             _overlay.Dispose();
         };
+
+        RenderState(_recommendationCoordinator.Current);
     }
 
-    public void ConfigureAi(CloudAiSettings ai)
-    {
-        _refreshTimer.Interval = Math.Clamp(ai.DynamicRefreshSeconds, 15, 600) * 1000;
-        _refreshTimer.Enabled = ai.Enabled && ai.DynamicRefreshEnabled;
-    }
+    /// <summary>供主窗体切换到该页面时触发；实际调度不依赖该页面是否打开。</summary>
+    public Task RefreshRecommendationAsync(bool manual = false) =>
+        _recommendationCoordinator.RefreshAsync(force: manual);
 
-    public async Task RefreshRecommendationAsync(bool manual = false)
+    private void OnRecommendationStateChanged(RecommendationState state)
     {
-        if (_refreshing || IsDisposed) return;
-        _refreshing = true;
-        _refresh.Enabled = false;
-        _status.ForeColor = Color.DimGray;
-        _status.Text = "正在读取本机对局状态并生成建议…";
-
+        if (IsDisposed || !IsHandleCreated) return;
         try
         {
-            AssistantSettings config = _settingsStore.Load();
-            var context = await _aiCoachingService.CollectContextAsync();
-            var result = await _aiCoachingService.GetRecommendationAsync(config.Ai, context);
-            if (IsDisposed) return;
-
-            _validation.Text = result.LocalValidation;
-            _recommendation.Text = result.Recommendation;
-            _lastRefreshAt = DateTime.Now;
-            _status.ForeColor = result.FromAi ? Color.ForestGreen : Color.DarkGoldenrod;
-            _status.Text = result.FromAi
-                ? $"已由 {config.Ai.Provider} 更新 · {_lastRefreshAt:HH:mm:ss}"
-                : $"本地建议 · {_lastRefreshAt:HH:mm:ss}";
-
-            if (string.Equals(result.Context.Phase, "InProgress", StringComparison.OrdinalIgnoreCase) &&
-                (config.Ai.RecommendationOverlayEnabled || config.Ai.ShowRecommendationPopup))
-                _overlay.ShowRecommendation(result.Recommendation, config.Ai);
-        }
-        catch (Exception ex)
-        {
-            if (!IsDisposed)
+            if (InvokeRequired)
             {
-                _status.ForeColor = Color.Firebrick;
-                _status.Text = $"建议更新失败：{ex.Message}";
+                BeginInvoke(new Action<RecommendationState>(OnRecommendationStateChanged), state);
+                return;
             }
+            RenderState(state);
         }
-        finally
+        catch (InvalidOperationException)
         {
-            if (!IsDisposed) _refresh.Enabled = true;
-            _refreshing = false;
+            // 控件正在销毁。
         }
+    }
+
+    private void RenderState(RecommendationState state)
+    {
+        if (IsDisposed) return;
+        _refresh.Enabled = state.Status != RecommendationStatus.Collecting;
+        _status.ForeColor = GetStatusColor(state.Status);
+        _status.Text = BuildStatusText(state);
+        _validation.Text = BuildValidationText(state);
+        _recommendation.Text = BuildRecommendationText(state);
+        ShowOverlayIfNeeded(state);
+    }
+
+    private void ShowOverlayIfNeeded(RecommendationState state)
+    {
+        if (!string.Equals(state.Context.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
+        {
+            _lastOverlaySignature = "";
+            if (_overlay.Visible) _overlay.Hide();
+            return;
+        }
+
+        if (state.Status is RecommendationStatus.Disabled or RecommendationStatus.DataUnavailable)
+        {
+            _lastOverlaySignature = "";
+            if (_overlay.Visible) _overlay.Hide();
+            return;
+        }
+
+        if (
+            state.Recommendations.Count == 0 ||
+            state.Status is RecommendationStatus.Collecting or RecommendationStatus.NoActiveGame)
+            return;
+
+        CloudAiSettings ai = _settingsStore.Load().Ai;
+        if (!ai.RecommendationOverlayEnabled && !ai.ShowRecommendationPopup) return;
+        CoachRecommendation recommendation = state.Recommendations[0];
+        string signature = $"{recommendation.Id}|{recommendation.Body}";
+        if (signature == _lastOverlaySignature) return;
+
+        _lastOverlaySignature = signature;
+        _overlay.ShowRecommendation(recommendation, ai);
     }
 
     private async Task ApplyOpggBuildAsync()
     {
-        if (_refreshing || IsDisposed) return;
+        if (_applyingOpgg || IsDisposed) return;
+        _applyingOpgg = true;
         _applyOpgg.Enabled = false;
         _status.ForeColor = Color.DimGray;
         _status.Text = "正在从 OP.GG 获取可选出装路线…";
@@ -147,6 +171,7 @@ public sealed class CoachForm : UserControl
         finally
         {
             if (!IsDisposed) _applyOpgg.Enabled = true;
+            _applyingOpgg = false;
         }
     }
 
@@ -164,19 +189,14 @@ public sealed class CoachForm : UserControl
         header.Controls.Add(_status);
         _status.Padding = new Padding(8, 6, 0, 0);
 
-        var left = new GroupBox { Text = "本局校验与对线知识", Dock = DockStyle.Fill, Padding = new Padding(10) };
+        var left = new GroupBox { Text = "数据状态与当前局势", Dock = DockStyle.Fill, Padding = new Padding(10) };
         left.Controls.Add(_validation);
-        var right = new GroupBox { Text = "装备、符文与召唤师技能建议", Dock = DockStyle.Fill, Padding = new Padding(10) };
+        var right = new GroupBox { Text = "当前时间线建议", Dock = DockStyle.Fill, Padding = new Padding(10) };
         right.Controls.Add(_recommendation);
 
-        var split = new SplitContainer
-        {
-            Dock = DockStyle.Fill
-        };
+        var split = new SplitContainer { Dock = DockStyle.Fill };
         split.Panel1.Controls.Add(left);
         split.Panel2.Controls.Add(right);
-        // UserControl 在静态字段初始化阶段尚未加入父窗体，初始宽度可能是 0。
-        // 不能在对象初始化时写固定 SplitterDistance，否则会违反最小面板宽度约束并导致类型初始化失败。
         split.SizeChanged += (_, _) => FitSplitter(split);
         HandleCreated += (_, _) => BeginInvoke(() => FitSplitter(split));
 
@@ -184,17 +204,82 @@ public sealed class CoachForm : UserControl
         Controls.Add(header);
     }
 
+    private static string BuildStatusText(RecommendationState state)
+    {
+        string time = state.UpdatedAt == DateTimeOffset.MinValue ? "" : $" · {state.UpdatedAt:HH:mm:ss}";
+        string next = state.NextRefreshAt is { } refreshAt ? $" · 下次 {refreshAt:HH:mm:ss}" : "";
+        return $"{GetStatusName(state.Status)}{time}{next}";
+    }
+
+    private static string BuildValidationText(RecommendationState state)
+    {
+        AiGameContext context = state.Context;
+        var lines = new List<string>
+        {
+            "状态：" + GetStatusName(state.Status),
+            "说明：" + state.Diagnostic,
+            "阶段：" + context.Phase,
+            "模式：" + context.Mode,
+            "英雄：" + context.MyChampion + "（" + context.MyRole + "）"
+        };
+        if (context.GameTimeSeconds > 0) lines.Add("游戏时间：" + context.GameTimeText);
+        if (context.CurrentGold > 0) lines.Add("当前金币：" + context.CurrentGold);
+        if (context.CurrentItems.Count > 0) lines.Add("已购装备：" + string.Join("、", context.CurrentItems));
+        if (context.EnemyChampions.Count > 0) lines.Add("可见敌方阵容：" + string.Join("、", context.EnemyChampions));
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string BuildRecommendationText(RecommendationState state)
+    {
+        if (state.Recommendations.Count == 0)
+            return state.Status == RecommendationStatus.Disabled
+                ? "本地规则建议已关闭。"
+                : "进入英雄选择或对局后，将在这里显示基于时间线、金币和装备变化的建议。";
+
+        return string.Join(Environment.NewLine + Environment.NewLine, state.Recommendations.Select(item =>
+            $"[{GetPriorityName(item.Priority)} · {item.Category}]{Environment.NewLine}" +
+            item.Title + Environment.NewLine +
+            item.Body + Environment.NewLine +
+            "依据：" + item.Evidence +
+            (item.Source == RecommendationSource.CloudAi ? Environment.NewLine + "来源：云端 AI 补充" : "")));
+    }
+
+    private static Color GetStatusColor(RecommendationStatus status) => status switch
+    {
+        RecommendationStatus.EnhancedByAi => Color.ForestGreen,
+        RecommendationStatus.LocalRulesReady => Color.DarkGoldenrod,
+        RecommendationStatus.ConfigurationRequired => Color.DarkGoldenrod,
+        RecommendationStatus.Failed or RecommendationStatus.DataUnavailable => Color.Firebrick,
+        _ => Color.DimGray
+    };
+
+    private static string GetStatusName(RecommendationStatus status) => status switch
+    {
+        RecommendationStatus.Disabled => "智能建议已关闭",
+        RecommendationStatus.Collecting => "正在读取对局信息",
+        RecommendationStatus.NoActiveGame => "等待对局",
+        RecommendationStatus.LocalRulesReady => "本地时间线建议",
+        RecommendationStatus.EnhancedByAi => "本地建议 + 云端增强",
+        RecommendationStatus.ConfigurationRequired => "本地建议（云端未配置）",
+        RecommendationStatus.DataUnavailable => "对局数据不可用",
+        _ => "建议生成失败"
+    };
+
+    private static string GetPriorityName(RecommendationPriority priority) => priority switch
+    {
+        RecommendationPriority.Important => "重要",
+        RecommendationPriority.Attention => "注意",
+        _ => "提示"
+    };
+
     private static void FitSplitter(SplitContainer split)
     {
         int usableWidth = split.ClientSize.Width - split.SplitterWidth;
         const int leftMinimum = 260;
         const int rightMinimum = 320;
-        int minimumWidth = leftMinimum + rightMinimum;
-        if (usableWidth < minimumWidth) return;
+        if (usableWidth < leftMinimum + rightMinimum) return;
 
         int target = usableWidth / 2;
-        // 先在 WinForms 默认最小宽度约束下设置位置，再启用业务最小宽度。
-        // 否则构造阶段的 0 宽度会使 ApplyPanel2MinSize 抛出异常。
         split.SplitterDistance = Math.Clamp(target, 25, usableWidth - 25);
         split.Panel1MinSize = leftMinimum;
         split.Panel2MinSize = rightMinimum;

@@ -1,13 +1,14 @@
-﻿using LOL_GameAssistant.Domain.Matches;
-using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.Application.GameData;
+﻿using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Domain.MatchAnalysis;
+using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Players;
+using LOL_GameAssistant.Helper;
+using System.Collections.Concurrent;
 using System.Drawing.Drawing2D;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -15,7 +16,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// <summary>
     /// 对局玩家卡片：圆角描边 + 悬停发光，玩家信息 + 当前英雄/位置 + 近 10 场战绩（英雄头像、滑入动效）。
     /// </summary>
-    public partial class LivePlayerForm : UserControl
+    public partial class LivePlayerForm : UserControl, IThemeAware
     {
         private readonly string? _playerPuuid;
         private readonly int _championId;
@@ -31,6 +32,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly string _currentGameMode;
         private readonly Color _teamColor;
         private const int RecentGamesCount = 10;
+        private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
+        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<long, (DateTime CachedAt, Task<MatchDetail?> Value)> MatchDetailCache = new();
+        private static readonly SemaphoreSlim GlobalMatchDetailLoadGate = new(8, 8);
         private Image? _ownedProfileImage;
         private ToolTip? _premadeTip;
         private ToolTip? _copyTip;
@@ -179,6 +185,25 @@ namespace LOL_GameAssistant.BaseViewForm
                 ApplyDeferredVisibility();
                 await LoadAsync();
             };
+            UiTheme.Apply(this);
+        }
+
+        public void ApplyTheme(ThemePalette palette)
+        {
+            BackColor = palette.SurfaceRaised;
+            headerPanel.BackColor = palette.SurfaceMuted;
+            panelMatches.BackColor = palette.Surface;
+            lblName.ForeColor = palette.TextPrimary;
+            lblSub.ForeColor = palette.TextSecondary;
+            lblChampionNow.ForeColor = palette.Accent;
+            if (!string.IsNullOrWhiteSpace(lblSummary.Text))
+            {
+                lblSummary.ForeColor = lblSummary.Text.StartsWith("下等马", StringComparison.Ordinal)
+                    ? Color.FromArgb(239, 83, 80)
+                    : lblSummary.Text.StartsWith("上等马", StringComparison.Ordinal)
+                        ? Color.FromArgb(102, 187, 106)
+                        : palette.TextSecondary;
+            }
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -324,7 +349,7 @@ namespace LOL_GameAssistant.BaseViewForm
             int profileIconId = 0;
             try
             {
-                PlayerProfile? info = await _playerProfileService.GetByPuuidAsync(_playerPuuid);
+                PlayerProfile? info = await GetPlayerProfileAsync(_playerPuuid);
                 if (info != null)
                 {
                     if (!string.IsNullOrEmpty(info.GameName)) displayName = info.GameName;
@@ -349,7 +374,7 @@ namespace LOL_GameAssistant.BaseViewForm
             await LoadCurrentChampionAsync();
 
             // ── 近 10 场战绩 ──
-            var matchlists = await _matchHistoryService.GetPageAsync(_playerPuuid, 0, RecentGamesCount - 1);
+            var matchlists = await GetRecentHistoryAsync(_playerPuuid);
             if (matchlists?.Games?.Games == null || IsDisposed) return;
 
             var games = matchlists.Games.Games
@@ -358,13 +383,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 .ToList();
 
             // 并发加载每场详情
-            var semaphore = new SemaphoreSlim(4, 4);
             var tasks = games.Select(async head =>
             {
-                await semaphore.WaitAsync();
+                await GlobalMatchDetailLoadGate.WaitAsync();
                 try
                 {
-                    var detail = await _matchHistoryService.GetDetailAsync(head.GameId);
+                    var detail = await GetMatchDetailAsync(head.GameId);
                     if (detail == null || string.IsNullOrEmpty(_playerPuuid))
                         return (detail: (MatchDetail?)null, gamer: (MatchParticipant?)null);
                     var gamer = detail.GetParticipant(_playerPuuid);
@@ -376,7 +400,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
                 finally
                 {
-                    semaphore.Release();
+                    GlobalMatchDetailLoadGate.Release();
                 }
             }).ToList();
 
@@ -405,12 +429,40 @@ namespace LOL_GameAssistant.BaseViewForm
                     Height = RecentMatchRow.RowHeight
                 };
                 panelMatches.Controls.Add(row);
+                UiTheme.Apply(row);
                 y += RecentMatchRow.RowHeight;
                 UiAnimation.SlideIn(row, -16, 220, i * 35);
                 _ = row.SetDataAsync(detail, gamer, _playerPuuid);
             }
             panelMatches.AutoScrollMinSize = new Size(panelMatches.ClientSize.Width, y);
             ResizeMatchRows();
+            UiTheme.Apply(this);
+        }
+
+        private Task<PlayerProfile?> GetPlayerProfileAsync(string puuid) =>
+            GetCachedAsync(PlayerProfileCache, puuid, () => _playerProfileService.GetByPuuidAsync(puuid));
+
+        private Task<MatchHistoryResponse?> GetRecentHistoryAsync(string puuid) =>
+            GetCachedAsync(RecentHistoryCache, puuid, () => _matchHistoryService.GetPageAsync(puuid, 0, RecentGamesCount - 1));
+
+        private Task<MatchDetail?> GetMatchDetailAsync(long gameId) =>
+            GetCachedAsync(MatchDetailCache, gameId, () => _matchHistoryService.GetDetailAsync(gameId));
+
+        private static Task<T?> GetCachedAsync<TKey, T>(
+            ConcurrentDictionary<TKey, (DateTime CachedAt, Task<T?> Value)> cache,
+            TKey key,
+            Func<Task<T?>> loader) where TKey : notnull
+        {
+            if (cache.TryGetValue(key, out var cached) && DateTime.UtcNow - cached.CachedAt < PlayerCacheTtl)
+                return cached.Value;
+
+            Task<T?> task = loader();
+            cache[key] = (DateTime.UtcNow, task);
+            _ = task.ContinueWith(completed =>
+            {
+                if (completed.IsFaulted || completed.IsCanceled) cache.TryRemove(key, out _);
+            }, TaskScheduler.Default);
+            return task;
         }
 
         /// <summary>对局页标签只统计与当前队列/模式相同的近期已结束战绩。</summary>
@@ -435,13 +487,21 @@ namespace LOL_GameAssistant.BaseViewForm
                 comparable[0].detail.GetModeText(),
                 assessments,
                 comparable.Select(result => result.gamer.IsWin()));
+            if (!assessment.HasEnoughSample)
+            {
+                lblSummary.Text = $"样本不足 · KDA {assessment.Kda:F2}";
+                lblSummary.ForeColor = UiTheme.Palette.TextSecondary;
+                _performanceTip.SetToolTip(lblSummary, assessment.Detail);
+                return;
+            }
+
             string label = assessment.Tier switch
             {
                 MatchPerformanceTier.Upper => "上等马",
                 MatchPerformanceTier.Lower => "下等马",
                 _ => "中等马"
             };
-            lblSummary.Text = $"{label} · {assessment.WinRate:F0}%";
+            lblSummary.Text = $"{label} · KDA {assessment.Kda:F2}";
             lblSummary.ForeColor = assessment.Tier switch
             {
                 MatchPerformanceTier.Upper => Color.FromArgb(27, 94, 32),

@@ -10,4 +10,5 @@
   <Project Path="LOL-GameAssistant/LOL-GameGUI.csproj">
     <Platform Solution="*|x64" Project="x64" />
   </Project>
+  <Project Path="LOL-GameAssistant.Tests/LOL-GameAssistant.Tests.csproj" />
 </Solution>

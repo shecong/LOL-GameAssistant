@@ -7,6 +7,8 @@ public interface ILiveClientGameStateService
 {
     Task<LivePlayerState?> GetOwnStateAsync(CancellationToken cancellationToken = default);
 
+    Task<LiveClientGameSnapshot?> GetSnapshotAsync(CancellationToken cancellationToken = default);
+
     Task<string?> GetGameModeAsync(CancellationToken cancellationToken = default);
 
     Task<int?> GetGameTimeSecondsAsync(CancellationToken cancellationToken = default);

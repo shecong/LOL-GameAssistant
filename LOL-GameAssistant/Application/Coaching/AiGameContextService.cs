@@ -21,6 +21,7 @@ public sealed class AiGameContextService : IAiGameContextService
     private readonly ILiveClientGameStateService _liveClientGameStateService;
     private readonly ILaneKnowledgeService _laneKnowledgeService;
     private readonly IChampionCatalog _championCatalog;
+    private string? _cachedMyPuuid;
 
     public AiGameContextService(
         ILobbyService lobbyService,
@@ -42,7 +43,7 @@ public sealed class AiGameContextService : IAiGameContextService
     {
         string? phase = await _lobbyService.GetGameFlowPhaseAsync(cancellationToken).ConfigureAwait(false);
         string phaseText = string.IsNullOrWhiteSpace(phase) ? "未连接" : phase;
-        string? myPuuid = (await _playerProfileService.GetCurrentAsync(cancellationToken).ConfigureAwait(false))?.Puuid;
+        string? myPuuid = await GetMyPuuidAsync(cancellationToken).ConfigureAwait(false);
 
         if (string.Equals(phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
             return await CollectChampSelectAsync(phaseText, myPuuid, cancellationToken).ConfigureAwait(false);
@@ -99,16 +100,18 @@ public sealed class AiGameContextService : IAiGameContextService
         string? myPuuid,
         CancellationToken cancellationToken)
     {
-        ActiveGameSnapshot? session = await _lobbyService.GetCurrentSessionAsync(cancellationToken).ConfigureAwait(false);
+        // LCU 队伍信息与 Live Client 快照相互独立，并行读取以减少一次建议刷新的等待。
+        Task<ActiveGameSnapshot?> sessionTask = _lobbyService.GetCurrentSessionAsync(cancellationToken);
+        Task<Domain.LiveGame.LiveClientGameSnapshot?> liveSnapshotTask = _liveClientGameStateService.GetSnapshotAsync(cancellationToken);
+        ActiveGameSnapshot? session = await sessionTask.ConfigureAwait(false);
+        Domain.LiveGame.LiveClientGameSnapshot? liveSnapshot = await liveSnapshotTask.ConfigureAwait(false);
         var teamOne = session?.TeamOne ?? Array.Empty<GameTeamMember>();
         var teamTwo = session?.TeamTwo ?? Array.Empty<GameTeamMember>();
         GameTeamMember? me = teamOne.Concat(teamTwo).FirstOrDefault(member => member.Puuid == myPuuid);
         bool mineIsTeamOne = me != null && teamOne.Any(member => member.Puuid == me.Puuid);
         var allies = (mineIsTeamOne ? teamOne : teamTwo).Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         var enemies = (mineIsTeamOne ? teamTwo : teamOne).Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
-        var ownState = await _liveClientGameStateService.GetOwnStateAsync(cancellationToken).ConfigureAwait(false);
-        string? rawMode = await _liveClientGameStateService.GetGameModeAsync(cancellationToken).ConfigureAwait(false);
-        string mode = NormalizeLiveMode(rawMode);
+        string mode = NormalizeLiveMode(liveSnapshot?.GameMode);
         string champion = _championCatalog.GetDisplayName(me?.ChampionId ?? 0);
         string role = string.IsNullOrWhiteSpace(me?.Position) ? "通用" : me!.Position;
         string matchup = enemies.FirstOrDefault() ?? "";
@@ -120,9 +123,10 @@ public sealed class AiGameContextService : IAiGameContextService
             MyChampion = champion,
             MyChampionId = me?.ChampionId ?? 0,
             MyRole = role,
-            CurrentGold = ownState?.CurrentGold ?? 0,
-            GameTimeSeconds = ownState?.GameTimeSeconds ?? 0,
-            CurrentItems = ownState?.Items ?? Array.Empty<string>(),
+            CurrentGold = liveSnapshot?.CurrentGold ?? 0,
+            GameTimeSeconds = liveSnapshot?.GameTimeSeconds ?? 0,
+            HasLiveClientData = liveSnapshot != null,
+            CurrentItems = liveSnapshot?.Items ?? Array.Empty<string>(),
             AlliedChampions = allies,
             EnemyChampions = enemies,
             LaneKnowledge = _laneKnowledgeService.GetAdvice(champion, role, matchup)
@@ -132,6 +136,20 @@ public sealed class AiGameContextService : IAiGameContextService
     private static int GetCurrentMyActionChampion(ChampionSelectionSnapshot session) =>
         session.Actions.SelectMany(group => group)
             .FirstOrDefault(action => action.ActorCellId == session.LocalPlayerCellId && action.ChampionId > 0)?.ChampionId ?? 0;
+
+    private async Task<string?> GetMyPuuidAsync(CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(_cachedMyPuuid)) return _cachedMyPuuid;
+        try
+        {
+            _cachedMyPuuid = (await _playerProfileService.GetCurrentAsync(cancellationToken).ConfigureAwait(false))?.Puuid;
+        }
+        catch
+        {
+            // 本地资料端点短暂不可用时，仍返回可用的通用时间线建议。
+        }
+        return _cachedMyPuuid;
+    }
 
     private static bool IsKnownChampion(string name) => !string.IsNullOrWhiteSpace(name);
 

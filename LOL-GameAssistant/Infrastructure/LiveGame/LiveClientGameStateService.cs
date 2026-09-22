@@ -12,6 +12,14 @@ public sealed class LiveClientGameStateService : ILiveClientGameStateService
         return state == null ? null : new LivePlayerState(state.CurrentGold, state.Items, state.GameTimeSeconds);
     }
 
+    public async Task<LiveClientGameSnapshot?> GetSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        LocalLiveClientSnapshot? snapshot = await LocalLiveClientDataReader.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        return snapshot == null
+            ? null
+            : new LiveClientGameSnapshot(snapshot.CurrentGold, snapshot.Items, snapshot.GameTimeSeconds, snapshot.GameMode);
+    }
+
     public Task<string?> GetGameModeAsync(CancellationToken cancellationToken = default) =>
         LocalLiveClientDataReader.GetGameModeAsync(cancellationToken);
 

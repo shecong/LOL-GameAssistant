@@ -4,6 +4,7 @@ using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.Teams;
+using LOL_GameAssistant.Helper;
 using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -11,7 +12,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// <summary>
     /// 对局页：渐变信息栏（呼吸状态点）+ 蓝方/红方渐变队头 + 玩家卡片（展开动效）。
     /// </summary>
-    public partial class LiveGameForm : UserControl
+    public partial class LiveGameForm : UserControl, IThemeAware
     {
         private System.Windows.Forms.Timer? _autoRefreshTimer;
         private bool _refreshing;
@@ -20,9 +21,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ILobbyService _lobbyService;
         private readonly IPlayerProfileService _playerProfileService;
         private readonly IPremadeDetectionService _premadeDetectionService;
+
         // 缓存的是整局阵容的检测任务，而不是只记录“已经检测过”。这样强制刷新重建卡片后，
         // 已完成的结果能立即重新应用；尚在执行的任务也会被复用，不会重复拉取十人的近期战绩。
         private readonly Dictionary<string, Task<PremadeDetectionResult>> _premadeResultCache = new(StringComparer.Ordinal);
+
         private string _activePremadeCacheKey = "";
         private int _premadeCacheGeneration;
         private string _teamTitleBase1 = "蓝方";
@@ -70,6 +73,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _teamQueueTip.Dispose();
             };
             LayoutTeamQueueTags();
+            UiTheme.Apply(this);
         }
 
         private void LiveGameForm_Load(object? sender, EventArgs e)
@@ -91,6 +95,29 @@ namespace LOL_GameAssistant.BaseViewForm
             };
         }
 
+        /// <summary>Keep the team headers readable in both palettes; transparent headers previously rendered white text on a light surface.</summary>
+        public void ApplyTheme(ThemePalette palette)
+        {
+            BackColor = palette.Surface;
+            rootGrid.BackColor = palette.Surface;
+            column1.BackColor = palette.Surface;
+            column2.BackColor = palette.Surface;
+            panelTeam1.BackColor = palette.SurfaceMuted;
+            panelTeam2.BackColor = palette.SurfaceMuted;
+            infoBar.StartColor = palette.SurfaceRaised;
+            infoBar.EndColor = palette.SurfaceMuted;
+            infoBar.BorderColor = palette.Border;
+            headerTeam1.StartColor = palette.BlueHeader;
+            headerTeam1.EndColor = ControlPaint.Dark(palette.BlueHeader, .12f);
+            headerTeam1.BorderColor = Color.FromArgb(120, palette.BlueHeader);
+            headerTeam2.StartColor = palette.RedHeader;
+            headerTeam2.EndColor = ControlPaint.Dark(palette.RedHeader, .12f);
+            headerTeam2.BorderColor = Color.FromArgb(120, palette.RedHeader);
+            lblTeamTitle1.ForeColor = Color.White;
+            lblTeamTitle2.ForeColor = Color.White;
+            lblGameInfo.ForeColor = palette.TextPrimary;
+        }
+
         private void LayoutTeamQueueTags()
         {
             LayoutTeamQueueTag(headerTeam1, lblTeamTitle1, _teamQueueTag1);
@@ -109,13 +136,14 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void SetTeamQueueTag(AntdUI.Label tag, string status, string detail)
         {
+            ThemePalette palette = UiTheme.Palette;
             tag.Text = status;
             (tag.BackColor, tag.ForeColor) = status switch
             {
-                "单排" => (Color.FromArgb(238, 238, 238), Color.FromArgb(90, 90, 90)),
-                "检测中" => (Color.FromArgb(227, 242, 253), Color.FromArgb(25, 118, 210)),
-                "未知" => (Color.FromArgb(255, 243, 224), Color.FromArgb(230, 126, 34)),
-                _ => (Color.FromArgb(255, 236, 179), Color.FromArgb(191, 104, 0))
+                "单排" => (palette.IsDark ? palette.SurfaceMuted : Color.FromArgb(238, 238, 238), palette.TextPrimary),
+                "检测中" => (palette.IsDark ? Color.FromArgb(25, 64, 94) : Color.FromArgb(227, 242, 253), palette.IsDark ? Color.FromArgb(144, 202, 249) : Color.FromArgb(25, 118, 210)),
+                "未知" => (palette.IsDark ? Color.FromArgb(83, 58, 22) : Color.FromArgb(255, 243, 224), palette.IsDark ? Color.FromArgb(255, 204, 128) : Color.FromArgb(191, 104, 0)),
+                _ => (palette.IsDark ? Color.FromArgb(84, 65, 17) : Color.FromArgb(255, 236, 179), palette.IsDark ? Color.FromArgb(255, 213, 79) : Color.FromArgb(148, 96, 0))
             };
             tag.Visible = true;
             _teamQueueTip.SetToolTip(tag, $"{status}：{detail}");
@@ -574,6 +602,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     Height = PlayerCardHeight,
                     Margin = new Padding(0, 0, PlayerCardHorizontalMargin, PlayerCardVerticalMargin)
                 };
+                UiTheme.Apply(card);
                 panel.Controls.Add(card);
             }
         }

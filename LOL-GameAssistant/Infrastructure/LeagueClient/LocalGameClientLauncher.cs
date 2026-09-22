@@ -1,7 +1,8 @@
-using System.Diagnostics;
-using System.Text.Json;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.LeagueClient;
+using LOL_GameAssistant.Helper;
+using System.Diagnostics;
+using System.Text.Json;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
@@ -11,6 +12,9 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// </summary>
 public sealed class LocalGameClientLauncher : IGameClientLauncher
 {
+    private static readonly TimeSpan LaunchVerificationTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan LaunchVerificationPollInterval = TimeSpan.FromMilliseconds(750);
+
     /// <inheritdoc />
     public string NormalizeConfiguredDirectory(string? configuredDirectory)
     {
@@ -23,8 +27,12 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     /// <inheritdoc />
     public GameClientLaunchResult Start(string? configuredDirectory)
     {
-        if (IsLeagueClientRunning())
-            return new GameClientLaunchResult(true, "LOL 客户端已在运行。");
+        ClientState state = GetClientState();
+        if (state.WindowVisible)
+            return new GameClientLaunchResult(true, "LOL 客户端已在运行并显示窗口。", null, state.LcuReady, true);
+
+        if (state.ProcessRunning)
+            return new GameClientLaunchResult(true, "检测到 LOL 后台进程，正在等待客户端主窗口和 LCU 就绪。", null, state.LcuReady, false);
 
         string? executable = ResolveExecutable(configuredDirectory);
         if (executable == null)
@@ -32,24 +40,127 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            LaunchTarget target = ResolveLaunchTarget(executable);
+            Process? process = Process.Start(new ProcessStartInfo
             {
-                FileName = executable,
-                WorkingDirectory = Path.GetDirectoryName(executable) ?? AppDomain.CurrentDomain.BaseDirectory,
+                FileName = target.Executable,
+                Arguments = target.Arguments,
+                WorkingDirectory = Path.GetDirectoryName(target.Executable) ?? AppDomain.CurrentDomain.BaseDirectory,
                 UseShellExecute = true
             });
-            return new GameClientLaunchResult(true, "已直接启动 LOL 客户端，等待登录和 LCU 连接。", executable);
+            if (process == null)
+                return new GameClientLaunchResult(false, "Windows 未返回客户端启动进程。", executable);
+
+            RuntimeDiagnostics.Report("LOL 客户端", "启动中", $"已请求启动 {Path.GetFileName(target.Executable)}，等待主窗口与 LCU");
+            return new GameClientLaunchResult(true, "已请求启动 LOL 客户端，正在验证主窗口和 LCU。", executable);
         }
         catch (Exception ex)
         {
+            RuntimeDiagnostics.Report("LOL 客户端", "启动失败", ex.Message);
             return new GameClientLaunchResult(false, $"启动 LOL 客户端失败：{ex.Message}", executable);
         }
     }
 
-    /// <summary>检测 Riot Client / League Client 是否已经在运行。</summary>
-    private static bool IsLeagueClientRunning() =>
-        Process.GetProcessesByName("LeagueClient").Length > 0 ||
-        Process.GetProcessesByName("LeagueClientUx").Length > 0;
+    public async Task<GameClientLaunchResult> StartAndVerifyAsync(
+        string? configuredDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        GameClientLaunchResult started = Start(configuredDirectory);
+        if (!started.Started) return started;
+
+        DateTime deadline = DateTime.UtcNow + LaunchVerificationTimeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ClientState state = GetClientState();
+            if (state.WindowVisible && state.LcuReady)
+            {
+                string executable = started.ExecutablePath ?? NormalizeConfiguredDirectory(configuredDirectory);
+                RuntimeDiagnostics.Report("LOL 客户端", "已就绪", "客户端主窗口可见，LCU lockfile 已读取");
+                return new GameClientLaunchResult(true, "LOL 客户端已启动，主窗口与 LCU 均已就绪。", executable, true, true);
+            }
+
+            await Task.Delay(LaunchVerificationPollInterval, cancellationToken).ConfigureAwait(false);
+        }
+
+        ClientState finalState = GetClientState();
+        string detail = finalState.ProcessRunning
+            ? "检测到客户端后台进程，但主窗口或 LCU 未就绪。请检查 Riot/WeGame 登录、更新或管理员权限。"
+            : "启动后未检测到 LOL 客户端进程。请检查安装路径和启动器。";
+        RuntimeDiagnostics.Report("LOL 客户端", "未就绪", detail);
+        return new GameClientLaunchResult(false, detail, started.ExecutablePath, finalState.LcuReady, finalState.WindowVisible);
+    }
+
+    private static ClientState GetClientState()
+    {
+        Process[] processes = Process.GetProcessesByName("LeagueClientUx")
+            .Concat(Process.GetProcessesByName("LeagueClient"))
+            .ToArray();
+        try
+        {
+            bool visible = processes.Any(process =>
+            {
+                try
+                {
+                    process.Refresh();
+                    return !process.HasExited && process.MainWindowHandle != IntPtr.Zero;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+            bool lcuReady = HasReadableLcuLockfile(processes);
+            return new ClientState(processes.Length > 0, visible, lcuReady);
+        }
+        finally
+        {
+            foreach (Process process in processes) process.Dispose();
+        }
+    }
+
+    private static bool HasReadableLcuLockfile(IEnumerable<Process> processes)
+    {
+        foreach (Process process in processes)
+        {
+            try
+            {
+                string? executable = process.MainModule?.FileName;
+                string? directory = string.IsNullOrWhiteSpace(executable) ? null : Path.GetDirectoryName(executable);
+                if (string.IsNullOrWhiteSpace(directory)) continue;
+                string lockfile = Path.Combine(directory, "lockfile");
+                if (!File.Exists(lockfile)) continue;
+                string[] parts = File.ReadAllText(lockfile).Trim().Split(':');
+                if (parts.Length >= 4 && int.TryParse(parts[1], out _) && !string.IsNullOrWhiteSpace(parts[2])) return true;
+            }
+            catch (IOException)
+            {
+                // The client may be replacing the lockfile while it starts; retry on the next poll.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // A differently elevated client cannot be verified from this process.
+            }
+            catch (InvalidOperationException)
+            {
+                // The process exited while being inspected.
+            }
+        }
+        return false;
+    }
+
+    private static LaunchTarget ResolveLaunchTarget(string leagueClientExecutable)
+    {
+        string? leagueDirectory = Path.GetDirectoryName(leagueClientExecutable);
+        string? riotGamesDirectory = Directory.GetParent(leagueDirectory ?? string.Empty)?.FullName;
+        string? candidate = riotGamesDirectory == null ? null : Path.Combine(riotGamesDirectory, "Riot Client", "RiotClientServices.exe");
+        if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate))
+            return new LaunchTarget(candidate, "--launch-product=league_of_legends --launch-patchline=live");
+        return new LaunchTarget(leagueClientExecutable, "");
+    }
+
+    private sealed record LaunchTarget(string Executable, string Arguments);
+    private sealed record ClientState(bool ProcessRunning, bool WindowVisible, bool LcuReady);
 
     /// <summary>优先扫描用户选择的文件夹，未命中时才检查常见安装目录。</summary>
     private static string? ResolveExecutable(string? configuredDirectory)
@@ -80,8 +191,10 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     {
         var pending = new Stack<string>();
         pending.Push(rootDirectory);
+        const int maximumDirectories = 4000;
+        int visitedDirectories = 0;
 
-        while (pending.Count > 0)
+        while (pending.Count > 0 && visitedDirectories++ < maximumDirectories)
         {
             string current = pending.Pop();
             try
@@ -184,13 +297,13 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
                 yield break;
             case JsonValueKind.Array:
                 foreach (JsonElement child in element.EnumerateArray())
-                foreach (string item in ReadJsonStrings(child))
-                    yield return item;
+                    foreach (string item in ReadJsonStrings(child))
+                        yield return item;
                 yield break;
             case JsonValueKind.Object:
                 foreach (JsonProperty property in element.EnumerateObject())
-                foreach (string item in ReadJsonStrings(property.Value))
-                    yield return item;
+                    foreach (string item in ReadJsonStrings(property.Value))
+                        yield return item;
                 yield break;
             default:
                 yield break;

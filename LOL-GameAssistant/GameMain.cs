@@ -1,12 +1,13 @@
-﻿using LOL_GameAssistant.BaseViewForm;
-using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.Application.ChampionSelect;
+﻿using LOL_GameAssistant.Application.ChampionSelect;
+using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Settings;
+using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.Settings;
+using LOL_GameAssistant.Helper;
 using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
 
 namespace LOL_GameAssistant
@@ -20,12 +21,14 @@ namespace LOL_GameAssistant
         public static LiveGameForm liveGameForm = new LiveGameForm();
         public static BattleQueryForm battleQueryForm = new BattleQueryForm();
         public static CoachForm coachForm = new CoachForm();
+        public static DiagnosticsForm diagnosticsForm = new DiagnosticsForm();
 
         private readonly ILeagueClientEventStream _eventStream;
         private readonly ILobbyService _lobbyService;
         private readonly IChampionSelectService _championSelectService;
         private readonly IApplicationSettingsStore _settingsStore;
         private readonly IGameClientLauncher _gameClientLauncher;
+        private readonly IRecommendationCoordinator _recommendationCoordinator;
         private CancellationTokenSource? _lcuRetryCts;
         private NotifyIcon? _trayIcon;
         private CancellationTokenSource? _autoActionCts;
@@ -49,6 +52,7 @@ namespace LOL_GameAssistant
         private const int BattleQueryTabIndex = 3;
         private const int CoachTabIndex = 7;
         private readonly AntdUI.TabPage _coachTab;
+        private readonly AntdUI.TabPage _diagnosticsTab;
 
         public bool IsLiveGameTabActive => tabs1.SelectedIndex == LiveGameTabIndex;
 
@@ -68,7 +72,8 @@ namespace LOL_GameAssistant
             AppCompositionRoot.LobbyService,
             AppCompositionRoot.ChampionSelectService,
             AppCompositionRoot.ApplicationSettingsStore,
-            AppCompositionRoot.GameClientLauncher)
+            AppCompositionRoot.GameClientLauncher,
+            AppCompositionRoot.RecommendationCoordinator)
         {
         }
 
@@ -78,19 +83,25 @@ namespace LOL_GameAssistant
             ILobbyService lobbyService,
             IChampionSelectService championSelectService,
             IApplicationSettingsStore settingsStore,
-            IGameClientLauncher gameClientLauncher)
+            IGameClientLauncher gameClientLauncher,
+            IRecommendationCoordinator recommendationCoordinator)
         {
             _eventStream = eventStream;
             _lobbyService = lobbyService;
             _championSelectService = championSelectService;
             _settingsStore = settingsStore;
             _gameClientLauncher = gameClientLauncher;
+            _recommendationCoordinator = recommendationCoordinator;
             InitializeComponent();
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
+            _diagnosticsTab = new AntdUI.TabPage { Text = "运行诊断", Dock = DockStyle.Fill };
             tabs1.Controls.Add(_coachTab);
             tabs1.Pages.Add(_coachTab);
+            tabs1.Controls.Add(_diagnosticsTab);
+            tabs1.Pages.Add(_diagnosticsTab);
             _windowHoldController = new WindowHoldController(this);
             _quickMessageController = new QuickMessageSenderController(this);
+            UiTheme.Changed += UiThemeChanged;
             _eventStream.EventReceived += LeagueClientEventReceived;
             _eventStream.ErrorOccurred += WebSocketError;
             _eventStream.ConnectionChanged += WebSocketChange;
@@ -102,7 +113,23 @@ namespace LOL_GameAssistant
         {
             _windowHoldController.Apply(config);
             _quickMessageController.Apply(config);
+            UiTheme.SetMode(config.ThemeMode);
+            ApplyTheme();
         }
+
+        private void UiThemeChanged(object? sender, EventArgs e)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired) BeginInvoke(ApplyTheme);
+            else ApplyTheme();
+        }
+
+        /// <summary>Reapply the semantic palette to all pages already attached to the main window.</summary>
+        public void ApplyTheme() => UiTheme.Apply(this);
+
+        /// <summary>同步建议开关与调度周期；协调器不依赖设置页是否可见。</summary>
+        public void ApplyRecommendationSettings(AssistantSettings config) =>
+            _recommendationCoordinator.UpdateSettings(config);
 
         public async void GameMain_Load(object sender, EventArgs e)
         {
@@ -117,9 +144,11 @@ namespace LOL_GameAssistant
             // 使快捷消息不依赖设置页的 Load 事件才开始注册。
             AssistantSettings startupSettings = _settingsStore.Load();
             ApplyWindowSettings(startupSettings);
+            _recommendationCoordinator.Start(startupSettings);
             TryAutoLaunchLeagueClient(startupSettings);
             //初始化模块
             LoadAllForm();
+            ApplyTheme();
             _ = InitializeLiveGameAsync();
         }
 
@@ -134,8 +163,25 @@ namespace LOL_GameAssistant
 
             if (!settings.AutoLaunchGameClient) return;
 
-            GameClientLaunchResult result = _gameClientLauncher.Start(settings.GameClientPath);
-            AddInfoMessage($"自动启动 LOL：{result.Message}");
+            _ = AutoLaunchLeagueClientAsync(settings.GameClientPath);
+        }
+
+        private async Task AutoLaunchLeagueClientAsync(string configuredPath)
+        {
+            try
+            {
+                GameClientLaunchResult result = await _gameClientLauncher.StartAndVerifyAsync(configuredPath);
+                AddInfoMessage($"自动启动 LOL：{result.Message}");
+            }
+            catch (OperationCanceledException)
+            {
+                // Application shutdown.
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.Report("LOL 客户端", "启动失败", ex.Message);
+                AddInfoMessage($"自动启动 LOL 失败：{ex.Message}");
+            }
         }
 
         /// <summary>
@@ -186,6 +232,7 @@ namespace LOL_GameAssistant
 
                 // 先写回全局阶段，否则 AddView 读到的是默认值，会什么都不做
                 ApplyGameFlowPhase(phase);
+                _recommendationCoordinator.NotifyGamePhaseChanged(phase);
 
                 if (Enum.TryParse(phase, true, out GameFlowPhase parsed) &&
                     (parsed == GameFlowPhase.Lobby ||
@@ -230,6 +277,9 @@ namespace LOL_GameAssistant
             _coachTab.Controls.Clear();
             coachForm.Dock = DockStyle.Fill;
             _coachTab.Controls.Add(coachForm);
+            _diagnosticsTab.Controls.Clear();
+            diagnosticsForm.Dock = DockStyle.Fill;
+            _diagnosticsTab.Controls.Add(diagnosticsForm);
             //关于
             tab4_grid1.Controls.Add(new AboutForm() { Dock = DockStyle.Fill });
             //加载设置
@@ -338,6 +388,7 @@ namespace LOL_GameAssistant
 
             if (connected)
             {
+                RuntimeDiagnostics.Report("LCU WebSocket", "已连接", "已订阅游戏流程事件");
                 infoMsg.AddMsg("WebSocket已连接");
                 // 客户端是后启动的，刷新首页玩家数据
                 _ = home.RefreshAsync();
@@ -346,6 +397,7 @@ namespace LOL_GameAssistant
             }
             else
             {
+                RuntimeDiagnostics.Report("LCU WebSocket", "已断开", "正在重新检测 lockfile 与客户端端口");
                 infoMsg.AddMsg("WebSocket已断开，正在检测 LCU 端口变化...");
                 _ = Task.Run(() => RetryLcuDetectionAsync());
             }
@@ -353,11 +405,13 @@ namespace LOL_GameAssistant
 
         private void WebSocketError(string err)
         {
+            RuntimeDiagnostics.Report("LCU WebSocket", "错误", err);
             AddInfoMessage(err);
         }
 
         private void WebSocketReconnecting(string message)
         {
+            RuntimeDiagnostics.Report("LCU WebSocket", "重连中", message);
             AddInfoMessage(message);
         }
 
@@ -375,6 +429,7 @@ namespace LOL_GameAssistant
 
             if (string.Equals(gameEvent.Uri, "/lol-gameflow/v1/gameflow-phase", StringComparison.Ordinal))
             {
+                RuntimeDiagnostics.Report("游戏流程", gameEvent.Data, "来自 LCU 游戏流程事件");
                 _ = gameflowphaseStatus(gameEvent.Data);
                 infoMsg.AddMsg(gameEvent.Data);
             }
@@ -404,6 +459,7 @@ namespace LOL_GameAssistant
                 // 已在 UI 线程上，直接更新表头即可
                 this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
             }
+            _recommendationCoordinator.NotifyGamePhaseChanged(statustype);
             switch (phase)
             {
                 case "none":
@@ -672,6 +728,8 @@ namespace LOL_GameAssistant
                 _eventStream.Dispose();
                 _windowHoldController.Dispose();
                 _quickMessageController.Dispose();
+                UiTheme.Changed -= UiThemeChanged;
+                _recommendationCoordinator.Dispose();
             }
         }
 

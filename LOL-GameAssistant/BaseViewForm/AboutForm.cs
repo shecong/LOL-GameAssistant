@@ -1,8 +1,7 @@
-﻿using Newtonsoft.Json.Linq;
-using System.Diagnostics;
-using LOL_GameAssistant.Application.ApplicationInfo;
+﻿using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ApplicationInfo;
+using System.Diagnostics;
 
 namespace LOL_GameAssistant.BaseViewForm
 {

@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
@@ -7,6 +5,7 @@ using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
 using Microsoft.Win32;
+using System.Diagnostics;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -26,6 +25,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly CheckBox _autoLaunchClient = new() { Text = "启动助手时直接启动 LOL 客户端", AutoSize = true };
         private readonly Label _clientStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
         private readonly NumericUpDown _opacity = new() { Minimum = 40, Maximum = 100, Width = 130 };
+        private readonly ComboBox _themeMode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
         private readonly TextBox _hotkey = new() { ReadOnly = true, Width = 160, TabStop = true };
         private readonly CheckBox _onlyLeagueFocused = new() { Text = "仅在 LOL 位于前台时响应", AutoSize = true };
         private readonly CheckBox _quickMessageEnabled = new() { Text = "启用快捷消息复制", AutoSize = true };
@@ -33,7 +33,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly TextBox _quickMessageText = new() { Dock = DockStyle.Fill, Multiline = true, Height = 90 };
         private readonly TextBox _quickMessageHotkey = new() { ReadOnly = true, Width = 160, TabStop = true };
         private readonly NumericUpDown _quickMessageInterval = new() { Minimum = 2, Maximum = 30, Width = 100 };
-        private readonly CheckBox _aiEnabled = new() { Text = "启用云端 AI 推荐", AutoSize = true };
+        private readonly CheckBox _recommendationEnabled = new() { Text = "启用本地时间线建议（无需 API Key）", AutoSize = true };
+        private readonly CheckBox _aiEnabled = new() { Text = "启用云端 AI 增强", AutoSize = true };
         private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210 };
         private readonly TextBox _model = new() { Width = 290 };
         private readonly TextBox _baseUrl = new() { Dock = DockStyle.Fill };
@@ -44,8 +45,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly CheckBox _showPopup = new() { Text = "建议刷新后弹出提醒", AutoSize = true };
         private readonly CheckBox _overlayEnabled = new() { Text = "游戏内显示建议浮窗", AutoSize = true };
         private readonly ComboBox _overlayPosition = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
-        private readonly NumericUpDown _overlayOffsetX = new() { Minimum = 0, Maximum = 600, Width = 80 };
-        private readonly NumericUpDown _overlayOffsetY = new() { Minimum = 0, Maximum = 600, Width = 80 };
+        private readonly NumericUpDown _overlayOffsetX = new() { Minimum = -600, Maximum = 600, Width = 80 };
+        private readonly NumericUpDown _overlayOffsetY = new() { Minimum = -600, Maximum = 600, Width = 80 };
         private readonly NumericUpDown _overlayDuration = new() { Minimum = 3, Maximum = 30, Width = 80 };
         private readonly CheckBox _anakinEnabled = new() { Text = "启用旧版 Anakin 连接", AutoSize = true };
         private readonly TextBox _anakinKey = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true, PlaceholderText = "留空则保留已保存的密钥" };
@@ -203,10 +204,11 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             ApplyStartupSetting(config.LaunchOnStartup);
             Program.GameMain.ApplyWindowSettings(config);
+            Program.GameMain.ApplyTheme();
             GameMain.liveGameForm.ConfigureAutoRefresh(
                 config.AutoRefresh,
                 Math.Max(10, config.AutoRefreshIntervalSeconds));
-            GameMain.coachForm.ConfigureAi(config.Ai);
+            Program.GameMain.ApplyRecommendationSettings(config);
         }
 
         private Panel CreateClientSegment()
@@ -245,9 +247,11 @@ namespace LOL_GameAssistant.BaseViewForm
             opacityPanel.Controls.Add(new Label { Text = "%（40–100）", AutoSize = true, Padding = new Padding(6, 6, 0, 0) });
             _hotkey.KeyDown += CaptureHoldToTopHotkey;
             _hotkey.Click += (_, _) => _hotkey.Focus();
-            var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会临时置顶，松开后还原；默认是键盘左上角的 · 键。\n快捷键只在本机桌面层生效，不注入或修改游戏客户端。");
+            _themeMode.Items.AddRange(new object[] { "跟随系统", "浅色", "深色" });
+            var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后立即最小化；默认是键盘左上角的 · 键。\n快捷键不会传给游戏，也不会注入或修改游戏客户端。");
 
             _quickMessageLanguage.Items.AddRange(new object[] { "中文", "English", "日本語", "한국어", "自定义" });
+            _quickMessageLanguage.SelectedIndexChanged += QuickMessageLanguageChanged;
             _quickMessageHotkey.KeyDown += CaptureQuickMessageHotkey;
             _quickMessageHotkey.Click += (_, _) => _quickMessageHotkey.Focus();
             _quickMessageEnabled.Text = "启用快捷弹幕自动发送";
@@ -256,17 +260,18 @@ namespace LOL_GameAssistant.BaseViewForm
             messageIntervalPanel.Controls.Add(new Label { Text = "秒（2–30）", AutoSize = true, Padding = new Padding(6, 6, 0, 0) });
             var messageNote = CreateNote("按下快捷键后，程序仅在《英雄联盟》对局窗口位于前台时自动执行“打开聊天框 → 通过剪贴板粘贴预设内容 → 发送”一次，确保中文与特殊字符不被输入法吞掉。为避免误触，发送之间会受最小间隔限制；不会后台循环刷屏。");
 
-            AddSegmentRow(layout, 0, "窗口透明度：", opacityPanel);
-            AddSegmentRow(layout, 1, "按住置顶键：", _hotkey);
-            AddSegmentRow(layout, 2, "快捷键范围：", _onlyLeagueFocused);
-            AddSegmentRow(layout, 3, "置顶说明：", holdNote);
-            AddSegmentRow(layout, 4, "快捷消息：", _quickMessageEnabled);
-            AddSegmentRow(layout, 5, "发送语言：", _quickMessageLanguage);
-            AddSegmentRow(layout, 6, "预设内容：", _quickMessageText);
-            AddSegmentRow(layout, 7, "发送快捷键：", _quickMessageHotkey);
-            AddSegmentRow(layout, 8, "最小发送间隔：", messageIntervalPanel);
-            AddSegmentRow(layout, 9, "消息说明：", messageNote);
-            AddSaveRow(layout, 10, "保存窗口与快捷键设置");
+            AddSegmentRow(layout, 0, "界面主题：", _themeMode);
+            AddSegmentRow(layout, 1, "窗口透明度：", opacityPanel);
+            AddSegmentRow(layout, 2, "按住置顶键：", _hotkey);
+            AddSegmentRow(layout, 3, "快捷键范围：", _onlyLeagueFocused);
+            AddSegmentRow(layout, 4, "置顶说明：", holdNote);
+            AddSegmentRow(layout, 5, "快捷消息：", _quickMessageEnabled);
+            AddSegmentRow(layout, 6, "发送语言：", _quickMessageLanguage);
+            AddSegmentRow(layout, 7, "预设内容：", _quickMessageText);
+            AddSegmentRow(layout, 8, "发送快捷键：", _quickMessageHotkey);
+            AddSegmentRow(layout, 9, "最小发送间隔：", messageIntervalPanel);
+            AddSegmentRow(layout, 10, "消息说明：", messageNote);
+            AddSaveRow(layout, 11, "保存窗口与快捷键设置");
             return panel;
         }
 
@@ -319,6 +324,7 @@ namespace LOL_GameAssistant.BaseViewForm
             overlayOffsetPanel.Controls.Add(new Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayDuration);
             var overlayNote = CreateNote("浮窗默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
+            var privacyNote = CreateNote("隐私说明：只有启用“云端 AI 增强”并主动保存后，当前英雄、游戏阶段、装备与时间线摘要才会发送给所选服务商；不会发送 LCU Token、账号密码或本机聊天内容。关闭云端增强后只使用本地规则。");
 
             var clearAnakinButton = new Button { Text = "清除已保存密钥", AutoSize = true, Dock = DockStyle.Right };
             clearAnakinButton.Click += (_, _) =>
@@ -331,22 +337,24 @@ namespace LOL_GameAssistant.BaseViewForm
             anakinPanel.Controls.Add(clearAnakinButton);
             var anakinNote = CreateNote("OP.GG 一键配置无需 Anakin Key：在“智能建议”页选定英雄后，点击“OP.GG 一键配置当前英雄”即可写入符文与自定义物品集。此项仅兼容保留旧配置；API Key 会使用当前 Windows 用户的 DPAPI 加密保存。");
 
-            AddSegmentRow(layout, 0, "云端 AI：", _aiEnabled);
-            AddSegmentRow(layout, 1, "服务商：", providerPanel);
-            AddSegmentRow(layout, 2, "模型名称：", _model);
-            AddSegmentRow(layout, 3, "接口地址：", _baseUrl);
-            AddSegmentRow(layout, 4, "API Key：", keyPanel);
-            AddSegmentRow(layout, 5, "密钥状态：", _apiKeyStatus);
-            AddSegmentRow(layout, 6, "动态建议：", refreshPanel);
-            AddSegmentRow(layout, 7, "旧版提醒：", _showPopup);
-            AddSegmentRow(layout, 8, "游戏内浮窗：", _overlayEnabled);
-            AddSegmentRow(layout, 9, "浮窗位置：", _overlayPosition);
-            AddSegmentRow(layout, 10, "位置与时长：", overlayOffsetPanel);
-            AddSegmentRow(layout, 11, "浮窗说明：", overlayNote);
-            AddSegmentRow(layout, 12, "旧版连接：", _anakinEnabled);
-            AddSegmentRow(layout, 13, "旧版 Key：", anakinPanel);
-            AddSegmentRow(layout, 14, "说明：", anakinNote);
-            AddSaveRow(layout, 15, "保存 AI 设置");
+            AddSegmentRow(layout, 0, "智能建议：", _recommendationEnabled);
+            AddSegmentRow(layout, 1, "云端增强：", _aiEnabled);
+            AddSegmentRow(layout, 2, "服务商：", providerPanel);
+            AddSegmentRow(layout, 3, "模型名称：", _model);
+            AddSegmentRow(layout, 4, "接口地址：", _baseUrl);
+            AddSegmentRow(layout, 5, "API Key：", keyPanel);
+            AddSegmentRow(layout, 6, "密钥状态：", _apiKeyStatus);
+            AddSegmentRow(layout, 7, "数据与隐私：", privacyNote);
+            AddSegmentRow(layout, 8, "动态建议：", refreshPanel);
+            AddSegmentRow(layout, 9, "旧版提醒：", _showPopup);
+            AddSegmentRow(layout, 10, "游戏内浮窗：", _overlayEnabled);
+            AddSegmentRow(layout, 11, "浮窗位置：", _overlayPosition);
+            AddSegmentRow(layout, 12, "位置与时长：", overlayOffsetPanel);
+            AddSegmentRow(layout, 13, "浮窗说明：", overlayNote);
+            AddSegmentRow(layout, 14, "旧版连接：", _anakinEnabled);
+            AddSegmentRow(layout, 15, "旧版 Key：", anakinPanel);
+            AddSegmentRow(layout, 16, "说明：", anakinNote);
+            AddSaveRow(layout, 17, "保存 AI 设置");
             return panel;
         }
 
@@ -408,6 +416,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _clientPath.Text = _gameClientLauncher.NormalizeConfiguredDirectory(_config.GameClientPath);
             _autoLaunchClient.Checked = _config.AutoLaunchGameClient;
             _opacity.Value = _config.WindowOpacityPercent;
+            _themeMode.SelectedIndex = _config.ThemeMode switch { "Light" => 1, "Dark" => 2, _ => 0 };
             Keys holdKey = WindowHoldController.ParseKey(_config.HoldToTopHotkey);
             _hotkey.Tag = holdKey;
             _hotkey.Text = WindowHoldController.DescribeKey(holdKey);
@@ -422,6 +431,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _quickMessageHotkey.Text = WindowHoldController.DescribeKey(messageKey);
 
             CloudAiSettings ai = _config.Ai;
+            _recommendationEnabled.Checked = ai.RecommendationEnabled;
             _aiEnabled.Checked = ai.Enabled;
             _provider.SelectedItem = ai.Provider;
             if (_provider.SelectedIndex < 0) _provider.SelectedItem = LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
@@ -446,6 +456,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.GameClientPath = _gameClientLauncher.NormalizeConfiguredDirectory(_clientPath.Text);
             _config.AutoLaunchGameClient = _autoLaunchClient.Checked;
             _config.WindowOpacityPercent = (int)_opacity.Value;
+            _config.ThemeMode = _themeMode.SelectedIndex switch { 1 => "Light", 2 => "Dark", _ => "System" };
             _config.HoldToTopHotkey = (_hotkey.Tag is Keys holdKey ? holdKey : WindowHoldController.ParseKey(_config.HoldToTopHotkey)).ToString();
             _config.HoldToTopOnlyWhenLeagueFocused = _onlyLeagueFocused.Checked;
             _config.QuickMessageAutoSendEnabled = _quickMessageEnabled.Checked;
@@ -455,6 +466,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.QuickMessageSendIntervalSeconds = (int)_quickMessageInterval.Value;
 
             CloudAiSettings ai = _config.Ai;
+            ai.RecommendationEnabled = _recommendationEnabled.Checked;
             ai.Enabled = _aiEnabled.Checked;
             ai.Provider = _provider.SelectedItem is LOL_GameAssistant.Domain.Settings.AiProvider provider
                 ? provider
@@ -499,9 +511,21 @@ namespace LOL_GameAssistant.BaseViewForm
                 _clientPath.Text = dialog.SelectedPath;
         }
 
-        private void StartLeagueClientFromSettings()
+        private async void StartLeagueClientFromSettings()
         {
-            GameClientLaunchResult result = _gameClientLauncher.Start(_clientPath.Text.Trim());
+            GameClientLaunchResult result;
+            try
+            {
+                result = await _gameClientLauncher.StartAndVerifyAsync(_clientPath.Text.Trim());
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                result = new GameClientLaunchResult(false, $"启动验证失败：{ex.Message}");
+            }
             SetClientStatus(result);
             if (result.Started && !string.IsNullOrWhiteSpace(result.ExecutablePath))
             {
@@ -530,6 +554,15 @@ namespace LOL_GameAssistant.BaseViewForm
             _quickMessageHotkey.Text = WindowHoldController.DescribeKey(e.KeyCode);
             e.SuppressKeyPress = true;
             e.Handled = true;
+        }
+
+        private void QuickMessageLanguageChanged(object? sender, EventArgs e)
+        {
+            if (_isLoading) return;
+            string language = _quickMessageLanguage.SelectedItem?.ToString() ?? "自定义";
+            if (!QuickMessageTemplates.TryGet(language, out string preset)) return;
+            _quickMessageText.Text = preset;
+            _quickMessageText.SelectionStart = _quickMessageText.TextLength;
         }
 
         private static int OverlayPositionToIndex(string? value) => value switch

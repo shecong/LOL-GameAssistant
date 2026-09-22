@@ -1,15 +1,15 @@
-﻿using LOL_GameAssistant.Domain.Matches;
-using LOL_GameAssistant.Helper;
-using System.Globalization;
-using System.Text;
-using LOL_GameAssistant.Application.Files;
+﻿using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Application.Ranked;
 using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Players;
 using LOL_GameAssistant.Domain.Ranked;
+using LOL_GameAssistant.Helper;
+using System.Globalization;
+using System.Text;
 
 namespace LOL_GameAssistant.BaseViewForm
 {

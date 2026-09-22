@@ -1,11 +1,12 @@
-﻿using LOL_GameAssistant.Domain.Matches;
-using System.Data;
-using LOL_GameAssistant.Application.GameData;
+﻿using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Domain.MatchAnalysis;
+using LOL_GameAssistant.Domain.Matches;
+using LOL_GameAssistant.Helper;
 using System.Collections.Concurrent;
+using System.Data;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -192,6 +193,15 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void ApplyPostGamePerformanceTag(RecentModePerformanceAssessment assessment)
         {
+            if (!assessment.HasEnoughSample)
+            {
+                _performanceTag.Text = "样本不足";
+                _performanceTag.ForeColor = UiTheme.Palette.TextSecondary;
+                _performanceTag.BackColor = UiTheme.Palette.IsDark ? UiTheme.Palette.SurfaceMuted : Color.FromArgb(245, 245, 245);
+                _performanceTip.SetToolTip(_performanceTag, assessment.Detail);
+                return;
+            }
+
             string tag = assessment.Tier switch
             {
                 MatchPerformanceTier.Upper => "上等马",

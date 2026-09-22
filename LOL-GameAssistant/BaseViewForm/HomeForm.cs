@@ -1,14 +1,14 @@
-﻿using LOL_GameAssistant.Domain.Matches;
-using System.Data;
-using LOL_GameAssistant.Application.GameData;
+﻿using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Application.Ranked;
 using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Players;
 using LOL_GameAssistant.Domain.Ranked;
+using System.Data;
 using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
 
 namespace LOL_GameAssistant.BaseViewForm

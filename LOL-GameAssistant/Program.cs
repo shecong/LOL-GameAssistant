@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using LOL_GameAssistant.Helper;
+using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant
 {
@@ -12,10 +13,20 @@ namespace LOL_GameAssistant
         [STAThread]
         private static void Main()
         {
-            // 设置 DPI 感知模式（必须放在程序启动最开始）
-            //SetProcessDPIAware(); // Windows 7/8
-            // 或者使用以下方式（推荐）：
-            SetProcessDpiAwareness(_Process_DPI_Awareness.Process_Per_Monitor_DPI_Aware);
+            // Set DPI awareness before any controls are created.  shcore is unavailable on
+            // some Windows 7 builds, so retain a safe system-DPI fallback.
+            try
+            {
+                SetProcessDpiAwareness(_Process_DPI_Awareness.Process_Per_Monitor_DPI_Aware);
+            }
+            catch (DllNotFoundException)
+            {
+                SetProcessDPIAware();
+            }
+            catch (EntryPointNotFoundException)
+            {
+                SetProcessDPIAware();
+            }
 
             // 设置全局异常处理
             System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
@@ -50,6 +61,7 @@ namespace LOL_GameAssistant
 
         private static void HandleException(Exception ex)
         {
+            RuntimeDiagnostics.Report("应用", "未处理异常", ex.Message);
             try
             {
                 // 用相对路径时，开机自启（注册表 Run 项没有工作目录，CWD 是 System32）

@@ -1,10 +1,10 @@
-﻿using LOL_GameAssistant.Domain.Matches;
-using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.Application.GameData;
+﻿using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Teams;
+using LOL_GameAssistant.Helper;
 using System.Drawing.Drawing2D;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -225,13 +225,20 @@ namespace LOL_GameAssistant.BaseViewForm
                 _puuid = puuid;
 
                 bool win = gamer.IsWin();
-                _baseBack = win ? Color.FromArgb(236, 247, 238) : Color.FromArgb(253, 238, 238);
-                _hoverBack = win ? Color.FromArgb(224, 243, 228) : Color.FromArgb(251, 228, 228);
+                bool dark = UiTheme.Palette.IsDark;
+                _baseBack = win
+                    ? (dark ? Color.FromArgb(25, 55, 41) : Color.FromArgb(236, 247, 238))
+                    : (dark ? Color.FromArgb(67, 34, 38) : Color.FromArgb(253, 238, 238));
+                _hoverBack = win
+                    ? (dark ? Color.FromArgb(32, 70, 51) : Color.FromArgb(224, 243, 228))
+                    : (dark ? Color.FromArgb(83, 43, 48) : Color.FromArgb(251, 228, 228));
                 _accent = win ? Color.FromArgb(76, 175, 80) : Color.FromArgb(229, 57, 53);
                 BackColor = _baseBack;
 
                 lblResult.Text = win ? "胜利" : "失败";
-                lblResult.ForeColor = win ? Color.FromArgb(46, 125, 50) : Color.FromArgb(198, 40, 40);
+                lblResult.ForeColor = win
+                    ? (dark ? Color.FromArgb(129, 199, 132) : Color.FromArgb(46, 125, 50))
+                    : (dark ? Color.FromArgb(239, 154, 154) : Color.FromArgb(198, 40, 40));
                 string championName = GetChampionDisplayName(gamer.championId);
                 var playerIdentity = detail.GetPlayerIdentity(puuid);
                 string playerName = !string.IsNullOrWhiteSpace(playerIdentity?.gameName)

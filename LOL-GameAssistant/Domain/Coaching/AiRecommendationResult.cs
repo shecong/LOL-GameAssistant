@@ -8,6 +8,10 @@ public sealed record AiRecommendationResult(
     AiGameContext Context,
     string? Error)
 {
-    public static AiRecommendationResult LocalOnly(string validation, string recommendation, AiGameContext context) =>
-        new(false, validation, recommendation, context, null);
+    public static AiRecommendationResult LocalOnly(
+        string validation,
+        string recommendation,
+        AiGameContext context,
+        string? error = null) =>
+        new(false, validation, recommendation, context, error);
 }

@@ -1,9 +1,9 @@
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
 using LOL_GameAssistant.Domain.Coaching;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 
 namespace LOL_GameAssistant.Infrastructure.Ai;
 
@@ -13,6 +13,7 @@ namespace LOL_GameAssistant.Infrastructure.Ai;
 public static class CloudAiRecommendationService
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(25) };
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
@@ -25,15 +26,27 @@ public static class CloudAiRecommendationService
     {
         string localValidation = BuildLocalValidation(context);
         if (!settings.Enabled)
-            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "云端 AI 未启用，当前展示本地时间线建议。"), context);
+            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "云端 AI 未启用，当前展示本地时间线建议。"), context, "云端 AI 未启用。");
 
-        string key = SettingSecretProtector.Unprotect(settings.EncryptedApiKey);
+        string key;
+        try
+        {
+            key = SettingSecretProtector.Unprotect(settings.EncryptedApiKey);
+        }
+        catch
+        {
+            return AiRecommendationResult.LocalOnly(
+                localValidation,
+                BuildLocalTimelineRecommendation(context, "无法读取已保存的 API Key，当前展示本地时间线建议。"),
+                context,
+                "无法读取已保存的 API Key，请重新保存。");
+        }
         if (string.IsNullOrWhiteSpace(key))
-            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未配置 API Key，当前展示本地时间线建议。"), context);
+            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未配置 API Key，当前展示本地时间线建议。"), context, "未配置 API Key。");
         if (string.IsNullOrWhiteSpace(settings.Model))
-            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未填写模型名称，当前展示本地时间线建议。"), context);
+            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未填写模型名称，当前展示本地时间线建议。"), context, "未填写模型名称。");
         if (string.IsNullOrWhiteSpace(settings.GetBaseUrl()))
-            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未配置有效的服务地址，当前展示本地时间线建议。"), context);
+            return AiRecommendationResult.LocalOnly(localValidation, BuildLocalTimelineRecommendation(context, "未配置有效的服务地址，当前展示本地时间线建议。"), context, "未配置有效的服务地址。");
 
         try
         {
@@ -50,7 +63,7 @@ public static class CloudAiRecommendationService
         {
             // 不返回原始请求、响应或密钥；这些信息可能包含用户敏感配置。
             return AiRecommendationResult.LocalOnly(localValidation,
-                BuildLocalTimelineRecommendation(context, "云端 AI 暂时不可用：" + ToFriendlyError(ex)), context);
+                BuildLocalTimelineRecommendation(context, "云端 AI 暂时不可用：" + ToFriendlyError(ex)), context, ToFriendlyError(ex));
         }
     }
 
@@ -61,6 +74,7 @@ public static class CloudAiRecommendationService
         {
             model = settings.Model,
             temperature = 0.2,
+            max_tokens = 900,
             messages = new[]
             {
                 new { role = "system", content = SystemPrompt },
@@ -203,12 +217,8 @@ public static class CloudAiRecommendationService
 
     private const string SystemPrompt = """
         你是《英雄联盟》中文训练助手。仅基于用户提供的、玩家正常可见的信息做建议；不得推测敌方位置、冷却、未展示装备或任何隐藏信息。
-        输出简洁中文，固定包含：
-        1. 当前判断；
-        2. 核心装备方向（2 至 3 件）；
-        3. 至少两种可选反制/替换思路及适用条件；
-        4. 符文和召唤师技能校验；
-        5. 1 至 3 条对线/团战知识点。
-        不操作客户端、不要求玩家立刻执行某一动作；用“可考虑”“适合于”等表达选择条件。不要输出 JSON、不要复述敏感数据。
+        只输出 JSON，不要 Markdown 或额外说明，格式为：
+        {"recommendations":[{"category":"装备/对线/团战/符文","priority":"info/attention/important","title":"不超过 24 字","body":"不超过 120 字，说明可选思路与适用条件","evidence":"引用给定的可见时间、金币、装备或阵容"}]}
+        最多 3 条，不操作客户端、不要求玩家立刻执行某一动作；使用“可考虑”“适合于”等表达选择条件。不要复述敏感数据。
         """;
 }

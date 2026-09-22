@@ -9,8 +9,11 @@ namespace LOL_GameAssistant.Application.LeagueClient;
 public interface ILeagueClientEventStream : IDisposable, IAsyncDisposable
 {
     event Action<LeagueClientEvent>? EventReceived;
+
     event Action<string>? ErrorOccurred;
+
     event Action<bool>? ConnectionChanged;
+
     event Action<string>? Reconnecting;
 
     /// <summary>连接当前 LCU；客户端未启动或认证不可用时返回 false。</summary>

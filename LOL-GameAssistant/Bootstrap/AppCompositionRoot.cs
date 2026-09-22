@@ -1,28 +1,28 @@
-using LOL_GameAssistant.Application.Friends;
-using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.Coaching;
+using LOL_GameAssistant.Application.Files;
+using LOL_GameAssistant.Application.Friends;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
-using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.LiveGame;
+using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Matches;
-using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Application.Players;
+using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Application.Ranked;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Application.Teams;
-using LOL_GameAssistant.Infrastructure.GameData;
 using LOL_GameAssistant.Infrastructure.Ai;
+using LOL_GameAssistant.Infrastructure.ApplicationInfo;
 using LOL_GameAssistant.Infrastructure.Coaching;
+using LOL_GameAssistant.Infrastructure.Files;
+using LOL_GameAssistant.Infrastructure.GameData;
 using LOL_GameAssistant.Infrastructure.LeagueClient;
 using LOL_GameAssistant.Infrastructure.LiveGame;
 using LOL_GameAssistant.Infrastructure.Players;
 using LOL_GameAssistant.Infrastructure.Settings;
-using LOL_GameAssistant.Infrastructure.ApplicationInfo;
-using LOL_GameAssistant.Infrastructure.Files;
 
 namespace LOL_GameAssistant.Bootstrap;
 
@@ -73,6 +73,7 @@ public static class AppCompositionRoot
 
     /// <summary>助手设置存储与 API Key 保护服务。</summary>
     public static IApplicationSettingsStore ApplicationSettingsStore { get; } = new LegacyApplicationSettingsStore();
+
     public static ISettingsSecretProtector SettingsSecretProtector { get; } = new DpapiSettingsSecretProtector();
 
     /// <summary>战绩列表和单局详情查询服务。</summary>
@@ -104,6 +105,7 @@ public static class AppCompositionRoot
     public static ILiveClientGameStateService LiveClientGameStateService { get; } = new LiveClientGameStateService();
 
     private static readonly ILaneKnowledgeService LaneKnowledgeService = new FileLaneKnowledgeService();
+
     private static readonly IAiGameContextService AiGameContextService = new AiGameContextService(
         LobbyService,
         PlayerProfileService,
@@ -112,9 +114,18 @@ public static class AppCompositionRoot
         LaneKnowledgeService,
         ChampionCatalog);
 
+    private static readonly ILocalRecommendationService LocalRecommendationService = new TimelineRecommendationService();
+
     /// <summary>近期同队关系的开黑检测服务。</summary>
     public static IPremadeDetectionService PremadeDetectionService { get; } = new LegacyPremadeDetectionService();
 
     /// <summary>本机上下文与云端 AI 建议服务。</summary>
     public static IAiCoachingService AiCoachingService { get; } = new LegacyAiCoachingService(AiGameContextService);
+
+    /// <summary>可选云端 AI 增强的基础设施适配器。</summary>
+    public static IAiRecommendationProvider AiRecommendationProvider { get; } = new CloudAiRecommendationProvider();
+
+    /// <summary>独立于页面生命周期的局内建议调度器。</summary>
+    public static IRecommendationCoordinator RecommendationCoordinator { get; } =
+        new RecommendationCoordinator(AiCoachingService, AiRecommendationProvider, LocalRecommendationService);
 }

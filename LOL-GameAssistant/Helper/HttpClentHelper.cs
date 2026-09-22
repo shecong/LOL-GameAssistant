@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using LOL_GameAssistant.Helper;
+using System.Net.Http.Headers;
 using System.Net.Security;
 using System.Text;
 using System.Web;
@@ -85,7 +86,11 @@ public class HttpClentHelper : IDisposable
     {
         if (string.IsNullOrEmpty(Port) || string.IsNullOrEmpty(Token))
         {
-            return null;
+            if (!TryRefreshLcuCredentials())
+            {
+                RuntimeDiagnostics.Report("LCU HTTP", "未连接", "未读取到可用 lockfile 凭据");
+                return null;
+            }
         }
 
         // 使用信号量控制并发
@@ -145,26 +150,40 @@ public class HttpClentHelper : IDisposable
                 if (!response.IsSuccessStatusCode)
                 {
                     System.Diagnostics.Debug.WriteLine($"请求失败: {response.StatusCode} {requestUrl}");
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        string? previousToken = Token;
+                        if (TryRefreshLcuCredentials() && !string.Equals(previousToken, Token, StringComparison.Ordinal))
+                        {
+                            RuntimeDiagnostics.Report("LCU HTTP", "已刷新", "客户端重启后已刷新本机 LCU 凭据");
+                            return await SendRequestStreamAsync(httpMethod, endpoint, queryParams, body, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+                    RuntimeDiagnostics.Report("LCU HTTP", $"HTTP {(int)response.StatusCode}", $"{httpMethod} {endpoint}");
                     return null;
                 }
 
                 byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+                RuntimeDiagnostics.Report("LCU HTTP", "可用", "本机 LCU 请求正常");
                 return new MemoryStream(bytes);
             }
         }
         catch (HttpRequestException ex)
         {
             System.Diagnostics.Debug.WriteLine($"请求异常: {ex.Message}");
+            RuntimeDiagnostics.Report("LCU HTTP", "连接失败", ex.Message);
             return null;
         }
         catch (TaskCanceledException)
         {
             System.Diagnostics.Debug.WriteLine("请求超时，请检查LOL客户端是否正在运行");
+            RuntimeDiagnostics.Report("LCU HTTP", "超时", "请求超时，请检查客户端是否正在运行");
             return null;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"未知错误: {ex.Message}");
+            RuntimeDiagnostics.Report("LCU HTTP", "异常", ex.Message);
             return null;
         }
         finally
@@ -220,5 +239,14 @@ public class HttpClentHelper : IDisposable
     {
         // 静态 HttpClient 不需要手动释放，但可以实现 IDisposable 接口以保持模式一致
         // 如果需要释放资源，可以在这里添加
+    }
+
+    private static bool TryRefreshLcuCredentials()
+    {
+        (string? port, string? token) = LOL_GameAssistant.LoLApi.GetlolLcu.GetAuth();
+        if (string.IsNullOrWhiteSpace(port) || string.IsNullOrWhiteSpace(token)) return false;
+        Port = port;
+        Token = token;
+        return true;
     }
 }

@@ -1,12 +1,12 @@
-﻿using LOL_GameAssistant.Domain.Matches;
-using LOL_GameAssistant.Helper;
-using LOL_GameAssistant.Application.GameData;
+﻿using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Domain.MatchAnalysis;
+using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Teams;
+using LOL_GameAssistant.Helper;
 using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -15,7 +15,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// 对局详情弹窗：完整展示本局 10 名玩家（我方/敌方、头像、英雄、KDA、伤害），
     /// 底部展示当前玩家详细数据。
     /// </summary>
-    public partial class MatchDetailForm : Form
+    public partial class MatchDetailForm : Form, IThemeAware
     {
         private readonly MatchDetail _gameInfo;
         private readonly string _puuid;
@@ -48,8 +48,18 @@ namespace LOL_GameAssistant.BaseViewForm
             _matchHistoryService = AppCompositionRoot.MatchHistoryService;
             _premadeDetectionService = AppCompositionRoot.PremadeDetectionService;
             InitializeComponent();
+            UiTheme.Apply(this);
             this.Load += async (_, _) => await LoadDataAsync();
             Disposed += (_, _) => _assetToolTip.Dispose();
+        }
+
+        public void ApplyTheme(ThemePalette palette)
+        {
+            BackColor = palette.Surface;
+            flowAlly.BackColor = palette.Surface;
+            flowEnemy.BackColor = palette.Surface;
+            lblAllyHeader.ForeColor = palette.TextPrimary;
+            lblEnemyHeader.ForeColor = palette.TextPrimary;
         }
 
         /// <summary>
@@ -154,11 +164,14 @@ namespace LOL_GameAssistant.BaseViewForm
             bool isMe)
         {
             bool win = p.IsWin();
+            ThemePalette palette = UiTheme.Palette;
             var panel = new Panel
             {
                 Size = new Size(455, 118),
                 Margin = new Padding(0, 0, 0, 6),
-                BackColor = isMe ? Color.FromArgb(255, 249, 230) : Color.FromArgb(250, 250, 252)
+                BackColor = isMe
+                    ? (palette.IsDark ? Color.FromArgb(75, 60, 25) : Color.FromArgb(255, 249, 230))
+                    : palette.SurfaceRaised
             };
 
             var avatar = new RoundPictureBox
@@ -192,7 +205,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 Location = new Point(70, 8),
                 Size = new Size(190, 22),
                 Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                ForeColor = palette.TextPrimary
             });
             var championLabel = new Label
             {
@@ -200,7 +214,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Location = new Point(70, 31),
                 Size = new Size(225, 20),
                 Font = new Font("Microsoft YaHei UI", 8.5F),
-                ForeColor = SystemColors.GrayText,
+                ForeColor = palette.TextSecondary,
                 BackColor = Color.Transparent
             };
             if (!string.IsNullOrEmpty(playerPuuid))
@@ -235,7 +249,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 Location = new Point(365, 8),
                 Size = new Size(72, 22),
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
-                ForeColor = win ? Color.FromArgb(46, 125, 50) : Color.FromArgb(198, 40, 40),
+                ForeColor = win
+                    ? (palette.IsDark ? Color.FromArgb(129, 199, 132) : Color.FromArgb(46, 125, 50))
+                    : (palette.IsDark ? Color.FromArgb(239, 154, 154) : Color.FromArgb(198, 40, 40)),
                 BackColor = Color.Transparent
             });
             panel.Controls.Add(new Label
@@ -244,7 +260,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Location = new Point(70, 54),
                 Size = new Size(250, 18),
                 Font = new Font("Microsoft YaHei UI", 8.5F),
-                ForeColor = SystemColors.GrayText,
+                ForeColor = palette.TextSecondary,
                 BackColor = Color.Transparent
             });
             AddSummonerSpellIcons(panel, p, 300, 30);
@@ -480,7 +496,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private void SetPerformanceTag(string puuid, RecentModePerformanceAssessment assessment)
         {
             if (IsDisposed || !_performanceTagsByPuuid.TryGetValue(puuid, out Label? tag) || tag.IsDisposed) return;
-            if (assessment.SampleSize == 0)
+            if (!assessment.HasEnoughSample)
             {
                 tag.Text = "数据不足";
                 tag.BackColor = Color.FromArgb(245, 245, 245);

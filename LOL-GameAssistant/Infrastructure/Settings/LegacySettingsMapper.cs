@@ -11,6 +11,7 @@ internal static class LegacySettingsMapper
         source.Normalize();
         var settings = new AssistantSettings
         {
+            ThemeMode = source.ThemeMode,
             AutoLaunchGameClient = source.AutoLaunchGameClient,
             GameClientPath = source.GameClientPath,
             WindowOpacityPercent = source.WindowOpacityPercent,
@@ -46,6 +47,7 @@ internal static class LegacySettingsMapper
         source.Normalize();
         var settings = new SettingConfig
         {
+            ThemeMode = source.ThemeMode,
             AutoLaunchGameClient = source.AutoLaunchGameClient,
             GameClientPath = source.GameClientPath,
             WindowOpacityPercent = source.WindowOpacityPercent,
@@ -78,6 +80,7 @@ internal static class LegacySettingsMapper
 
     private static CloudAiSettings ToDomain(AiSettings source) => new()
     {
+        RecommendationEnabled = source.RecommendationEnabled,
         Enabled = source.Enabled,
         Provider = (LOL_GameAssistant.Domain.Settings.AiProvider)(int)source.Provider,
         Model = source.Model,
@@ -97,6 +100,7 @@ internal static class LegacySettingsMapper
 
     private static AiSettings ToLegacy(CloudAiSettings source) => new()
     {
+        RecommendationEnabled = source.RecommendationEnabled,
         Enabled = source.Enabled,
         Provider = (Entity.AiProvider)(int)source.Provider,
         Model = source.Model,

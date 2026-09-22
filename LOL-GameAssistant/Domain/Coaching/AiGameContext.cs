@@ -13,6 +13,10 @@ public sealed class AiGameContext
     public string MyRole { get; init; } = "未知位置";
     public int CurrentGold { get; init; }
     public int GameTimeSeconds { get; init; }
+
+    /// <summary>本机 Live Client Data API 是否成功提供本轮局内状态。</summary>
+    public bool HasLiveClientData { get; init; }
+
     public IReadOnlyList<string> CurrentItems { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> AlliedChampions { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> EnemyChampions { get; init; } = Array.Empty<string>();
@@ -35,6 +39,7 @@ public sealed class AiGameContext
         位置：{MyRole}
         游戏时间：{GameTimeText}
         当前金币：{CurrentGold}
+        本机实时数据可用：{HasLiveClientData}
         已购装备：{items}
         已知己方英雄：{allies}
         已知敌方英雄：{enemies}

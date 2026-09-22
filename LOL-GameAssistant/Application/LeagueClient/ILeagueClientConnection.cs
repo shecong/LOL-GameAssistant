@@ -5,5 +5,4 @@ public interface ILeagueClientConnection
 {
     /// <summary>检测并应用当前 LCU 认证信息；客户端未启动时返回 false。</summary>
     bool TryConnect();
-
 }

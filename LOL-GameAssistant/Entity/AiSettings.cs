@@ -7,6 +7,10 @@ namespace LOL_GameAssistant.Entity;
 /// </summary>
 public class AiSettings
 {
+    [JsonProperty("recommendationEnabled")]
+    public bool RecommendationEnabled { get; set; } = true;
+
+    /// <summary>是否启用可选的云端 AI 补充。</summary>
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
 
@@ -25,7 +29,7 @@ public class AiSettings
     public string EncryptedApiKey { get; set; } = "";
 
     [JsonProperty("dynamicRefreshEnabled")]
-    public bool DynamicRefreshEnabled { get; set; }
+    public bool DynamicRefreshEnabled { get; set; } = true;
 
     [JsonProperty("dynamicRefreshSeconds")]
     public int DynamicRefreshSeconds { get; set; } = 30;
@@ -90,8 +94,8 @@ public class AiSettings
         AnakinEncryptedApiKey ??= "";
         DynamicRefreshSeconds = Math.Clamp(DynamicRefreshSeconds, 15, 600);
         RecommendationOverlayPosition = string.IsNullOrWhiteSpace(RecommendationOverlayPosition) ? "BottomLeft" : RecommendationOverlayPosition;
-        RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, 0, 600);
-        RecommendationOverlayOffsetY = Math.Clamp(RecommendationOverlayOffsetY, 0, 600);
+        RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, -600, 600);
+        RecommendationOverlayOffsetY = Math.Clamp(RecommendationOverlayOffsetY, -600, 600);
         RecommendationOverlayDurationSeconds = Math.Clamp(RecommendationOverlayDurationSeconds, 3, 30);
     }
 }

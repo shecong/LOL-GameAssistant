@@ -63,6 +63,7 @@ public sealed class MatchPlayer
     // 单局详情的既有 UI 使用 LCU 小写字段；在读模型内保留同义访问器，
     // 避免展示层重新了解 LCU 字段差异。
     public string puuid { get => Puuid; set => Puuid = value ?? ""; }
+
     public string gameName { get => GameName; set => GameName = value ?? ""; }
     public string summonerName { get => SummonerName; set => SummonerName = value ?? ""; }
 }

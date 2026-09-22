@@ -1,6 +1,6 @@
+using LOL_GameAssistant.Domain.Settings;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using LOL_GameAssistant.Domain.Settings;
 
 namespace LOL_GameAssistant.Helper;
 
@@ -21,8 +21,10 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
     private readonly Form _owner;
     private Keys _registeredKey = Keys.None;
     private string _message = "";
+    private string _language = "中文";
     private int _minimumIntervalSeconds = 3;
     private DateTime _lastSentAtUtc = DateTime.MinValue;
+    private int _sending;
     private bool _disposed;
 
     public QuickMessageSenderController(Form owner)
@@ -36,16 +38,23 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
     {
         Unregister();
         _message = config.QuickMessageText?.Trim() ?? "";
+        _language = config.QuickMessageLanguage;
         _minimumIntervalSeconds = Math.Clamp(config.QuickMessageSendIntervalSeconds, 2, 30);
-        if (!config.QuickMessageAutoSendEnabled || string.IsNullOrWhiteSpace(_message)) return;
+        if (!config.QuickMessageAutoSendEnabled || string.IsNullOrWhiteSpace(_message))
+        {
+            RuntimeDiagnostics.Report("快捷消息", "已关闭", "未启用或消息内容为空");
+            return;
+        }
 
         Keys key = WindowHoldController.ParseKey(config.QuickMessageHotkey);
         if (!RegisterHotKey(Handle, HotkeyId, 0, (uint)key))
         {
             GameMain.infoMsg.AddMsg("快捷弹幕键注册失败，可能已被系统或其它程序占用。");
+            RuntimeDiagnostics.Report("快捷消息", "不可用", "快捷键被系统或其它程序占用");
             return;
         }
         _registeredKey = key;
+        RuntimeDiagnostics.Report("快捷消息", "已注册", $"{WindowHoldController.DescribeKey(key)} · {_language} · 间隔 {_minimumIntervalSeconds} 秒");
     }
 
     protected override void WndProc(ref Message m)
@@ -63,57 +72,78 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
     /// </summary>
     private async Task SendOnceAsync()
     {
-        if (string.IsNullOrWhiteSpace(_message)) return;
+        if (string.IsNullOrWhiteSpace(_message) || Interlocked.Exchange(ref _sending, 1) != 0) return;
 
-        DateTime now = DateTime.UtcNow;
-        TimeSpan elapsed = now - _lastSentAtUtc;
-        if (elapsed.TotalSeconds < _minimumIntervalSeconds)
+        try
         {
-            int remaining = Math.Max(1, _minimumIntervalSeconds - (int)Math.Floor(elapsed.TotalSeconds));
-            GameMain.infoMsg.AddMsg($"快捷弹幕冷却中，请在 {remaining} 秒后再试。");
-            return;
-        }
+            DateTime now = DateTime.UtcNow;
+            TimeSpan elapsed = now - _lastSentAtUtc;
+            if (elapsed.TotalSeconds < _minimumIntervalSeconds)
+            {
+                int remaining = Math.Max(1, _minimumIntervalSeconds - (int)Math.Floor(elapsed.TotalSeconds));
+                GameMain.infoMsg.AddMsg($"快捷弹幕冷却中，请在 {remaining} 秒后再试。");
+                RuntimeDiagnostics.Report("快捷消息", "冷却中", $"还需等待 {remaining} 秒");
+                return;
+            }
 
-        if (!IsLeagueGameForeground())
-        {
-            GameMain.infoMsg.AddMsg("未发送快捷弹幕：请先将英雄联盟对局窗口切到前台。");
-            return;
-        }
+            if (!IsLeagueGameForeground())
+            {
+                GameMain.infoMsg.AddMsg("未发送快捷弹幕：请先将英雄联盟对局窗口切到前台。");
+                RuntimeDiagnostics.Report("快捷消息", "未发送", "英雄联盟对局窗口不在前台");
+                return;
+            }
 
-        // 游戏对 Unicode SendInput 的支持因输入法/渲染后端而异，中文尤其常被吞。
-        // 使用剪贴板粘贴可保持中文、英文和特殊字符完整，仍只在用户主动按下热键时发送一次。
-        if (!TrySendVirtualKey((ushort)Keys.Enter))
-        {
-            ReportInputBlocked("打开聊天框");
-            return;
-        }
+            InputResult openResult = SendVirtualKey((ushort)Keys.Enter);
+            if (!openResult.Succeeded)
+            {
+                ReportInputBlocked("打开聊天框", openResult.ErrorCode);
+                return;
+            }
 
-        // LOL 的聊天输入框会在下一帧才接收文字。原来的 70ms 在低帧率或全屏切换时
-        // 容易让 Ctrl+V 落在聊天框尚未打开的时刻。
-        await Task.Delay(ChatOpenDelayMilliseconds).ConfigureAwait(true);
-        if (!TryPasteText(_message))
-        {
-            ReportInputBlocked("粘贴消息");
-            return;
-        }
-        await Task.Delay(PasteSettleDelayMilliseconds).ConfigureAwait(true);
-        if (!TrySendVirtualKey((ushort)Keys.Enter))
-        {
-            ReportInputBlocked("发送消息");
-            return;
-        }
+            ClipboardSnapshot clipboard = CaptureClipboard();
+            try
+            {
+                // 游戏对 Unicode SendInput 的支持因输入法/渲染后端而异，中文尤其常被吞。
+                // Paste retains CJK and special characters while still requiring an explicit user hotkey.
+                await Task.Delay(ChatOpenDelayMilliseconds).ConfigureAwait(true);
+                InputResult pasteResult = PasteText(_message);
+                if (!pasteResult.Succeeded)
+                {
+                    ReportInputBlocked("粘贴消息", pasteResult.ErrorCode);
+                    return;
+                }
 
-        _lastSentAtUtc = now;
-        GameMain.infoMsg.AddMsg("快捷弹幕已发送。");
+                await Task.Delay(PasteSettleDelayMilliseconds).ConfigureAwait(true);
+                InputResult sendResult = SendVirtualKey((ushort)Keys.Enter);
+                if (!sendResult.Succeeded)
+                {
+                    ReportInputBlocked("发送消息", sendResult.ErrorCode);
+                    return;
+                }
+            }
+            finally
+            {
+                RestoreClipboard(clipboard, _message);
+            }
+
+            _lastSentAtUtc = now;
+            GameMain.infoMsg.AddMsg("快捷弹幕按键已提交到游戏。若聊天框没有响应，请检查管理员权限或全屏输入限制。");
+            RuntimeDiagnostics.Report("快捷消息", "已提交", "已提交打开聊天、粘贴和发送按键；游戏端不会提供可验证的送达回执");
+        }
+        finally
+        {
+            Volatile.Write(ref _sending, 0);
+        }
     }
 
-    private static void ReportInputBlocked(string action)
+    private static void ReportInputBlocked(string action, int errorCode)
     {
         GameMain.infoMsg.AddMsg(
-            $"快捷弹幕未发送：无法{action}。若 LOL 以管理员身份运行，请也以管理员身份启动助手。");
+            $"快捷弹幕未发送：无法{action}（Windows 错误 {errorCode}）。若 LOL 以管理员身份运行，请也以管理员身份启动助手。");
+        RuntimeDiagnostics.Report("快捷消息", "输入被拒绝", $"{action} 失败，Windows 错误 {errorCode}");
     }
 
-    private static bool TryPasteText(string text)
+    private static InputResult PasteText(string text)
     {
         try
         {
@@ -125,15 +155,15 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
                 CreateKeyboardInput((ushort)Keys.V, 0, KeyEventFKeyUp),
                 CreateKeyboardInput((ushort)Keys.ControlKey, 0, KeyEventFKeyUp)
             };
-            return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == inputs.Length;
+            return SendInputs(inputs);
         }
         catch (ExternalException)
         {
-            return false;
+            return new InputResult(false, -1);
         }
         catch (ThreadStateException)
         {
-            return false;
+            return new InputResult(false, -1);
         }
     }
 
@@ -156,27 +186,47 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
         }
     }
 
-    private static bool TrySendVirtualKey(ushort key)
+    private static InputResult SendVirtualKey(ushort key)
     {
         var inputs = new[]
         {
             CreateKeyboardInput(key, 0, 0),
             CreateKeyboardInput(key, 0, KeyEventFKeyUp)
         };
-        return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == inputs.Length;
+        return SendInputs(inputs);
     }
 
-    private static void SendUnicodeText(string text)
+    private static InputResult SendInputs(INPUT[] inputs)
     {
-        var inputs = new List<INPUT>(text.Length * 2);
-        foreach (char character in text)
-        {
-            inputs.Add(CreateKeyboardInput(0, character, KeyEventFUnicode));
-            inputs.Add(CreateKeyboardInput(0, character, KeyEventFUnicode | KeyEventFKeyUp));
-        }
+        uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        return new InputResult(sent == inputs.Length, sent == inputs.Length ? 0 : Marshal.GetLastWin32Error());
+    }
 
-        if (inputs.Count > 0)
-            SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
+    private static ClipboardSnapshot CaptureClipboard()
+    {
+        try
+        {
+            return Clipboard.ContainsText() ? new ClipboardSnapshot(true, Clipboard.GetText()) : new ClipboardSnapshot(false, null);
+        }
+        catch (ExternalException)
+        {
+            return new ClipboardSnapshot(false, null);
+        }
+    }
+
+    private static void RestoreClipboard(ClipboardSnapshot snapshot, string sentText)
+    {
+        try
+        {
+            // Do not overwrite another application's clipboard update that happened while the chat was opened.
+            if (!Clipboard.ContainsText() || !string.Equals(Clipboard.GetText(), sentText, StringComparison.Ordinal)) return;
+            if (snapshot.HasText && snapshot.Text != null) Clipboard.SetText(snapshot.Text);
+            else Clipboard.Clear();
+        }
+        catch (ExternalException)
+        {
+            RuntimeDiagnostics.Report("快捷消息", "已提交", "消息已提交，但无法恢复原剪贴板内容");
+        }
     }
 
     private static INPUT CreateKeyboardInput(ushort virtualKey, ushort scanCode, uint flags) => new()
@@ -234,7 +284,10 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
         public IntPtr DwExtraInfo;
     }
 
-    [DllImport("user32.dll")]
+    private readonly record struct InputResult(bool Succeeded, int ErrorCode);
+    private readonly record struct ClipboardSnapshot(bool HasText, string? Text);
+
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint inputCount, INPUT[] inputs, int inputSize);
 
     [DllImport("user32.dll")]

@@ -1,9 +1,9 @@
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Helper;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
@@ -21,8 +21,11 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
     public LcuGameFlowEventStream(LeagueClientConnection connection) => _connection = connection;
 
     public event Action<LeagueClientEvent>? EventReceived;
+
     public event Action<string>? ErrorOccurred;
+
     public event Action<bool>? ConnectionChanged;
+
     public event Action<string>? Reconnecting;
 
     public async Task<bool> ConnectAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)

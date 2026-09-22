@@ -5,8 +5,11 @@ namespace LOL_GameAssistant.Entity
     /// <summary>
     /// 应用设置配置，支持本地 JSON 缓存。
     /// </summary>
-public class SettingConfig
-{
+    public class SettingConfig
+    {
+        [JsonProperty("themeMode")]
+        public string ThemeMode { get; set; } = "System";
+
         /// <summary>是否在启动助手时直接启动已配置的国服 LOL 客户端。</summary>
         [JsonProperty("autoLaunchGameClient")]
         public bool AutoLaunchGameClient { get; set; } = false;
@@ -108,6 +111,7 @@ public class SettingConfig
         public void Normalize()
         {
             Ai ??= new AiSettings();
+            ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
             WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
             HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
             QuickMessageLanguage = string.IsNullOrWhiteSpace(QuickMessageLanguage) ? "中文" : QuickMessageLanguage;
@@ -136,15 +140,29 @@ public class SettingConfig
                 if (!File.Exists(CacheFilePath))
                     return new SettingConfig();
 
-                string json = File.ReadAllText(CacheFilePath);
-                var config = JsonConvert.DeserializeObject<SettingConfig>(json) ?? new SettingConfig();
-                config.Normalize();
-                return config;
+                return LoadFromFile(CacheFilePath);
             }
             catch
             {
-                return new SettingConfig();
+                try
+                {
+                    string backupPath = CacheFilePath + ".bak";
+                    if (!File.Exists(backupPath)) return new SettingConfig();
+                    return LoadFromFile(backupPath);
+                }
+                catch
+                {
+                    return new SettingConfig();
+                }
             }
+        }
+
+        private static SettingConfig LoadFromFile(string path)
+        {
+            string json = File.ReadAllText(path);
+            var config = JsonConvert.DeserializeObject<SettingConfig>(json) ?? new SettingConfig();
+            config.Normalize();
+            return config;
         }
 
         /// <summary>
@@ -156,10 +174,34 @@ public class SettingConfig
             {
                 config.Normalize();
                 string json = JsonConvert.SerializeObject(config, Newtonsoft.Json.Formatting.Indented);
-                File.WriteAllText(CacheFilePath, json);
+                string directory = Path.GetDirectoryName(CacheFilePath) ?? AppDomain.CurrentDomain.BaseDirectory;
+                Directory.CreateDirectory(directory);
+                string temporaryPath = CacheFilePath + ".tmp";
+                string backupPath = CacheFilePath + ".bak";
+
+                File.WriteAllText(temporaryPath, json);
+                if (File.Exists(CacheFilePath))
+                {
+                    // Replace keeps the last known good settings file available if a power loss or
+                    // process termination happens while the new file is being committed.
+                    File.Replace(temporaryPath, CacheFilePath, backupPath, ignoreMetadataErrors: true);
+                }
+                else
+                {
+                    File.Move(temporaryPath, CacheFilePath);
+                }
             }
             catch (Exception ex)
             {
+                try
+                {
+                    string temporaryPath = CacheFilePath + ".tmp";
+                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+                }
+                catch
+                {
+                    // A stale temp file is harmless; never hide the original save failure.
+                }
                 System.Diagnostics.Debug.WriteLine($"保存设置失败: {ex.Message}");
             }
         }

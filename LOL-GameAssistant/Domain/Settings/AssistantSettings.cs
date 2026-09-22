@@ -6,6 +6,9 @@ namespace LOL_GameAssistant.Domain.Settings;
 /// </summary>
 public sealed class AssistantSettings
 {
+    /// <summary>界面配色：跟随系统、浅色或深色。</summary>
+    public string ThemeMode { get; set; } = "System";
+
     public bool AutoLaunchGameClient { get; set; }
     public string GameClientPath { get; set; } = "";
     public int WindowOpacityPercent { get; set; } = 100;
@@ -36,6 +39,7 @@ public sealed class AssistantSettings
     public void Normalize()
     {
         Ai ??= new CloudAiSettings();
+        ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
         GameClientPath ??= "";
         WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
         HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
