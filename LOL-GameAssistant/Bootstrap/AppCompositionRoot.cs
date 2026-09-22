@@ -124,8 +124,12 @@ public static class AppCompositionRoot
     /// <summary>本机上下文与云端 AI 建议服务。</summary>
     public static IAiCoachingService AiCoachingService { get; } = new LegacyAiCoachingService(AiGameContextService);
 
+    /// <summary>云端 AI 共用的 HTTP 客户端：单实例复用连接，避免每次建议都重新握手。</summary>
+    private static readonly HttpClient AiHttpClient = new() { Timeout = TimeSpan.FromSeconds(25) };
+
     /// <summary>根据当前可见对局数据生成时间线建议的 AI 适配器。</summary>
-    public static IAiRecommendationProvider AiRecommendationProvider { get; } = new CloudAiRecommendationProvider();
+    public static IAiRecommendationProvider AiRecommendationProvider { get; } =
+        new CloudAiRecommendationProvider(new CloudAiRecommendationService(AiHttpClient));
 
     /// <summary>独立于页面生命周期的局内建议调度器。</summary>
     public static IRecommendationCoordinator RecommendationCoordinator { get; } =

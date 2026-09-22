@@ -80,7 +80,7 @@ public sealed class AiGameContextService : IAiGameContextService
         int selectedPickId = GetCurrentMyActionChampion(session);
         int championId = selectedPickId > 0 ? selectedPickId : me?.ChampionId ?? 0;
         string champion = _championCatalog.GetDisplayName(championId);
-        string role = string.IsNullOrWhiteSpace(me?.AssignedPosition) ? "通用" : me.AssignedPosition;
+        string role = NormalizeRole(me?.AssignedPosition);
         var enemies = session.TheirTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         var allies = session.MyTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         string matchup = enemies.FirstOrDefault() ?? "";
@@ -116,7 +116,7 @@ public sealed class AiGameContextService : IAiGameContextService
         var enemies = (mineIsTeamOne ? teamTwo : teamOne).Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         string mode = NormalizeLiveMode(liveSnapshot?.GameMode);
         string champion = _championCatalog.GetDisplayName(me?.ChampionId ?? 0);
-        string role = string.IsNullOrWhiteSpace(me?.Position) ? "通用" : me!.Position;
+        string role = NormalizeRole(me?.Position);
         string matchup = enemies.FirstOrDefault() ?? "";
 
         return new AiGameContext
@@ -142,6 +142,20 @@ public sealed class AiGameContextService : IAiGameContextService
                 action.ActorCellId == session.LocalPlayerCellId &&
                 string.Equals(action.Type, "pick", StringComparison.OrdinalIgnoreCase) &&
                 action.ChampionId > 0)?.ChampionId ?? 0;
+
+    /// <summary>
+    /// 实时客户端在未分配位置时会返回字面量 “NONE”，原样送给模型会变成无意义的位置描述
+    /// （界面上就会显示“亚索（NONE）”）。这里统一归成“通用”，与选人阶段的兜底一致。
+    /// </summary>
+    private static string NormalizeRole(string? position)
+    {
+        string value = (position ?? "").Trim();
+        return value.Length == 0 ||
+               value.Equals("NONE", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("UNSELECTED", StringComparison.OrdinalIgnoreCase)
+            ? "通用"
+            : value;
+    }
 
     private async Task<string?> GetMyPuuidAsync(CancellationToken cancellationToken)
     {

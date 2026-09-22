@@ -44,11 +44,19 @@ public sealed class CloudAiSettings
         _ => ""
     };
 
+    /// <summary>
+    /// 模型名不做内置候选：模型阵容会变，写死在代码里迟早过期
+    /// （DeepSeek 端点上就已经不再认 deepseek-chat）。
+    /// 设置页改为向服务商读取可用的模型列表。
+    /// </summary>
+    public void NormalizeModel() => Model = (Model ?? "").Trim();
+
     public void Normalize()
     {
         Model ??= "";
         BaseUrl ??= "";
         EncryptedApiKey ??= "";
+        NormalizeModel();
         DynamicRefreshSeconds = Math.Clamp(DynamicRefreshSeconds, 15, 600);
         RecommendationOverlayPosition = string.IsNullOrWhiteSpace(RecommendationOverlayPosition) ? "BottomLeft" : RecommendationOverlayPosition;
         RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, -600, 600);

@@ -15,6 +15,14 @@ namespace LOL_GameAssistant.BaseViewForm
         private AssistantSettings _config;
         private bool _isLoading;
         private ToolTip toolTip1 = new ToolTip();
+        private readonly ToolTip _featureTip = new()
+        {
+            // 说明文本较长，默认 5 秒往往读不完。
+            AutoPopDelay = 20000,
+            InitialDelay = 350,
+            ReshowDelay = 100,
+            ShowAlways = true
+        };
         private readonly IGameClientLauncher _gameClientLauncher;
         private readonly IApplicationSettingsStore _settingsStore;
         private readonly ISettingsSecretProtector _settingsSecretProtector;
@@ -38,7 +46,12 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly CheckBox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
         private readonly TextBox _champSelectKdaAnnouncementTemplate = new() { Dock = DockStyle.Fill, Multiline = true, Height = 86, ScrollBars = ScrollBars.Vertical };
         private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210 };
-        private readonly TextBox _model = new() { Width = 290 };
+
+        // 可下拉可手填：模型名写错时服务端只回一个 400，所以按服务商给出可选值。
+        private readonly ComboBox _model = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 290 };
+        private readonly Button _testAi = new() { Text = "测试连接", AutoSize = true };
+        private readonly Button _fetchModels = new() { Text = "获取可用模型", AutoSize = true };
+        private readonly Label _aiTestStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
         private readonly TextBox _baseUrl = new() { Dock = DockStyle.Fill };
         private readonly TextBox _apiKey = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true, PlaceholderText = "留空则保留已保存的密钥" };
         private readonly Label _apiKeyStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
@@ -71,6 +84,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _settingsSecretProtector = settingsSecretProtector;
             InitializeComponent();
             _config = new AssistantSettings();
+            AttachCommonSegmentTips();
             InitializeSegmentedSettings();
         }
 
@@ -212,6 +226,43 @@ namespace LOL_GameAssistant.BaseViewForm
             GameMain.liveGameForm.RefreshChampSelectKdaAnnouncement();
         }
 
+        /// <summary>
+        /// “通用”分页由设计器生成，这里统一补上悬停说明。
+        /// 只挂到该行的标题、开关与选择框本身：英雄头像预览另有一套显示名称的提示，
+        /// 递归挂载会把那套提示覆盖掉。
+        /// </summary>
+        private void AttachCommonSegmentTips()
+        {
+            AttachTipDeep(label1, swi_open,
+                "开启后，客户端回到大厅时助手会自动开始排队匹配；两次自动排队之间至少间隔 10 秒，避免重复触发。");
+            AttachTipDeep(label2, swi_gametrue,
+                "开启后，匹配到对手时自动点“接受”，不会因为没来得及点而退回队列。");
+            AttachTipDeep(label3, swi_jyyx,
+                "开启后在选人阶段自动禁用列表中的英雄，按“自动禁用间隔”反复尝试，直到禁用成功或选人结束。");
+            AttachTipDeep(setting_select_jyx, "要自动禁用的英雄，可多选，按列表顺序尝试禁用。");
+            AttachTip(flow_ban_preview, "已选禁用英雄的头像预览。");
+            AttachTipDeep(label4, swi_xyx,
+                "开启后在选人阶段立即抢选列表中的英雄；抢选不受“自动禁用间隔”影响，每 0.1 秒重试一次。");
+            AttachTipDeep(setting_select_xyx, "要自动抢选的英雄，可多选，按列表顺序尝试选用。");
+            AttachTip(flow_pick_preview, "已选抢选英雄的头像预览。");
+            AttachTipDeep(label5, inputNumber1,
+                "自动禁用循环两次尝试之间的间隔（秒）；不影响自动抢英雄的速度。");
+            AttachTipDeep(label_resolution, select_resolution,
+                "记录你常用的游戏分辨率，便于按分辨率调整界面与浮窗；当前版本只保存该值，不影响其它功能。");
+            AttachTipDeep(label_tray, swi_tray,
+                "开启后，关闭窗口只会最小化到系统托盘，单击托盘图标可恢复；关闭则关闭窗口即退出程序。");
+            AttachTipDeep(label_auto_refresh, swi_auto_refresh,
+                "开启后在对局中按下面的间隔自动刷新对局页数据（玩家战绩、KDA 标签、开黑标记）。");
+            AttachTipDeep(label_refresh_interval, input_auto_refresh,
+                "对局自动刷新的间隔（秒），最小 10 秒；间隔越短对客户端的请求压力越大。");
+            AttachTipDeep(label_notify_end, swi_notify_end,
+                "对局结束时用托盘气泡提醒，并写入消息区。");
+            AttachTipDeep(label_startup, swi_startup,
+                "登录 Windows 后自动启动助手（写入当前用户的启动项）。");
+            AttachTipDeep(label_cache, label_cache_status,
+                "设置与缓存的存放位置；删除该文件相当于恢复默认设置。本页的开关切换后会自动保存，不需要再点保存按钮。");
+        }
+
         private Panel CreateClientSegment()
         {
             var panel = CreateSegmentPanel();
@@ -228,10 +279,14 @@ namespace LOL_GameAssistant.BaseViewForm
             launch.Click += (_, _) => StartLeagueClientFromSettings();
             var note = CreateNote("选择 LOL 安装文件夹后，助手会自动扫描其子目录中的 LeagueClient.exe 并直接启动，不通过 WeGame；登录完成后会自动等待并连接 LCU。\n也可留空，由助手尝试查找常见安装位置。\n此处的自动启动仅在助手打开时执行一次，不会在每次保存设置时重复拉起客户端。");
 
-            AddSegmentRow(layout, 0, "安装文件夹：", pathPanel);
-            AddSegmentRow(layout, 1, "自动启动：", _autoLaunchClient);
-            AddSegmentRow(layout, 2, "操作：", launch);
-            AddSegmentRow(layout, 3, "状态：", _clientStatus);
+            AddSegmentRow(layout, 0, "安装文件夹：", pathPanel,
+                "LOL 安装目录。助手会在其子目录中查找 LeagueClient.exe，用于“立即启动”和启动助手时的自动启动；留空则尝试常见安装位置。");
+            AddSegmentRow(layout, 1, "自动启动：", _autoLaunchClient,
+                "开启后，每次启动助手时会尝试直接启动 LOL 客户端（不经 WeGame）；只在助手启动时执行一次，保存设置不会重复拉起客户端。");
+            AddSegmentRow(layout, 2, "操作：", launch,
+                "按上面的安装目录立即启动客户端，并等待 LCU 连接；成功后会把实际路径写回上面的输入框。");
+            AddSegmentRow(layout, 3, "状态：", _clientStatus,
+                "上一次启动与连接的结果。");
             AddSegmentRow(layout, 4, "说明：", note);
             AddSaveRow(layout, 5, "保存客户端设置");
             return panel;
@@ -261,16 +316,25 @@ namespace LOL_GameAssistant.BaseViewForm
             messageIntervalPanel.Controls.Add(new Label { Text = "秒（2–30）", AutoSize = true, Padding = new Padding(6, 6, 0, 0) });
             var messageNote = CreateNote("按下快捷键后，程序仅在《英雄联盟》对局窗口位于前台时自动执行“打开聊天框 → 通过剪贴板粘贴预设内容 → 发送”一次，确保中文与特殊字符不被输入法吞掉。为避免误触，发送之间会受最小间隔限制；不会后台循环刷屏。");
 
-            AddSegmentRow(layout, 0, "界面主题：", _themeMode);
-            AddSegmentRow(layout, 1, "窗口透明度：", opacityPanel);
-            AddSegmentRow(layout, 2, "按住置顶键：", _hotkey);
-            AddSegmentRow(layout, 3, "快捷键范围：", _onlyLeagueFocused);
+            AddSegmentRow(layout, 0, "界面主题：", _themeMode,
+                "界面配色：跟随系统、浅色或深色，保存后立即生效。");
+            AddSegmentRow(layout, 1, "窗口透明度：", opacityPanel,
+                "助手窗口的不透明度（40–100），数值越小越透明。");
+            AddSegmentRow(layout, 2, "按住置顶键：", _hotkey,
+                "点击输入框后按一个键即可设定。按住该键时助手临时置顶且不抢焦点，松开后恢复；按键不会传给游戏。");
+            AddSegmentRow(layout, 3, "快捷键范围：", _onlyLeagueFocused,
+                "开启时只有 LOL 位于前台才响应置顶键；关闭则任何窗口下都响应。");
             AddSegmentRow(layout, 4, "置顶说明：", holdNote);
-            AddSegmentRow(layout, 5, "快捷消息：", _quickMessageEnabled);
-            AddSegmentRow(layout, 6, "发送语言：", _quickMessageLanguage);
-            AddSegmentRow(layout, 7, "预设内容：", _quickMessageText);
-            AddSegmentRow(layout, 8, "发送快捷键：", _quickMessageHotkey);
-            AddSegmentRow(layout, 9, "最小发送间隔：", messageIntervalPanel);
+            AddSegmentRow(layout, 5, "快捷消息：", _quickMessageEnabled,
+                "开启后，按下面的快捷键会通过剪贴板在对局聊天里发送一次预设内容；只在 LOL 位于前台时执行，不会后台循环刷屏。");
+            AddSegmentRow(layout, 6, "发送语言：", _quickMessageLanguage,
+                "预设内容的语言；选择“自定义”时使用你自己输入的文本。");
+            AddSegmentRow(layout, 7, "预设内容：", _quickMessageText,
+                "要发送的文本。发送时经剪贴板粘贴，中文与特殊字符不会被输入法吞掉。");
+            AddSegmentRow(layout, 8, "发送快捷键：", _quickMessageHotkey,
+                "点击输入框后按一个键设为发送快捷键。");
+            AddSegmentRow(layout, 9, "最小发送间隔：", messageIntervalPanel,
+                "两次发送之间的最小间隔（2–30 秒），避免连续误触刷屏。");
             AddSegmentRow(layout, 10, "消息说明：", messageNote);
             AddSaveRow(layout, 11, "保存窗口与快捷键设置");
             return panel;
@@ -294,6 +358,10 @@ namespace LOL_GameAssistant.BaseViewForm
             var keyPortal = new Button { Text = "获取 API Key", AutoSize = true };
             keyPortal.Click += (_, _) => OpenKeyPortal();
             providerPanel.Controls.Add(keyPortal);
+            _testAi.Click += async (_, _) => await TestAiConnectionAsync();
+            providerPanel.Controls.Add(_testAi);
+            _fetchModels.Click += async (_, _) => await FetchAiModelsAsync();
+            providerPanel.Controls.Add(_fetchModels);
 
             var clearApiKeyButton = new Button { Text = "清除已保存密钥", AutoSize = true, Dock = DockStyle.Right };
             clearApiKeyButton.Click += (_, _) =>
@@ -320,30 +388,46 @@ namespace LOL_GameAssistant.BaseViewForm
             overlayOffsetPanel.Controls.Add(_overlayOffsetY);
             overlayOffsetPanel.Controls.Add(new Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayDuration);
-            var overlayNote = CreateNote("浮窗默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
+            var overlayNote = CreateNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
             var privacyNote = CreateNote("隐私说明：启用 AI 时间线建议并主动保存后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商以生成建议；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据，也不会显示替代建议。");
             var opggNote = CreateNote("开启后，助手会在选人阶段检测到你已选定英雄时弹出图文方案。选中并点击应用后，才会从 OP.GG 读取公开推荐，并写入本机客户端的符文页与自定义物品集；取消不会修改任何内容。若自定义符文页已满，会就地改写当前正在使用的符文页（不删除任何页面），不会清理其它自定义页。");
             var kdaAnnouncementNote = CreateNote("仅在英雄选择阶段、我方阵容的战绩加载完成后通过 LCU 发送一次。严格规则：取最近 100 场里同队列的最近 20 场（不计重开局），KDA ＜ 1 为“人机”、1–2.19 为下等马、2.2–4.49 为中等马、≥ 4.5 为上等马；不足 20 场（含一场都没有）直接判为下等马。只汇总我方玩家，不获取也不发送敌方。模板支持 {players}、{allies}，两者内容相同（均为我方名单）。\n默认文案如下，可直接编辑：\n【选人近期 KDA 评估】\n{allies}\n玩家：上等马 87分 · KDA 4.90 · 胜率 55%");
 
-            AddSegmentRow(layout, 0, "AI 时间线：", _recommendationEnabled);
-            AddSegmentRow(layout, 1, "OP.GG 推荐：", _opggBuildAssistantEnabled);
+            AddSegmentRow(layout, 0, "AI 时间线：", _recommendationEnabled,
+                "开启后按设定间隔采集对局上下文并请求 AI 生成时间线建议；关闭则不请求，也不发送任何数据。");
+            AddSegmentRow(layout, 1, "OP.GG 推荐：", _opggBuildAssistantEnabled,
+                "选人阶段检测到你已选定英雄时弹出 OP.GG 图文方案；选中并点击应用后才会写入本机符文页与自定义物品集。");
             AddSegmentRow(layout, 2, "OP.GG 说明：", opggNote);
-            AddSegmentRow(layout, 3, "选人 KDA 发送：", _champSelectKdaAnnouncementEnabled);
-            AddSegmentRow(layout, 4, "发送文案：", _champSelectKdaAnnouncementTemplate);
+            AddSegmentRow(layout, 3, "选人 KDA 发送：", _champSelectKdaAnnouncementEnabled,
+                "选人阶段我方战绩加载完成后，把近期 KDA 评估通过客户端聊天发送一次；只汇总我方玩家。");
+            AddSegmentRow(layout, 4, "发送文案：", _champSelectKdaAnnouncementTemplate,
+                "发送用的模板，支持 {players} 与 {allies}（两者内容相同，都是我方名单）。");
             AddSegmentRow(layout, 5, "KDA 说明：", kdaAnnouncementNote);
-            AddSegmentRow(layout, 6, "服务商：", providerPanel);
-            AddSegmentRow(layout, 7, "模型名称：", _model);
-            AddSegmentRow(layout, 8, "接口地址：", _baseUrl);
-            AddSegmentRow(layout, 9, "API Key：", keyPanel);
-            AddSegmentRow(layout, 10, "密钥状态：", _apiKeyStatus);
-            AddSegmentRow(layout, 11, "数据与隐私：", privacyNote);
-            AddSegmentRow(layout, 12, "动态建议：", refreshPanel);
-            AddSegmentRow(layout, 13, "建议提醒：", _showPopup);
-            AddSegmentRow(layout, 14, "游戏内浮窗：", _overlayEnabled);
-            AddSegmentRow(layout, 15, "浮窗位置：", _overlayPosition);
-            AddSegmentRow(layout, 16, "位置与时长：", overlayOffsetPanel);
-            AddSegmentRow(layout, 17, "浮窗说明：", overlayNote);
-            AddSaveRow(layout, 18, "保存 AI 设置");
+            AddSegmentRow(layout, 6, "服务商：", providerPanel,
+                "这一行有三个按钮：“获取 API Key”打开服务商密钥页；“获取可用模型”用当前密钥读取服务端支持的模型名；“测试连接”用当前填写的服务商、模型与密钥发一次最小请求。");
+            AddSegmentRow(layout, 7, "模型名称：", _model,
+                "要调用的模型名，建议先点“获取可用模型”再从这里选。模型名由服务商决定，写错时只会得到 400。");
+            AddSegmentRow(layout, 8, "接口地址：", _baseUrl,
+                "API 基础地址；切换服务商时会自动填好，使用默认地址时不用改。");
+            AddSegmentRow(layout, 9, "API Key：", keyPanel,
+                "填写后保存即可。已保存的密钥不会回显，留空保存表示保留原密钥；“清除已保存密钥”会在下次保存时删除它。");
+            AddSegmentRow(layout, 10, "密钥状态：", _apiKeyStatus,
+                "当前密钥的保存状态；密钥使用 Windows 用户级加密存放。");
+            AddSegmentRow(layout, 11, "连通性：", _aiTestStatus,
+                "“测试连接”的结果，会显示服务端返回的真实原因，例如模型名称不存在、Key 无效或余额不足。");
+            AddSegmentRow(layout, 12, "数据与隐私：", privacyNote);
+            AddSegmentRow(layout, 13, "动态建议：", refreshPanel,
+                "对局中按间隔自动重新生成建议；间隔越长越省额度。");
+            AddSegmentRow(layout, 14, "建议提醒：", _showPopup,
+                "生成新建议后弹出提醒。与“游戏内浮窗”共用同一个显示，两者任一开启就会弹出浮窗。");
+            AddSegmentRow(layout, 15, "游戏内浮窗：", _overlayEnabled,
+                "在游戏内显示建议浮窗，背景透明只显示文字，不抢键盘焦点；关闭后建议只会更新到“智能建议”页。");
+            AddSegmentRow(layout, 16, "浮窗位置：", _overlayPosition,
+                "浮窗停靠的屏幕角落。");
+            AddSegmentRow(layout, 17, "位置与时长：", overlayOffsetPanel,
+                "横向/纵向偏移以所选角落为基准；停留秒数是浮窗自动隐藏前的显示时长。");
+            AddSegmentRow(layout, 18, "浮窗说明：", overlayNote);
+            AddSaveRow(layout, 19, "保存 AI 设置");
             return panel;
         }
 
@@ -376,7 +460,8 @@ namespace LOL_GameAssistant.BaseViewForm
             Text = text
         };
 
-        private static void AddSegmentRow(TableLayoutPanel layout, int row, string caption, Control control)
+        /// <summary>设置项的悬停说明：标题和控件上都挂同一段文字，鼠标停在行的任意位置都能看到。</summary>
+        private void AddSegmentRow(TableLayoutPanel layout, int row, string caption, Control control, string? tip = null)
         {
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             var label = new Label
@@ -388,15 +473,35 @@ namespace LOL_GameAssistant.BaseViewForm
             };
             control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             control.Margin = new Padding(3, 5, 3, 5);
+            if (!string.IsNullOrWhiteSpace(tip)) AttachTipDeep(label, control, tip);
             layout.Controls.Add(label, 0, row);
             layout.Controls.Add(control, 1, row);
+        }
+
+        /// <summary>只给控件本身挂说明（用于内部已有自定义提示的控件，避免覆盖它的提示）。</summary>
+        private void AttachTip(Control control, string text) => _featureTip.SetToolTip(control, text);
+
+        /// <summary>
+        /// 给控件及其所有子控件挂同一段说明。设置了说明的控件多为容器（面板、下拉框、按钮组），
+        /// 只有递归下去，鼠标落在里面真正的输入控件上才会显示。
+        /// </summary>
+        private void AttachTipDeep(Control control, string text)
+        {
+            _featureTip.SetToolTip(control, text);
+            foreach (Control child in control.Controls) AttachTipDeep(child, text);
+        }
+
+        private void AttachTipDeep(Control caption, Control control, string text)
+        {
+            AttachTip(caption, text);
+            AttachTipDeep(control, text);
         }
 
         private void AddSaveRow(TableLayoutPanel layout, int row, string text)
         {
             var save = new Button { Text = text, AutoSize = true };
             save.Click += (_, _) => SaveExtendedSettings();
-            AddSegmentRow(layout, row, "", save);
+            AddSegmentRow(layout, row, "", save, $"点击后立即生效，并写入本机的 {_settingsStore.GetStoragePath()}");
         }
 
         private void LoadExtendedSettings()
@@ -574,7 +679,102 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (_isLoading || _provider.SelectedItem is not LOL_GameAssistant.Domain.Settings.AiProvider provider) return;
             _baseUrl.Text = new CloudAiSettings { Provider = provider }.GetBaseUrl();
+            // 下拉里的模型是上一个服务商读回来的，换服务商后不再适用；
+            // 已填的模型名保留，用户按“获取可用模型”重新读一次即可。
+            string keepModel = _model.Text;
+            _model.Items.Clear();
+            _model.Text = keepModel;
         }
+
+        /// <summary>
+        /// 用界面上当前填写的服务商、模型与密钥发一次最小请求。
+        /// 未保存也能先验证，避免“先保存再发现填错”的来回。
+        /// </summary>
+        private async Task TestAiConnectionAsync()
+        {
+            _testAi.Enabled = false;
+            SetAiTestStatus("正在测试连接…", Color.DimGray);
+            try
+            {
+                string reply = await AppCompositionRoot.AiRecommendationProvider.TestAsync(BuildAiSettingsFromUi());
+                SetAiTestStatus($"连接正常，模型回复：{reply}", Color.ForestGreen);
+            }
+            catch (Exception ex)
+            {
+                SetAiTestStatus(ex.Message, Color.Firebrick);
+            }
+            finally
+            {
+                _testAi.Enabled = true;
+            }
+        }
+
+        /// <summary>
+        /// 读取服务商当前可用的模型列表并填进下拉。
+        /// 不在代码里内置模型名：模型阵容会变，写死的候选值反而会把用户带偏
+        /// （DeepSeek 端点上就已经不再认 deepseek-chat）。
+        /// </summary>
+        private async Task FetchAiModelsAsync()
+        {
+            _fetchModels.Enabled = false;
+            SetAiTestStatus("正在读取可用模型…", Color.DimGray);
+            try
+            {
+                IReadOnlyList<string> models = await AppCompositionRoot.AiRecommendationProvider.ListModelsAsync(BuildAiSettingsFromUi());
+                if (models.Count == 0)
+                {
+                    SetAiTestStatus("服务没有返回任何模型。", Color.DarkGoldenrod);
+                    return;
+                }
+
+                string current = _model.Text.Trim();
+                _model.BeginUpdate();
+                try
+                {
+                    _model.Items.Clear();
+                    foreach (string model in models) _model.Items.Add(model);
+                }
+                finally
+                {
+                    _model.EndUpdate();
+                }
+
+                // 当前填的模型不在服务端列表里（写错或已下线）时，直接换成列表里的第一个。
+                bool currentIsValid = models.Any(item => string.Equals(item, current, StringComparison.OrdinalIgnoreCase));
+                _model.Text = currentIsValid ? current : models[0];
+                SetAiTestStatus($"已读取 {models.Count} 个可用模型，当前选择：{_model.Text}", Color.ForestGreen);
+            }
+            catch (Exception ex)
+            {
+                SetAiTestStatus(ex.Message, Color.Firebrick);
+            }
+            finally
+            {
+                _fetchModels.Enabled = true;
+            }
+        }
+
+        private void SetAiTestStatus(string text, Color color)
+        {
+            _aiTestStatus.ForeColor = color;
+            _aiTestStatus.Text = text;
+        }
+
+        /// <summary>按界面上当前填写的值组装一份设置，供“测试连接”和“获取可用模型”共用。</summary>
+        private CloudAiSettings BuildAiSettingsFromUi() => new()
+        {
+            Provider = _provider.SelectedItem is LOL_GameAssistant.Domain.Settings.AiProvider provider
+                ? provider
+                : LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI,
+            Model = _model.Text.Trim(),
+            BaseUrl = _baseUrl.Text.Trim().TrimEnd('/'),
+            // 点了“清除已保存密钥”之后按清除后的状态测，否则测的还是旧密钥。
+            EncryptedApiKey = _clearAiKey
+                ? ""
+                : !string.IsNullOrWhiteSpace(_apiKey.Text)
+                    ? _settingsSecretProtector.Protect(_apiKey.Text)
+                    : _config.Ai.EncryptedApiKey
+        };
 
         private void OpenKeyPortal()
         {
