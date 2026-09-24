@@ -5,17 +5,19 @@ using System.Runtime.InteropServices;
 namespace LOL_GameAssistant.Helper;
 
 /// <summary>
-/// 通过 Windows 全局键盘钩子实现“按住显示，松开还原”。不读写游戏内存、不注入游戏进程。
+/// 置顶键由 Windows 注册热键触发，按键状态负责松开；喊话保留独立的键盘钩子。
 /// </summary>
 public sealed class WindowHoldController : IDisposable
 {
+    public const int HotkeyMessage = 0x0312;
+    private const int HoldHotkeyId = 0x4C47;
+    private const uint ModNoRepeat = 0x4000;
     private const int WhKeyboardLl = 13;
     private const int WmKeyDown = 0x0100;
     private const int WmKeyUp = 0x0101;
     private const int WmSysKeyDown = 0x0104;
     private const int WmSysKeyUp = 0x0105;
     private const int SwShownoactivate = 4;
-    private const int SwMinimize = 6;
     private static readonly IntPtr HwndTopmost = new(-1);
     private static readonly IntPtr HwndNotopmost = new(-2);
     private const uint SwpNoMove = 0x0002;
@@ -25,37 +27,56 @@ public sealed class WindowHoldController : IDisposable
 
     private readonly Form _window;
     private readonly LowLevelKeyboardProc _callback;
-    private IntPtr _hook = IntPtr.Zero;
+    private readonly System.Windows.Forms.Timer _hotkeyWatch = new() { Interval = 120 };
+    private IntPtr _hook;
+    private IntPtr _registeredHandle;
     private Keys _hotkey = Keys.Oem3;
     private Keys _shoutBuiltInKey = Keys.F6;
     private Keys _shoutCustomKey = Keys.F7;
     private bool _shoutHotkeysEnabled;
     private Action<bool>? _shoutAction;
     private bool _onlyWhenLeagueFocused = true;
+    private bool _capturePaused;
     private bool _holding;
-    private readonly System.Windows.Forms.Timer _releaseWatchdog = new() { Interval = 40 };
     private bool _disposed;
+    private long _nextRegisterAttempt;
 
     public WindowHoldController(Form window)
     {
         _window = window;
         _callback = HookCallback;
-        InstallHook();
-        _releaseWatchdog.Tick += (_, _) => RestoreIfKeyReleased();
+        _window.HandleCreated += WindowHandleCreated;
+        _window.HandleDestroyed += WindowHandleDestroyed;
+        _hotkeyWatch.Tick += (_, _) =>
+        {
+            if (_holding && ((GetAsyncKeyState((int)_hotkey) & 0x8000) == 0 ||
+                (_onlyWhenLeagueFocused && !IsLeagueForeground())))
+                EndHold();
+            RefreshRegistration();
+        };
+        _hotkeyWatch.Start();
     }
 
     public void Apply(AssistantSettings config)
     {
-        _hotkey = ParseKey(config.HoldToTopHotkey);
+        Keys newKey = ParseKey(config.HoldToTopHotkey);
+        if (_holding) EndHold();
+        if (_hotkey != newKey) UnregisterHoldHotkey();
+        _hotkey = newKey;
         _onlyWhenLeagueFocused = config.HoldToTopOnlyWhenLeagueFocused;
         _window.Opacity = Math.Clamp(config.WindowOpacityPercent, 40, 100) / 100D;
-        RuntimeDiagnostics.Report(
-            "按住置顶键",
-            _hook == IntPtr.Zero ? "不可用" : "已注册",
-            $"{DescribeKey(_hotkey)} · {(_onlyWhenLeagueFocused ? "仅 LOL 前台" : "所有窗口")}");
+        _nextRegisterAttempt = 0;
+        RefreshRegistration();
     }
 
-    /// <summary>沿用现有键盘钩子，在游戏前台按键抬起时触发随机喊话。</summary>
+    /// <summary>设置页录入快捷键期间暂停注册，避免旧快捷键吃掉输入。</summary>
+    public void SetCapturePaused(bool paused)
+    {
+        _capturePaused = paused;
+        if (paused) UnregisterHoldHotkey();
+        else RefreshRegistration();
+    }
+
     public void ConfigureQuickShoutHotkeys(AssistantSettings config, Action<bool> action)
     {
         _shoutAction = action;
@@ -64,8 +85,10 @@ public sealed class WindowHoldController : IDisposable
         _shoutHotkeysEnabled = config.QuickShoutHotkeysEnabled &&
             _shoutBuiltInKey != _shoutCustomKey && _shoutBuiltInKey != _hotkey &&
             _shoutCustomKey != _hotkey;
+        if (_shoutHotkeysEnabled) InstallShoutHook();
+        else RemoveShoutHook();
         RuntimeDiagnostics.Report("游戏内喊话快捷键",
-            _hook == IntPtr.Zero || !_shoutHotkeysEnabled ? "不可用" : "已启用",
+            _shoutHotkeysEnabled && _hook != IntPtr.Zero ? "已启用" : "不可用",
             _shoutHotkeysEnabled
                 ? $"默认词库 {_shoutBuiltInKey} · 自定义词库 {_shoutCustomKey} · 仅游戏前台"
                 : "已关闭、快捷键重复或与置顶键冲突");
@@ -75,42 +98,115 @@ public sealed class WindowHoldController : IDisposable
         Enum.TryParse(value, true, out Keys key) && key is >= Keys.F2 and <= Keys.F12
             ? key : fallback;
 
-    public static Keys ParseKey(string? value)
+    public static Keys ParseKey(string? value) =>
+        Enum.TryParse(value, true, out Keys parsed) && parsed != Keys.None
+            ? parsed : Keys.Oem3;
+
+    public static string DescribeKey(Keys key) => key == Keys.Oem3 ? "·" : key.ToString();
+
+    private void WindowHandleCreated(object? sender, EventArgs e) => RefreshRegistration();
+
+    private void WindowHandleDestroyed(object? sender, EventArgs e) => UnregisterHoldHotkey();
+
+    private void RefreshRegistration()
     {
-        return Enum.TryParse(value, ignoreCase: true, out Keys parsed) && parsed != Keys.None
-            ? parsed
-            : Keys.Oem3;
+        if (_disposed || !_window.IsHandleCreated) return;
+        bool shouldRegister = !_capturePaused &&
+            (!_onlyWhenLeagueFocused || IsLeagueForeground());
+        if (!shouldRegister)
+        {
+            if (_registeredHandle != IntPtr.Zero)
+                RuntimeDiagnostics.Report("按住置顶键", "待机", "等待 LOL 窗口位于前台");
+            UnregisterHoldHotkey();
+            return;
+        }
+        if (_registeredHandle == _window.Handle) return;
+        if (Environment.TickCount64 < _nextRegisterAttempt) return;
+        UnregisterHoldHotkey();
+        if (RegisterHotKey(_window.Handle, HoldHotkeyId, ModNoRepeat, (uint)_hotkey))
+        {
+            _registeredHandle = _window.Handle;
+            RuntimeDiagnostics.Report("按住置顶键", "已注册",
+                $"{DescribeKey(_hotkey)} · {(_onlyWhenLeagueFocused ? "仅 LOL 前台" : "所有窗口")}");
+        }
+        else
+        {
+            _nextRegisterAttempt = Environment.TickCount64 + 3000;
+            RuntimeDiagnostics.Report("按住置顶键", "不可用",
+                $"Windows 注册热键失败（{Marshal.GetLastWin32Error()}），请更换按键或关闭占用该键的程序");
+        }
     }
 
-    public static string DescribeKey(Keys key)
+    private void UnregisterHoldHotkey()
     {
-        return key == Keys.Oem3 ? "·" : key.ToString();
+        if (_registeredHandle == IntPtr.Zero) return;
+        UnregisterHotKey(_registeredHandle, HoldHotkeyId);
+        _registeredHandle = IntPtr.Zero;
     }
 
-    private void InstallHook()
+    /// <summary>由主窗体的 WndProc 转交 WM_HOTKEY。</summary>
+    public bool HandleHotkey(IntPtr wParam)
+    {
+        if (wParam != (IntPtr)HoldHotkeyId) return false;
+        if (_disposed || _capturePaused || _registeredHandle == IntPtr.Zero || _holding)
+            return true;
+        if (_onlyWhenLeagueFocused && !IsLeagueForeground()) return true;
+        _holding = true;
+        BeginHold();
+        return true;
+    }
+
+    private void BeginHold()
+    {
+        if (_window.IsDisposed) return;
+        ShowWindow(_window.Handle, SwShownoactivate);
+        if (!SetWindowPos(_window.Handle, HwndTopmost, 0, 0, 0, 0,
+            SwpNoMove | SwpNoSize | SwpNoActivate | SwpShowWindow))
+        {
+            RuntimeDiagnostics.Report("按住置顶键", "显示失败",
+                $"Windows 置顶失败（{Marshal.GetLastWin32Error()}）");
+            _holding = false;
+            _window.Hide();
+            return;
+        }
+        RuntimeDiagnostics.Report("按住置顶键", "显示中",
+            $"按住 {DescribeKey(_hotkey)} 时以非激活方式置顶");
+    }
+
+    private void EndHold()
+    {
+        _holding = false;
+        if (_window.IsDisposed) return;
+        SetWindowPos(_window.Handle, HwndNotopmost, 0, 0, 0, 0,
+            SwpNoMove | SwpNoSize | SwpNoActivate);
+        _window.Hide();
+        RuntimeDiagnostics.Report("按住置顶键", "已隐藏",
+            "已松开快捷键，可从托盘恢复窗口");
+    }
+
+    private void InstallShoutHook()
     {
         if (_hook != IntPtr.Zero || _disposed) return;
-
         using Process process = Process.GetCurrentProcess();
         using ProcessModule? module = process.MainModule;
-        IntPtr moduleHandle = GetModuleHandle(module?.ModuleName);
-        _hook = SetWindowsHookEx(WhKeyboardLl, _callback, moduleHandle, 0);
-        RuntimeDiagnostics.Report(
-            "按住置顶键",
-            _hook == IntPtr.Zero ? "不可用" : "已注册",
-            _hook == IntPtr.Zero ? $"Windows 键盘钩子注册失败（{Marshal.GetLastWin32Error()}）" : $"按住 {DescribeKey(_hotkey)} 显示，松开最小化");
+        _hook = SetWindowsHookEx(WhKeyboardLl, _callback, GetModuleHandle(module?.ModuleName), 0);
+    }
+
+    private void RemoveShoutHook()
+    {
+        if (_hook == IntPtr.Zero) return;
+        UnhookWindowsHookEx(_hook);
+        _hook = IntPtr.Zero;
     }
 
     private IntPtr HookCallback(int code, IntPtr wParam, IntPtr lParam)
     {
         if (code < 0 || _disposed)
             return CallNextHookEx(_hook, code, wParam, lParam);
-
         int virtualKey = Marshal.ReadInt32(lParam);
-        bool keyDown = wParam == (IntPtr)WmKeyDown || wParam == (IntPtr)WmSysKeyDown;
         bool keyUp = wParam == (IntPtr)WmKeyUp || wParam == (IntPtr)WmSysKeyUp;
-
-        if (_shoutHotkeysEnabled &&
+        bool keyDown = wParam == (IntPtr)WmKeyDown || wParam == (IntPtr)WmSysKeyDown;
+        if (_shoutHotkeysEnabled && (keyDown || keyUp) &&
             (virtualKey == (int)_shoutBuiltInKey || virtualKey == (int)_shoutCustomKey) &&
             IsLeagueGameForeground())
         {
@@ -121,98 +217,26 @@ public sealed class WindowHoldController : IDisposable
             }
             return (IntPtr)1;
         }
-
-        if (virtualKey == (int)_hotkey)
-        {
-            if (keyDown && !_holding && (!_onlyWhenLeagueFocused || IsLeagueForeground()))
-            {
-                _holding = true;
-                RunOnWindowThread(BeginHold);
-                // The display key is an assistant-only key while a game is focused.
-                // Swallowing it prevents an accidental in-game '~' action or chat input.
-                return (IntPtr)1;
-            }
-            else if (keyUp && _holding)
-            {
-                _holding = false;
-                RunOnWindowThread(EndHold);
-                return (IntPtr)1;
-            }
-        }
-
         return CallNextHookEx(_hook, code, wParam, lParam);
     }
 
     private void RunOnWindowThread(Action action)
     {
         if (_window.IsDisposed || !_window.IsHandleCreated) return;
-
         try
         {
             if (_window.InvokeRequired) _window.BeginInvoke(action);
             else action();
         }
-        catch (InvalidOperationException)
-        {
-            // 窗口正在关闭。
-        }
+        catch (InvalidOperationException) { /* 窗口正在关闭 */ }
     }
 
-    private void BeginHold()
-    {
-        if (_window.IsDisposed) return;
-        // ShowWindow/SetWindowPos with NOACTIVATE preserves the game's keyboard focus.
-        // Form.Show() and Form.WindowState=Normal both activate a normal WinForms window.
-        ShowWindow(_window.Handle, SwShownoactivate);
-        SetWindowPos(_window.Handle, HwndTopmost, 0, 0, 0, 0,
-            SwpNoMove | SwpNoSize | SwpNoActivate | SwpShowWindow);
-        RuntimeDiagnostics.Report("按住置顶键", "显示中", $"按住 {DescribeKey(_hotkey)} 时以非激活方式置顶");
-        _releaseWatchdog.Start();
-    }
+    private static bool IsLeagueForeground() => IsForegroundProcess(
+        "League of Legends", "LeagueClient", "LeagueClientUx");
 
-    private void EndHold()
-    {
-        _releaseWatchdog.Stop();
-        if (_window.IsDisposed) return;
-        SetWindowPos(_window.Handle, HwndNotopmost, 0, 0, 0, 0,
-            SwpNoMove | SwpNoSize | SwpNoActivate);
-        ShowWindow(_window.Handle, SwMinimize);
-        RuntimeDiagnostics.Report("按住置顶键", "已最小化", "已松开快捷键，游戏仍保持前台");
-    }
+    private static bool IsLeagueGameForeground() => IsForegroundProcess("League of Legends");
 
-    /// <summary>
-    /// KeyUp 被 IME、叠加层或切换前台窗口吞掉时，仍按物理键状态及时恢复。
-    /// </summary>
-    private void RestoreIfKeyReleased()
-    {
-        if (!_holding || _disposed) return;
-        if ((GetAsyncKeyState((int)_hotkey) & 0x8000) != 0) return;
-        _holding = false;
-        EndHold();
-    }
-
-    private static bool IsLeagueForeground()
-    {
-        IntPtr foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero) return false;
-
-        GetWindowThreadProcessId(foreground, out uint pid);
-        if (pid == 0) return false;
-
-        try
-        {
-            using Process process = Process.GetProcessById((int)pid);
-            return process.ProcessName.Equals("League of Legends", StringComparison.OrdinalIgnoreCase) ||
-                   process.ProcessName.Equals("LeagueClient", StringComparison.OrdinalIgnoreCase) ||
-                   process.ProcessName.Equals("LeagueClientUx", StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool IsLeagueGameForeground()
+    private static bool IsForegroundProcess(params string[] names)
     {
         IntPtr foreground = GetForegroundWindow();
         if (foreground == IntPtr.Zero) return false;
@@ -221,7 +245,7 @@ public sealed class WindowHoldController : IDisposable
         try
         {
             using Process process = Process.GetProcessById((int)pid);
-            return process.ProcessName.Equals("League of Legends", StringComparison.OrdinalIgnoreCase);
+            return names.Any(name => process.ProcessName.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
         catch { return false; }
     }
@@ -230,16 +254,23 @@ public sealed class WindowHoldController : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _releaseWatchdog.Stop();
-        _releaseWatchdog.Dispose();
-        if (_hook != IntPtr.Zero)
-        {
-            UnhookWindowsHookEx(_hook);
-            _hook = IntPtr.Zero;
-        }
+        _hotkeyWatch.Stop();
+        _hotkeyWatch.Dispose();
+        _window.HandleCreated -= WindowHandleCreated;
+        _window.HandleDestroyed -= WindowHandleDestroyed;
+        UnregisterHoldHotkey();
+        RemoveShoutHook();
     }
 
     private delegate IntPtr LowLevelKeyboardProc(int code, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc callback, IntPtr module, uint threadId);
@@ -269,12 +300,6 @@ public sealed class WindowHoldController : IDisposable
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(
-        IntPtr hWnd,
-        IntPtr hWndInsertAfter,
-        int x,
-        int y,
-        int cx,
-        int cy,
-        uint flags);
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
+        int x, int y, int cx, int cy, uint flags);
 }

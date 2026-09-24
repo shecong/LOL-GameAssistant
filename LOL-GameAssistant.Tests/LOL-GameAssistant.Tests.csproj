@@ -26,5 +26,10 @@
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\OpggBuildApplyService.cs" Link="Infrastructure\LeagueClient\OpggBuildApplyService.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\LcuQuickShoutService.cs" Link="Infrastructure\LeagueClient\LcuQuickShoutService.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Ai\CloudRecommendationParser.cs" Link="Infrastructure\Ai\CloudRecommendationParser.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\LegacyMatchReadModelMapper.cs" Link="Infrastructure\LeagueClient\LegacyMatchReadModelMapper.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\GameData\AugmentCatalog.cs" Link="Infrastructure\GameData\AugmentCatalog.cs" />
+    <EmbeddedResource Include="..\LOL-GameAssistant\Resources\augment-names.json" LogicalName="LOL_GameAssistant.Resources.AugmentNames.json" />
+    <Compile Include="..\LOL-GameAssistant\Entity\GameDetailModel.cs" Link="Entity\GameDetailModel.cs" />
+    <Compile Include="..\LOL-GameAssistant\Entity\GameHeadModel.cs" Link="Entity\GameHeadModel.cs" />
   </ItemGroup>
 </Project>

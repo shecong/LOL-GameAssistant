@@ -77,6 +77,13 @@ public sealed class MatchDetail
     public string _queueId { get; set; } = "";
     public List<MatchParticipantIdentity> participantIdentities { get; set; } = new();
     public List<MatchParticipant> participants { get; set; } = new();
+    public List<MatchTeam> teams { get; set; } = new();
+}
+
+public sealed class MatchTeam
+{
+    public int TeamId { get; set; }
+    public List<int> BannedChampionIds { get; set; } = new();
 }
 
 /// <summary>单局内的玩家身份。</summary>
@@ -140,11 +147,25 @@ public sealed class MatchParticipantStats
     public int tripleKills { get; set; }
     public int visionScore { get; set; }
     public bool Win { get; set; }
+    public List<int> AugmentIds { get; set; } = new();
 }
 
 /// <summary>战绩读模型的业务计算与模式名称规则。</summary>
 public static class MatchDetailExtensions
 {
+    public static bool HasAugments(this MatchDetail game) =>
+        game.participants.Any(p => p.stats?.AugmentIds.Count > 0);
+
+    public static bool IsAugmentAram(this MatchDetail game) =>
+        (game.queueId == "2400" || game._queueId == "2400") ||
+        (game.HasAugments() &&
+        (string.Equals(game.gameMode, "ARAM", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(game.gameMode, "KIWI", StringComparison.OrdinalIgnoreCase) ||
+         LolGameModeNames.GetModeText(string.IsNullOrWhiteSpace(game.queueId) ? game._queueId : game.queueId, game.gameMode).Contains("大乱斗", StringComparison.Ordinal)));
+
+    public static IReadOnlyList<int> GetBannedChampionIds(this MatchDetail game, int teamId) =>
+        game.teams.FirstOrDefault(team => team.TeamId == teamId)?.BannedChampionIds ?? [];
+
     public static MatchPlayer? GetPlayerIdentity(this MatchDetail game, string? puuid) =>
         string.IsNullOrWhiteSpace(puuid)
             ? null
@@ -182,7 +203,9 @@ public static class MatchDetailExtensions
 
     /// <summary>对局记录只显示玩法模式名称，不使用地图名作为模式名。</summary>
     public static string GetModeText(this MatchDetail? game) =>
-        game == null ? "未知模式" : LolGameModeNames.GetModeText(game.queueId ?? game._queueId, game.gameMode);
+        game == null ? "未知模式" : game.IsAugmentAram()
+            ? "海克斯大乱斗"
+            : LolGameModeNames.GetModeText(string.IsNullOrWhiteSpace(game.queueId) ? game._queueId : game.queueId, game.gameMode);
 }
 
 /// <summary>
@@ -203,6 +226,7 @@ public static class LolGameModeNames
                 4 or 6 or 41 or 42 or 410 or 420 => "峡谷单双排",
                 7 or 31 or 32 or 33 or 52 or 53 or 61 or 68 or 83 or 830 or 840 or 850 => "人机对战",
                 65 or 67 or 450 => "深渊大乱斗",
+                2400 => "海克斯大乱斗",
                 70 or 1020 => "克隆大作战",
                 76 or 900 or 1900 => "无限火力",
                 1300 => "极限闪击",

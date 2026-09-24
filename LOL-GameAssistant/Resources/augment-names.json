@@ -1,0 +1,1643 @@
+{
+  "1": {
+    "name": "加速巫术",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/acceleratingsorcery_small.png"
+  },
+  "2": {
+    "name": "尖端发明家",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/apexinventor_small.png"
+  },
+  "3": {
+    "name": "虚无强化符文",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/canttouchthis_small.png"
+  },
+  "4": {
+    "name": "回归基本功",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/backtobasics_small.png"
+  },
+  "5": {
+    "name": "号令之旗",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bannerofcommand_small.png"
+  },
+  "6": {
+    "name": "利刃华尔兹",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bladewaltz_small.png"
+  },
+  "7": {
+    "name": "大力",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bluntforce_small.png"
+  },
+  "9": {
+    "name": "霸符兄弟",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/buffbuddies_small.png"
+  },
+  "10": {
+    "name": "炮灰",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/cannonfodder_small.png"
+  },
+  "11": {
+    "name": "你摸不到",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/canttouchthis_small.png"
+  },
+  "12": {
+    "name": "王车易位",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/castle_small.png"
+  },
+  "13": {
+    "name": "星界躯体",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/celestialbody_small.png"
+  },
+  "14": {
+    "name": "专属司机",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/chauffeur_small.png"
+  },
+  "15": {
+    "name": "死亡之环",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/circleofdeath_small.png"
+  },
+  "16": {
+    "name": "连招大师",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/combomaster_small.png"
+  },
+  "17": {
+    "name": "职业杀手",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/contractkiller_small.png"
+  },
+  "18": {
+    "name": "巨像的勇气",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/courageofthecolossus_small.png"
+  },
+  "19": {
+    "name": "全凭身法",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dashing_small.png"
+  },
+  "20": {
+    "name": "黎明使者的坚决",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dawnbringersresolve_small.png"
+  },
+  "21": {
+    "name": "防御计略",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/defensivemaneuvers_small.png"
+  },
+  "22": {
+    "name": "灵巧",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/deft_small.png"
+  },
+  "23": {
+    "name": "魔鬼之舞",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/demonsdance_small.png"
+  },
+  "24": {
+    "name": "择日赴死",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dieanotherday_small.png"
+  },
+  "25": {
+    "name": "俯冲轰炸",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/divebomber_small.png"
+  },
+  "26": {
+    "name": "唯快不破",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dontblink_small.png"
+  },
+  "27": {
+    "name": "大地苏醒",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/earthwake_small.png"
+  },
+  "28": {
+    "name": "侵蚀",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/erosion_small.png"
+  },
+  "29": {
+    "name": "虚幻武器",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/etherealweapon_small.png"
+  },
+  "30": {
+    "name": "尤里卡",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/eureka_small.png"
+  },
+  "32": {
+    "name": "裁决使",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/executioner_small.png"
+  },
+  "33": {
+    "name": "弹簧飞爪",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/extendoarm_small.png"
+  },
+  "34": {
+    "name": "堕落圣盾",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/fallenaegis_small.png"
+  },
+  "35": {
+    "name": "感受燃烧",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/feeltheburn_small.png"
+  },
+  "36": {
+    "name": "火上浇油",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/firebrand_small.png"
+  },
+  "37": {
+    "name": "急救用具",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/firstaidkit_small.png"
+  },
+  "38": {
+    "name": "有始有终",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/frombeginningtoend_small.png"
+  },
+  "39": {
+    "name": "冰霜 幽灵",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/frostwraith_small.png"
+  },
+  "41": {
+    "name": "歌利亚巨人",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/goliath_small.png"
+  },
+  "42": {
+    "name": "恶趣味",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/guiltypleasure_small.png"
+  },
+  "43": {
+    "name": "位移魔术",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/nowyouseeme_small.png"
+  },
+  "44": {
+    "name": "冰寒",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/icecold_small.png"
+  },
+  "45": {
+    "name": "炼狱导管",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/infernalconduit_small.png"
+  },
+  "46": {
+    "name": "炼狱龙魂",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/infernalsoul_small.png"
+  },
+  "47": {
+    "name": "关键暴击",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/itscritical_small.png"
+  },
+  "48": {
+    "name": "珠光护手",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/jeweledgauntlet_small.png"
+  },
+  "49": {
+    "name": "果汁盒",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/juicebox_small.png"
+  },
+  "50": {
+    "name": "基石法师",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/keystoneconjurer_small.png"
+  },
+  "51": {
+    "name": "点亮他们！",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/lightemup_small.png"
+  },
+  "52": {
+    "name": "闪电打击",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/lightningstrikes_small.png"
+  },
+  "53": {
+    "name": "科学狂人",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/madscientist_small.png"
+  },
+  "54": {
+    "name": "物法皆修",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/masterofduality_small.png"
+  },
+  "56": {
+    "name": "由心及物",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/mindtomatter_small.png"
+  },
+  "57": {
+    "name": "山脉龙魂",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/mountainsoul_small.png"
+  },
+  "58": {
+    "name": "秘术冲拳",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/mysticpunch_small.png"
+  },
+  "60": {
+    "name": "海洋龙魂",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/oceansoul_small.png"
+  },
+  "61": {
+    "name": "回力OK镖",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/okboomerang_small.png"
+  },
+  "62": {
+    "name": "全能龙魂",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/omnisoul_small.png"
+  },
+  "63": {
+    "name": "狂徒豪气",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/outlawsgrit_small.png"
+  },
+  "64": {
+    "name": "坚韧",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/perseverance_small.png"
+  },
+  "65": {
+    "name": "超凡邪恶",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/phenomenalevil_small.png"
+  },
+  "66": {
+    "name": "量子计算",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/quantumcomputing_small.png"
+  },
+  "67": {
+    "name": "古式佳酿",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/rabblerousing_small.png"
+  },
+  "68": {
+    "name": "循环往复",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/recursion_small.png"
+  },
+  "69": {
+    "name": "退敌力场",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/repulsor_small.png"
+  },
+  "70": {
+    "name": "无休回复",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/restlessrestoration_small.png"
+  },
+  "72": {
+    "name": "炽烈黎明",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/searingdawn_small.png"
+  },
+  "73": {
+    "name": "暗影疾奔",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/shadowrunner_small.png"
+  },
+  "74": {
+    "name": "缩小射线",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/shrinkray_small.png"
+  },
+  "75": {
+    "name": "慢炖",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/slowcooker_small.png"
+  },
+  "76": {
+    "name": "天音爆",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/sonicboom_small.png"
+  },
+  "77": {
+    "name": "灵魂虹吸",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/soulsiphon_small.png"
+  },
+  "78": {
+    "name": "灵魂连接",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/spiritlink_small.png"
+  },
+  "79": {
+    "name": "战争交响乐",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/symphonyofwar_small.png"
+  },
+  "80": {
+    "name": "会心防守",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/tankitorleaveit_small.png"
+  },
+  "81": {
+    "name": "踢踏舞",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/tapdancer_small.png"
+  },
+  "82": {
+    "name": "残暴之力",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/thebrutalizer_small.png"
+  },
+  "84": {
+    "name": "穿针引线",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/threadtheneedle_small.png"
+  },
+  "85": {
+    "name": "折磨之叉",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/tormentor_small.png"
+  },
+  "86": {
+    "name": "精准奇才",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/trueshotprodigy_small.png"
+  },
+  "87": {
+    "name": "台风",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/typhoon_small.png"
+  },
+  "88": {
+    "name": "终极刷新",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/ultimaterevolution_small.png"
+  },
+  "89": {
+    "name": "遁入暗影",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/vanish_small.png"
+  },
+  "90": {
+    "name": "复仇",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/vengeance_small.png"
+  },
+  "92": {
+    "name": "易损",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/vulnerability_small.png"
+  },
+  "93": {
+    "name": "热身动作",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/warmuproutine_small.png"
+  },
+  "94": {
+    "name": "自愿牺牲",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/willingsacrifice_small.png"
+  },
+  "96": {
+    "name": "时光之智慧",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/wisdomofages_small.png"
+  },
+  "97": {
+    "name": "巫师式思考",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/witchfulthinking_small.png"
+  },
+  "98": {
+    "name": "急急小子",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/withhaste_small.png"
+  },
+  "102": {
+    "name": "请勿追击",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dontchase_small.png"
+  },
+  "103": {
+    "name": "面包和黄油",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/breadandbutter_small.png"
+  },
+  "104": {
+    "name": "仆从大师",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/minionmancer_small.png"
+  },
+  "105": {
+    "name": "家园卫士",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/homeguard_small.png"
+  },
+  "107": {
+    "name": "接二连三",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/twicethrice_small.png"
+  },
+  "108": {
+    "name": "自我毁灭",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/selfdestruct_small.png"
+  },
+  "109": {
+    "name": "誓约者",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/oathsworn_small.png"
+  },
+  "110": {
+    "name": "晾衣绳",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/clothesline_small.png"
+  },
+  "112": {
+    "name": "终极不可阻挡",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/ultimateunstoppable_small.png"
+  },
+  "113": {
+    "name": "老练狙神",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/skilledsniper_small.png"
+  },
+  "115": {
+    "name": "最万用的瞄准镜",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/scopiestweapons_small.png"
+  },
+  "116": {
+    "name": "闪现向前",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/flashy_small.png"
+  },
+  "118": {
+    "name": "会心治疗",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/criticalhealing_small.png"
+  },
+  "120": {
+    "name": "超越死亡的效劳",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/servebeyonddeath_small.png"
+  },
+  "123": {
+    "name": "召唤师峡谷的轮盘",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/summonersroulette_small.png"
+  },
+  "125": {
+    "name": "副本BOSS",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/raidboss_small.png"
+  },
+  "129": {
+    "name": "神射法师",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/marksmage_small.png"
+  },
+  "133": {
+    "name": "魔法飞弹",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/magicmissile_small.png"
+  },
+  "134": {
+    "name": "亮出你的剑",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/drawyoursword_small.png"
+  },
+  "135": {
+    "name": "法术苏醒",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/spellwake_small.png"
+  },
+  "136": {
+    "name": "扇巴掌",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/slaparound_small.png"
+  },
+  "138": {
+    "name": "渴血",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/goredrink_small.png"
+  },
+  "141": {
+    "name": "全心为你",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/allforyou_small.png"
+  },
+  "149": {
+    "name": "不动如山",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/impassable_small.png"
+  },
+  "150": {
+    "name": "面包和果酱",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/breadandjam_small.png"
+  },
+  "151": {
+    "name": "面包和奶酪",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/breadandcheese_small.png"
+  },
+  "152": {
+    "name": "任务：钢化你心",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/quest_steelyourheart_small.png"
+  },
+  "154": {
+    "name": "任务：海牛阿福的勇士",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/quest_urfschampion_small.png"
+  },
+  "156": {
+    "name": "任务：沃格勒特的巫师帽",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/quest_woogletswitchcap_small.png"
+  },
+  "165": {
+    "name": "重启",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/restart_small.png"
+  },
+  "171": {
+    "name": "去质",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dematerialize_small.png"
+  },
+  "172": {
+    "name": "镜花水月",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/mirrorimage_small.png"
+  },
+  "174": {
+    "name": "镭射眼",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/lasereyes_small.png"
+  },
+  "175": {
+    "name": "寄生关系",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/parasiticrelationship_small.png"
+  },
+  "177": {
+    "name": "套娃",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/nesting_doll_small.png"
+  },
+  "180": {
+    "name": "超强大脑",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bigbrain_small.png"
+  },
+  "181": {
+    "name": "重量级打击手",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/heavyhitter_small.png"
+  },
+  "192": {
+    "name": "任务：惩戒天使",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/quest_angelofretribution_small.png"
+  },
+  "193": {
+    "name": "星原之准",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/centeroftheuniverse_small.png"
+  },
+  "194": {
+    "name": "精怪魔法",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/feymagic_small.png"
+  },
+  "195": {
+    "name": "巨人杀手",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/giantslayer_small.png"
+  },
+  "198": {
+    "name": "圣火",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/holyfire_small.png"
+  },
+  "200": {
+    "name": "血亲兄弟",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bloodbrother_small.png"
+  },
+  "204": {
+    "name": "叠角龙",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/stackosaurusrex_small.png"
+  },
+  "205": {
+    "name": "物理转魔法",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/adapt_small.png"
+  },
+  "206": {
+    "name": "魔法转物理",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/escapade_small.png"
+  },
+  "207": {
+    "name": "纹丝不动",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/holdverystill_small.png"
+  },
+  "208": {
+    "name": "轨道镭射",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/orbitallaser_small.png"
+  },
+  "211": {
+    "name": "杀戮时间到了",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/itskillingtime_small.png"
+  },
+  "214": {
+    "name": "旋转至胜",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/spintowin_small.png"
+  },
+  "215": {
+    "name": "黑暗赐福",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/darkblessing_small.png"
+  },
+  "216": {
+    "name": "恐惧使者",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/plaguebearer_small.png"
+  },
+  "217": {
+    "name": "死亡触摸",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/deathtouch_small.png"
+  },
+  "218": {
+    "name": "亵渎者",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/desecrator_small.png"
+  },
+  "219": {
+    "name": "末日预言者",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/doomsayer_small.png"
+  },
+  "220": {
+    "name": "连拨击锤",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/fanthehammer_small.png"
+  },
+  "221": {
+    "name": "引路者",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/trailblazer_small.png"
+  },
+  "222": {
+    "name": "你的劳动果实",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/fruitarian_small.png"
+  },
+  "223": {
+    "name": "召唤师革新",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/summonerrevolution_small.png"
+  },
+  "224": {
+    "name": "棱彩蛋",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/quest_prismaticegg_small.png"
+  },
+  "225": {
+    "name": "双刀流",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dualwield_small.png"
+  },
+  "226": {
+    "name": "属性！",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/stats_small.png"
+  },
+  "227": {
+    "name": "属性叠属性！",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/statsonstats_small.png"
+  },
+  "228": {
+    "name": "属性叠属性叠属性！",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/statsonstatsonstats_small.png"
+  },
+  "229": {
+    "name": "火爆甩卖",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/firesale_small.png"
+  },
+  "231": {
+    "name": "光明守望者",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/lightwarden_small.png"
+  },
+  "232": {
+    "name": "史莱姆时间",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/slimetime_small.png"
+  },
+  "233": {
+    "name": "终极转盘",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/ultimaterevolution_small.png"
+  },
+  "234": {
+    "name": "财运锻造器",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/thiefsgloves_small.png"
+  },
+  "236": {
+    "name": "诡术恶魔",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/tricksterdemon_small.png"
+  },
+  "237": {
+    "name": "质变：黄金阶",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/transmutegold_small.png"
+  },
+  "238": {
+    "name": "质变：棱彩阶",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/transmuteprismatic_small.png"
+  },
+  "239": {
+    "name": "共生突变",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/symbioticmutation_small.png"
+  },
+  "240": {
+    "name": "寄生突变",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/parasiticmutation_small.png"
+  },
+  "241": {
+    "name": "帽子戏法",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/hattrick_small.png"
+  },
+  "243": {
+    "name": "质变：混沌",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/transmutechaos_small.png"
+  },
+  "251": {
+    "name": "疼痛钝感",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/numbtopain_small.png"
+  },
+  "301": {
+    "name": "神圣干预",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/slowactingpainkillers_small.png"
+  },
+  "302": {
+    "name": "献祭：换取白银阶",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/gohsacrificefor_small.png"
+  },
+  "303": {
+    "name": "献祭：换取黄金阶",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/gohsacrificefor_small.png"
+  },
+  "304": {
+    "name": "献祭：换取棱彩阶",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/gohsacrificefor_small.png"
+  },
+  "305": {
+    "name": "练腿日",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/legday_small.png"
+  },
+  "308": {
+    "name": "火狐",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/firfox_small.png"
+  },
+  "309": {
+    "name": "还有我的斧头！",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/andmyaxe_small.png"
+  },
+  "310": {
+    "name": "小丑学院",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/clowncollege_small.png"
+  },
+  "311": {
+    "name": "溢流",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/overflow_small.png"
+  },
+  "312": {
+    "name": "我们马上就回来",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/wellberightback_small.png"
+  },
+  "313": {
+    "name": "坦克引擎",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/tank_engine_small.png"
+  },
+  "314": {
+    "name": "解脱者",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/unshackled_small.png"
+  },
+  "316": {
+    "name": "烈性毒液",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/grevious_venmon_small.png"
+  },
+  "317": {
+    "name": "潘朵拉的盒子",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/pandoras_box_small.png"
+  },
+  "318": {
+    "name": "任务：疯狂帽子人",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/mad_hatter_small.png"
+  },
+  "319": {
+    "name": "任务：三圣宝",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/threesacredtreasures_small.png"
+  },
+  "321": {
+    "name": "保镖",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bodyguard_small.png"
+  },
+  "322": {
+    "name": "强化之能量",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/augmented_power_small.png"
+  },
+  "323": {
+    "name": "地狱三头犬",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/cerberus_small.png"
+  },
+  "324": {
+    "name": "勇中最勇",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bravestofthebrave_small.png"
+  },
+  "327": {
+    "name": "不灭守护",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dawnbringersresolve_small.png"
+  },
+  "330": {
+    "name": "剥夺",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/desecrator_small.png"
+  },
+  "333": {
+    "name": "任务：熔铸之神的仪式",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/quest_rite_of_the_forge_god_small.png"
+  },
+  "335": {
+    "name": "避难所",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/panic_room_small.png"
+  },
+  "336": {
+    "name": "瞄准脑袋",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/aim_for_the_head_small.png"
+  },
+  "338": {
+    "name": "蜂巢思维",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/hive_mind_small.png"
+  },
+  "340": {
+    "name": "获得一个棱彩阶属性锻造器",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/crafting_prisstatanvil_small.png"
+  },
+  "341": {
+    "name": "获得一个强化符文栏位",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/crafting_slot_small.png"
+  },
+  "342": {
+    "name": "等级类强化符文",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/crafting_sellaug_small.png"
+  },
+  "343": {
+    "name": "正义之怒",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/righteous_fury_small.png"
+  },
+  "344": {
+    "name": "能量充沛",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/energetic_small.png"
+  },
+  "345": {
+    "name": "魔法少女",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/magic_girl_small.png"
+  },
+  "346": {
+    "name": "面包三明治",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bread_sandwhich_small.png"
+  },
+  "347": {
+    "name": "炼金科技纯化器",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/chemtechpurifier_small.png"
+  },
+  "348": {
+    "name": "夺命剃刀",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/bloodrazor_small.png"
+  },
+  "349": {
+    "name": "去质器",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/dematerializer_small.png"
+  },
+  "350": {
+    "name": "附魔药瓶",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/crystallineflask_small.png"
+  },
+  "351": {
+    "name": "冰霜之锤",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/frozenmallet_small.png"
+  },
+  "354": {
+    "name": "监视残存物",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/remnantofthewatchers_small.png"
+  },
+  "355": {
+    "name": "获得属性锻造器",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/gain_stat_anvil_small.png"
+  },
+  "356": {
+    "name": "银汤匙",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/silver_spoon_small.png"
+  },
+  "357": {
+    "name": "双管齐下",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/hybrid_small.png"
+  },
+  "358": {
+    "name": "狼灵狂热",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/wolf_small.png"
+  },
+  "359": {
+    "name": "羊灵生息",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/lamb_small.png"
+  },
+  "361": {
+    "name": "与【恶魔】结盟",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/yonedemon_small.png"
+  },
+  "362": {
+    "name": "与【猎人】结盟",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/yonehunter_small.png"
+  },
+  "364": {
+    "name": "替换强化符文",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/replace_augment_small.png"
+  },
+  "365": {
+    "name": "戒绝财富",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/wealth_small.png"
+  },
+  "366": {
+    "name": "戒绝权力",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/power_small.png"
+  },
+  "367": {
+    "name": "戒绝风险",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/risk_small.png"
+  },
+  "368": {
+    "name": "渴望财富",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/wealth_large.png"
+  },
+  "369": {
+    "name": "渴望权力",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/power_small.png"
+  },
+  "370": {
+    "name": "渴望风险",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/risk_small.png"
+  },
+  "371": {
+    "name": "强求财富",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/wealth_small.png"
+  },
+  "372": {
+    "name": "强求权力",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/power_small.png"
+  },
+  "373": {
+    "name": "强求风险",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/risk_small.png"
+  },
+  "392": {
+    "name": "诈骗者之球",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/swindlers_orb_item_small.png"
+  },
+  "404": {
+    "name": "404 强化符文未找到",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/augment404_small.png"
+  },
+  "405": {
+    "name": "强化符文405",
+    "iconUrl": "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/augment405_small.png"
+  },
+  "1001": {
+    "name": "泰坦的坚决"
+  },
+  "1002": {
+    "name": "尖端发明家"
+  },
+  "1004": {
+    "name": "回归基本功"
+  },
+  "1005": {
+    "name": "喂呜喂呜"
+  },
+  "1006": {
+    "name": "利刃华尔兹"
+  },
+  "1007": {
+    "name": "大力"
+  },
+  "1011": {
+    "name": "你摸不到"
+  },
+  "1013": {
+    "name": "星界躯体"
+  },
+  "1015": {
+    "name": "死亡之环"
+  },
+  "1018": {
+    "name": "巨像的勇气"
+  },
+  "1019": {
+    "name": "全凭身法"
+  },
+  "1020": {
+    "name": "黎明使者的坚决"
+  },
+  "1022": {
+    "name": "灵巧"
+  },
+  "1025": {
+    "name": "俯冲轰炸"
+  },
+  "1026": {
+    "name": "唯快不破"
+  },
+  "1027": {
+    "name": "大地苏醒"
+  },
+  "1028": {
+    "name": "侵蚀"
+  },
+  "1029": {
+    "name": "虚幻武器"
+  },
+  "1030": {
+    "name": "尤里卡"
+  },
+  "1034": {
+    "name": "防护面纱"
+  },
+  "1036": {
+    "name": "火上浇油"
+  },
+  "1037": {
+    "name": "急救用具"
+  },
+  "1038": {
+    "name": "有始有终"
+  },
+  "1041": {
+    "name": "歌利亚巨人"
+  },
+  "1044": {
+    "name": "冰寒"
+  },
+  "1045": {
+    "name": "炼狱导管"
+  },
+  "1046": {
+    "name": "炼狱龙魂"
+  },
+  "1047": {
+    "name": "关键暴击"
+  },
+  "1048": {
+    "name": "珠光护手"
+  },
+  "1051": {
+    "name": "点亮他们！"
+  },
+  "1053": {
+    "name": "科学狂人"
+  },
+  "1054": {
+    "name": "物法皆修"
+  },
+  "1056": {
+    "name": "由心及物"
+  },
+  "1057": {
+    "name": "山脉龙魂"
+  },
+  "1058": {
+    "name": "秘术冲拳"
+  },
+  "1060": {
+    "name": "海洋龙魂"
+  },
+  "1061": {
+    "name": "回力OK镖"
+  },
+  "1062": {
+    "name": "全能龙魂"
+  },
+  "1063": {
+    "name": "狂徒豪气"
+  },
+  "1064": {
+    "name": "坚韧"
+  },
+  "1066": {
+    "name": "量子计算"
+  },
+  "1067": {
+    "name": "活力焕发"
+  },
+  "1068": {
+    "name": "循环往复"
+  },
+  "1071": {
+    "name": "更万用的瞄准镜"
+  },
+  "1072": {
+    "name": "炽烈黎明"
+  },
+  "1073": {
+    "name": "暗影疾奔"
+  },
+  "1074": {
+    "name": "缩小射线"
+  },
+  "1076": {
+    "name": "天音爆"
+  },
+  "1077": {
+    "name": "灵魂虹吸"
+  },
+  "1079": {
+    "name": "战争交响乐"
+  },
+  "1080": {
+    "name": "会心防御"
+  },
+  "1081": {
+    "name": "踢踏舞"
+  },
+  "1084": {
+    "name": "穿针引线"
+  },
+  "1087": {
+    "name": "台风"
+  },
+  "1088": {
+    "name": "终极刷新"
+  },
+  "1092": {
+    "name": "易损"
+  },
+  "1095": {
+    "name": "风语者的祝福"
+  },
+  "1097": {
+    "name": "巫师式思考"
+  },
+  "1098": {
+    "name": "急急小子"
+  },
+  "1103": {
+    "name": "面包和黄油"
+  },
+  "1104": {
+    "name": "仆从大师"
+  },
+  "1105": {
+    "name": "家园卫士"
+  },
+  "1112": {
+    "name": "终极不可阻挡"
+  },
+  "1113": {
+    "name": "老练狙神"
+  },
+  "1115": {
+    "name": "最万用的瞄准镜"
+  },
+  "1116": {
+    "name": "闪现向前"
+  },
+  "1118": {
+    "name": "会心治疗"
+  },
+  "1129": {
+    "name": "神射法师"
+  },
+  "1133": {
+    "name": "魔法飞弹"
+  },
+  "1134": {
+    "name": "亮出你的剑"
+  },
+  "1136": {
+    "name": "扇巴掌"
+  },
+  "1138": {
+    "name": "渴血"
+  },
+  "1141": {
+    "name": "全心为你"
+  },
+  "1149": {
+    "name": "不动如山"
+  },
+  "1150": {
+    "name": "面包和果酱"
+  },
+  "1151": {
+    "name": "面包和奶酪"
+  },
+  "1152": {
+    "name": "钢化你心"
+  },
+  "1154": {
+    "name": "海牛阿福的勇士"
+  },
+  "1156": {
+    "name": "沃格勒特的巫师帽"
+  },
+  "1170": {
+    "name": "万用瞄准镜"
+  },
+  "1180": {
+    "name": "超强大脑"
+  },
+  "1181": {
+    "name": "重量级打击手"
+  },
+  "1187": {
+    "name": "闪光弹"
+  },
+  "1194": {
+    "name": "精怪魔法"
+  },
+  "1195": {
+    "name": "巨人杀手"
+  },
+  "1204": {
+    "name": "叠角龙"
+  },
+  "1205": {
+    "name": "物理转魔法"
+  },
+  "1206": {
+    "name": "魔法转物理"
+  },
+  "1211": {
+    "name": "杀戮时间到了"
+  },
+  "1214": {
+    "name": "旋转至胜"
+  },
+  "1220": {
+    "name": "连拨击锤"
+  },
+  "1225": {
+    "name": "双刀流"
+  },
+  "1237": {
+    "name": "质变：黄金阶"
+  },
+  "1238": {
+    "name": "质变：棱彩阶"
+  },
+  "1243": {
+    "name": "质变：混沌"
+  },
+  "1301": {
+    "name": "神圣干预"
+  },
+  "1305": {
+    "name": "练腿日"
+  },
+  "1308": {
+    "name": "火狐"
+  },
+  "1310": {
+    "name": "小丑学院"
+  },
+  "1311": {
+    "name": "溢流"
+  },
+  "1314": {
+    "name": "强力护盾"
+  },
+  "1315": {
+    "name": "快中求稳"
+  },
+  "1318": {
+    "name": "升级：中娅"
+  },
+  "1319": {
+    "name": "升级：献祭"
+  },
+  "1320": {
+    "name": "升级：收集者"
+  },
+  "1322": {
+    "name": "罪恶快感"
+  },
+  "1323": {
+    "name": "残忍"
+  },
+  "1324": {
+    "name": "蛋白粉奶昔"
+  },
+  "1325": {
+    "name": "玻璃大炮"
+  },
+  "1326": {
+    "name": "夜狩"
+  },
+  "1327": {
+    "name": "坚若磐石"
+  },
+  "1328": {
+    "name": "暴击律动"
+  },
+  "1329": {
+    "name": "史上最大雪球"
+  },
+  "1331": {
+    "name": "至高天诺言"
+  },
+  "1332": {
+    "name": "不祥契约"
+  },
+  "1333": {
+    "name": "逃跑计划"
+  },
+  "1334": {
+    "name": "升级：雪球"
+  },
+  "1335": {
+    "name": "夺金"
+  },
+  "1336": {
+    "name": "升级：无尽之刃"
+  },
+  "1337": {
+    "name": "尊我为王"
+  },
+  "1339": {
+    "name": "激光治疗"
+  },
+  "1342": {
+    "name": "雪球扭蛋机"
+  },
+  "1343": {
+    "name": "王中王，靴中靴"
+  },
+  "1344": {
+    "name": "最终形态"
+  },
+  "1345": {
+    "name": "心灵净化"
+  },
+  "1346": {
+    "name": "吸血习性"
+  },
+  "1347": {
+    "name": "吵闹鬼"
+  },
+  "1348": {
+    "name": "闪闪现现"
+  },
+  "1349": {
+    "name": "终极唤醒"
+  },
+  "1353": {
+    "name": "坦克引擎"
+  },
+  "1356": {
+    "name": "暴击飞弹"
+  },
+  "1358": {
+    "name": "弹球"
+  },
+  "1361": {
+    "name": "艾卡西亚的陷落"
+  },
+  "1372": {
+    "name": "小猫咪找妈妈"
+  },
+  "1373": {
+    "name": "缩小引擎"
+  },
+  "1375": {
+    "name": "吞噬灵魂"
+  },
+  "1379": {
+    "name": "升级：花晓之剑"
+  },
+  "1384": {
+    "name": "捐赠"
+  },
+  "1386": {
+    "name": "转得我眩晕了"
+  },
+  "1388": {
+    "name": "无限循环往复"
+  },
+  "1389": {
+    "name": "男爵之手"
+  },
+  "1390": {
+    "name": "超凡邪恶"
+  },
+  "1392": {
+    "name": "神圣雪球"
+  },
+  "1400": {
+    "name": "最终都市列车"
+  },
+  "1401": {
+    "name": "生机迸发"
+  },
+  "1402": {
+    "name": "属性叠属性叠属性！"
+  },
+  "1403": {
+    "name": "属性叠属性！"
+  },
+  "1404": {
+    "name": "属性！"
+  },
+  "1406": {
+    "name": "祖母的辣椒油"
+  },
+  "1409": {
+    "name": "魄罗爆破手"
+  },
+  "1413": {
+    "name": "和我一起困在这里"
+  },
+  "1414": {
+    "name": "卡皮巴拉空投"
+  },
+  "1415": {
+    "name": "双生火焰"
+  },
+  "1416": {
+    "name": "海克斯科技龙魂"
+  },
+  "1420": {
+    "name": "咏叹奏鸣"
+  },
+  "1421": {
+    "name": "舞会女王"
+  },
+  "1424": {
+    "name": "？？？"
+  },
+  "1996": {
+    "name": "升级：耀光"
+  },
+  "2003": {
+    "name": "魄罗之王的弹跳"
+  },
+  "2004": {
+    "name": "信念者的强化"
+  },
+  "2005": {
+    "name": "扳机炼狱"
+  },
+  "2006": {
+    "name": "飞身踢"
+  },
+  "2007": {
+    "name": "你肩上的恶魔"
+  },
+  "2009": {
+    "name": "狂热者"
+  },
+  "2010": {
+    "name": "双发快射"
+  },
+  "2016": {
+    "name": "注魔"
+  },
+  "2018": {
+    "name": "纯粹主义者 - 术师"
+  },
+  "2024": {
+    "name": "由暴生急"
+  },
+  "2026": {
+    "name": "杀意翻涌"
+  },
+  "2031": {
+    "name": "空投熊"
+  },
+  "2032": {
+    "name": "鲨鱼诱饵"
+  },
+  "2034": {
+    "name": "鲨鱼暴风"
+  },
+  "2042": {
+    "name": "藏身草丛"
+  },
+  "2043": {
+    "name": "自然即是治愈"
+  },
+  "2046": {
+    "name": "魄罗蛮冲"
+  },
+  "2054": {
+    "name": "三重射击"
+  },
+  "2055": {
+    "name": "多重射击"
+  },
+  "2062": {
+    "name": "回响施放"
+  },
+  "2063": {
+    "name": "位面转移"
+  },
+  "2064": {
+    "name": "快步"
+  },
+  "2065": {
+    "name": "惊惧"
+  },
+  "2072": {
+    "name": "咒语裂变"
+  },
+  "2073": {
+    "name": "虹吸"
+  },
+  "2076": {
+    "name": "保持坚定"
+  },
+  "2077": {
+    "name": "贪欲束缚"
+  },
+  "2078": {
+    "name": "连锁反应"
+  },
+  "2080": {
+    "name": "冰雪爆裂"
+  },
+  "2082": {
+    "name": "我们的治疗"
+  },
+  "2083": {
+    "name": "牙仙子"
+  },
+  "2087": {
+    "name": "大法师"
+  },
+  "2088": {
+    "name": "下雪天"
+  },
+  "2089": {
+    "name": "哎哟，我的硬币！"
+  },
+  "2091": {
+    "name": "无尽大杀四方"
+  },
+  "2095": {
+    "name": "掷骰狂人"
+  },
+  "2096": {
+    "name": "小小的额外帮助"
+  },
+  "2097": {
+    "name": "虚空冲刺"
+  },
+  "2098": {
+    "name": "吃过路兵"
+  },
+  "2099": {
+    "name": "飞升仪式"
+  },
+  "2100": {
+    "name": "急速之追求"
+  },
+  "2102": {
+    "name": "高压锅"
+  },
+  "2103": {
+    "name": "狙神飞星"
+  },
+  "2104": {
+    "name": "灵魄炸弹"
+  },
+  "2107": {
+    "name": "濒死悟道"
+  },
+  "2108": {
+    "name": "主玩辅助"
+  },
+  "2109": {
+    "name": "复位"
+  },
+  "2111": {
+    "name": "邦！"
+  },
+  "2115": {
+    "name": "软弹啪叽抓"
+  },
+  "2116": {
+    "name": "威能之追求"
+  },
+  "2118": {
+    "name": "大招工具人"
+  },
+  "2119": {
+    "name": "过量延伸者"
+  },
+  "2123": {
+    "name": "超负荷"
+  },
+  "2125": {
+    "name": "前进时间到"
+  },
+  "2126": {
+    "name": "装填"
+  },
+  "2127": {
+    "name": "大师铸就"
+  },
+  "2128": {
+    "name": "炽燃利息"
+  },
+  "2129": {
+    "name": "地形专家"
+  },
+  "2131": {
+    "name": "别停止引导"
+  },
+  "2132": {
+    "name": "术士果汁盒"
+  },
+  "2133": {
+    "name": "仁慈打击"
+  },
+  "2134": {
+    "name": "电涌力场"
+  },
+  "2135": {
+    "name": "针插垫"
+  },
+  "2136": {
+    "name": "可靠武器"
+  },
+  "2137": {
+    "name": "轻拍背部"
+  },
+  "2138": {
+    "name": "自适应防护"
+  },
+  "2139": {
+    "name": "豪猪"
+  },
+  "2140": {
+    "name": "升级：贪欲九头蛇"
+  },
+  "2141": {
+    "name": "终极九头蛇"
+  },
+  "2143": {
+    "name": "升级：焚天"
+  },
+  "2144": {
+    "name": "加固护盾"
+  },
+  "2148": {
+    "name": "双重打击"
+  },
+  "2157": {
+    "name": "升级：死亡之舞"
+  },
+  "7001": {
+    "name": "升级：兹若特传送门"
+  },
+  "7002": {
+    "name": "黑切联盟"
+  },
+  "7003": {
+    "name": "或杀或死"
+  },
+  "7004": {
+    "name": "一饮而尽"
+  },
+  "7005": {
+    "name": "欲速则不达"
+  },
+  "7006": {
+    "name": "又快又狠"
+  },
+  "7007": {
+    "name": "升级：冥火之拥"
+  },
+  "7008": {
+    "name": "多兰的最铁粉丝"
+  },
+  "7009": {
+    "name": "升级：激发之匣"
+  },
+  "7010": {
+    "name": "时光发条：心之钢"
+  },
+  "7011": {
+    "name": "真正的永恒"
+  },
+  "7012": {
+    "name": "海克斯核心"
+  },
+  "7013": {
+    "name": "主玩打野之精魄"
+  },
+  "7014": {
+    "name": "拱火诱饵"
+  },
+  "7015": {
+    "name": "召唤师的游猎"
+  },
+  "12317": {
+    "name": "潘朵拉的盒子"
+  }
+}

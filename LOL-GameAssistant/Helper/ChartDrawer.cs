@@ -9,10 +9,6 @@ namespace LOL_GameAssistant.Helper
     {
         private static readonly Color WinColor = Color.FromArgb(76, 175, 80);
         private static readonly Color LossColor = Color.FromArgb(244, 67, 54);
-        private static readonly Color GridColor = Color.FromArgb(235, 235, 235);
-        private static readonly Color TextColor = Color.FromArgb(60, 60, 60);
-        private static readonly Color AxisColor = Color.FromArgb(180, 180, 180);
-        private static readonly Color BarColor = Color.FromArgb(33, 150, 243);
 
         /// <summary>
         /// 绘制 KDA 趋势折线图
@@ -39,9 +35,9 @@ namespace LOL_GameAssistant.Helper
             double maxVal = Math.Max(8, data.Count > 0 ? data.Max(d => d.kda) * 1.25 : 8);
             int n = data.Count;
 
-            using (var gp = new Pen(GridColor, 1))
-            using (var ap = new Pen(AxisColor, 1.2f))
-            using (var lf = new Font("Microsoft YaHei UI", 7))
+            using (var gp = new Pen(palette.Border, 1))
+            using (var ap = new Pen(palette.TextSecondary, 1.2f))
+            using (var lf = new Font("Microsoft YaHei UI", 8))
             {
                 int ySteps = 4;
                 for (int i = 0; i <= ySteps; i++)
@@ -116,7 +112,7 @@ namespace LOL_GameAssistant.Helper
 
             using (var lf = new Font("Microsoft YaHei UI", 8))
             using (var vf = new Font("Microsoft YaHei UI", 8, FontStyle.Bold))
-            using (var barB = new SolidBrush(BarColor))
+            using (var barB = new SolidBrush(palette.Accent))
             using (var whiteB = new SolidBrush(Color.White))
             {
                 for (int i = 0; i < data.Count; i++)

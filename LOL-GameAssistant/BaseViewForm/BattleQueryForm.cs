@@ -13,7 +13,7 @@ using System.Text;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
-    public partial class BattleQueryForm : UserControl
+    public partial class BattleQueryForm : UserControl, IThemeAware
     {
         private PlayerProfile? _currentPlayer;
         private readonly IPlayerProfileService _playerProfileService;
@@ -34,11 +34,25 @@ namespace LOL_GameAssistant.BaseViewForm
         private List<RawGameStat>? _rawGameStats;
         private bool _statsLoaded;
         private bool _searchBusy;
+        private bool _resizingMatchRows;
+        private TableLayoutPanel? _rootLayout;
 
         private readonly SemaphoreSlim _pageLoadGate = new(1, 1);
         private readonly ToolTip _playerIdentityTip = new();
         private readonly Label _historyTitle = new();
         private readonly Label _historyHint = new();
+        private readonly AntdUI.Panel _searchSurface = new() { Radius = 10, BorderWidth = 1, Padding = new Padding(12) };
+        private readonly AntdUI.Panel _profileSurface = new() { Radius = 10, BorderWidth = 1, Padding = new Padding(8) };
+        private readonly AntdUI.Segmented _viewSwitch = new() { Width = 250, Height = 37 };
+        private readonly AntdUI.Select _favoriteSelect = new() { Width = 245, Height = 34, PlaceholderText = "收藏玩家" };
+        private readonly AntdUI.Select _pageSizeSelect = new() { Width = 90, Height = 34 };
+        private readonly AntdUI.Label _playerPlaceholder = new()
+        {
+            Dock = DockStyle.Fill, Text = "查询玩家后显示头像、等级与排位信息",
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        private readonly FlowLayoutPanel _searchActions = new() { Dock = DockStyle.Top, Height = 42, WrapContents = false };
+        private readonly FlowLayoutPanel _favoriteActions = new() { Dock = DockStyle.Bottom, Height = 42, WrapContents = true };
         private RankedQueue? solo, flex;
 
         private class RawGameStat
@@ -80,58 +94,126 @@ namespace LOL_GameAssistant.BaseViewForm
             stackMatches.SizeChanged += (_, _) => ResizeMatchRows();
             panelPlayer.SizeChanged += (_, _) => LayoutPlayerPanel();
             ConfigureCopyablePlayerIdentity();
-            InitializeVisualHierarchy();
+            InitializeModernLayout();
         }
 
-        /// <summary>
-        /// 为战绩查询页建立统一的卡片层级：搜索、玩家资料、对局列表和状态栏各自独立，
-        /// 在宽屏与窄屏下都更容易识别当前查看内容。
-        /// </summary>
-        private void InitializeVisualHierarchy()
+        private void InitializeModernLayout()
         {
-            BackColor = Color.FromArgb(245, 247, 250);
-            panelSearch.BackColor = Color.White;
-            panelSearch.Padding = new Padding(16, 10, 16, 8);
-            panelPlayer.BackColor = Color.White;
-            panelPlayer.Padding = new Padding(16, 10, 16, 10);
-            panelContent.BackColor = BackColor;
-            panelHistory.BackColor = BackColor;
-            panelStats.BackColor = BackColor;
-            stackMatches.BackColor = BackColor;
-            lblStatus.BackColor = Color.White;
-            lblStatus.Padding = new Padding(16, 0, 16, 0);
+            Controls.Clear();
+            panelSearch.Controls.Clear();
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(15, 12, 15, 10) };
+            _rootLayout = root;
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 128));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 130));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
 
-            var historyHeader = new Panel
+            inpSearch.Width = 420;
+            inpSearch.Height = 34;
+            _searchActions.Controls.Add(inpSearch);
+            _searchActions.Controls.Add(btnSearch);
+            var myHistory = new AntdUI.Button { Text = "我的战绩", Size = new Size(92, 34), Margin = new Padding(6, 1, 0, 0) };
+            myHistory.Click += async (_, _) =>
             {
-                BackColor = BackColor,
-                Dock = DockStyle.Top,
-                Height = 60,
-                Padding = new Padding(18, 9, 18, 7)
+                PlayerProfile? self = await _playerProfileService.GetCurrentAsync();
+                if (!string.IsNullOrWhiteSpace(self?.Puuid)) await PerformSearchAsync(self.Puuid);
             };
-            _historyTitle.AutoSize = false;
+            _searchActions.Controls.Add(myHistory);
+
+            foreach (int size in new[] { 10, 20, 50 }) _pageSizeSelect.Items.Add(size);
+            _pageSizeSelect.SelectedIndex = 0;
+            _pageSizeSelect.SelectedIndexChanged += (_, _) =>
+            {
+                if (_pageSizeSelect.SelectedIndex >= 0) cboPageSize.SelectedIndex = _pageSizeSelect.SelectedIndex;
+            };
+            _favoriteSelect.SelectedIndexChanged += (_, _) => cboFavorites.SelectedIndex = _favoriteSelect.SelectedIndex;
+            _favoriteActions.Controls.Add(_favoriteSelect);
+            _favoriteActions.Controls.Add(btnLoadFavorite);
+            _favoriteActions.Controls.Add(btnFavorite);
+            _favoriteActions.Controls.Add(btnExport);
+            _searchSurface.Dock = DockStyle.Fill;
+            _searchSurface.Margin = new Padding(0, 0, 0, 8);
+            _searchSurface.Controls.Add(_searchActions);
+            _searchSurface.Controls.Add(_favoriteActions);
+
+            panelPlayer.Dock = DockStyle.Fill;
+            panelPlayer.Visible = false;
+            _profileSurface.Dock = DockStyle.Fill;
+            _profileSurface.Margin = new Padding(0, 0, 0, 8);
+            _profileSurface.Controls.Add(panelPlayer);
+            _profileSurface.Controls.Add(_playerPlaceholder);
+
+            _viewSwitch.Items.Add(new AntdUI.SegmentedItem { Text = "对局记录" });
+            _viewSwitch.Items.Add(new AntdUI.SegmentedItem { Text = "数据统计" });
+            _viewSwitch.SelectIndexChanged += (_, e) =>
+            {
+                if (e.Value == 0) BtnViewRecord_Click(null, EventArgs.Empty);
+                else BtnViewStats_Click(null, EventArgs.Empty);
+            };
+            _viewSwitch.SelectIndex = 0;
+            var viewBar = new AntdUI.Panel { Dock = DockStyle.Fill, Radius = 8, BorderWidth = 1, Margin = new Padding(0, 0, 0, 8) };
+            _viewSwitch.Dock = DockStyle.Left;
+            viewBar.Controls.Add(_viewSwitch);
+            var pageSizeArea = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 145, WrapContents = false };
+            pageSizeArea.Controls.Add(new AntdUI.Label { Text = "每页", Width = 42, Height = 34 });
+            pageSizeArea.Controls.Add(_pageSizeSelect);
+            viewBar.Controls.Add(pageSizeArea);
+
+            panelContent.Dock = DockStyle.Fill;
+            panelContent.Margin = Padding.Empty;
+            lblStatus.Dock = DockStyle.Fill;
+            root.Controls.Add(_searchSurface, 0, 0);
+            root.Controls.Add(_profileSurface, 0, 1);
+            root.Controls.Add(viewBar, 0, 2);
+            root.Controls.Add(panelContent, 0, 3);
+            root.Controls.Add(lblStatus, 0, 4);
+            Controls.Add(root);
+
+            var historyHeader = new AntdUI.Panel { Dock = DockStyle.Top, Height = 51, Radius = 0, Padding = new Padding(10, 5, 10, 0) };
             _historyTitle.Dock = DockStyle.Top;
-            _historyTitle.Height = 24;
-            _historyTitle.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
-            _historyTitle.ForeColor = Color.FromArgb(38, 50, 56);
+            _historyTitle.Height = 23;
             _historyTitle.Text = "最近对局";
-            _historyHint.AutoSize = false;
+            _historyTitle.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
             _historyHint.Dock = DockStyle.Fill;
-            _historyHint.Font = new Font("Microsoft YaHei UI", 8.5F);
-            _historyHint.ForeColor = SystemColors.GrayText;
-            _historyHint.Text = "输入 Riot ID（名称#TAG）或 PUUID 查询；双击对局卡片可查看详情";
+            _historyHint.Text = "每局直接展示双方玩家、KDA 与开黑标记；海克斯强化显示中文名";
             historyHeader.Controls.Add(_historyHint);
             historyHeader.Controls.Add(_historyTitle);
             panelHistory.Controls.Add(historyHeader);
-            // Dock 布局按 Z 序逆序占用空间；放到底层可先占顶部，避免覆盖对局列表。
             historyHeader.SendToBack();
+            stackMatches.Controls.Add(new AntdUI.Label
+            {
+                Dock = DockStyle.Fill,
+                Text = "输入 Riot ID（名称#TAG）或 PUUID 查询战绩",
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = UiTheme.Palette.TextSecondary
+            });
+            ApplyTheme(UiTheme.Palette);
+        }
+
+        public void ApplyTheme(ThemePalette palette)
+        {
+            BackColor = palette.SurfaceMuted;
+            _searchSurface.BackColor = palette.SurfaceRaised;
+            _profileSurface.BackColor = palette.SurfaceRaised;
+            _playerPlaceholder.ForeColor = palette.TextSecondary;
+            panelPlayer.BackColor = palette.SurfaceRaised;
+            panelContent.BackColor = palette.SurfaceMuted;
+            panelHistory.BackColor = palette.SurfaceMuted;
+            panelStats.BackColor = palette.SurfaceMuted;
+            stackMatches.BackColor = palette.SurfaceMuted;
+            _historyTitle.ForeColor = palette.TextPrimary;
+            _historyHint.ForeColor = palette.TextSecondary;
+            lblStatus.ForeColor = palette.TextSecondary;
         }
 
         private void UpdateHistoryHeader(int totalGames = 0)
         {
             _historyTitle.Text = totalGames > 0 ? $"最近对局 · {totalGames} 场" : "最近对局";
             _historyHint.Text = totalGames > 0
-                ? "点击战绩卡可查看详情；展开内容会显示同局队友与组队推断。"
-                : "输入 Riot ID（名称#TAG）或 PUUID 查询；双击对局卡片可查看详情";
+                ? "双方玩家、KDA 与开黑标记直接显示；有禁用时展示禁用英雄，海克斯大乱斗展示强化。"
+                : "输入 Riot ID（名称#TAG）或 PUUID 查询；每局直接展示双方玩家。";
         }
 
         /// <summary>
@@ -181,6 +263,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private void UpdateResponsiveLayout()
         {
             if (IsDisposed) return;
+            _viewSwitch.Width = ClientSize.Width < 550 ? 195 : 250;
             LayoutSearchPanel();
             LayoutPlayerPanel();
             ResizeMatchRows();
@@ -191,27 +274,16 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void LayoutSearchPanel()
         {
-            if (panelSearch.ClientSize.Width <= 0) return;
-
-            panelSearch.SuspendLayout();
-            try
-            {
-                panelSearch.WrapContents = true;
-                panelSearch.AutoScroll = false;
-                panelSearch.PerformLayout();
-
-                int contentBottom = panelSearch.Controls
-                    .Cast<Control>()
-                    .Where(control => control.Visible)
-                    .Select(control => control.Bottom + control.Margin.Bottom)
-                    .DefaultIfEmpty(0)
-                    .Max();
-                panelSearch.Height = Math.Max(56, contentBottom + panelSearch.Padding.Bottom);
-            }
-            finally
-            {
-                panelSearch.ResumeLayout(true);
-            }
+            int width = _searchActions.ClientSize.Width;
+            if (width <= 0) return;
+            bool narrow = width < 620;
+            _searchActions.WrapContents = width < 430;
+            _searchActions.Height = width < 430 ? 78 : 42;
+            _favoriteActions.Height = narrow ? 76 : 42;
+            if (_rootLayout != null)
+                _rootLayout.RowStyles[0].Height = width < 430 ? 202 : narrow ? 166 : 128;
+            int available = width - btnSearch.Width - 118;
+            inpSearch.Width = Math.Clamp(available, 160, 620);
         }
 
         /// <summary>
@@ -220,10 +292,40 @@ namespace LOL_GameAssistant.BaseViewForm
         private void LayoutPlayerPanel()
         {
             if (panelPlayer.ClientSize.Width <= 0) return;
-
-            int avatarWidth = avatarPlayer.Width;
-            int availableForRanked = panelPlayer.ClientSize.Width - panelPlayer.Padding.Horizontal - avatarWidth - 240;
-            panelRanked.Width = Math.Clamp(availableForRanked, 240, 472);
+            panelRanked.Dock = DockStyle.None;
+            panelPlayerInfo.Dock = DockStyle.None;
+            avatarPlayer.Dock = DockStyle.None;
+            lblPlayerName.Dock = DockStyle.None;
+            lblPlayerTag.Dock = DockStyle.None;
+            lblPlayerLevel.Dock = DockStyle.None;
+            lblSoloTitle.Dock = DockStyle.None;
+            lblSoloStats.Dock = DockStyle.None;
+            lblFlexTitle.Dock = DockStyle.None;
+            lblFlexStats.Dock = DockStyle.None;
+            int width = panelPlayer.ClientSize.Width;
+            avatarPlayer.SetBounds(8, 8, 96, 102);
+            if (width < 650)
+            {
+                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 254;
+                panelPlayerInfo.SetBounds(112, 8, Math.Max(120, width - 120), 102);
+                panelRanked.SetBounds(8, 116, Math.Max(200, width - 16), 108);
+            }
+            else
+            {
+                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 130;
+                int rankedWidth = Math.Clamp(width - 112 - 245, 240, 472);
+                panelPlayerInfo.SetBounds(112, 8, Math.Max(160, width - 120 - rankedWidth), 102);
+                panelRanked.SetBounds(width - rankedWidth - 8, 8, rankedWidth, 102);
+            }
+            int identityWidth = panelPlayerInfo.ClientSize.Width;
+            lblPlayerName.SetBounds(0, 0, identityWidth, 40);
+            lblPlayerTag.SetBounds(0, 40, identityWidth, 28);
+            lblPlayerLevel.SetBounds(0, 68, identityWidth, 28);
+            int rankedTextWidth = panelRanked.ClientSize.Width;
+            lblSoloTitle.SetBounds(0, 0, rankedTextWidth, 26);
+            lblSoloStats.SetBounds(0, 26, rankedTextWidth, 24);
+            lblFlexTitle.SetBounds(0, 50, rankedTextWidth, 26);
+            lblFlexStats.SetBounds(0, 76, rankedTextWidth, 24);
         }
 
         private int GetMatchRowWidth(int contentHeight)
@@ -239,19 +341,27 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void ResizeMatchRows()
         {
-            var rows = stackMatches.Controls.OfType<RecentMatchRow>().ToList();
+            if (_resizingMatchRows) return;
+            var rows = stackMatches.Controls.OfType<MatchHistoryCard>().ToList();
             if (rows.Count == 0 || stackMatches.ClientSize.Width <= 0) return;
-
-            int contentHeight = 8 + rows.Sum(row => row.Height + 8) + 6;
-            int width = GetMatchRowWidth(contentHeight);
-            int y = 8;
-            foreach (var row in rows)
+            _resizingMatchRows = true;
+            try
             {
-                row.Width = width;
-                row.Location = new Point(10, y);
-                y += row.Height + 8;
+                int height = 8 + rows.Sum(row => row.Height + 8) + 6;
+                int width = GetMatchRowWidth(height);
+                foreach (MatchHistoryCard row in rows) row.Width = width;
+                height = 8 + rows.Sum(row => row.Height + 8) + 6;
+                width = GetMatchRowWidth(height);
+                foreach (MatchHistoryCard row in rows) row.Width = width;
+                int y = 8;
+                foreach (MatchHistoryCard row in rows)
+                {
+                    row.Location = new Point(10, y);
+                    y += row.Height + 8;
+                }
+                stackMatches.AutoScrollMinSize = new Size(0, y + 6);
             }
-            stackMatches.AutoScrollMinSize = new Size(0, contentHeight);
+            finally { _resizingMatchRows = false; }
         }
 
         /// <summary>
@@ -318,6 +428,11 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 _statsLoaded = false;
                 await LoadPlayerDataAsync(puuid);
+            }
+            catch (Exception ex)
+            {
+                lblStatus.Text = $"查询失败：{ex.Message}";
+                RuntimeDiagnostics.Report("战绩查询", "查询失败", ex.Message);
             }
             finally
             {
@@ -453,6 +568,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblPlayerLevel.Text = $"等级: {_currentPlayer.SummonerLevel}";
             lblPlayerLevel.Visible = true;
             panelPlayer.Visible = true;
+            _playerPlaceholder.Visible = false;
 
             solo = null;
             flex = null;
@@ -546,7 +662,11 @@ namespace LOL_GameAssistant.BaseViewForm
                 _currentPage = 1;
                 await RenderMatchPageAsync();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                lblStatus.Text = $"战绩加载失败：{ex.Message}";
+                RuntimeDiagnostics.Report("战绩查询", "战绩加载失败", ex.Message);
+            }
         }
 
         private async Task RenderMatchPageAsync()
@@ -556,7 +676,7 @@ namespace LOL_GameAssistant.BaseViewForm
             await _pageLoadGate.WaitAsync();
             try
             {
-                stackMatches.Controls.Clear();
+                ClearMatchControls();
                 // 加载中先显示微光占位，避免空白闪烁
                 var shimmer = new ShimmerPanel
                 {
@@ -582,14 +702,11 @@ namespace LOL_GameAssistant.BaseViewForm
                         var gamer = detail.GetParticipant(_currentPlayer.Puuid);
                         if (gamer == null) return null;
 
-                        // 紧凑战绩行：胜负配色 + 圆角 + 悬停动效
-                        var rec = new RecentMatchRow
+                        var rec = new MatchHistoryCard(detail, _currentPlayer.Puuid, AppCompositionRoot.GameAssetService)
                         {
                             Width = Math.Max(1, stackMatches.ClientSize.Width - MatchListHorizontalInset),
-                            Height = RecentMatchRow.TeamRowHeight,
-                            ShowTeammateInfo = true
+                            Margin = new Padding(0, 0, 0, 8)
                         };
-                        await rec.SetDataAsync(detail, gamer, _currentPlayer.Puuid);
                         return rec;
                     }
                     catch
@@ -605,7 +722,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 var records = await Task.WhenAll(tasks);
                 if (IsDisposed) return;
 
-                stackMatches.Controls.Clear(); // 移除微光
+                ClearMatchControls(); // 移除微光
                 int y = 8;
                 int index = 0;
                 foreach (var rec in records)
@@ -613,9 +730,8 @@ namespace LOL_GameAssistant.BaseViewForm
                     if (rec == null) continue;
                     rec.Location = new Point(10, y);
                     stackMatches.Controls.Add(rec);
-                    // 逐行错峰入场，列表更灵动
-                    UiAnimation.SlideIn(rec, -16, 220, index * 30);
-                    _ = rec.DetectTeamQueueStatusAsync();
+                    UiTheme.Apply(rec);
+                    rec.SizeChanged += (_, _) => ResizeMatchRows();
                     y += rec.Height + 8;
                     index++;
                 }
@@ -629,6 +745,15 @@ namespace LOL_GameAssistant.BaseViewForm
             finally
             {
                 _pageLoadGate.Release();
+            }
+        }
+
+        private void ClearMatchControls()
+        {
+            foreach (Control control in stackMatches.Controls.Cast<Control>().ToArray())
+            {
+                stackMatches.Controls.Remove(control);
+                control.Dispose();
             }
         }
 
@@ -754,59 +879,46 @@ namespace LOL_GameAssistant.BaseViewForm
             double overallKda = filtered.Count > 0 ? filtered.Average(s => s.Kda) : 0;
             double winRate = filtered.Count > 0 ? Math.Round((double)totalWins / filtered.Count * 100, 1) : 0;
 
-            panelStats.Controls.Clear();
+            foreach (Control old in panelStats.Controls.Cast<Control>().ToArray())
+            {
+                panelStats.Controls.Remove(old);
+                old.Dispose();
+            }
+            ThemePalette palette = UiTheme.Palette;
+            var filterBar = new AntdUI.Panel { Dock = DockStyle.Top, Height = 48, Radius = 8, BorderWidth = 1, Padding = new Padding(10, 6, 10, 4), BackColor = palette.SurfaceRaised };
+            var modeSelect = new AntdUI.Select { Width = 200, Height = 34 };
+            modeSelect.Items.Add("全部");
+            foreach (string mode in _rawGameStats.Select(s => s.Mode).Distinct().OrderBy(mode => mode))
+                modeSelect.Items.Add(mode);
+            modeSelect.SelectedValue = filter;
+            modeSelect.SelectedIndexChanged += (_, _) =>
+                RebuildStatsCharts(modeSelect.SelectedValue?.ToString() ?? "全部");
+            filterBar.Controls.Add(modeSelect);
 
-            // 筛选按钮栏
-            var btnPanel = new FlowLayoutPanel
+            var chartContainer = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = palette.SurfaceMuted };
+            var content = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
                 AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                MinimumSize = new Size(0, 35),
-                Padding = new Padding(5),
-                BackColor = Color.WhiteSmoke,
-                WrapContents = true
+                Padding = new Padding(5)
             };
-            var allModes = _rawGameStats.Select(s => s.Mode).Distinct().OrderBy(m => m).ToList();
-            var filterTexts = new List<string> { "全部" };
-            filterTexts.AddRange(allModes);
-            foreach (var modeText in filterTexts)
-            {
-                var btn = new Button
-                {
-                    Text = modeText,
-                    AutoSize = true,
-                    Height = 26,
-                    FlatStyle = FlatStyle.Flat,
-                    BackColor = modeText == filter ? Color.DodgerBlue : SystemColors.Control,
-                    ForeColor = modeText == filter ? Color.White : SystemColors.ControlText,
-                    Margin = new Padding(2)
-                };
-                var capturedMode = modeText;
-                btn.Click += (_, _) =>
-                {
-                    foreach (Control c in btnPanel.Controls)
-                    {
-                        if (c is Button b)
-                        {
-                            b.BackColor = b.Text == capturedMode ? Color.DodgerBlue : SystemColors.Control;
-                            b.ForeColor = b.Text == capturedMode ? Color.White : SystemColors.ControlText;
-                        }
-                    }
-                    RebuildStatsCharts(capturedMode);
-                };
-                btnPanel.Controls.Add(btn);
-            }
-            panelStats.Controls.Add(btnPanel);
+            chartContainer.Controls.Add(content);
+            chartContainer.Resize += (_, _) => content.Width = Math.Max(100, chartContainer.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
 
-            var chartContainer = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+            var summaries = new FlowLayoutPanel { Height = 90, WrapContents = true, Margin = new Padding(0, 0, 0, 10) };
+            summaries.Controls.Add(StatTile("有效场次", filtered.Count.ToString(), palette));
+            summaries.Controls.Add(StatTile("胜率", $"{winRate:F1}%", palette));
+            summaries.Controls.Add(StatTile("平均 KDA", $"{overallKda:F2}", palette));
+            content.Controls.Add(summaries);
 
             if (kdaList.Count > 1)
             {
                 var trendData = kdaList.TakeLast(30).ToList();
-                var kdaPanel = new Panel { Dock = DockStyle.Top, Height = 210 };
+                var kdaPanel = new Panel { Height = 210, BackColor = palette.SurfaceRaised, Margin = new Padding(0, 0, 0, 10) };
                 kdaPanel.Paint += (s, e) => ChartDrawer.DrawKdaTrend(e.Graphics, kdaPanel.ClientRectangle, trendData, "KDA 趋势（近 N 场 · 绿=胜 红=负）");
-                chartContainer.Controls.Add(kdaPanel);
+                content.Controls.Add(kdaPanel);
             }
 
             if (champStats.Count > 0)
@@ -815,28 +927,46 @@ namespace LOL_GameAssistant.BaseViewForm
                     .OrderByDescending(x => x.Value.g).Take(10)
                     .Select(x => (GetChampionDisplayName(x.Key), x.Value.g, Math.Round((double)x.Value.w / x.Value.g * 100, 1)))
                     .ToList();
-                var champPanel = new Panel { Dock = DockStyle.Top, Height = Math.Max(80, champData.Count * 25 + 30) };
+                var champPanel = new Panel { Height = Math.Max(80, champData.Count * 25 + 30), BackColor = palette.SurfaceRaised };
                 champPanel.Paint += (s, e) => ChartDrawer.DrawChampionBars(e.Graphics, champPanel.ClientRectangle, champData, "常用英雄 Top 10");
-                chartContainer.Controls.Add(champPanel);
+                content.Controls.Add(champPanel);
             }
-
-            var sb = new StringBuilder();
-            sb.Append("筛选: ").Append(filter).Append("  |  场次: ").Append(filtered.Count);
-            sb.Append("  |  胜场: ").Append(totalWins).Append("  |  负场: ").Append(totalLosses).Append("  |  胜率: ").Append(winRate).Append("%");
-            sb.Append("  |  平均KDA: ").Append(Math.Round(overallKda, 2));
-            var summaryLabel = new Label
-            {
-                Text = sb.ToString(),
-                Dock = DockStyle.Top,
-                Height = 30,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Font = new Font("Microsoft YaHei UI", 9F),
-                Padding = new Padding(10, 0, 0, 0)
-            };
-            chartContainer.Controls.Add(summaryLabel);
-
             panelStats.Controls.Add(chartContainer);
+            panelStats.Controls.Add(filterBar);
+            content.Resize += (_, _) =>
+            {
+                int width = Math.Max(280, content.ClientSize.Width - 18);
+                summaries.Width = width;
+                int columns = Math.Clamp((width + 9) / 189, 1, 3);
+                int tileWidth = (width - (columns - 1) * 9) / columns;
+                foreach (Control tile in summaries.Controls) tile.Width = tileWidth;
+                summaries.Height = (3 + columns - 1) / columns * 82 + 8;
+                foreach (Control chart in content.Controls.Cast<Control>().Where(control => control != summaries))
+                    chart.Width = width;
+            };
+            content.Width = Math.Max(300, chartContainer.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
             lblStatus.Text = "筛选: " + filter + "  " + filtered.Count + " 场 · 胜率 " + winRate + "%";
+        }
+
+        private static AntdUI.Panel StatTile(string title, string value, ThemePalette palette)
+        {
+            var card = new AntdUI.Panel
+            {
+                Width = 180, Height = 78, Radius = 8, BorderWidth = 1,
+                Margin = new Padding(0, 0, 9, 0), BackColor = palette.SurfaceRaised
+            };
+            card.Controls.Add(new AntdUI.Label
+            {
+                Dock = DockStyle.Top, Height = 37, Text = value,
+                Font = new Font("Microsoft YaHei UI", 15F, FontStyle.Bold),
+                ForeColor = palette.TextPrimary, Padding = new Padding(10, 4, 0, 0)
+            });
+            card.Controls.Add(new AntdUI.Label
+            {
+                Dock = DockStyle.Top, Height = 25, Text = title,
+                ForeColor = palette.TextSecondary, Padding = new Padding(10, 7, 0, 0)
+            });
+            return card;
         }
 
         // ── 收藏玩家（新增功能） ──
@@ -900,14 +1030,17 @@ namespace LOL_GameAssistant.BaseViewForm
         private void RefreshFavoriteList(string? selectedPuuid)
         {
             cboFavorites.Items.Clear();
+            _favoriteSelect.Items.Clear();
             int selectedIndex = -1;
             for (int i = 0; i < _favorites.Count; i++)
             {
                 var fav = _favorites[i];
                 cboFavorites.Items.Add($"{fav.GameName}#{fav.TagLine} ({fav.SummonerLevel})");
+                _favoriteSelect.Items.Add($"{fav.GameName}#{fav.TagLine} ({fav.SummonerLevel})");
                 if (fav.Puuid == selectedPuuid) selectedIndex = i;
             }
             cboFavorites.SelectedIndex = selectedIndex >= 0 ? selectedIndex : -1;
+            _favoriteSelect.SelectedIndex = selectedIndex >= 0 ? selectedIndex : -1;
             btnLoadFavorite.Enabled = true;
         }
 

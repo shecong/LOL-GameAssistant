@@ -7,6 +7,7 @@ using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Teams;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Infrastructure.GameData;
 using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -157,6 +158,10 @@ namespace LOL_GameAssistant.BaseViewForm
                     flowEnemy.Controls.Add(cell);
             }
 
+            AddBanRow(flowAlly, _gameInfo.GetBannedChampionIds(myTeamId));
+            int enemyTeamId = participants.FirstOrDefault(p => p.teamId != myTeamId)?.teamId ?? 200;
+            AddBanRow(flowEnemy, _gameInfo.GetBannedChampionIds(enemyTeamId));
+
             _ = DetectPremadesAsync(myTeamId);
             _ = ApplyRecentModePerformanceTagsAsync();
         }
@@ -173,7 +178,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ThemePalette palette = UiTheme.Palette;
             var panel = new Panel
             {
-                Size = new Size(455, 118),
+                Size = new Size(455, _gameInfo.IsAugmentAram() ? 166 : 118),
                 Margin = new Padding(0, 0, 0, 6),
                 BackColor = isMe
                     ? (palette.IsDark ? Color.FromArgb(75, 60, 25) : Color.FromArgb(255, 249, 230))
@@ -272,6 +277,11 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSummonerSpellIcons(panel, p, 300, 30);
             AddItemIcons(panel, p, 70, 78);
 
+            if (_gameInfo.IsAugmentAram() && p.stats?.AugmentIds.Count > 0)
+            {
+                _ = LoadAugmentTagsAsync(panel, p.stats.AugmentIds);
+            }
+
             if (!string.IsNullOrWhiteSpace(playerPuuid))
             {
                 var premadeTag = new Label
@@ -289,6 +299,86 @@ namespace LOL_GameAssistant.BaseViewForm
                 _premadeTagsByPuuid[playerPuuid] = premadeTag;
             }
             return panel;
+        }
+
+        private void AddBanRow(FlowLayoutPanel target, IReadOnlyList<int> championIds)
+        {
+            if (championIds.Count == 0) return;
+            var row = new FlowLayoutPanel
+            {
+                Size = new Size(455, 34),
+                WrapContents = false,
+                BackColor = UiTheme.Palette.SurfaceRaised,
+                Margin = new Padding(0, 3, 0, 3)
+            };
+            row.Controls.Add(new AntdUI.Label { Text = "禁用", Width = 42, Height = 27, ForeColor = UiTheme.Palette.TextSecondary });
+            foreach (int championId in championIds)
+            {
+                var tag = new AntdUI.Tag
+                {
+                    Text = GetChampionDisplayName(championId), Width = 76, Height = 27,
+                    AutoEllipsis = true, Margin = new Padding(0, 0, 4, 0)
+                };
+                row.Controls.Add(tag);
+                _ = LoadChampionTagIconAsync(tag, championId);
+            }
+            target.Controls.Add(row);
+        }
+
+        private static async Task LoadAugmentTagsAsync(Panel host, IReadOnlyList<int> ids)
+        {
+            var tags = new List<AntdUI.Tag>();
+            for (int index = 0; index < ids.Count; index++)
+            {
+                var placeholder = new AntdUI.Tag
+                {
+                    Text = $"强化 #{ids[index]}", Width = 112, Height = 23,
+                    Location = new Point(70 + index % 3 * 118, 109 + index / 3 * 25),
+                    AutoEllipsis = true,
+                    ForeColor = UiTheme.Palette.TextPrimary,
+                    BackColor = UiTheme.Palette.SurfaceMuted
+                };
+                host.Controls.Add(placeholder);
+                tags.Add(placeholder);
+            }
+            IReadOnlyList<AugmentCatalog.AugmentDisplay> augments = await AugmentCatalog.ResolveAsync(ids);
+            if (host.IsDisposed) return;
+            for (int index = 0; index < augments.Count && index < tags.Count; index++)
+            {
+                AugmentCatalog.AugmentDisplay augment = augments[index];
+                AntdUI.Tag tag = tags[index];
+                tag.Text = augment.Name;
+                if (augment.IconUrl != null) _ = LoadAugmentTagIconAsync(tag, augment.IconUrl);
+            }
+        }
+
+        private static async Task LoadAugmentTagIconAsync(AntdUI.Tag tag, string url)
+        {
+            byte[]? bytes = await AugmentCatalog.GetIconAsync(url);
+            if (bytes == null || tag.IsDisposed) return;
+            try
+            {
+                using var stream = new MemoryStream(bytes);
+                using var source = Image.FromStream(stream);
+                var image = new Bitmap(source);
+                if (tag.IsDisposed) { image.Dispose(); return; }
+                tag.Image = image;
+                tag.Disposed += (_, _) => image.Dispose();
+            }
+            catch { }
+        }
+
+        private async Task LoadChampionTagIconAsync(AntdUI.Tag tag, int championId)
+        {
+            try
+            {
+                Image? image = ToImage(await _gameAssetService.GetChampionIconAsync(championId));
+                if (image == null) return;
+                if (tag.IsDisposed) { image.Dispose(); return; }
+                tag.Image = image;
+                tag.Disposed += (_, _) => image.Dispose();
+            }
+            catch { /* 图标失败时保留英雄名称 */ }
         }
 
         private void AddSummonerSpellIcons(Panel panel, MatchParticipant participant, int x, int y)

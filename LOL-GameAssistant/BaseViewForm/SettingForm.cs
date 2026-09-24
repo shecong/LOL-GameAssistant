@@ -364,15 +364,17 @@ namespace LOL_GameAssistant.BaseViewForm
             opacityPanel.Controls.Add(new Label { Text = "%（40–100）", AutoSize = true, Padding = new Padding(6, 6, 0, 0) });
             _hotkey.KeyDown += CaptureHoldToTopHotkey;
             _hotkey.Click += (_, _) => _hotkey.Focus();
+            _hotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
+            _hotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
             _themeMode.Items.AddRange(new object[] { "跟随系统", "浅色", "深色" });
-            var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后立即最小化；默认是键盘左上角的 · 键。\n快捷键不会传给游戏，也不会注入或修改游戏客户端。");
+            var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后隐藏到托盘；默认是键盘左上角的 · 键。\nWindows 会接管已注册的按键；快捷键不会注入或修改游戏客户端。");
 
             AddSegmentRow(layout, 0, "界面主题：", _themeMode,
                 "界面配色：跟随系统、浅色或深色，保存后立即生效。");
             AddSegmentRow(layout, 1, "窗口透明度：", opacityPanel,
                 "助手窗口的不透明度（40–100），数值越小越透明。");
             AddSegmentRow(layout, 2, "按住置顶键：", _hotkey,
-                "点击输入框后按一个键即可设定。按住该键时助手临时置顶且不抢焦点，松开后恢复；按键不会传给游戏。");
+                "点击输入框后按一个键即可设定。按住该键时助手临时置顶且不抢焦点，松开后隐藏到托盘。");
             AddSegmentRow(layout, 3, "快捷键范围：", _onlyLeagueFocused,
                 "开启时只有 LOL 位于前台才响应置顶键；关闭则任何窗口下都响应。");
             AddSegmentRow(layout, 4, "置顶说明：", holdNote);

@@ -84,6 +84,17 @@ namespace LOL_GameAssistant
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
                 custom => _ = settingForm.SendRandomQuickShoutToGameAsync(custom));
 
+        public void SetWindowHotkeyCapturePaused(bool paused) =>
+            _windowHoldController.SetCapturePaused(paused);
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WindowHoldController.HotkeyMessage &&
+                _windowHoldController?.HandleHotkey(m.WParam) == true)
+                return;
+            base.WndProc(ref m);
+        }
+
         /// <summary>
         /// 切换到“战绩查询”标签页（供其他界面点击玩家头像跳转使用）。
         /// </summary>
@@ -201,6 +212,7 @@ namespace LOL_GameAssistant
             // 托盘与窗口事件先挂好：它们不依赖 LCU/网络，
             // 若放在 await 之后，客户端探测卡住时这段时间窗口既没有托盘图标也没有关闭拦截。
             InitializeTray();
+            VisibleChanged += (_, _) => UpdateTrayVisibility();
             FormClosing += GameMain_FormClosing;
             Resize += GameMain_Resize;
             tabs1.SelectedIndexChanged += Tabs1_SelectedIndexChanged;

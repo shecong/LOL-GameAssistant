@@ -94,7 +94,17 @@ internal static class LegacyMatchReadModelMapper
                     teamId = participant.teamId,
                     stats = ToDomain(participant.stats)
                 })
-                .ToList()
+                .ToList(),
+            teams = (source.teams ?? new List<GameDetailModel.TeamsItem>())
+                .Select(team => new MatchTeam
+                {
+                    TeamId = team.teamId,
+                    BannedChampionIds = (team.bans ?? new List<GameDetailModel.BansItem>())
+                        .Where(ban => ban.championId > 0)
+                        .OrderBy(ban => ban.pickTurn)
+                        .Select(ban => ban.championId)
+                        .ToList()
+                }).ToList()
         };
     }
 
@@ -126,7 +136,14 @@ internal static class LegacyMatchReadModelMapper
             totalTimeCrowdControlDealt = source.totalTimeCrowdControlDealt,
             tripleKills = source.tripleKills,
             visionScore = source.visionScore,
-            Win = IsWin(source.win)
+            Win = IsWin(source.win),
+            AugmentIds = new[]
+                {
+                    source.playerAugment1, source.playerAugment2, source.playerAugment3,
+                    source.playerAugment4, source.playerAugment5, source.playerAugment6
+                }
+                .Where(id => id > 0)
+                .ToList()
         };
     }
 
