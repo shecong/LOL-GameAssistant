@@ -6,36 +6,28 @@ public sealed record GameKdaPlayerSummary(
     string DisplayName,
     RecentModePerformanceAssessment? Assessment);
 
-/// <summary>将双方玩家压缩为适合游戏聊天框的短消息，保留全部玩家。</summary>
+/// <summary>按蓝方、红方顺序为每名玩家生成一条游戏聊天消息。</summary>
 public static class GameKdaAnnouncementBuilder
 {
-    private const int MaximumMessageLength = 300;
-
     public static IReadOnlyList<string> Build(IReadOnlyList<GameKdaPlayerSummary> players)
     {
-        var messages = new List<string>();
-        foreach (var team in players.GroupBy(player => player.Team))
-        {
-            string heading = $"【本局近期KDA·{team.Key}】";
-            string current = heading;
-            foreach (GameKdaPlayerSummary player in team)
-            {
-                string name = string.IsNullOrWhiteSpace(player.DisplayName) ? "未知玩家" : player.DisplayName.Trim();
-                if (name.Length > 18) name = name[..18] + "…";
-                string detail = player.Assessment is { } assessment
-                    ? $"{name} {RecentPerformanceLabelFormatter.GetText(assessment)}{assessment.Score}分 KDA{assessment.Kda:F2}"
-                    : $"{name} 近期KDA暂无可查";
-                string separator = current == heading ? " " : "；";
-                if (current.Length + separator.Length + detail.Length > MaximumMessageLength)
-                {
-                    messages.Add(current);
-                    current = heading + "（续）";
-                    separator = " ";
-                }
-                current += separator + detail;
-            }
-            if (current != heading) messages.Add(current);
-        }
-        return messages;
+        return players.GroupBy(player => player.Team)
+            .SelectMany(team => team.Select(player => FormatPlayer(team.Key, player)))
+            .ToArray();
+    }
+
+    private static string FormatPlayer(string team, GameKdaPlayerSummary player)
+    {
+        // 游戏聊天以 Enter 提交消息；先清掉名字中的换行，保证一名玩家只发送一条。
+        string name = string.IsNullOrWhiteSpace(player.DisplayName)
+            ? "未知玩家"
+            : string.Join(" ", player.DisplayName.Split((char[]?)null,
+                StringSplitOptions.RemoveEmptyEntries));
+        if (name.Length > 32) name = name[..32] + "…";
+        string prefix = $"【{team}近期KDA】{name} ";
+        if (player.Assessment is not { } assessment)
+            return prefix + "近期KDA暂无可查";
+        string label = RecentPerformanceLabelFormatter.GetText(assessment);
+        return $"{prefix}{label}{assessment.Score}分 KDA{assessment.Kda:F2}";
     }
 }

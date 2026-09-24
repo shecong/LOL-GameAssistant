@@ -53,7 +53,7 @@ public sealed class QuickMessageSenderController : IDisposable
 
     /// <summary>按同一游戏内喊话序列依次发送多条短消息，用于双方 KDA 汇总。</summary>
     public async Task<GameShoutSendResult> SendBatchToGameAsync(IReadOnlyList<string> messages,
-        bool sendToAll, bool useClipboard, int minimumIntervalSeconds)
+        bool sendToAll, bool useClipboard, int minimumIntervalSeconds, bool requireForeground = false)
     {
         if (messages.Count == 0 || messages.Count > 10 ||
             messages.Any(message => string.IsNullOrWhiteSpace(message) || message.Length > 500))
@@ -68,22 +68,25 @@ public sealed class QuickMessageSenderController : IDisposable
             if (elapsed.TotalSeconds < interval)
                 await Task.Delay(TimeSpan.FromSeconds(interval - elapsed.TotalSeconds));
 
-            GameShoutSendResult? focusError = await FocusGameAsync();
+            // 自动 KDA 只在用户已经切到游戏时发送，避免后台抢焦点和加载画面吞键。
+            if (requireForeground && !IsLeagueGameForeground())
+                return new(false, "等待游戏窗口进入前台。");
+            GameShoutSendResult? focusError = requireForeground ? null : await FocusGameAsync();
             if (focusError.HasValue) return focusError.Value;
             for (int index = 0; index < messages.Count; index++)
             {
                 if (!IsLeagueGameForeground())
-                    return new(false, $"游戏失去前台焦点；已注入 {index}/{messages.Count} 条 KDA 汇总。");
+                    return new(false, $"游戏失去前台焦点；已注入 {index}/{messages.Count} 条 KDA 汇总。", index);
                 string text = sendToAll ? "/all " + messages[index] : messages[index];
                 GameShoutSendResult result = await SendChatLineAsync(text, useClipboard);
-                if (!result.Succeeded) return result;
+                if (!result.Succeeded) return result with { SentCount = index };
                 _lastSentAtUtc = DateTime.UtcNow;
                 if (index < messages.Count - 1)
                     await Task.Delay(TimeSpan.FromSeconds(interval));
             }
             RuntimeDiagnostics.Report("对局 KDA 评估", "按键已注入",
                 $"已通过 WindowsInput 依次注入 {messages.Count} 条；游戏端没有送达回执");
-            return new(true, $"已注入双方 KDA 汇总（{messages.Count} 条）；请在游戏聊天中确认。");
+            return new(true, $"已注入双方 KDA 汇总（{messages.Count} 条）；请在游戏聊天中确认。", messages.Count);
         }
         finally { Volatile.Write(ref _sending, 0); }
     }
@@ -261,4 +264,4 @@ public sealed class QuickMessageSenderController : IDisposable
     private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 }
 
-public readonly record struct GameShoutSendResult(bool Succeeded, string Message);
+public readonly record struct GameShoutSendResult(bool Succeeded, string Message, int SentCount = 0);

@@ -8,6 +8,7 @@ using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Teams;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Infrastructure.LiveGame;
 using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -37,7 +38,14 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly List<(string Puuid, string Name, string Team)> _gameAssessmentRoster = new();
         private string _gameAssessmentSignature = "";
         private bool _gameAssessmentSent;
+        private bool _gameAssessmentSending;
+        private int _gameAssessmentGeneration;
         private GameFlowPhase? _lastRenderedPhase;
+
+        public bool NeedsGameAssessmentRoster =>
+            !IsDisposed && GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
+            AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled &&
+            _gameAssessmentRoster.Count == 0;
 
         // 缓存的是整局阵容的检测任务，而不是只记录“已经检测过”。这样强制刷新重建卡片后，
         // 已完成的结果能立即重新应用；尚在执行的任务也会被复用，不会重复拉取十人的近期战绩。
@@ -572,11 +580,13 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void ResetGameAssessments()
         {
+            unchecked { _gameAssessmentGeneration++; }
             _gameAssessments.Clear();
             _expectedGameAssessmentPuuids.Clear();
             _gameAssessmentRoster.Clear();
             _gameAssessmentSignature = "";
             _gameAssessmentSent = false;
+            _gameAssessmentSending = false;
         }
 
         private async Task SendGameAssessmentsAfterTimeoutAsync(string signature)
@@ -617,7 +627,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void SendGameKdaAnnouncement()
         {
-            if (_gameAssessmentSent || _gameAssessmentRoster.Count == 0 ||
+            if (_gameAssessmentSent || _gameAssessmentSending || _gameAssessmentRoster.Count == 0 ||
                 GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
             var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
             if (!settings.GameKdaAnnouncementEnabled) return;
@@ -633,28 +643,57 @@ namespace LOL_GameAssistant.BaseViewForm
             IReadOnlyList<string> messages = GameKdaAnnouncementBuilder.Build(players);
             if (messages.Count == 0) return;
 
-            // 每局只尝试一次；刷新卡片不会在游戏聊天里反复发送相同的十人名单。
-            _gameAssessmentSent = true;
-            _ = SendGameKdaAnnouncementAsync(_gameAssessmentSignature, messages, settings);
+            _gameAssessmentSending = true;
+            _ = SendGameKdaAnnouncementAsync(_gameAssessmentSignature,
+                _gameAssessmentGeneration, messages, settings);
         }
 
-        private async Task SendGameKdaAnnouncementAsync(string signature,
+        private async Task SendGameKdaAnnouncementAsync(string signature, int generation,
             IReadOnlyList<string> messages, LOL_GameAssistant.Domain.Settings.AssistantSettings settings)
         {
+            int sentCount = 0;
             try
             {
-                GameShoutSendResult result = await Program.GameMain.SendGameKdaAnnouncementAsync(messages, settings);
-                if (IsDisposed || signature != _gameAssessmentSignature) return;
-                GameMain.infoMsg.AddMsg(result.Succeeded
-                    ? "对局双方近期 KDA 评估已注入游戏聊天；请确认聊天窗口。"
-                    : $"对局双方近期 KDA 评估未发送：{result.Message}");
-                RuntimeDiagnostics.Report("对局 KDA 评估", result.Succeeded ? "按键已注入" : "发送失败", result.Message);
+                while (!IsDisposed && generation == _gameAssessmentGeneration &&
+                       signature == _gameAssessmentSignature &&
+                       GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
+                       AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled)
+                {
+                    // InProgress 在加载画面就会出现；实时客户端接口可用后才允许注入聊天按键。
+                    int? gameTime = await LocalLiveClientDataReader.GetGameTimeSecondsAsync();
+                    if (gameTime is null or < 5)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(5));
+                        continue;
+                    }
+
+                    GameShoutSendResult result = await Program.GameMain.SendGameKdaAnnouncementAsync(
+                        messages.Skip(sentCount).ToArray(), settings, requireForeground: true);
+                    if (IsDisposed || generation != _gameAssessmentGeneration ||
+                        signature != _gameAssessmentSignature) return;
+                    sentCount += result.SentCount;
+                    if (sentCount >= messages.Count)
+                    {
+                        _gameAssessmentSent = true;
+                        GameMain.infoMsg.AddMsg("对局双方近期 KDA 评估已注入游戏聊天；请确认聊天窗口。");
+                        RuntimeDiagnostics.Report("对局 KDA 评估", "按键已注入", result.Message);
+                        return;
+                    }
+                    await Task.Delay(TimeSpan.FromSeconds(5));
+                }
+                if (sentCount > 0 && !IsDisposed && generation == _gameAssessmentGeneration)
+                    GameMain.infoMsg.AddMsg($"对局 KDA 评估已注入 {sentCount}/{messages.Count} 条，对局结束或设置关闭后停止发送。");
             }
             catch (Exception ex)
             {
-                if (IsDisposed || signature != _gameAssessmentSignature) return;
+                if (IsDisposed || generation != _gameAssessmentGeneration) return;
                 GameMain.infoMsg.AddMsg($"对局双方近期 KDA 评估未发送：{ex.Message}");
                 RuntimeDiagnostics.Report("对局 KDA 评估", "发送失败", ex.Message);
+            }
+            finally
+            {
+                if (!IsDisposed && generation == _gameAssessmentGeneration)
+                    _gameAssessmentSending = false;
             }
         }
 

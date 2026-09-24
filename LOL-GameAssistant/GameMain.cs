@@ -75,10 +75,10 @@ namespace LOL_GameAssistant
             _quickMessageController.TestChatOpenAsync();
 
         public Task<GameShoutSendResult> SendGameKdaAnnouncementAsync(
-            IReadOnlyList<string> messages, AssistantSettings settings) =>
+            IReadOnlyList<string> messages, AssistantSettings settings, bool requireForeground = false) =>
             _quickMessageController.SendBatchToGameAsync(messages,
                 settings.QuickShoutSendToAll, settings.QuickShoutUseClipboard,
-                settings.QuickMessageSendIntervalSeconds);
+                settings.QuickMessageSendIntervalSeconds, requireForeground);
 
         public void ConfigureQuickShoutHotkeys(AssistantSettings config) =>
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
@@ -500,6 +500,17 @@ namespace LOL_GameAssistant
                     if (IsDisposed || cancellationToken.IsCancellationRequested ||
                         gameFlowPhase != expectedPhase) return;
 
+                    await liveGameForm.AddView(force: true);
+                }
+                // 刚进入对局时 LCU 当前阵容可能比 gameflow 事件晚很多才就绪。
+                // 即使用户留在游戏窗口、未打开对局页，也继续寻找本局 KDA 名单。
+                while (!cancellationToken.IsCancellationRequested &&
+                       gameFlowPhase == expectedPhase && expectedPhase == GameFlowPhase.InProgress &&
+                       liveGameForm.NeedsGameAssessmentRoster)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    if (IsDisposed || cancellationToken.IsCancellationRequested ||
+                        gameFlowPhase != expectedPhase) return;
                     await liveGameForm.AddView(force: true);
                 }
             }
