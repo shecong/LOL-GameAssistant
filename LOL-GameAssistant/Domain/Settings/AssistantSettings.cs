@@ -28,6 +28,8 @@ public sealed class AssistantSettings
     public bool ChampSelectKdaAnnouncementEnabled { get; set; }
     /// <summary>对局中双方近期 KDA 评估齐备后，通过游戏内喊话发送一次。</summary>
     public bool GameKdaAnnouncementEnabled { get; set; }
+    /// <summary>对局 KDA 喊话中每名玩家单独发送一条；默认按蓝红双方各汇总一条。</summary>
+    public bool GameKdaOnePlayerPerLine { get; set; }
     /// <summary>选人 KDA 汇总消息模板，支持 {players}、{allies}、{enemies} 占位符。</summary>
     public string ChampSelectKdaAnnouncementTemplate { get; set; } = "【选人近期 KDA 评估】\n{allies}\n{enemies}";
     public CloudAiSettings Ai { get; set; } = new();

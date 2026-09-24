@@ -6,28 +6,102 @@ public sealed record GameKdaPlayerSummary(
     string DisplayName,
     RecentModePerformanceAssessment? Assessment);
 
-/// <summary>按蓝方、红方顺序为每名玩家生成一条游戏聊天消息。</summary>
+/// <summary>每名玩家生成一条简短的游戏聊天消息，避免多人在同一条消息内自动折行。</summary>
 public static class GameKdaAnnouncementBuilder
 {
-    public static IReadOnlyList<string> Build(IReadOnlyList<GameKdaPlayerSummary> players)
+    private const int MaximumTeamMessageLength = 300;
+    private const string PlayerSeparator = "      ";
+    // 2560×1440 默认聊天栏实测：所有人频道前缀后，正文约 30 个半角宽度仍可单行显示。
+    private const int MaximumBodyWidth = 30;
+
+    public static IReadOnlyList<string> Build(IReadOnlyList<GameKdaPlayerSummary> players,
+        bool onePlayerPerLine = false)
     {
         return players.GroupBy(player => player.Team)
-            .SelectMany(team => team.Select(player => FormatPlayer(team.Key, player)))
+            .SelectMany(team => onePlayerPerLine
+                ? team.Select(player => FormatPlayer(team.Key, player))
+                : new[] { BuildTeamMessage(team.Key, team.ToArray()) })
             .ToArray();
+    }
+
+    private static string BuildTeamMessage(string team, IReadOnlyList<GameKdaPlayerSummary> players)
+    {
+        string heading = $"【本局近期KDA·{team}】 ";
+        foreach ((int nameLimit, bool compact) in new[]
+                 { (18, false), (12, false), (10, true), (8, true), (6, true) })
+        {
+            string message = heading + string.Join(PlayerSeparator,
+                players.Select(player => FormatTeamPlayer(player, nameLimit, compact)));
+            if (message.Length <= MaximumTeamMessageLength) return message;
+        }
+
+        return heading + string.Join(PlayerSeparator,
+            players.Select(player => FormatTeamPlayer(player, 4, true)));
+    }
+
+    private static string FormatTeamPlayer(GameKdaPlayerSummary player, int nameLimit, bool compact)
+    {
+        string name = NormalizeName(player.DisplayName);
+        if (name.Length > nameLimit) name = name[..nameLimit] + "…";
+        if (player.Assessment is not { SampleSize: > 0 } assessment)
+            return compact ? $"{name} 无数据" : $"{name} 近期KDA暂无可查";
+        if (!assessment.HasEnoughSample)
+            return compact
+                ? $"{name} 样本不足{assessment.SampleSize}/8 K{FormatKda(assessment.Kda, 1)}"
+                : $"{name} 样本不足{assessment.SampleSize}/8 KDA{FormatKda(assessment.Kda, 2)}";
+        string label = RecentPerformanceLabelFormatter.GetText(assessment);
+        return compact
+            ? $"{name} {label}{assessment.Score} KDA{FormatKda(assessment.Kda, 1)}"
+            : $"{name} {label}{assessment.Score}分 KDA{FormatKda(assessment.Kda, 2)}";
     }
 
     private static string FormatPlayer(string team, GameKdaPlayerSummary player)
     {
-        // 游戏聊天以 Enter 提交消息；先清掉名字中的换行，保证一名玩家只发送一条。
-        string name = string.IsNullOrWhiteSpace(player.DisplayName)
-            ? "未知玩家"
-            : string.Join(" ", player.DisplayName.Split((char[]?)null,
-                StringSplitOptions.RemoveEmptyEntries));
-        if (name.Length > 32) name = name[..32] + "…";
-        string prefix = $"【{team}近期KDA】{name} ";
-        if (player.Assessment is not { } assessment)
-            return prefix + "近期KDA暂无可查";
-        string label = RecentPerformanceLabelFormatter.GetText(assessment);
-        return $"{prefix}{label}{assessment.Score}分 KDA{assessment.Kda:F2}";
+        // 游戏聊天以 Enter 提交消息；名字中的换行不能传入按键模拟器。
+        string name = NormalizeName(player.DisplayName);
+        string teamLabel = team == "蓝方" ? "蓝" : team == "红方" ? "红" : team;
+        string detail = player.Assessment switch
+        {
+            not { SampleSize: > 0 } => "无近期数据",
+            { HasEnoughSample: false } assessment =>
+                $"样本不足{assessment.SampleSize}/8 K{FormatKda(assessment.Kda, 1)}",
+            { } assessment =>
+                $"{RecentPerformanceLabelFormatter.GetText(assessment)}{assessment.Score} K{FormatKda(assessment.Kda, 1)}"
+        };
+        int nameWidth = Math.Max(2, MaximumBodyWidth - DisplayWidth(teamLabel) - 2 - DisplayWidth(detail));
+        return $"{teamLabel} {ShortenToDisplayWidth(name, nameWidth)} {detail}";
+    }
+
+    private static string NormalizeName(string displayName) => string.IsNullOrWhiteSpace(displayName)
+        ? "未知玩家"
+        : string.Join(" ", displayName.Split((char[]?)null,
+            StringSplitOptions.RemoveEmptyEntries));
+
+    private static string ShortenToDisplayWidth(string value, int maximumWidth)
+    {
+        if (DisplayWidth(value) <= maximumWidth) return value;
+        int width = 0;
+        int index = 0;
+        foreach (var rune in value.EnumerateRunes())
+        {
+            int runeWidth = rune.Value <= 0x7f ? 1 : 2;
+            if (width + runeWidth > maximumWidth - 2)
+                return value[..index] + "…";
+            width += runeWidth;
+            index += rune.Utf16SequenceLength;
+        }
+        return value;
+    }
+
+    private static int DisplayWidth(string value) => value.EnumerateRunes()
+        .Sum(rune => rune.Value <= 0x7f ? 1 : 2);
+
+    // 发送文案截断小数，避免 2.19→2.2 或 4.49→4.5 的四舍五入让数值看起来跨过分档线。
+    private static string FormatKda(double value, int decimals)
+    {
+        decimal factor = decimals == 1 ? 10m : 100m;
+        decimal nonNegative = (decimal)Math.Max(0, value);
+        decimal truncated = Math.Truncate(nonNegative * factor) / factor;
+        return truncated.ToString($"F{decimals}");
     }
 }

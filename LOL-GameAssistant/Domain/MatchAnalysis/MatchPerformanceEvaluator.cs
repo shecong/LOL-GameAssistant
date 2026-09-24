@@ -128,7 +128,7 @@ public static class RecentModePerformanceEvaluator
     /// <summary>默认样本下限；选人公告等场景可传入更大的样本数。</summary>
     public const int RequiredSampleSize = 8;
 
-    /// <summary>下等马档位的分数上限，供样本不足时把分数压回该档使用。</summary>
+    /// <summary>下等马档位的分数上限。</summary>
     public const int LowerTierMaxScore = 59;
     public const double HumanKdaThreshold = 1.0;
     public const double LowerKdaThreshold = 2.2;
@@ -138,10 +138,12 @@ public static class RecentModePerformanceEvaluator
         string mode,
         IEnumerable<MatchPerformanceAssessment> performances,
         IEnumerable<bool> wins,
-        int requiredSampleSize = RequiredSampleSize)
+        int requiredSampleSize = RequiredSampleSize,
+        int? maximumSampleSize = null)
     {
-        var performanceList = performances.Take(requiredSampleSize).ToList();
-        var resultList = wins.Take(requiredSampleSize).ToList();
+        int takeCount = Math.Max(requiredSampleSize, maximumSampleSize ?? requiredSampleSize);
+        var performanceList = performances.Take(takeCount).ToList();
+        var resultList = wins.Take(takeCount).ToList();
         int sampleSize = Math.Min(performanceList.Count, resultList.Count);
         if (sampleSize == 0)
         {

@@ -45,6 +45,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly CheckBox _opggBuildAssistantEnabled = new() { Text = "启用 OP.GG 选人出装与符文推荐", AutoSize = true };
         private readonly CheckBox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
         private readonly CheckBox _gameKdaAnnouncementEnabled = new() { Text = "对局中发送双方玩家近期 KDA 评估", AutoSize = true };
+        private readonly CheckBox _gameKdaOnePlayerPerLine = new() { Text = "每名玩家单独发送一条（单人一行）", AutoSize = true };
         private readonly TextBox _champSelectKdaAnnouncementTemplate = new() { Dock = DockStyle.Fill, Multiline = true, Height = 86, ScrollBars = ScrollBars.Vertical };
         private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210 };
 
@@ -420,6 +421,9 @@ namespace LOL_GameAssistant.BaseViewForm
             var layout = CreateSegmentLayout();
             panel.Controls.Add(layout);
 
+            _gameKdaAnnouncementEnabled.CheckedChanged += (_, _) =>
+                _gameKdaOnePlayerPerLine.Enabled = _gameKdaAnnouncementEnabled.Checked;
+
             _provider.Items.AddRange(Enum.GetValues<LOL_GameAssistant.Domain.Settings.AiProvider>().Cast<object>().ToArray());
             _provider.SelectedIndexChanged += (_, _) => ApplyProviderDefaults();
             _apiKey.TextChanged += (_, _) =>
@@ -465,7 +469,7 @@ namespace LOL_GameAssistant.BaseViewForm
             var overlayNote = CreateNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
             var privacyNote = CreateNote("隐私说明：启用 AI 时间线建议并主动保存后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商以生成建议；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据，也不会显示替代建议。");
             var opggNote = CreateNote("开启后，助手会在选人阶段检测到你已选定英雄时弹出图文方案。选中并点击应用后，才会从 OP.GG 读取公开推荐，并写入本机客户端的符文页与自定义物品集；取消不会修改任何内容。若自定义符文页已满，会就地改写当前正在使用的符文页（不删除任何页面），不会清理其它自定义页。");
-            var kdaAnnouncementNote = CreateNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送汇总蓝方与红方，通过喊话页的游戏内发送方式与“所有人”选项发送一次。两者均取最近同队列的 20 场已结束对局；不足 20 场按下等马处理。若对局玩家资料暂不可查，会在消息中明确标注。选人模板支持 {players}、{allies}。");
+            var kdaAnnouncementNote = CreateNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者最多统计最近同队列的 20 场已结束对局，满 8 场按累计 KDA 分档；不足 8 场标“样本不足”。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
 
             AddSegmentRow(layout, 0, "AI 时间线：", _recommendationEnabled,
                 "开启后按设定间隔采集对局上下文并请求 AI 生成时间线建议；关闭则不请求，也不发送任何数据。");
@@ -478,32 +482,34 @@ namespace LOL_GameAssistant.BaseViewForm
                 "发送用的模板，支持 {players} 与 {allies}（两者内容相同，都是我方名单）。");
             AddSegmentRow(layout, 5, "对局 KDA 发送：", _gameKdaAnnouncementEnabled,
                 "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。");
-            AddSegmentRow(layout, 6, "KDA 说明：", kdaAnnouncementNote);
-            AddSegmentRow(layout, 7, "服务商：", providerPanel,
+            AddSegmentRow(layout, 6, "对局发送排版：", _gameKdaOnePlayerPerLine,
+                "勾选后每名玩家各发一条，游戏聊天中每人占一行；不勾选时蓝方、红方各发一条。仅在“对局 KDA 发送”开启时生效。");
+            AddSegmentRow(layout, 7, "KDA 说明：", kdaAnnouncementNote);
+            AddSegmentRow(layout, 8, "服务商：", providerPanel,
                 "这一行有三个按钮：“获取 API Key”打开服务商密钥页；“获取可用模型”用当前密钥读取服务端支持的模型名；“测试连接”用当前填写的服务商、模型与密钥发一次最小请求。");
-            AddSegmentRow(layout, 8, "模型名称：", _model,
+            AddSegmentRow(layout, 9, "模型名称：", _model,
                 "要调用的模型名，建议先点“获取可用模型”再从这里选。模型名由服务商决定，写错时只会得到 400。");
-            AddSegmentRow(layout, 9, "接口地址：", _baseUrl,
+            AddSegmentRow(layout, 10, "接口地址：", _baseUrl,
                 "API 基础地址；切换服务商时会自动填好，使用默认地址时不用改。");
-            AddSegmentRow(layout, 10, "API Key：", keyPanel,
+            AddSegmentRow(layout, 11, "API Key：", keyPanel,
                 "填写后保存即可。已保存的密钥不会回显，留空保存表示保留原密钥；“清除已保存密钥”会在下次保存时删除它。");
-            AddSegmentRow(layout, 11, "密钥状态：", _apiKeyStatus,
+            AddSegmentRow(layout, 12, "密钥状态：", _apiKeyStatus,
                 "当前密钥的保存状态；密钥使用 Windows 用户级加密存放。");
-            AddSegmentRow(layout, 12, "连通性：", _aiTestStatus,
+            AddSegmentRow(layout, 13, "连通性：", _aiTestStatus,
                 "“测试连接”的结果，会显示服务端返回的真实原因，例如模型名称不存在、Key 无效或余额不足。");
-            AddSegmentRow(layout, 13, "数据与隐私：", privacyNote);
-            AddSegmentRow(layout, 14, "动态建议：", refreshPanel,
+            AddSegmentRow(layout, 14, "数据与隐私：", privacyNote);
+            AddSegmentRow(layout, 15, "动态建议：", refreshPanel,
                 "对局中按间隔自动重新生成建议；间隔越长越省额度。");
-            AddSegmentRow(layout, 15, "建议提醒：", _showPopup,
+            AddSegmentRow(layout, 16, "建议提醒：", _showPopup,
                 "生成新建议后弹出提醒。与“游戏内浮窗”共用同一个显示，两者任一开启就会弹出浮窗。");
-            AddSegmentRow(layout, 16, "游戏内浮窗：", _overlayEnabled,
+            AddSegmentRow(layout, 17, "游戏内浮窗：", _overlayEnabled,
                 "在游戏内显示建议浮窗，背景透明只显示文字，不抢键盘焦点；关闭后建议只会更新到“智能建议”页。");
-            AddSegmentRow(layout, 17, "浮窗位置：", _overlayPosition,
+            AddSegmentRow(layout, 18, "浮窗位置：", _overlayPosition,
                 "浮窗停靠的屏幕角落。");
-            AddSegmentRow(layout, 18, "位置与时长：", overlayOffsetPanel,
+            AddSegmentRow(layout, 19, "位置与时长：", overlayOffsetPanel,
                 "横向/纵向偏移以所选角落为基准；停留秒数是浮窗自动隐藏前的显示时长。");
-            AddSegmentRow(layout, 19, "浮窗说明：", overlayNote);
-            AddSaveRow(layout, 20, "保存 AI 设置");
+            AddSegmentRow(layout, 20, "浮窗说明：", overlayNote);
+            AddSaveRow(layout, 21, "保存 AI 设置");
             return panel;
         }
 
@@ -614,6 +620,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _opggBuildAssistantEnabled.Checked = _config.OpggBuildAssistantEnabled;
             _champSelectKdaAnnouncementEnabled.Checked = _config.ChampSelectKdaAnnouncementEnabled;
             _gameKdaAnnouncementEnabled.Checked = _config.GameKdaAnnouncementEnabled;
+            _gameKdaOnePlayerPerLine.Checked = _config.GameKdaOnePlayerPerLine;
+            _gameKdaOnePlayerPerLine.Enabled = _config.GameKdaAnnouncementEnabled;
             _champSelectKdaAnnouncementTemplate.Text = _config.ChampSelectKdaAnnouncementTemplate;
             _provider.SelectedItem = ai.Provider;
             if (_provider.SelectedIndex < 0) _provider.SelectedItem = LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
@@ -646,6 +654,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.OpggBuildAssistantEnabled = _opggBuildAssistantEnabled.Checked;
             _config.ChampSelectKdaAnnouncementEnabled = _champSelectKdaAnnouncementEnabled.Checked;
             _config.GameKdaAnnouncementEnabled = _gameKdaAnnouncementEnabled.Checked;
+            _config.GameKdaOnePlayerPerLine = _gameKdaOnePlayerPerLine.Checked;
             _config.ChampSelectKdaAnnouncementTemplate = _champSelectKdaAnnouncementTemplate.Text;
             ai.Provider = _provider.SelectedItem is LOL_GameAssistant.Domain.Settings.AiProvider provider
                 ? provider

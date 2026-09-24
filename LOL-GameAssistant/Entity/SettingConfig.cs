@@ -53,6 +53,9 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("gameKdaAnnouncementEnabled")]
         public bool GameKdaAnnouncementEnabled { get; set; } = false;
 
+        [JsonProperty("gameKdaOnePlayerPerLine")]
+        public bool GameKdaOnePlayerPerLine { get; set; } = false;
+
         [JsonProperty("champSelectKdaAnnouncementTemplate")]
         public string ChampSelectKdaAnnouncementTemplate { get; set; } = "【选人近期 KDA 评估】\n{allies}";
 

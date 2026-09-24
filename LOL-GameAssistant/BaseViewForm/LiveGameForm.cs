@@ -640,7 +640,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 return new GameKdaPlayerSummary(member.Team,
                     result?.DisplayName ?? member.Name, result?.Assessment);
             }).ToArray();
-            IReadOnlyList<string> messages = GameKdaAnnouncementBuilder.Build(players);
+            IReadOnlyList<string> messages = GameKdaAnnouncementBuilder.Build(players,
+                settings.GameKdaOnePlayerPerLine);
             if (messages.Count == 0) return;
 
             _gameAssessmentSending = true;

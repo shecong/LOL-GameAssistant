@@ -36,8 +36,9 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>评分取数范围：先拉 100 场摘要，再按同队列筛出评分样本。</summary>
         private const int HistoryFetchCount = 100;
 
-        /// <summary>对局页/选人公告的评分样本下限；不足此数（含一场都没有）一律按下等马处理。</summary>
-        private const int PerformanceSampleSize = 20;
+        /// <summary>最多统计最近 20 场同队列战绩；满 8 场即可按 KDA 分档。</summary>
+        private const int MaximumPerformanceSampleSize = 20;
+        private const int MinimumPerformanceSampleSize = RecentModePerformanceEvaluator.RequiredSampleSize;
         private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
@@ -514,7 +515,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 评分只统计与当前队列相同的近期已结束对局，并排除重开局；
         /// 数据取自战绩摘要（已含本人 KDA 与胜负），因此不必为评分逐场拉详情。
-        /// 样本不足 <see cref="PerformanceSampleSize"/> 场（含一场都没有）一律按下等马处理。
+        /// 少于 <see cref="MinimumPerformanceSampleSize"/> 场时标注样本不足，不推断玩家表现。
         /// </summary>
         private RecentModePerformanceAssessment ApplyLivePerformanceTag(
             IReadOnlyList<MatchHistoryGame> history,
@@ -527,7 +528,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 .Where(IsComparableMode)
                 .Where(game => game.IsCompletedGame())
                 .OrderByDescending(game => game.GameCreation)
-                .Take(PerformanceSampleSize)
+                .Take(MaximumPerformanceSampleSize)
                 .ToList();
 
             var assessments = new List<MatchPerformanceAssessment>();
@@ -546,8 +547,8 @@ namespace LOL_GameAssistant.BaseViewForm
             RecentModePerformanceAssessment assessment = comparable.Count == 0
                 ? CreateInsufficientPerformanceAssessment()
                 : RecentModePerformanceEvaluator.Evaluate(
-                    comparable[0].GetModeText(), assessments, wins, PerformanceSampleSize);
-            if (!assessment.HasEnoughSample) assessment = AsLowerTier(assessment);
+                    comparable[0].GetModeText(), assessments, wins,
+                    MinimumPerformanceSampleSize, MaximumPerformanceSampleSize);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);
             lblSummary.Text = comparable.Count == 0 ? label : $"{label} · KDA {assessment.Kda:F2}";
@@ -562,29 +563,17 @@ namespace LOL_GameAssistant.BaseViewForm
                 ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
                 : "暂无战绩";
             _performanceTip.SetToolTip(lblSummary, comparable.Count == 0
-                ? $"没有可用于判定的同队列战绩，按下等马处理。{recentRecord}"
+                ? $"没有可用于判定的同队列战绩，暂不分档。{recentRecord}"
                 : assessment.Detail);
             return assessment;
         }
 
-        /// <summary>
-        /// 样本不足时不下“数据不足”的结论，直接按下等马处理；
-        /// 分数一并压回下等马区间，避免出现“下等马 87分”这种自相矛盾的一行。
-        /// </summary>
-        private static RecentModePerformanceAssessment AsLowerTier(RecentModePerformanceAssessment assessment) =>
-            assessment with
-            {
-                Tier = MatchPerformanceTier.Lower,
-                Label = RecentPerformanceLabel.Lower,
-                Score = Math.Min(assessment.Score, RecentModePerformanceEvaluator.LowerTierMaxScore)
-            };
-
         private RecentModePerformanceAssessment CreateInsufficientPerformanceAssessment() =>
-            AsLowerTier(RecentModePerformanceEvaluator.Evaluate(
+            RecentModePerformanceEvaluator.Evaluate(
                 string.IsNullOrWhiteSpace(_currentGameMode) ? "当前队列" : _currentGameMode,
                 Array.Empty<MatchPerformanceAssessment>(),
                 Array.Empty<bool>(),
-                PerformanceSampleSize));
+                MinimumPerformanceSampleSize, MaximumPerformanceSampleSize);
 
         private void PublishRecentPerformance(RecentModePerformanceAssessment assessment)
         {

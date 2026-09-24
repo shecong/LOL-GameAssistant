@@ -81,6 +81,24 @@ public sealed class RecentModePerformanceEvaluatorTests
     }
 
     [Fact]
+    public void EightGamesAreEnoughWhileUsingUpToTwentyForKda()
+    {
+        var performances = Enumerable.Range(0, 12)
+            .Select(index => new MatchPerformanceAssessment(
+                MatchPerformanceTier.Medium, 50, "test",
+                index < 8 ? 1 : 8, 1, 0));
+
+        RecentModePerformanceAssessment result = RecentModePerformanceEvaluator.Evaluate(
+            "单双排", performances, Enumerable.Repeat(true, 12),
+            requiredSampleSize: 8, maximumSampleSize: 20);
+
+        Assert.True(result.HasEnoughSample);
+        Assert.Equal(12, result.SampleSize);
+        Assert.Equal(40D / 12, result.Kda, 2);
+        Assert.Equal(RecentPerformanceLabel.Medium, result.Label);
+    }
+
+    [Fact]
     public void WinRateIsReportedOverTheSameSampleAsKda()
     {
         RecentModePerformanceAssessment result = Evaluate(20, kills: 1, deaths: 4, assists: 2, requiredSampleSize: 20);
