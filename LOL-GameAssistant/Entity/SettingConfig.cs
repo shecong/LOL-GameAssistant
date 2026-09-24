@@ -30,26 +30,18 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("holdToTopOnlyWhenLeagueFocused")]
         public bool HoldToTopOnlyWhenLeagueFocused { get; set; } = true;
 
-        /// <summary>旧版“复制到剪贴板”开关，仅为兼容已有 settings.json 保留。</summary>
-        [JsonProperty("quickMessageClipboardEnabled")]
-        public bool QuickMessageClipboardEnabled { get; set; } = false;
-
-        /// <summary>是否启用用户快捷键触发的一次性弹幕自动发送。</summary>
-        [JsonProperty("quickMessageAutoSendEnabled")]
-        public bool QuickMessageAutoSendEnabled { get; set; } = false;
-
-        /// <summary>两次快捷弹幕发送的最小间隔（秒），避免误触连续发送。</summary>
+        /// <summary>两次主动喊话的最小间隔（秒）。</summary>
         [JsonProperty("quickMessageSendIntervalSeconds")]
         public int QuickMessageSendIntervalSeconds { get; set; } = 3;
 
-        [JsonProperty("quickMessageLanguage")]
-        public string QuickMessageLanguage { get; set; } = "中文";
-
-        [JsonProperty("quickMessageText")]
-        public string QuickMessageText { get; set; } = "我去支援，请注意地图。";
-
-        [JsonProperty("quickMessageHotkey")]
-        public string QuickMessageHotkey { get; set; } = "F8";
+        [JsonProperty("quickMessageCustomPhrases")]
+        public string QuickMessageCustomPhrases { get; set; } = "";
+        public bool QuickShoutPerCharacter { get; set; }
+        public bool QuickShoutSendToAll { get; set; }
+        public bool QuickShoutUseClipboard { get; set; }
+        public bool QuickShoutHotkeysEnabled { get; set; } = true;
+        public string QuickShoutBuiltInHotkey { get; set; } = "F6";
+        public string QuickShoutCustomHotkey { get; set; } = "F7";
 
         /// <summary>是否在选人后显示 OP.GG 图文出装与符文选择器。</summary>
         [JsonProperty("opggBuildAssistantEnabled")]
@@ -57,6 +49,9 @@ namespace LOL_GameAssistant.Entity
 
         [JsonProperty("champSelectKdaAnnouncementEnabled")]
         public bool ChampSelectKdaAnnouncementEnabled { get; set; } = false;
+
+        [JsonProperty("gameKdaAnnouncementEnabled")]
+        public bool GameKdaAnnouncementEnabled { get; set; } = false;
 
         [JsonProperty("champSelectKdaAnnouncementTemplate")]
         public string ChampSelectKdaAnnouncementTemplate { get; set; } = "【选人近期 KDA 评估】\n{allies}";
@@ -73,6 +68,12 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("autoAccept")]
         public bool AutoAccept { get; set; } = false;
 
+        [JsonProperty("autoAcceptDelayMinMilliseconds")]
+        public int AutoAcceptDelayMinMilliseconds { get; set; } = 0;
+
+        [JsonProperty("autoAcceptDelayMaxMilliseconds")]
+        public int AutoAcceptDelayMaxMilliseconds { get; set; } = 0;
+
         /// <summary>自动禁用英雄</summary>
         [JsonProperty("autoBan")]
         public bool AutoBan { get; set; } = false;
@@ -80,6 +81,14 @@ namespace LOL_GameAssistant.Entity
         /// <summary>自动选用英雄</summary>
         [JsonProperty("autoPick")]
         public bool AutoPick { get; set; } = false;
+
+        /// <summary>只预选、不锁定；适合不希望助手代替最终确认的场景。</summary>
+        [JsonProperty("autoPickPreselectOnly")]
+        public bool AutoPickPreselectOnly { get; set; } = false;
+
+        /// <summary>被补到非主/副位置时停止自动选人。</summary>
+        [JsonProperty("skipAutoPickOnFill")]
+        public bool SkipAutoPickOnFill { get; set; } = true;
 
         /// <summary>禁用英雄列表</summary>
         [JsonProperty("banChampions")]
@@ -113,6 +122,22 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("notifyOnGameEnd")]
         public bool NotifyOnGameEnd { get; set; } = true;
 
+        [JsonProperty("autoReturnToLobby")]
+        public bool AutoReturnToLobby { get; set; } = false;
+
+        [JsonProperty("autoReturnStartMatchmaking")]
+        public bool AutoReturnStartMatchmaking { get; set; } = false;
+
+        [JsonProperty("autoHonor")]
+        public bool AutoHonor { get; set; } = false;
+
+        [JsonProperty("quickLobbyQueueId")]
+        public int QuickLobbyQueueId { get; set; } = 430;
+
+        /// <summary>用户明确选过的 OP.GG 路线：英雄/模式/分路 → 路线序号。</summary>
+        [JsonProperty("opggManualBuildSelections")]
+        public Dictionary<string, int> OpggManualBuildSelections { get; set; } = new();
+
         /// <summary>开机自动启动</summary>
         [JsonProperty("launchOnStartup")]
         public bool LaunchOnStartup { get; set; } = false;
@@ -124,14 +149,20 @@ namespace LOL_GameAssistant.Entity
             ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
             WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
             HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
-            QuickMessageLanguage = string.IsNullOrWhiteSpace(QuickMessageLanguage) ? "中文" : QuickMessageLanguage;
-            QuickMessageText ??= "";
-            QuickMessageHotkey = string.IsNullOrWhiteSpace(QuickMessageHotkey) ? "F8" : QuickMessageHotkey;
+            QuickMessageCustomPhrases ??= "";
+            QuickShoutBuiltInHotkey = string.IsNullOrWhiteSpace(QuickShoutBuiltInHotkey) ? "F6" : QuickShoutBuiltInHotkey;
+            QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
             QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
+            AutoAcceptDelayMinMilliseconds = Math.Clamp(AutoAcceptDelayMinMilliseconds, 0, 15000);
+            AutoAcceptDelayMaxMilliseconds = Math.Clamp(AutoAcceptDelayMaxMilliseconds, 0, 15000);
+            if (AutoAcceptDelayMinMilliseconds > AutoAcceptDelayMaxMilliseconds)
+                (AutoAcceptDelayMinMilliseconds, AutoAcceptDelayMaxMilliseconds) = (0, 0);
             ChampSelectKdaAnnouncementTemplate = string.IsNullOrWhiteSpace(ChampSelectKdaAnnouncementTemplate)
                 ? "【选人近期 KDA 评估】\n{allies}"
                 : ChampSelectKdaAnnouncementTemplate.Trim()[..Math.Min(800, ChampSelectKdaAnnouncementTemplate.Trim().Length)];
             Ai.Normalize();
+            QuickLobbyQueueId = Math.Max(1, QuickLobbyQueueId);
+            OpggManualBuildSelections ??= new Dictionary<string, int>();
         }
     }
 

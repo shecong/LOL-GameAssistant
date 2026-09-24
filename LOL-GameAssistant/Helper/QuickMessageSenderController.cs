@@ -1,134 +1,149 @@
-using LOL_GameAssistant.Domain.Settings;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
+using WindowsInput;
+using WindowsInput.Events;
 
 namespace LOL_GameAssistant.Helper;
 
-/// <summary>
-/// 处理用户主动触发的局内快捷弹幕。
-/// 仅在 LOL 对局窗口位于前台时发送一次，不提供后台循环、定时或批量刷屏能力。
-/// </summary>
-public sealed class QuickMessageSenderController : NativeWindow, IDisposable
+/// <summary>在对局窗口前台执行 ZuAnBot 使用的 WindowsInput 聊天按键序列。</summary>
+public sealed class QuickMessageSenderController : IDisposable
 {
-    private const int WmHotkey = 0x0312;
-    private const int HotkeyId = 0x4C4F4C;
-    private const uint InputKeyboard = 1;
-    private const uint KeyEventFKeyUp = 0x0002;
-    private const uint KeyEventFUnicode = 0x0004;
-    private const int ChatOpenDelayMilliseconds = 130;
-    private const int PasteSettleDelayMilliseconds = 90;
-
-    private readonly Form _owner;
-    private Keys _registeredKey = Keys.None;
-    private string _message = "";
-    private string _language = "中文";
-    private int _minimumIntervalSeconds = 3;
     private DateTime _lastSentAtUtc = DateTime.MinValue;
     private int _sending;
-    private bool _disposed;
 
-    public QuickMessageSenderController(Form owner)
+    public QuickMessageSenderController(Form owner) { }
+
+    public async Task<GameShoutSendResult> TestChatOpenAsync()
     {
-        _owner = owner;
-        AssignHandle(owner.Handle);
-    }
-
-    /// <summary>应用保存后的配置，并重新注册当前快捷键。</summary>
-    public void Apply(AssistantSettings config)
-    {
-        Unregister();
-        _message = config.QuickMessageText?.Trim() ?? "";
-        _language = config.QuickMessageLanguage;
-        _minimumIntervalSeconds = Math.Clamp(config.QuickMessageSendIntervalSeconds, 2, 30);
-        if (!config.QuickMessageAutoSendEnabled || string.IsNullOrWhiteSpace(_message))
-        {
-            RuntimeDiagnostics.Report("快捷消息", "已关闭", "未启用或消息内容为空");
-            return;
-        }
-
-        Keys key = WindowHoldController.ParseKey(config.QuickMessageHotkey);
-        if (!RegisterHotKey(Handle, HotkeyId, 0, (uint)key))
-        {
-            GameMain.infoMsg.AddMsg("快捷弹幕键注册失败，可能已被系统或其它程序占用。");
-            RuntimeDiagnostics.Report("快捷消息", "不可用", "快捷键被系统或其它程序占用");
-            return;
-        }
-        _registeredKey = key;
-        RuntimeDiagnostics.Report("快捷消息", "已注册", $"{WindowHoldController.DescribeKey(key)} · {_language} · 间隔 {_minimumIntervalSeconds} 秒");
-    }
-
-    protected override void WndProc(ref Message m)
-    {
-        if (m.Msg == WmHotkey && m.WParam == (IntPtr)HotkeyId)
-        {
-            _ = SendOnceAsync();
-            return;
-        }
-        base.WndProc(ref m);
-    }
-
-    /// <summary>
-    /// 由用户热键触发一次发送。通过前台窗口验证和最小间隔避免向错误程序或连续误触发送内容。
-    /// </summary>
-    private async Task SendOnceAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_message) || Interlocked.Exchange(ref _sending, 1) != 0) return;
+        GameShoutSendResult? focusError = await FocusGameAsync();
+        if (focusError.HasValue) return focusError.Value;
 
         try
         {
-            DateTime now = DateTime.UtcNow;
-            TimeSpan elapsed = now - _lastSentAtUtc;
-            if (elapsed.TotalSeconds < _minimumIntervalSeconds)
-            {
-                int remaining = Math.Max(1, _minimumIntervalSeconds - (int)Math.Floor(elapsed.TotalSeconds));
-                GameMain.infoMsg.AddMsg($"快捷弹幕冷却中，请在 {remaining} 秒后再试。");
-                RuntimeDiagnostics.Report("快捷消息", "冷却中", $"还需等待 {remaining} 秒");
-                return;
-            }
+            await Simulate.Events().Click(KeyCode.Enter).Wait(100).Invoke();
+            RuntimeDiagnostics.Report("游戏回车测试", "按键已注入", "WindowsInput 点击 Enter；请目视确认游戏聊天框是否打开");
+            return new(true, "已通过 WindowsInput 注入一次回车；请确认聊天框是否打开。");
+        }
+        catch (Exception ex)
+        {
+            RuntimeDiagnostics.Report("游戏回车测试", "输入失败", ex.Message);
+            return new(false, $"回车测试失败：{ex.Message}");
+        }
+    }
 
+    public async Task<GameShoutSendResult> SendSelectedToGameAsync(string message, bool sendToAll,
+        bool useClipboard, bool perCharacter, int minimumIntervalSeconds)
+    {
+        string body = message.Trim();
+        if (body.Length == 0 || body.Length > 500)
+            return new(false, "短句为空或超过 500 字。");
+        if (Volatile.Read(ref _sending) != 0)
+            return new(false, "上一条喊话仍在发送，请稍候。");
+
+        int interval = Math.Clamp(minimumIntervalSeconds, 2, 30);
+        TimeSpan elapsed = DateTime.UtcNow - _lastSentAtUtc;
+        if (elapsed.TotalSeconds < interval)
+            return new(false, $"发送冷却中，还需等待 {Math.Max(1, interval - (int)Math.Floor(elapsed.TotalSeconds))} 秒。");
+
+        GameShoutSendResult? focusError = await FocusGameAsync();
+        if (focusError.HasValue) return focusError.Value;
+        return await SendOnceAsync(body, sendToAll, useClipboard, perCharacter, interval);
+    }
+
+    /// <summary>按同一游戏内喊话序列依次发送多条短消息，用于双方 KDA 汇总。</summary>
+    public async Task<GameShoutSendResult> SendBatchToGameAsync(IReadOnlyList<string> messages,
+        bool sendToAll, bool useClipboard, int minimumIntervalSeconds)
+    {
+        if (messages.Count == 0 || messages.Count > 10 ||
+            messages.Any(message => string.IsNullOrWhiteSpace(message) || message.Length > 500))
+            return new(false, "游戏内 KDA 汇总内容为空、过长或消息数量过多。");
+        if (Interlocked.Exchange(ref _sending, 1) != 0)
+            return new(false, "另一条游戏内喊话正在发送。");
+
+        try
+        {
+            int interval = Math.Clamp(minimumIntervalSeconds, 2, 30);
+            TimeSpan elapsed = DateTime.UtcNow - _lastSentAtUtc;
+            if (elapsed.TotalSeconds < interval)
+                await Task.Delay(TimeSpan.FromSeconds(interval - elapsed.TotalSeconds));
+
+            GameShoutSendResult? focusError = await FocusGameAsync();
+            if (focusError.HasValue) return focusError.Value;
+            for (int index = 0; index < messages.Count; index++)
+            {
+                if (!IsLeagueGameForeground())
+                    return new(false, $"游戏失去前台焦点；已注入 {index}/{messages.Count} 条 KDA 汇总。");
+                string text = sendToAll ? "/all " + messages[index] : messages[index];
+                GameShoutSendResult result = await SendChatLineAsync(text, useClipboard);
+                if (!result.Succeeded) return result;
+                _lastSentAtUtc = DateTime.UtcNow;
+                if (index < messages.Count - 1)
+                    await Task.Delay(TimeSpan.FromSeconds(interval));
+            }
+            RuntimeDiagnostics.Report("对局 KDA 评估", "按键已注入",
+                $"已通过 WindowsInput 依次注入 {messages.Count} 条；游戏端没有送达回执");
+            return new(true, $"已注入双方 KDA 汇总（{messages.Count} 条）；请在游戏聊天中确认。");
+        }
+        finally { Volatile.Write(ref _sending, 0); }
+    }
+
+    private async Task<GameShoutSendResult?> FocusGameAsync()
+    {
+        if (IsLeagueGameForeground()) return null;
+
+        using Process? game = Process.GetProcessesByName("League of Legends")
+            .FirstOrDefault(process => process.MainWindowHandle != IntPtr.Zero);
+        if (game == null)
+            return new GameShoutSendResult(false, "未找到正在运行的英雄联盟对局。");
+
+        SetForegroundWindow(game.MainWindowHandle);
+        for (int attempt = 0; attempt < 8 && !IsLeagueGameForeground(); attempt++)
+            await Task.Delay(200);
+        if (!IsLeagueGameForeground())
+            return new GameShoutSendResult(false, "游戏窗口未获得前台焦点；可在游戏内用快捷键喊话。");
+
+        // 按钮切换到全屏游戏后，给游戏一段时间恢复输入焦点。
+        await Task.Delay(900);
+        return IsLeagueGameForeground()
+            ? null
+            : new GameShoutSendResult(false, "等待输入焦点时游戏窗口离开前台，未发送。");
+    }
+
+    private async Task<GameShoutSendResult> SendOnceAsync(string message, bool sendToAll,
+        bool useClipboard, bool perCharacter, int minimumIntervalSeconds)
+    {
+        if (Interlocked.Exchange(ref _sending, 1) != 0)
+            return new(false, "上一条喊话仍在发送，请稍候。");
+
+        try
+        {
+            TimeSpan elapsed = DateTime.UtcNow - _lastSentAtUtc;
+            if (elapsed.TotalSeconds < minimumIntervalSeconds)
+                return new(false, "发送冷却中，请稍候再试。");
             if (!IsLeagueGameForeground())
+                return new(false, "英雄联盟对局窗口不在前台，未发送。");
+
+            List<string> messages = BuildMessages(message, perCharacter);
+            if (messages.Count == 0)
+                return new(false, "短句没有可发送的文字。");
+            if (messages.Count > 40)
+                return new(false, "逐字发送最多支持 40 字，请缩短短句。");
+
+            for (int index = 0; index < messages.Count; index++)
             {
-                GameMain.infoMsg.AddMsg("未发送快捷弹幕：请先将英雄联盟对局窗口切到前台。");
-                RuntimeDiagnostics.Report("快捷消息", "未发送", "英雄联盟对局窗口不在前台");
-                return;
+                if (!IsLeagueGameForeground())
+                    return new(false, $"游戏失去前台焦点；已注入 {index} 条，后续未发送。");
+
+                string text = sendToAll ? "/all " + messages[index] : messages[index];
+                GameShoutSendResult result = await SendChatLineAsync(text, useClipboard);
+                if (!result.Succeeded) return result;
+                if (index == 0) _lastSentAtUtc = DateTime.UtcNow;
             }
 
-            InputResult openResult = SendVirtualKey((ushort)Keys.Enter);
-            if (!openResult.Succeeded)
-            {
-                ReportInputBlocked("打开聊天框", openResult.ErrorCode);
-                return;
-            }
-
-            ClipboardSnapshot clipboard = CaptureClipboard();
-            try
-            {
-                // 游戏对 Unicode SendInput 的支持因输入法/渲染后端而异，中文尤其常被吞。
-                // Paste retains CJK and special characters while still requiring an explicit user hotkey.
-                await Task.Delay(ChatOpenDelayMilliseconds).ConfigureAwait(true);
-                InputResult pasteResult = PasteText(_message);
-                if (!pasteResult.Succeeded)
-                {
-                    ReportInputBlocked("粘贴消息", pasteResult.ErrorCode);
-                    return;
-                }
-
-                await Task.Delay(PasteSettleDelayMilliseconds).ConfigureAwait(true);
-                InputResult sendResult = SendVirtualKey((ushort)Keys.Enter);
-                if (!sendResult.Succeeded)
-                {
-                    ReportInputBlocked("发送消息", sendResult.ErrorCode);
-                    return;
-                }
-            }
-            finally
-            {
-                RestoreClipboard(clipboard, _message);
-            }
-
-            _lastSentAtUtc = now;
-            GameMain.infoMsg.AddMsg("快捷弹幕按键已提交到游戏。若聊天框没有响应，请检查管理员权限或全屏输入限制。");
-            RuntimeDiagnostics.Report("快捷消息", "已提交", "已提交打开聊天、粘贴和发送按键；游戏端不会提供可验证的送达回执");
+            RuntimeDiagnostics.Report("快捷消息", "按键已注入",
+                $"WindowsInput Enter → 文字 → Enter；{messages.Count} 条；游戏端没有送达回执");
+            return new(true, $"已执行 {messages.Count} 次游戏聊天按键序列；请确认聊天内容是否出现。");
         }
         finally
         {
@@ -136,77 +151,66 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
         }
     }
 
-    private static void ReportInputBlocked(string action, int errorCode)
+    private static List<string> BuildMessages(string message, bool perCharacter)
     {
-        GameMain.infoMsg.AddMsg(
-            $"快捷弹幕未发送：无法{action}（Windows 错误 {errorCode}）。若 LOL 以管理员身份运行，请也以管理员身份启动助手。");
-        RuntimeDiagnostics.Report("快捷消息", "输入被拒绝", $"{action} 失败，Windows 错误 {errorCode}");
+        if (!perCharacter) return [message];
+        var messages = new List<string>();
+        TextElementEnumerator enumerator = StringInfo.GetTextElementEnumerator(message);
+        while (enumerator.MoveNext())
+        {
+            string character = enumerator.GetTextElement();
+            if (!string.IsNullOrWhiteSpace(character)) messages.Add(character);
+        }
+        return messages;
     }
 
-    private static InputResult PasteText(string text)
+    private static async Task<GameShoutSendResult> SendChatLineAsync(string text, bool useClipboard)
     {
+        ClipboardSnapshot originalClipboard = default;
+        bool clipboardChanged = false;
         try
         {
-            Clipboard.SetText(text);
-            var inputs = new[]
+            if (useClipboard)
             {
-                CreateKeyboardInput((ushort)Keys.ControlKey, 0, 0),
-                CreateKeyboardInput((ushort)Keys.V, 0, 0),
-                CreateKeyboardInput((ushort)Keys.V, 0, KeyEventFKeyUp),
-                CreateKeyboardInput((ushort)Keys.ControlKey, 0, KeyEventFKeyUp)
-            };
-            return SendInputs(inputs);
+                originalClipboard = CaptureClipboard();
+                Clipboard.SetText(text);
+                clipboardChanged = true;
+                await Simulate.Events()
+                    .Click(KeyCode.Enter).Wait(100)
+                    .ClickChord(KeyCode.Control, KeyCode.V).Wait(100)
+                    .Click(KeyCode.Enter).Wait(100)
+                    .Invoke();
+            }
+            else
+            {
+                // 与 ZuAnBot 的游戏内发送序列保持一致。
+                await Simulate.Events()
+                    .Click(KeyCode.Enter).Wait(100)
+                    .Click(text).Wait(100)
+                    .Click(KeyCode.Enter).Wait(100)
+                    .Invoke();
+            }
+            return new(true, "聊天按键序列已执行。");
         }
-        catch (ExternalException)
+        catch (Exception ex)
         {
-            return new InputResult(false, -1);
+            GameMain.infoMsg.AddMsg($"游戏内喊话失败：{ex.Message}");
+            RuntimeDiagnostics.Report("快捷消息", "输入失败", ex.Message);
+            return new(false, $"游戏内喊话失败：{ex.Message}");
         }
-        catch (ThreadStateException)
+        finally
         {
-            return new InputResult(false, -1);
+            if (clipboardChanged) RestoreClipboard(originalClipboard, text);
         }
-    }
-
-    /// <summary>只允许向实际对局进程写入按键，避免热键在其它应用前台时误发送。</summary>
-    private static bool IsLeagueGameForeground()
-    {
-        IntPtr window = GetForegroundWindow();
-        if (window == IntPtr.Zero) return false;
-
-        GetWindowThreadProcessId(window, out uint processId);
-        if (processId == 0) return false;
-        try
-        {
-            using Process process = Process.GetProcessById((int)processId);
-            return string.Equals(process.ProcessName, "League of Legends", StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static InputResult SendVirtualKey(ushort key)
-    {
-        var inputs = new[]
-        {
-            CreateKeyboardInput(key, 0, 0),
-            CreateKeyboardInput(key, 0, KeyEventFKeyUp)
-        };
-        return SendInputs(inputs);
-    }
-
-    private static InputResult SendInputs(INPUT[] inputs)
-    {
-        uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
-        return new InputResult(sent == inputs.Length, sent == inputs.Length ? 0 : Marshal.GetLastWin32Error());
     }
 
     private static ClipboardSnapshot CaptureClipboard()
     {
         try
         {
-            return Clipboard.ContainsText() ? new ClipboardSnapshot(true, Clipboard.GetText()) : new ClipboardSnapshot(false, null);
+            return Clipboard.ContainsText()
+                ? new ClipboardSnapshot(true, Clipboard.GetText())
+                : new ClipboardSnapshot(false, null);
         }
         catch (ExternalException)
         {
@@ -218,89 +222,43 @@ public sealed class QuickMessageSenderController : NativeWindow, IDisposable
     {
         try
         {
-            // Do not overwrite another application's clipboard update that happened while the chat was opened.
             if (!Clipboard.ContainsText() || !string.Equals(Clipboard.GetText(), sentText, StringComparison.Ordinal)) return;
             if (snapshot.HasText && snapshot.Text != null) Clipboard.SetText(snapshot.Text);
             else Clipboard.Clear();
         }
         catch (ExternalException)
         {
-            RuntimeDiagnostics.Report("快捷消息", "已提交", "消息已提交，但无法恢复原剪贴板内容");
+            RuntimeDiagnostics.Report("快捷消息", "按键已注入", "无法恢复原剪贴板内容");
         }
     }
 
-    private static INPUT CreateKeyboardInput(ushort virtualKey, ushort scanCode, uint flags) => new()
+    private static bool IsLeagueGameForeground()
     {
-        Type = InputKeyboard,
-        Data = new InputUnion
+        IntPtr window = GetForegroundWindow();
+        if (window == IntPtr.Zero) return false;
+        GetWindowThreadProcessId(window, out uint processId);
+        if (processId == 0) return false;
+        try
         {
-            Keyboard = new KEYBDINPUT
-            {
-                WVk = virtualKey,
-                WScan = scanCode,
-                DwFlags = flags
-            }
+            using Process process = Process.GetProcessById((int)processId);
+            return process.ProcessName.Equals("League of Legends", StringComparison.OrdinalIgnoreCase);
         }
-    };
-
-    private void Unregister()
-    {
-        if (_registeredKey == Keys.None) return;
-        UnregisterHotKey(Handle, HotkeyId);
-        _registeredKey = Keys.None;
+        catch { return false; }
     }
 
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        Unregister();
-        ReleaseHandle();
-    }
+    public void Dispose() { }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct INPUT
-    {
-        public uint Type;
-        public InputUnion Data;
-    }
-
-    // Win32 的 INPUT 联合体在 x64 下由最大的 MOUSEINPUT 决定，长度固定是 32 字节。
-    // 即使本程序只使用 KEYBDINPUT，也必须保留该大小；否则 Marshal.SizeOf<INPUT>() 会给出
-    // 32 而不是原生 API 要求的 40，SendInput 会静默失败，游戏完全收不到按键。
-    [StructLayout(LayoutKind.Explicit, Size = 32)]
-    private struct InputUnion
-    {
-        [FieldOffset(0)] public KEYBDINPUT Keyboard;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct KEYBDINPUT
-    {
-        public ushort WVk;
-        public ushort WScan;
-        public uint DwFlags;
-        public uint Time;
-        public IntPtr DwExtraInfo;
-    }
-
-    private readonly record struct InputResult(bool Succeeded, int ErrorCode);
     private readonly record struct ClipboardSnapshot(bool HasText, string? Text);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint SendInput(uint inputCount, INPUT[] inputs, int inputSize);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr windowHandle);
+
+    [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool RegisterHotKey(IntPtr windowHandle, int id, uint modifiers, uint virtualKeyCode);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool UnregisterHotKey(IntPtr windowHandle, int id);
 }
+
+public readonly record struct GameShoutSendResult(bool Succeeded, string Message);

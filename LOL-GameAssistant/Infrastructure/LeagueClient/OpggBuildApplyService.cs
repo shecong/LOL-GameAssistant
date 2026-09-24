@@ -33,19 +33,43 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         string? position,
         CancellationToken cancellationToken = default)
     {
+        return await GetBuildChoicesAsync(
+            championId,
+            position,
+            new OpggBuildRequest("CLASSIC"),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<OpggBuildChoices> GetBuildChoicesAsync(
+        int championId,
+        string? position,
+        OpggBuildRequest request,
+        CancellationToken cancellationToken = default)
+    {
         if (championId <= 0)
             return OpggBuildChoices.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
 
         try
         {
             string role = NormalizePosition(position);
-            IReadOnlyList<OpggBuildOption> options = await FetchBuildOptionsAsync(championId, role, cancellationToken).ConfigureAwait(false);
+            string mode = NormalizeMode(request.GameMode, request.QueueId);
+            OpggBuildPayload payload = await FetchBuildPayloadAsync(championId, role, mode, cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<OpggBuildOption> options = payload.Options;
             if (options.Count == 0)
-                return OpggBuildChoices.Failure("OP.GG 没有返回至少三件核心装备的可选方案。");
+                return OpggBuildChoices.Failure("OP.GG 没有返回可用的核心出装方案。");
 
             string championName = _championCatalog.GetDisplayName(championId);
             if (string.IsNullOrWhiteSpace(championName)) championName = $"英雄{championId}";
-            return new OpggBuildChoices(true, "请选择要应用的出装路线。", championName, GetPositionName(role), options);
+            string positionName = mode == "ranked" ? GetPositionName(role) : GetModeName(mode);
+            return new OpggBuildChoices(
+                true,
+                "请选择要应用的出装路线。召唤师技能会随方案写入；海克斯与对位仅供展示参考。",
+                championName,
+                positionName,
+                options,
+                mode,
+                payload.Augments,
+                payload.Matchups);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -77,8 +101,6 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     {
         if (championId <= 0)
             return OpggBuildApplyResult.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
-        if (option.RunePerkIds.Count < 6)
-            return OpggBuildApplyResult.Failure("所选方案缺少完整符文数据，本次未写入客户端。");
         if (option.CoreItemIds.Count < 3)
             return OpggBuildApplyResult.Failure("所选方案没有至少三件核心装备，本次未写入客户端。");
 
@@ -96,9 +118,12 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 option.CoreItemIds.ToList(),
                 option.SituationalItemIds.ToList());
 
-            string runeResult = await ApplyRunePageAsync(build, label, cancellationToken).ConfigureAwait(false);
+            string runeResult = option.RunePerkIds.Count >= 6
+                ? await ApplyRunePageAsync(build, label, cancellationToken).ConfigureAwait(false)
+                : "该模式未提供可写入的符文数据，已保留客户端当前符文";
             string itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
-            return OpggBuildApplyResult.Success($"已应用 OP.GG {label}：{runeResult}；{itemResult}。游戏内请在商店的“自定义物品集”查看出装。");
+            string spellResult = await ApplySummonerSpellsAsync(option.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
+            return OpggBuildApplyResult.Success($"已应用 OP.GG {label}：{runeResult}；{itemResult}；{spellResult}。游戏内请在商店的“自定义物品集”查看出装。");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -135,15 +160,23 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     }
 
     /// <summary>
-    /// OP.GG 的接口接受数值英雄 ID，因此不依赖中文名称到英文 slug 的不稳定映射。
-    /// 该接口返回符文、出装、召唤师技能等同一份英雄构建数据。
+    /// OP.GG 使用数值英雄 ID，且不同模式仅路径结构不同：ARAM/URF/闪击使用 none 位置，
+    /// 斗魂竞技场没有位置段。接口内的召唤师技能、海克斯与对位数据一起规整为可展示模型。
     /// </summary>
-    private static async Task<IReadOnlyList<OpggBuildOption>> FetchBuildOptionsAsync(int championId, string role, CancellationToken cancellationToken)
+    private static async Task<OpggBuildPayload> FetchBuildPayloadAsync(
+        int championId,
+        string role,
+        string mode,
+        CancellationToken cancellationToken)
     {
-        string url = $"https://lol-api-champion.op.gg/api/global/champions/ranked/{championId}/{role}";
+        string path = mode == "arena"
+            ? $"/api/global/champions/{mode}/{championId}"
+            : $"/api/global/champions/{mode}/{championId}/{(mode == "ranked" ? role : "none")}";
+        string tier = mode == "arena" ? "all" : "gold_plus";
+        string url = "https://lol-api-champion.op.gg" + path + "?tier=" + tier;
         using HttpResponseMessage response = await OpggHttp.GetAsync(url, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException("OP.GG 暂无该英雄/位置的推荐数据，请确认选择的位置后重试。");
+            throw new InvalidOperationException("OP.GG 暂无该英雄/模式的推荐数据，请确认当前模式后重试。");
 
         string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         JObject data = JObject.Parse(json)["data"] as JObject
@@ -163,9 +196,9 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             .Concat(ReadIds(rune?["secondary_rune_ids"]))
             .Concat(ReadIds(rune?["stat_mod_ids"]))
             .ToList();
-        if ((rune?.Value<int?>("primary_page_id") ?? 0) <= 0 ||
-            (rune?.Value<int?>("secondary_page_id") ?? 0) <= 0 || runePerks.Count < 6)
-            throw new InvalidOperationException("OP.GG 没有返回完整符文数据，本次未写入客户端。");
+        IReadOnlyList<int> summonerSpells = ReadIds(data["summoner_spells"]?.OfType<JObject>()
+            .OrderByDescending(item => item.Value<int?>("play") ?? 0)
+            .FirstOrDefault()?["ids"]);
 
         var allCore = data["core_items"]?.OfType<JObject>()
             .OrderByDescending(item => item.Value<int?>("play") ?? 0)
@@ -189,13 +222,48 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 ReadIds(firstStarter?["ids"]),
                 core,
                 alternateFrequency.OrderByDescending(item => item.Value).Select(item => item.Key).Take(6).ToList(),
-                rune!.Value<int?>("primary_page_id") ?? 0,
-                rune.Value<int?>("secondary_page_id") ?? 0,
+                rune?.Value<int?>("primary_page_id") ?? 0,
+                rune?.Value<int?>("secondary_page_id") ?? 0,
                 runePerks,
                 matches,
-                coreVariant.Value<int?>("win") ?? 0));
+                coreVariant.Value<int?>("win") ?? 0,
+                summonerSpells));
         }
-        return options;
+        var augments = data["augment_group"]?.OfType<JObject>()
+            .SelectMany(group => group["augments"]?.OfType<JObject>()
+                .Select(augment => new OpggAugmentRecommendation(
+                    augment.Value<int?>("id") ?? 0,
+                    group.Value<int?>("rarity") ?? 0,
+                    augment.Value<int?>("play") ?? 0,
+                    augment.Value<int?>("win") ?? 0)) ?? Enumerable.Empty<OpggAugmentRecommendation>())
+            .Where(augment => augment.Id > 0)
+            .OrderByDescending(augment => augment.Matches)
+            .Take(15)
+            .ToList() ?? new List<OpggAugmentRecommendation>();
+        var matchups = data["counters"]?.OfType<JObject>()
+            .Select(counter => new OpggMatchup(
+                counter.Value<int?>("champion_id") ?? 0,
+                counter.Value<int?>("play") ?? 0,
+                counter.Value<int?>("win") ?? 0))
+            .Where(matchup => matchup.ChampionId > 0 && matchup.Matches > 0)
+            .OrderByDescending(matchup => matchup.Matches)
+            .Take(12)
+            .ToList() ?? new List<OpggMatchup>();
+        return new OpggBuildPayload(options, augments, matchups);
+    }
+
+    private async Task<string> ApplySummonerSpellsAsync(
+        IReadOnlyList<int>? spellIds,
+        CancellationToken cancellationToken)
+    {
+        int[] spells = spellIds?.Where(id => id > 0).Distinct().Take(2).ToArray() ?? Array.Empty<int>();
+        if (spells.Length < 2) return "该模式未提供可写入的召唤师技能，已保留当前技能";
+
+        bool updated = await _lcu.PatchAsync(
+            "/lol-champ-select/v1/session/my-selection",
+            JsonConvert.SerializeObject(new { spell1Id = spells[0], spell2Id = spells[1] }),
+            cancellationToken).ConfigureAwait(false);
+        return updated ? "召唤师技能已写入" : "客户端未写入召唤师技能，已保留当前技能";
     }
 
     private async Task<string> ApplyRunePageAsync(OpggBuild build, string label, CancellationToken cancellationToken)
@@ -380,6 +448,25 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         _ => position
     };
 
+    private static string NormalizeMode(string? gameMode, int queueId)
+    {
+        string mode = (gameMode ?? "").Trim().ToUpperInvariant();
+        if (mode is "ARAM" or "KIWI" || queueId is 450 or 1710) return "aram";
+        if (mode is "CHERRY" or "ARENA" || queueId is 1700 or 1701 or 1704) return "arena";
+        if (mode is "NEXUSBLITZ" or "NEXUS_BLITZ" || queueId == 1300) return "nexus_blitz";
+        if (mode is "URF" or "ARURF" || queueId is 900 or 1900) return "urf";
+        return "ranked";
+    }
+
+    private static string GetModeName(string mode) => mode switch
+    {
+        "aram" => "极地大乱斗",
+        "arena" => "斗魂竞技场",
+        "nexus_blitz" => "极限闪击",
+        "urf" => "无限火力",
+        _ => "召唤师峡谷"
+    };
+
     private sealed record OpggBuild(
         int PrimaryStyleId,
         int SubStyleId,
@@ -387,4 +474,9 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         List<int> StarterItems,
         List<int> CoreItems,
         List<int> SituationalItems);
+
+    private sealed record OpggBuildPayload(
+        IReadOnlyList<OpggBuildOption> Options,
+        IReadOnlyList<OpggAugmentRecommendation> Augments,
+        IReadOnlyList<OpggMatchup> Matchups);
 }

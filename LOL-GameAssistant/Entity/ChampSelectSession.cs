@@ -79,6 +79,14 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("assignedPosition")]
         public string? AssignedPosition { get; set; }
 
+        /// <summary>匹配器明确标注的自动补位状态；部分模式不会提供分路偏好。</summary>
+        [JsonProperty("isAutofilled")]
+        public bool IsAutofilled { get; set; }
+
+        /// <summary>玩家已在客户端点选、但尚未锁定的英雄意图。</summary>
+        [JsonProperty("championPickIntent")]
+        public int ChampionPickIntent { get; set; }
+
         [JsonProperty("summonerId")]
         public long SummonerId { get; set; }
 

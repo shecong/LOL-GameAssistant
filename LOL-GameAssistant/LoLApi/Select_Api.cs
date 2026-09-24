@@ -44,7 +44,7 @@ namespace LOL_GameAssistant.LoLApi
         /// <returns>是否成功执行了禁用动作</returns>
         public static async Task<bool> AutoBanAsync(List<int> banChampionIds)
         {
-            return await ExecuteAutoActionAsync(banChampionIds, "ban").ConfigureAwait(false);
+            return await ExecuteAutoActionAsync(banChampionIds, "ban", completed: true).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -52,15 +52,18 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="pickChampionIds">设置中选定的选用英雄ID列表</param>
         /// <returns>是否成功执行了选用动作</returns>
-        public static async Task<bool> AutoPickAsync(List<int> pickChampionIds)
+        public static async Task<bool> AutoPickAsync(List<int> pickChampionIds, bool lockIn = true)
         {
-            return await ExecuteAutoActionAsync(pickChampionIds, "pick").ConfigureAwait(false);
+            return await ExecuteAutoActionAsync(pickChampionIds, "pick", completed: lockIn).ConfigureAwait(false);
         }
 
         /// <summary>
         /// 执行自动动作（禁用或选用）的核心逻辑
         /// </summary>
-        private static async Task<bool> ExecuteAutoActionAsync(List<int> desiredChampionIds, string actionType)
+        private static async Task<bool> ExecuteAutoActionAsync(
+            List<int> desiredChampionIds,
+            string actionType,
+            bool completed)
         {
             if (desiredChampionIds.Count == 0) return false;
 
@@ -74,11 +77,42 @@ namespace LOL_GameAssistant.LoLApi
             var currentAction = FindCurrentAllyAction(session, actionType);
             if (currentAction == null) return false;
 
+            int manualIntent = actionType.Equals("pick", StringComparison.OrdinalIgnoreCase)
+                ? session.MyTeam.FirstOrDefault(member => member.CellId == session.LocalPlayerCellId)?.ChampionPickIntent ?? 0
+                : 0;
+            if (manualIntent > 0)
+            {
+                // championPickIntent 是用户在客户端中已点击但还未锁定的英雄。
+                // 只在锁定模式下完成该意图，预选模式不覆盖玩家的当前选择。
+                return completed && await PerformActionAsync(currentAction.Id, manualIntent, completed: true).ConfigureAwait(false);
+            }
+
+            // 玩家已经在客户端中点选了英雄时，不再用优先级列表覆盖它。
+            // 锁定模式仅完成该玩家已经选择的动作；预选模式则保持原状。
+            if (currentAction.ChampionId > 0)
+            {
+                return completed && await PerformActionAsync(
+                    currentAction.Id,
+                    currentAction.ChampionId,
+                    completed: true).ConfigureAwait(false);
+            }
+
+            var allowedIds = await GetChampionIdSetAsync(
+                actionType.Equals("ban", StringComparison.OrdinalIgnoreCase)
+                    ? "/lol-champ-select/v1/bannable-champion-ids"
+                    : "/lol-champ-select/v1/pickable-champion-ids").ConfigureAwait(false);
+            var disabledIds = await GetChampionIdSetAsync(
+                "/lol-champ-select/v1/disabled-champion-ids").ConfigureAwait(false)
+                ?? new HashSet<int>();
+
             // 在期望列表中找第一个未被禁用/选用的英雄
             int? championToUse = null;
             foreach (var cid in desiredChampionIds)
             {
-                if (!unavailableIds.Contains(cid))
+                if (cid > 0 &&
+                    !unavailableIds.Contains(cid) &&
+                    !disabledIds.Contains(cid) &&
+                    (allowedIds == null || allowedIds.Contains(cid)))
                 {
                     championToUse = cid;
                     break;
@@ -89,7 +123,27 @@ namespace LOL_GameAssistant.LoLApi
             if (championToUse == null) return false;
 
             // 执行动作
-            return await PerformActionAsync(currentAction.Id, championToUse.Value).ConfigureAwait(false);
+            return await PerformActionAsync(
+                currentAction.Id,
+                championToUse.Value,
+                completed).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// LCU 会为不同阶段给出可选/可禁英雄；请求不可用时回退到会话内校验，
+        /// 避免因客户端版本差异导致自动化完全失效。
+        /// </summary>
+        private static async Task<HashSet<int>?> GetChampionIdSetAsync(string endpoint)
+        {
+            using var client = new HttpClentHelper();
+            using Stream? responseStream = await client.GetAsync(endpoint).ConfigureAwait(false);
+            if (responseStream == null)
+            {
+                return null;
+            }
+
+            List<int>? championIds = await responseStream.ReadAsJsonAsync<List<int>>().ConfigureAwait(false);
+            return championIds == null ? null : championIds.Where(id => id > 0).ToHashSet();
         }
 
         /// <summary>

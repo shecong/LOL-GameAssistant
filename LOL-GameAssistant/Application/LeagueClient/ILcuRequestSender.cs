@@ -17,6 +17,9 @@ public interface ILcuRequestSender
     /// <summary>向 LCU 覆盖写入一个 JSON 资源。</summary>
     Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default);
 
+    /// <summary>部分 LCU 资源（例如英雄选择动作）只允许局部更新。</summary>
+    Task<bool> PatchAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default);
+
     /// <summary>删除一个 LCU 资源。调用方仅可删除自己创建、且明确标识过的资源。</summary>
     Task<bool> DeleteAsync(string endpoint, CancellationToken cancellationToken = default);
 }

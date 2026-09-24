@@ -45,6 +45,7 @@
             tab5_grid1 = new AntdUI.GridPanel();
             HeadContent = new AntdUI.PageHeader();
             dj_refresh = new AntdUI.Button();
+            btn_theme_toggle = new AntdUI.Button();
             panel_main = new AntdUI.Panel();
             gameFlowPhaseName = new AntdUI.Label();
             grid_main = new AntdUI.GridPanel();
@@ -103,9 +104,9 @@
             tab0_grid1.Span = "100%";
             tab0_grid1.TabIndex = 0;
             tab0_grid1.Text = resources.GetString("tab0_grid1.Text");
-            // 
+            //
             // tabPageFriends
-            // 
+            //
             tabPageFriends.Controls.Add(friendsGrid);
             tabPageFriends.Dock = DockStyle.Fill;
             tabPageFriends.Location = new Point(0, 30);
@@ -205,6 +206,7 @@
             // HeadContent
             // 
             HeadContent.Controls.Add(dj_refresh);
+            HeadContent.Controls.Add(btn_theme_toggle);
             HeadContent.Dock = DockStyle.Top;
             HeadContent.Location = new Point(0, 0);
             HeadContent.Name = "HeadContent";
@@ -224,6 +226,17 @@
             dj_refresh.Text = "刷新";
             dj_refresh.Click += dj_refresh_Click;
             // 
+            // btn_theme_toggle
+            //
+            btn_theme_toggle.Dock = DockStyle.Right;
+            btn_theme_toggle.IconSvg = "SunOutlined";
+            btn_theme_toggle.Location = new Point(1261, 0);
+            btn_theme_toggle.Name = "btn_theme_toggle";
+            btn_theme_toggle.Size = new Size(36, 29);
+            btn_theme_toggle.TabIndex = 1;
+            btn_theme_toggle.Text = "";
+            btn_theme_toggle.Click += btn_theme_toggle_Click;
+            //
             // panel_main
             // 
             panel_main.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
@@ -301,6 +314,7 @@
         private AntdUI.GridPanel tab0_grid1;
         private AntdUI.GridPanel tab4_grid1;
         private AntdUI.Button dj_refresh;
+        private AntdUI.Button btn_theme_toggle;
         private AntdUI.Panel panel_main;
         private AntdUI.GridPanel grid_main;
         private AntdUI.Label gameFlowPhaseName;

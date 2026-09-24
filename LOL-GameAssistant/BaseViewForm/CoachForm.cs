@@ -236,7 +236,11 @@ public sealed class CoachForm : UserControl
             }
 
             OpggBuildChoices choices = await _opggBuildApplyService
-                .GetBuildChoicesAsync(context.MyChampionId, context.MyRole, cancellationToken);
+                .GetBuildChoicesAsync(
+                    context.MyChampionId,
+                    context.MyRole,
+                    new OpggBuildRequest(context.GameMode, context.QueueId, context.EnemyChampionIds),
+                    cancellationToken);
             if (!choices.Succeeded)
             {
                 _status.ForeColor = Color.Firebrick;
@@ -247,23 +251,37 @@ public sealed class CoachForm : UserControl
                 return;
             }
 
-            RuntimeDiagnostics.Report("OP.GG 选人推荐", "已获取方案", $"{choices.ChampionName} {choices.PositionName} · {choices.Options.Count} 套，正在等待选择");
-            using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService);
-            DialogResult dialogResult = picker.ShowDialog(FindForm() ?? Program.GameMain);
-            // 能走到这里说明弹窗确实显示过；诊断里若一直停在“已获取方案”，
-            // 就说明窗口没能显示出来（被客户端挡住或落到屏幕外）。
-            RuntimeDiagnostics.Report("OP.GG 选人推荐", "弹窗已关闭",
-                picker.SelectedOption == null ? "未选择方案" : $"已选方案 {picker.SelectedOption.Order}");
-            if (dialogResult != DialogResult.OK || picker.SelectedOption == null)
+            string selectionKey = BuildOpggSelectionKey(context.MyChampionId, choices.Mode, context.MyRole);
+            AssistantSettings settings = _settingsStore.Load();
+            settings.OpggManualBuildSelections.TryGetValue(selectionKey, out int savedOrder);
+            OpggBuildOption? selectedOption = automatic
+                ? choices.Options.FirstOrDefault(option => option.Order == savedOrder)
+                : null;
+
+            if (selectedOption == null)
             {
-                _status.ForeColor = Color.DimGray;
-                _status.Text = "已取消 OP.GG 出装配置。";
-                return;
+                RuntimeDiagnostics.Report("OP.GG 选人推荐", "已获取方案", $"{choices.ChampionName} {choices.PositionName} · {choices.Options.Count} 套，正在等待选择");
+                using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService, savedOrder);
+                DialogResult dialogResult = picker.ShowDialog(FindForm() ?? Program.GameMain);
+                RuntimeDiagnostics.Report("OP.GG 选人推荐", "弹窗已关闭",
+                    picker.SelectedOption == null ? "未选择方案" : $"已选方案 {picker.SelectedOption.Order}");
+                if (dialogResult != DialogResult.OK || picker.SelectedOption == null)
+                {
+                    _status.ForeColor = Color.DimGray;
+                    _status.Text = "已取消 OP.GG 出装配置。";
+                    return;
+                }
+
+                selectedOption = picker.SelectedOption;
+                settings.OpggManualBuildSelections[selectionKey] = selectedOption.Order;
+                _settingsStore.Save(settings);
             }
 
-            _status.Text = $"正在应用 OP.GG 方案 {picker.SelectedOption.Order}…";
+            _status.Text = automatic && savedOrder > 0
+                ? $"正在按已保存的 {choices.PositionName} 方案 {selectedOption.Order} 配置…"
+                : $"正在应用 OP.GG 方案 {selectedOption.Order}…";
             OpggBuildApplyResult result = await _opggBuildApplyService
-                .ApplyBuildAsync(context.MyChampionId, context.MyRole, picker.SelectedOption, cancellationToken);
+                .ApplyBuildAsync(context.MyChampionId, context.MyRole, selectedOption, cancellationToken);
             _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
             _status.Text = result.Message;
         }
@@ -284,6 +302,14 @@ public sealed class CoachForm : UserControl
             _opggPickerOpen = false;
             RefreshOpggAvailability();
         }
+    }
+
+    private static string BuildOpggSelectionKey(int championId, string mode, string? position)
+    {
+        string normalizedPosition = mode == "ranked"
+            ? (position ?? "mid").Trim().ToLowerInvariant()
+            : "none";
+        return $"{championId}:{mode}:{normalizedPosition}";
     }
 
     private void BuildUi()
@@ -352,12 +378,16 @@ public sealed class CoachForm : UserControl
                 _ => "进入英雄选择或对局后，将在这里显示 AI 基于当前局势生成的建议。"
             };
 
+        if (state.Recommendations.Count == 1 &&
+            state.Recommendations[0].Id.StartsWith("cloud-text-", StringComparison.Ordinal))
+            return state.Recommendations[0].Body;
+
         return string.Join(Environment.NewLine + Environment.NewLine, state.Recommendations.Select(item =>
             $"[{GetPriorityName(item.Priority)} · {item.Category}]{Environment.NewLine}" +
             item.Title + Environment.NewLine +
             item.Body + Environment.NewLine +
-            "依据：" + item.Evidence +
-            Environment.NewLine + "来源：AI"));
+            (string.IsNullOrWhiteSpace(item.Evidence) ? "" : "依据：" + item.Evidence + Environment.NewLine) +
+            "来源：AI"));
     }
 
     private static Color GetStatusColor(RecommendationStatus status) => status switch

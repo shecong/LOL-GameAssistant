@@ -7,7 +7,7 @@ public interface IGameClientLauncher
 {
     GameClientLaunchResult Start(string? configuredDirectory);
 
-    /// <summary>Start the client and verify that its visible UX and local LCU are ready.</summary>
+    /// <summary>启动客户端并等待 LCU；启动器仍在登录或更新时返回等待状态。</summary>
     Task<GameClientLaunchResult> StartAndVerifyAsync(
         string? configuredDirectory,
         CancellationToken cancellationToken = default);

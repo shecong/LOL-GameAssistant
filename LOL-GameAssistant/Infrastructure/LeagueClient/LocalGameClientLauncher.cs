@@ -19,9 +19,10 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     public string NormalizeConfiguredDirectory(string? configuredDirectory)
     {
         if (string.IsNullOrWhiteSpace(configuredDirectory)) return "";
-        return File.Exists(configuredDirectory)
-            ? Path.GetDirectoryName(configuredDirectory) ?? configuredDirectory
-            : configuredDirectory.Trim();
+        string path = configuredDirectory.Trim().Trim('"');
+        return File.Exists(path)
+            ? Path.GetDirectoryName(path) ?? path
+            : path;
     }
 
     /// <inheritdoc />
@@ -36,7 +37,9 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
 
         string? executable = ResolveExecutable(configuredDirectory);
         if (executable == null)
-            return new GameClientLaunchResult(false, "未找到 LeagueClient.exe，请在设置中选择 LOL 安装文件夹。");
+            return new GameClientLaunchResult(false, string.IsNullOrWhiteSpace(configuredDirectory)
+                ? "未找到 LeagueClient.exe，请选择 LOL 安装文件夹。"
+                : $"所选位置没有 LeagueClient.exe：{configuredDirectory}。请选择游戏安装目录或 LeagueClient 文件夹。");
 
         try
         {
@@ -52,7 +55,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
                 return new GameClientLaunchResult(false, "Windows 未返回客户端启动进程。", executable);
 
             RuntimeDiagnostics.Report("LOL 客户端", "启动中", $"已请求启动 {Path.GetFileName(target.Executable)}，等待主窗口与 LCU");
-            return new GameClientLaunchResult(true, "已请求启动 LOL 客户端，正在验证主窗口和 LCU。", executable);
+            return new GameClientLaunchResult(true, $"已启动 {Path.GetFileName(target.Executable)}，正在等待 LOL 客户端。", executable);
         }
         catch (Exception ex)
         {
@@ -65,33 +68,39 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         string? configuredDirectory,
         CancellationToken cancellationToken = default)
     {
-        GameClientLaunchResult started = Start(configuredDirectory);
+        // 安装目录扫描和进程启动可能较慢；设置页按钮需要立即显示“启动中”。
+        GameClientLaunchResult started = await Task.Run(() => Start(configuredDirectory), cancellationToken).ConfigureAwait(false);
         if (!started.Started) return started;
 
         DateTime deadline = DateTime.UtcNow + LaunchVerificationTimeout;
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ClientState state = GetClientState();
-            if (state.WindowVisible && state.LcuReady)
+            ClientState state = GetClientState(started.ExecutablePath);
+            if (state.LcuReady)
             {
                 string executable = started.ExecutablePath ?? NormalizeConfiguredDirectory(configuredDirectory);
-                RuntimeDiagnostics.Report("LOL 客户端", "已就绪", "客户端主窗口可见，LCU lockfile 已读取");
-                return new GameClientLaunchResult(true, "LOL 客户端已启动，主窗口与 LCU 均已就绪。", executable, true, true);
+                RuntimeDiagnostics.Report("LOL 客户端", "已就绪", "LCU lockfile 已读取");
+                return new GameClientLaunchResult(true, "LOL 客户端已启动，LCU 已就绪。", executable, true, state.WindowVisible);
             }
 
             await Task.Delay(LaunchVerificationPollInterval, cancellationToken).ConfigureAwait(false);
         }
 
-        ClientState finalState = GetClientState();
-        string detail = finalState.ProcessRunning
-            ? "检测到客户端后台进程，但主窗口或 LCU 未就绪。请检查 Riot/WeGame 登录、更新或管理员权限。"
-            : "启动后未检测到 LOL 客户端进程。请检查安装路径和启动器。";
-        RuntimeDiagnostics.Report("LOL 客户端", "未就绪", detail);
-        return new GameClientLaunchResult(false, detail, started.ExecutablePath, finalState.LcuReady, finalState.WindowVisible);
+        ClientState finalState = GetClientState(started.ExecutablePath);
+        if (finalState.ProcessRunning || finalState.LauncherRunning)
+        {
+            const string waiting = "启动器或 LOL 客户端已运行，正在等待登录或更新；登录完成后助手会自动连接。";
+            RuntimeDiagnostics.Report("LOL 客户端", "等待登录", waiting);
+            return new GameClientLaunchResult(true, waiting, started.ExecutablePath, false, finalState.WindowVisible);
+        }
+
+        const string failed = "启动器进程已退出，未检测到 LOL 客户端。请检查安装路径或通过原启动器完成更新。";
+        RuntimeDiagnostics.Report("LOL 客户端", "未就绪", failed);
+        return new GameClientLaunchResult(false, failed, started.ExecutablePath);
     }
 
-    private static ClientState GetClientState()
+    private static ClientState GetClientState(string? leagueClientExecutable = null)
     {
         Process[] processes = Process.GetProcessesByName("LeagueClientUx")
             .Concat(Process.GetProcessesByName("LeagueClient"))
@@ -110,8 +119,11 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
                     return false;
                 }
             });
-            bool lcuReady = HasReadableLcuLockfile(processes);
-            return new ClientState(processes.Length > 0, visible, lcuReady);
+            bool lcuReady = processes.Length > 0 && HasReadableLcuLockfile(processes, leagueClientExecutable);
+            Process[] launchers = Process.GetProcessesByName("RiotClientServices");
+            bool launcherRunning = launchers.Length > 0;
+            foreach (Process launcher in launchers) launcher.Dispose();
+            return new ClientState(processes.Length > 0, visible, lcuReady, launcherRunning);
         }
         finally
         {
@@ -119,15 +131,32 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         }
     }
 
-    private static bool HasReadableLcuLockfile(IEnumerable<Process> processes)
+    private static bool HasReadableLcuLockfile(IEnumerable<Process> processes, string? leagueClientExecutable)
     {
+        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (Process process in processes)
         {
             try
             {
                 string? executable = process.MainModule?.FileName;
                 string? directory = string.IsNullOrWhiteSpace(executable) ? null : Path.GetDirectoryName(executable);
-                if (string.IsNullOrWhiteSpace(directory)) continue;
+                if (!string.IsNullOrWhiteSpace(directory)) directories.Add(directory);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                // 进程可能刚退出或权限不同，尝试已解析安装目录中的 lockfile。
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(leagueClientExecutable))
+        {
+            string? configuredDirectory = Path.GetDirectoryName(leagueClientExecutable);
+            if (!string.IsNullOrWhiteSpace(configuredDirectory)) directories.Add(configuredDirectory);
+        }
+
+        foreach (string directory in directories)
+        {
+            try
+            {
                 string lockfile = Path.Combine(directory, "lockfile");
                 if (!File.Exists(lockfile)) continue;
                 string[] parts = File.ReadAllText(lockfile).Trim().Split(':');
@@ -152,21 +181,65 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     private static LaunchTarget ResolveLaunchTarget(string leagueClientExecutable)
     {
         string? leagueDirectory = Path.GetDirectoryName(leagueClientExecutable);
-        string? riotGamesDirectory = Directory.GetParent(leagueDirectory ?? string.Empty)?.FullName;
-        string? candidate = riotGamesDirectory == null ? null : Path.Combine(riotGamesDirectory, "Riot Client", "RiotClientServices.exe");
+        string? installDirectory = leagueDirectory == null ? null : Directory.GetParent(leagueDirectory)?.FullName;
+        string? candidate = installDirectory == null ? null : Path.Combine(installDirectory, "Riot Client", "RiotClientServices.exe");
         if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate))
-            return new LaunchTarget(candidate, "--launch-product=league_of_legends --launch-patchline=live");
+        {
+            string? patchline = ResolvePatchline(candidate);
+            if (!string.IsNullOrWhiteSpace(patchline))
+                return new LaunchTarget(candidate, $"--launch-product=league_of_legends --launch-patchline={patchline}");
+
+            // 国服分支名称由 Riot 安装清单给出；缺少清单时不能误用国际服 live。
+            if (!IsTencentInstall(leagueClientExecutable))
+                return new LaunchTarget(candidate, "--launch-product=league_of_legends --launch-patchline=live");
+        }
         return new LaunchTarget(leagueClientExecutable, "");
     }
 
     private sealed record LaunchTarget(string Executable, string Arguments);
-    private sealed record ClientState(bool ProcessRunning, bool WindowVisible, bool LcuReady);
+    private sealed record ClientState(bool ProcessRunning, bool WindowVisible, bool LcuReady, bool LauncherRunning);
+
+    private static bool IsTencentInstall(string executablePath) =>
+        executablePath.Contains("WeGameApps", StringComparison.OrdinalIgnoreCase) ||
+        executablePath.Contains("Tencent Games", StringComparison.OrdinalIgnoreCase) ||
+        executablePath.Contains("英雄联盟", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>从 Riot 自己的安装清单匹配服务程序，避免把国服误当成国际服 live 分支。</summary>
+    private static string? ResolvePatchline(string riotClientExecutable)
+    {
+        string manifest = GetRiotInstallManifestPath();
+        if (!File.Exists(manifest)) return null;
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
+            if (!document.RootElement.TryGetProperty("patchlines", out JsonElement patchlines) ||
+                patchlines.ValueKind != JsonValueKind.Object)
+                return null;
+
+            string normalizedTarget = Path.GetFullPath(riotClientExecutable);
+            foreach (JsonProperty patchline in patchlines.EnumerateObject())
+            {
+                if (patchline.Value.ValueKind != JsonValueKind.String) continue;
+                string? servicePath = patchline.Value.GetString();
+                if (string.IsNullOrWhiteSpace(servicePath)) continue;
+                if (string.Equals(Path.GetFullPath(servicePath), normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                    return patchline.Name;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
+        {
+            // 安装清单不可用时回退到可直接运行的客户端程序。
+        }
+        return null;
+    }
 
     /// <summary>优先扫描用户选择的文件夹，未命中时才检查常见安装目录。</summary>
     private static string? ResolveExecutable(string? configuredDirectory)
     {
         if (!string.IsNullOrWhiteSpace(configuredDirectory))
         {
+            configuredDirectory = configuredDirectory.Trim().Trim('"');
             // 兼容旧版本保存的 LeagueClient.exe 完整路径。
             if (File.Exists(configuredDirectory) &&
                 string.Equals(Path.GetFileName(configuredDirectory), "LeagueClient.exe", StringComparison.OrdinalIgnoreCase))
@@ -177,6 +250,8 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
                 string? found = FindLeagueClientExecutable(configuredDirectory);
                 if (found != null) return found;
             }
+            // 用户指定安装位置时不偷偷启动其它安装版本。
+            return null;
         }
 
         foreach (string candidate in GetKnownClientLocations())
@@ -221,13 +296,15 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     {
         string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        var candidates = new List<string>
+        var candidates = new List<string>();
+        candidates.AddRange(GetRiotInstallManifestLocations());
+        candidates.AddRange(new[]
         {
             Path.Combine(programFiles, "Riot Games", "League of Legends", "LeagueClient.exe"),
             Path.Combine(programFilesX86, "Riot Games", "League of Legends", "LeagueClient.exe"),
             Path.Combine(programFiles, "Tencent Games", "League of Legends", "LeagueClient.exe"),
             Path.Combine(programFilesX86, "Tencent Games", "League of Legends", "LeagueClient.exe")
-        };
+        });
 
         // 国服常见于 WeGame 或非系统盘。只检查确定的安装相对路径，
         // 不递归扫描整块磁盘，避免启动助手时造成长时间卡顿。
@@ -237,10 +314,10 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
             candidates.Add(Path.Combine(root, "Riot Games", "League of Legends", "LeagueClient.exe"));
             candidates.Add(Path.Combine(root, "Tencent Games", "League of Legends", "LeagueClient.exe"));
             candidates.Add(Path.Combine(root, "WeGameApps", "rail_apps", "LOL", "LeagueClient.exe"));
+            candidates.Add(Path.Combine(root, "WeGameApps", "英雄联盟（含经典模式）", "LeagueClient", "LeagueClient.exe"));
+            candidates.Add(Path.Combine(root, "WeGameApps", "英雄联盟", "LeagueClient", "LeagueClient.exe"));
             candidates.Add(Path.Combine(root, "Program Files", "Riot Games", "League of Legends", "LeagueClient.exe"));
         }
-
-        candidates.AddRange(GetRiotInstallManifestLocations());
 
         return candidates.Distinct(StringComparer.OrdinalIgnoreCase);
     }
@@ -252,15 +329,42 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     private static IEnumerable<string> GetRiotInstallManifestLocations()
     {
         var candidates = new List<string>();
-        string manifest = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "Riot Games",
-            "RiotClientInstalls.json");
+        string manifest = GetRiotInstallManifestPath();
         if (!File.Exists(manifest)) return candidates;
 
         try
         {
             using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
+            // associated_client 的安装目录在 JSON 属性名中，旧实现只读属性值会漏掉国服。
+            if (document.RootElement.TryGetProperty("associated_client", out JsonElement associations) &&
+                associations.ValueKind == JsonValueKind.Object)
+            {
+                string? defaultService = document.RootElement.TryGetProperty("rc_default", out JsonElement defaultElement) &&
+                    defaultElement.ValueKind == JsonValueKind.String
+                    ? defaultElement.GetString()
+                    : null;
+                var preferred = new List<string>();
+                var others = new List<string>();
+                foreach (JsonProperty association in associations.EnumerateObject())
+                {
+                    try
+                    {
+                        string directory = Path.GetFullPath(association.Name.Replace('/', Path.DirectorySeparatorChar));
+                        string executable = Path.Combine(directory, "LeagueClient.exe");
+                        string? service = association.Value.ValueKind == JsonValueKind.String
+                            ? association.Value.GetString()
+                            : null;
+                        if (!string.IsNullOrWhiteSpace(defaultService) && !string.IsNullOrWhiteSpace(service) &&
+                            string.Equals(Path.GetFullPath(defaultService), Path.GetFullPath(service), StringComparison.OrdinalIgnoreCase))
+                            preferred.Add(executable);
+                        else
+                            others.Add(executable);
+                    }
+                    catch (ArgumentException) { }
+                }
+                candidates.AddRange(preferred);
+                candidates.AddRange(others);
+            }
             foreach (string value in ReadJsonStrings(document.RootElement))
             {
                 if (string.IsNullOrWhiteSpace(value)) continue;
@@ -286,6 +390,11 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         }
         return candidates;
     }
+
+    private static string GetRiotInstallManifestPath() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        "Riot Games",
+        "RiotClientInstalls.json");
 
     private static IEnumerable<string> ReadJsonStrings(JsonElement element)
     {

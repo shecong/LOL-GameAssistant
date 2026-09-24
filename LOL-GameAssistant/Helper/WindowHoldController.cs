@@ -27,6 +27,10 @@ public sealed class WindowHoldController : IDisposable
     private readonly LowLevelKeyboardProc _callback;
     private IntPtr _hook = IntPtr.Zero;
     private Keys _hotkey = Keys.Oem3;
+    private Keys _shoutBuiltInKey = Keys.F6;
+    private Keys _shoutCustomKey = Keys.F7;
+    private bool _shoutHotkeysEnabled;
+    private Action<bool>? _shoutAction;
     private bool _onlyWhenLeagueFocused = true;
     private bool _holding;
     private readonly System.Windows.Forms.Timer _releaseWatchdog = new() { Interval = 40 };
@@ -50,6 +54,26 @@ public sealed class WindowHoldController : IDisposable
             _hook == IntPtr.Zero ? "不可用" : "已注册",
             $"{DescribeKey(_hotkey)} · {(_onlyWhenLeagueFocused ? "仅 LOL 前台" : "所有窗口")}");
     }
+
+    /// <summary>沿用现有键盘钩子，在游戏前台按键抬起时触发随机喊话。</summary>
+    public void ConfigureQuickShoutHotkeys(AssistantSettings config, Action<bool> action)
+    {
+        _shoutAction = action;
+        _shoutBuiltInKey = ParseFunctionKey(config.QuickShoutBuiltInHotkey, Keys.F6);
+        _shoutCustomKey = ParseFunctionKey(config.QuickShoutCustomHotkey, Keys.F7);
+        _shoutHotkeysEnabled = config.QuickShoutHotkeysEnabled &&
+            _shoutBuiltInKey != _shoutCustomKey && _shoutBuiltInKey != _hotkey &&
+            _shoutCustomKey != _hotkey;
+        RuntimeDiagnostics.Report("游戏内喊话快捷键",
+            _hook == IntPtr.Zero || !_shoutHotkeysEnabled ? "不可用" : "已启用",
+            _shoutHotkeysEnabled
+                ? $"默认词库 {_shoutBuiltInKey} · 自定义词库 {_shoutCustomKey} · 仅游戏前台"
+                : "已关闭、快捷键重复或与置顶键冲突");
+    }
+
+    private static Keys ParseFunctionKey(string? value, Keys fallback) =>
+        Enum.TryParse(value, true, out Keys key) && key is >= Keys.F2 and <= Keys.F12
+            ? key : fallback;
 
     public static Keys ParseKey(string? value)
     {
@@ -85,6 +109,18 @@ public sealed class WindowHoldController : IDisposable
         int virtualKey = Marshal.ReadInt32(lParam);
         bool keyDown = wParam == (IntPtr)WmKeyDown || wParam == (IntPtr)WmSysKeyDown;
         bool keyUp = wParam == (IntPtr)WmKeyUp || wParam == (IntPtr)WmSysKeyUp;
+
+        if (_shoutHotkeysEnabled &&
+            (virtualKey == (int)_shoutBuiltInKey || virtualKey == (int)_shoutCustomKey) &&
+            IsLeagueGameForeground())
+        {
+            if (keyUp)
+            {
+                bool custom = virtualKey == (int)_shoutCustomKey;
+                RunOnWindowThread(() => _shoutAction?.Invoke(custom));
+            }
+            return (IntPtr)1;
+        }
 
         if (virtualKey == (int)_hotkey)
         {
@@ -174,6 +210,20 @@ public sealed class WindowHoldController : IDisposable
         {
             return false;
         }
+    }
+
+    private static bool IsLeagueGameForeground()
+    {
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return false;
+        GetWindowThreadProcessId(foreground, out uint pid);
+        if (pid == 0) return false;
+        try
+        {
+            using Process process = Process.GetProcessById((int)pid);
+            return process.ProcessName.Equals("League of Legends", StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
     }
 
     public void Dispose()

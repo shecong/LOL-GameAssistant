@@ -40,10 +40,13 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
         return Select_Api.AutoBanAsync(championIds.ToList());
     }
 
-    public Task<bool> AutoPickAsync(IReadOnlyList<int> championIds, CancellationToken cancellationToken = default)
+    public Task<bool> AutoPickAsync(
+        IReadOnlyList<int> championIds,
+        bool lockIn,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Select_Api.AutoPickAsync(championIds.ToList());
+        return Select_Api.AutoPickAsync(championIds.ToList(), lockIn);
     }
 
     /// <summary>选人成员 DTO 到领域快照的单向转换。</summary>
@@ -56,6 +59,8 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
                 CellId = member.CellId,
                 ChampionId = member.ChampionId,
                 AssignedPosition = member.AssignedPosition ?? "",
+                IsAutofilled = member.IsAutofilled,
+                ChampionPickIntent = member.ChampionPickIntent,
                 Puuid = member.Puuid ?? ""
             }).ToList();
     }

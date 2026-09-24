@@ -1,0 +1,9 @@
+id: lol-game-assistant-visuals
+name: LOL GameAssistant Visuals
+description: Optional Pengu visual layer for in-client tier badges, wallpaper, and navigation hiding.
+version: 0.1.0
+
+author:
+  name: LOL GameAssistant contributors
+
+tags: [utility, ui, visual]

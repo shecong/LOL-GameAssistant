@@ -24,11 +24,14 @@ public interface IThemeAware
 
 public static class UiTheme
 {
-    private sealed record OriginalColors(Color BackColor, Color ForeColor);
+    private sealed record OriginalColors(Color BackColor, Color ForeColor, bool CapturedDark);
     private sealed record OriginalGradient(Color StartColor, Color EndColor, Color BorderColor);
+    private sealed record OriginalButtonColors(Color? Back, Color? Border);
 
     private static readonly ConditionalWeakTable<Control, OriginalColors> Originals = new();
     private static readonly ConditionalWeakTable<GradientPanel, OriginalGradient> OriginalGradients = new();
+    private static readonly ConditionalWeakTable<AntdUI.Button, OriginalButtonColors> OriginalButtons = new();
+    private static readonly ConditionalWeakTable<Control, object> DynamicControls = new();
     private static string _mode = "System";
 
     public static event EventHandler? Changed;
@@ -54,6 +57,7 @@ public static class UiTheme
         {
             ApplyCore(root, palette);
             ApplyThemeAware(root, palette);
+            WatchNewControls(root);
         }
         finally
         {
@@ -64,20 +68,33 @@ public static class UiTheme
 
     private static void ApplyCore(Control control, ThemePalette palette)
     {
-        OriginalColors original = Originals.GetValue(control, key => new OriginalColors(key.BackColor, key.ForeColor));
+        OriginalColors original = Originals.GetValue(control, key => new OriginalColors(key.BackColor, key.ForeColor, palette.IsDark));
         if (!palette.IsDark)
         {
-            control.BackColor = original.BackColor;
-            control.ForeColor = original.ForeColor;
+            control.BackColor = original.CapturedDark && IsDarkNeutral(original.BackColor)
+                ? control is AntdUI.Panel or TextBox or ListBox or ComboBox ? palette.SurfaceRaised : palette.Surface
+                : original.BackColor;
+            control.ForeColor = original.CapturedDark && original.ForeColor.A > 0 &&
+                original.ForeColor.GetBrightness() > .6f && IsNeutral(original.ForeColor)
+                ? palette.TextPrimary
+                : original.ForeColor;
         }
         else
         {
             if (IsLightNeutral(original.BackColor))
                 control.BackColor = IsNearlyWhite(original.BackColor) ? palette.SurfaceRaised : palette.Surface;
+            else if (IsVeryDarkNeutral(original.BackColor))
+                control.BackColor = palette.SurfaceMuted;
 
             if (IsDarkNeutral(original.ForeColor))
                 control.ForeColor = original.ForeColor.GetBrightness() < .42f ? palette.TextPrimary : palette.TextSecondary;
+            else if (original.ForeColor.A > 0 && original.ForeColor.GetBrightness() < .55f)
+                control.ForeColor = ControlPaint.Light(original.ForeColor, .55f);
         }
+
+        if (original.ForeColor.ToArgb() == Color.DimGray.ToArgb() ||
+            original.ForeColor.ToArgb() == Color.Gray.ToArgb())
+            control.ForeColor = palette.TextSecondary;
 
         if (control is GradientPanel gradient)
         {
@@ -98,8 +115,45 @@ public static class UiTheme
             }
         }
 
+        if (control is AntdUI.Button button && button.Type.ToString() != "Primary")
+        {
+            OriginalButtonColors colors = OriginalButtons.GetValue(button,
+                key => new OriginalButtonColors(key.DefaultBack, key.DefaultBorderColor));
+            button.DefaultBack = palette.IsDark ? palette.SurfaceMuted : colors.Back;
+            button.DefaultBorderColor = palette.IsDark ? palette.Border : colors.Border;
+            button.ForeColor = palette.TextPrimary;
+            if (palette.IsDark)
+            {
+                button.BackColor = palette.SurfaceMuted;
+            }
+        }
+
+        if (control is ComboBox combo && combo.DropDownStyle == ComboBoxStyle.DropDownList &&
+            combo.DrawMode == DrawMode.Normal)
+        {
+            combo.DrawMode = DrawMode.OwnerDrawFixed;
+            combo.FlatStyle = FlatStyle.Flat;
+            combo.DrawItem += DrawComboItem;
+        }
+
         foreach (Control child in control.Controls)
             ApplyCore(child, palette);
+    }
+
+    private static void DrawComboItem(object? sender, DrawItemEventArgs e)
+    {
+        if (sender is not ComboBox combo || e.Index < 0) return;
+        ThemePalette palette = Palette;
+        bool selected = (e.State & DrawItemState.Selected) != 0;
+        Color background = selected
+            ? palette.IsDark ? Color.FromArgb(57, 90, 125) : Color.FromArgb(218, 234, 250)
+            : palette.SurfaceRaised;
+        using var brush = new SolidBrush(background);
+        e.Graphics.FillRectangle(brush, e.Bounds);
+        TextRenderer.DrawText(e.Graphics, combo.Items[e.Index]?.ToString() ?? "", combo.Font,
+            e.Bounds, palette.TextPrimary, TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
+            TextFormatFlags.EndEllipsis);
+        e.DrawFocusRectangle();
     }
 
     private static void ApplyThemeAware(Control control, ThemePalette palette)
@@ -107,6 +161,16 @@ public static class UiTheme
         if (control is IThemeAware aware) aware.ApplyTheme(palette);
         foreach (Control child in control.Controls)
             ApplyThemeAware(child, palette);
+    }
+
+    private static void WatchNewControls(Control control)
+    {
+        if (!DynamicControls.TryGetValue(control, out _))
+        {
+            DynamicControls.Add(control, new object());
+            control.ControlAdded += (_, args) => { if (args.Control != null) Apply(args.Control); };
+        }
+        foreach (Control child in control.Controls) WatchNewControls(child);
     }
 
     private static bool IsDark() => _mode switch
@@ -134,7 +198,7 @@ public static class UiTheme
 
     private static ThemePalette CreatePalette(bool dark) => dark
         ? new ThemePalette(true,
-            Color.FromArgb(18, 24, 33), Color.FromArgb(29, 38, 50), Color.FromArgb(42, 53, 67),
+            Color.FromArgb(36, 44, 56), Color.FromArgb(48, 58, 72), Color.FromArgb(58, 70, 86),
             Color.FromArgb(238, 242, 247), Color.FromArgb(184, 196, 210), Color.FromArgb(82, 98, 116),
             Color.FromArgb(100, 181, 246), Color.FromArgb(25, 118, 210), Color.FromArgb(198, 40, 40))
         : new ThemePalette(false,
@@ -150,10 +214,13 @@ public static class UiTheme
     private static bool IsDarkNeutral(Color color) =>
         color.A > 0 && color.GetBrightness() < .62f && IsNeutral(color);
 
+    private static bool IsVeryDarkNeutral(Color color) =>
+        color.A > 0 && color.GetBrightness() < .2f && IsNeutral(color);
+
     private static bool IsLightSurface(Color color) =>
         color.A > 0 && color.GetBrightness() > .76f &&
         Math.Max(color.R, Math.Max(color.G, color.B)) - Math.Min(color.R, Math.Min(color.G, color.B)) < 36;
 
     private static bool IsNeutral(Color color) =>
-        Math.Max(color.R, Math.Max(color.G, color.B)) - Math.Min(color.R, Math.Min(color.G, color.B)) < 18;
+        Math.Max(color.R, Math.Max(color.G, color.B)) - Math.Min(color.R, Math.Min(color.G, color.B)) < 42;
 }

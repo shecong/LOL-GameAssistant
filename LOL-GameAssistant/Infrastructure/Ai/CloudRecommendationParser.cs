@@ -1,66 +1,98 @@
 using LOL_GameAssistant.Domain.Coaching;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace LOL_GameAssistant.Infrastructure.Ai;
 
-/// <summary>把 AI 文本约束为可验证的建议卡片；服务不遵守 JSON 时保留为一张 AI 文本卡。</summary>
+/// <summary>兼容旧版 JSON 建议，并保证任何异常响应都不会把 JSON 原文直接展示给用户。</summary>
 internal static class CloudRecommendationParser
 {
     public static IReadOnlyList<CoachRecommendation> Parse(string content, DateTimeOffset now)
     {
         string normalized = RemoveMarkdownFence(content).Trim();
+        if (LooksLikeJson(normalized))
+        {
+            IReadOnlyList<CoachRecommendation> cards = ParseJsonCards(normalized, now);
+            if (cards.Count > 0) return cards;
+            return [CreateTextCard("云端建议格式不完整，请稍后刷新重试。", now)];
+        }
+
+        string readable = string.IsNullOrWhiteSpace(normalized)
+            ? "云端服务没有返回可展示的补充建议。"
+            : normalized;
+        return [CreateTextCard(readable, now)];
+    }
+
+    private static IReadOnlyList<CoachRecommendation> ParseJsonCards(string json, DateTimeOffset now)
+    {
         try
         {
-            using JsonDocument document = JsonDocument.Parse(normalized);
-            JsonElement cards = document.RootElement.TryGetProperty("recommendations", out var nested)
-                ? nested
-                : document.RootElement;
-            if (cards.ValueKind != JsonValueKind.Array) throw new JsonException("recommendations 不是数组。");
-
-            var parsed = new List<CoachRecommendation>();
-            int index = 0;
-            foreach (JsonElement card in cards.EnumerateArray())
+            using JsonDocument document = JsonDocument.Parse(json);
+            JsonElement cards = document.RootElement.ValueKind == JsonValueKind.Object &&
+                                document.RootElement.TryGetProperty("recommendations", out JsonElement nested)
+                ? nested : document.RootElement;
+            if (cards.ValueKind == JsonValueKind.Array)
             {
-                if (card.ValueKind != JsonValueKind.Object || parsed.Count >= 3) continue;
-                string title = GetText(card, "title");
-                string body = GetText(card, "body");
-                if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(body)) continue;
-
-                string category = GetText(card, "category");
-                string evidence = GetText(card, "evidence");
-                string priority = GetText(card, "priority");
-                parsed.Add(new CoachRecommendation(
-                    $"cloud-{StableHash(title + body)}-{index++}",
-                    string.IsNullOrWhiteSpace(category) ? "云端补充" : category[..Math.Min(category.Length, 24)],
-                    ParsePriority(priority),
-                    title[..Math.Min(title.Length, 72)],
-                    body[..Math.Min(body.Length, 360)],
-                    string.IsNullOrWhiteSpace(evidence) ? "基于当前可见对局信息。" : evidence[..Math.Min(evidence.Length, 180)],
-                    RecommendationSource.CloudAi,
-                    now.AddMinutes(2)));
+                var parsed = new List<CoachRecommendation>();
+                foreach (JsonElement card in cards.EnumerateArray())
+                {
+                    if (card.ValueKind != JsonValueKind.Object || parsed.Count >= 3) continue;
+                    CoachRecommendation? recommendation = ParseCard(card, now, parsed.Count);
+                    if (recommendation != null) parsed.Add(recommendation);
+                }
+                if (parsed.Count > 0) return parsed;
             }
-
-            if (parsed.Count > 0) return parsed;
         }
         catch (JsonException)
         {
-            // 部分兼容服务不稳定地遵从 JSON 格式，保留 AI 返回的可读内容。
+            // 兼容旧模型生成到 token 上限时留下的半截 JSON：只恢复完整对象。
         }
 
-        string fallback = string.IsNullOrWhiteSpace(content) ? "云端服务没有返回可展示的补充建议。" : content.Trim();
-        return new[]
+        var recovered = new List<CoachRecommendation>();
+        foreach (Match match in Regex.Matches(json, @"\{[^{}]*\}"))
         {
-            new CoachRecommendation(
-                "cloud-text-" + StableHash(fallback),
-                "云端补充",
-                RecommendationPriority.Info,
-                "云端局势补充",
-                fallback[..Math.Min(fallback.Length, 600)],
-                "云端模型基于当前可见信息生成。",
-                RecommendationSource.CloudAi,
-                now.AddMinutes(2))
-        };
+            if (recovered.Count >= 3) break;
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(match.Value);
+                CoachRecommendation? card = ParseCard(document.RootElement, now, recovered.Count);
+                if (card != null) recovered.Add(card);
+            }
+            catch (JsonException) { }
+        }
+        return recovered;
     }
+
+    private static CoachRecommendation? ParseCard(JsonElement card, DateTimeOffset now, int index)
+    {
+        string title = GetText(card, "title");
+        string body = GetText(card, "body");
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(body)) return null;
+        string category = GetText(card, "category");
+        string evidence = GetText(card, "evidence");
+        return new CoachRecommendation(
+            $"cloud-{StableHash(title + body)}-{index}",
+            string.IsNullOrWhiteSpace(category) ? "云端补充" : category[..Math.Min(category.Length, 24)],
+            ParsePriority(GetText(card, "priority")),
+            title[..Math.Min(title.Length, 72)],
+            body,
+            string.IsNullOrWhiteSpace(evidence) ? "基于当前可见对局信息。" : evidence,
+            RecommendationSource.CloudAi,
+            now.AddMinutes(2));
+    }
+
+    private static CoachRecommendation CreateTextCard(string text, DateTimeOffset now) => new(
+        "cloud-text-" + StableHash(text),
+        "云端补充",
+        RecommendationPriority.Info,
+        "云端局势补充",
+        text,
+        "",
+        RecommendationSource.CloudAi,
+        now.AddMinutes(2));
+
+    private static bool LooksLikeJson(string text) => text.StartsWith('{') || text.StartsWith('[') ||
+        Regex.IsMatch(text, "\\\"recommendations\\\"\\s*:");
 
     private static string RemoveMarkdownFence(string text)
     {

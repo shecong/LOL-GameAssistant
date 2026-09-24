@@ -9,6 +9,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Platforms>AnyCPU;x64</Platforms>
+    <ApplicationIcon>icon_16x16.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -35,6 +36,7 @@
     <PackageReference Include="AntdUI" Version="2.1.6" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Management" Version="9.0.10" />
+    <PackageReference Include="WindowsInput" Version="6.3.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,6 +58,7 @@
     <Content Include="Data\lane-knowledge.zh-CN.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="icon_16x16.ico" />
   </ItemGroup>
 
 </Project>

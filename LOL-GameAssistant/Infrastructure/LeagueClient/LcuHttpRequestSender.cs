@@ -47,6 +47,16 @@ public sealed class LcuHttpRequestSender : ILcuRequestSender
         return response != null;
     }
 
+    public async Task<bool> PatchAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
+    {
+        using var client = new HttpClentHelper();
+        using Stream? response = await client.PatchAsync(
+            endpoint,
+            body: jsonBody,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return response != null;
+    }
+
     public async Task<bool> DeleteAsync(string endpoint, CancellationToken cancellationToken = default)
     {
         using var client = new HttpClentHelper();

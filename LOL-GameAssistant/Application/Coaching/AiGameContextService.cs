@@ -62,13 +62,18 @@ public sealed class AiGameContextService : IAiGameContextService
         string? myPuuid,
         CancellationToken cancellationToken)
     {
-        ChampionSelectionSnapshot? session = await _championSelectService.GetSessionAsync(cancellationToken).ConfigureAwait(false);
+        Task<ChampionSelectionSnapshot?> sessionTask = _championSelectService.GetSessionAsync(cancellationToken);
+        Task<LobbySnapshot?> lobbyTask = _lobbyService.GetLobbyAsync(cancellationToken);
+        ChampionSelectionSnapshot? session = await sessionTask.ConfigureAwait(false);
+        LobbySnapshot? lobby = await lobbyTask.ConfigureAwait(false);
         if (session == null)
         {
             return new AiGameContext
             {
                 Phase = phase,
                 Mode = "峡谷选人",
+                GameMode = lobby?.GameMode ?? "CLASSIC",
+                QueueId = lobby?.QueueId ?? 0,
                 LaneKnowledge = _laneKnowledgeService.GetAdvice("通用", "通用")
             };
         }
@@ -82,18 +87,22 @@ public sealed class AiGameContextService : IAiGameContextService
         string champion = _championCatalog.GetDisplayName(championId);
         string role = NormalizeRole(me?.AssignedPosition);
         var enemies = session.TheirTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
+        var enemyIds = session.TheirTeam.Select(member => member.ChampionId).Where(id => id > 0).ToList();
         var allies = session.MyTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         string matchup = enemies.FirstOrDefault() ?? "";
 
         return new AiGameContext
         {
             Phase = phase,
-            Mode = "峡谷选人",
+            Mode = NormalizeLiveMode(lobby?.GameMode),
+            GameMode = lobby?.GameMode ?? "CLASSIC",
+            QueueId = lobby?.QueueId ?? 0,
             MyChampion = champion,
             MyChampionId = championId,
             MyRole = role,
             AlliedChampions = allies,
             EnemyChampions = enemies,
+            EnemyChampionIds = enemyIds,
             LaneKnowledge = _laneKnowledgeService.GetAdvice(champion, role, matchup)
         };
     }
@@ -123,6 +132,7 @@ public sealed class AiGameContextService : IAiGameContextService
         {
             Phase = phase,
             Mode = mode,
+            GameMode = liveSnapshot?.GameMode ?? "CLASSIC",
             MyChampion = champion,
             MyChampionId = me?.ChampionId ?? 0,
             MyRole = role,
@@ -132,6 +142,10 @@ public sealed class AiGameContextService : IAiGameContextService
             CurrentItems = liveSnapshot?.Items ?? Array.Empty<string>(),
             AlliedChampions = allies,
             EnemyChampions = enemies,
+            EnemyChampionIds = (mineIsTeamOne ? teamTwo : teamOne)
+                .Select(member => member.ChampionId)
+                .Where(id => id > 0)
+                .ToList(),
             LaneKnowledge = _laneKnowledgeService.GetAdvice(champion, role, matchup)
         };
     }
@@ -176,6 +190,9 @@ public sealed class AiGameContextService : IAiGameContextService
     private static string NormalizeLiveMode(string? mode) => mode?.Trim().ToUpperInvariant() switch
     {
         "ARAM" => "深渊大乱斗",
+        "CHERRY" or "ARENA" => "斗魂竞技场",
+        "URF" or "ARURF" => "无限火力",
+        "NEXUSBLITZ" or "NEXUS_BLITZ" => "极限闪击",
         "CLASSIC" or "CLASSIC SR" => "峡谷对局",
         _ => "峡谷对局"
     };

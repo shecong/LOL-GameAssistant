@@ -58,6 +58,25 @@ public sealed class OpggBuildApplyServiceTests
             (page.Value<string>("name") ?? "").StartsWith("LOL助手 OP.GG ·", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task ApplyBuild_WhenRecommendationHasSpells_PatchesCurrentChampionSelection()
+    {
+        var lcu = new FakeLcuRequestSender(
+            ownedPageCount: 2,
+            customPageCount: 1,
+            new JObject { ["id"] = 11, ["name"] = "保留的自定义页", ["current"] = true, ["isTemporary"] = false });
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        OpggBuildApplyResult result = await service.ApplyBuildAsync(
+            1,
+            "TOP",
+            CreateOption() with { SummonerSpellIds = new[] { 4, 14 } });
+
+        Assert.True(result.Succeeded);
+        Assert.Contains("召唤师技能", result.Message);
+        Assert.Contains("/lol-champ-select/v1/session/my-selection", lcu.PatchEndpoints);
+    }
+
     private static OpggBuildOption CreateOption() => new(
         1,
         new[] { 1055 },
@@ -84,6 +103,7 @@ public sealed class OpggBuildApplyServiceTests
         public List<JObject> RunePages { get; }
         public List<string> DeleteEndpoints { get; } = new();
         public List<string> PutEndpoints { get; } = new();
+        public List<string> PatchEndpoints { get; } = new();
 
         public FakeLcuRequestSender(int ownedPageCount, int? customPageCount, params JObject[] pages)
         {
@@ -136,6 +156,12 @@ public sealed class OpggBuildApplyServiceTests
                     page["name"] = JObject.Parse(jsonBody).Value<string>("name");
                 }
             }
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> PatchAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
+        {
+            PatchEndpoints.Add(endpoint);
             return Task.FromResult(true);
         }
 

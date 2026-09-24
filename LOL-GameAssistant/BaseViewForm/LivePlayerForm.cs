@@ -47,6 +47,15 @@ namespace LOL_GameAssistant.BaseViewForm
         private ToolTip? _premadeTip;
         private ToolTip? _copyTip;
         private readonly ToolTip _performanceTip = new();
+        private readonly Button _historyButton = new()
+        {
+            Text = "查战绩",
+            Size = new Size(60, 26),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(25, 118, 210),
+            ForeColor = Color.White,
+            UseVisualStyleBackColor = false
+        };
         private readonly bool _showCopyButton;
         private bool _recentPerformancePublished;
 
@@ -144,6 +153,11 @@ namespace LOL_GameAssistant.BaseViewForm
             // 因此构造期只设成安全默认值（设 false 不会建句柄），真实状态等句柄建立后再应用。
             btnCopy.Visible = false;
             _showCopyButton = !_isBot && !string.IsNullOrEmpty(_playerPuuid);
+            _historyButton.FlatAppearance.BorderSize = 0;
+            _historyButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            _historyButton.Visible = false;
+            _historyButton.Click += (_, _) => OpenMatchHistory();
+            headerPanel.Controls.Add(_historyButton);
 
             // 队友/对手标识：同队显示“队友”（蓝色），异队显示“对手”（红色）
             lblTeamTag.Text = isAlly ? "队友" : "对手";
@@ -163,6 +177,7 @@ namespace LOL_GameAssistant.BaseViewForm
             // 复制按钮悬停提示：显示可复制的完整 ID
             _copyTip = new ToolTip();
             _copyTip.SetToolTip(btnCopy, "复制该玩家 PUUID（可用于精确查询）");
+            _copyTip.SetToolTip(_historyButton, "打开此玩家的战绩查询");
             if (!string.IsNullOrEmpty(_playerPuuid))
             {
                 _copyTip.SetToolTip(this, $"PUUID: {_playerPuuid}");
@@ -233,6 +248,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (IsDisposed) return;
             btnCopy.Visible = _showCopyButton;
+            _historyButton.Visible = _showCopyButton;
             lblTeamTag.Visible = _teamKnown;
         }
 
@@ -243,15 +259,18 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             const int textLeft = 56;
             const int copyWidth = 60;
+            const int historyWidth = 60;
             const int currentIconWidth = 28;
             const int tagWidth = 36;
             const int premadeWidth = 46;
             const int gap = 6;
 
-            int right = Math.Max(textLeft + copyWidth + gap, ClientSize.Width - 12);
+            int right = Math.Max(textLeft + copyWidth + historyWidth + 2 * gap, ClientSize.Width - 12);
             int copyLeft = Math.Max(textLeft, right - copyWidth);
-            int currentIconLeft = Math.Max(textLeft, copyLeft - gap - currentIconWidth);
+            int historyLeft = Math.Max(textLeft, copyLeft - gap - historyWidth);
+            int currentIconLeft = Math.Max(textLeft, historyLeft - gap - currentIconWidth);
             btnCopy.Location = new Point(copyLeft, 8);
+            _historyButton.Location = new Point(historyLeft, 8);
             picCurrent.Location = new Point(currentIconLeft, 10);
 
             // 顶行优先保证玩家名称；宽度不足时隐藏战绩汇总，避免文字彼此覆盖。
@@ -602,6 +621,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblName.Text = string.IsNullOrEmpty(lblName.Text) ? "机器人" : lblName.Text;
             lblSub.Text = "机器人";
             btnCopy.Visible = false;
+            _historyButton.Visible = false;
             lblSummary.Text = "";
             if (_championId > 0)
             {
@@ -766,6 +786,13 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 // 剪贴板被占用时忽略
             }
+        }
+
+        /// <summary>大厅、选人与对局卡片共享的快速战绩入口。</summary>
+        private void OpenMatchHistory()
+        {
+            if (string.IsNullOrWhiteSpace(_playerPuuid)) return;
+            _ = BattleQueryForm.QueryPlayerAsync(_playerPuuid);
         }
     }
 

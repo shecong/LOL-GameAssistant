@@ -1,12 +1,14 @@
 using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.ChampionSelect;
+using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Application.Friends;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.LiveGame;
+using LOL_GameAssistant.Application.Insights;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
@@ -33,6 +35,8 @@ namespace LOL_GameAssistant.Bootstrap;
 public static class AppCompositionRoot
 {
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
+
+    public static LcuQuickShoutService QuickShoutService { get; } = new(LcuRequestSender);
 
     /// <summary>本地客户端扫描与启动服务。</summary>
     public static IGameClientLauncher GameClientLauncher { get; } = new LocalGameClientLauncher();
@@ -91,6 +95,10 @@ public static class AppCompositionRoot
     /// <summary>英雄 ID 与展示名称目录。</summary>
     public static IChampionCatalog ChampionCatalog { get; } = new LegacyChampionCatalog();
 
+    /// <summary>外置版 OP.GG 英雄 T 级与 ARAM 平衡修正公开数据。</summary>
+    public static IChampionInsightsService ChampionInsightsService { get; } =
+        new OpggChampionInsightsService(ChampionCatalog);
+
     /// <summary>大厅、匹配确认与游戏流程服务。</summary>
     public static ILobbyService LobbyService { get; } = new LegacyLobbyService();
 
@@ -100,6 +108,10 @@ public static class AppCompositionRoot
     /// <summary>向 LCU 当前英雄选择聊天会话发送一条消息。</summary>
     public static IChampionSelectChatService ChampionSelectChatService { get; } =
         new LcuChampionSelectChatService(LcuRequestSender);
+
+    /// <summary>回放、奖励、赛后、社交与快捷大厅等外置客户端增强功能。</summary>
+    public static IClientFeatureService ClientFeatureService { get; } =
+        new LcuClientFeatureService(LcuRequestSender);
 
     /// <summary>OP.GG 公开推荐到本机 LCU 符文页和自定义物品集的一键配置。</summary>
     public static IOpggBuildApplyService OpggBuildApplyService { get; } =

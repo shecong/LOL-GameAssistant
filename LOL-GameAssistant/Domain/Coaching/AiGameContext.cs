@@ -8,6 +8,9 @@ public sealed class AiGameContext
 {
     public string Phase { get; init; } = "未知";
     public string Mode { get; init; } = "峡谷对局";
+    /// <summary>LCU 原始游戏模式，用于映射 OP.GG 的 ranked/aram/arena 等接口。</summary>
+    public string GameMode { get; init; } = "CLASSIC";
+    public int QueueId { get; init; }
     public string MyChampion { get; init; } = "未选择英雄";
     public int MyChampionId { get; init; }
     public string MyRole { get; init; } = "未知位置";
@@ -20,6 +23,7 @@ public sealed class AiGameContext
     public IReadOnlyList<string> CurrentItems { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> AlliedChampions { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> EnemyChampions { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<int> EnemyChampionIds { get; init; } = Array.Empty<int>();
     public string LaneKnowledge { get; init; } = "暂无匹配到的专项知识点。";
 
     public bool IsAram => Mode.Contains("大乱斗", StringComparison.Ordinal);

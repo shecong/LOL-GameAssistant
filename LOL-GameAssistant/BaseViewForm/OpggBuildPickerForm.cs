@@ -26,7 +26,10 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
     public OpggBuildOption? SelectedOption => _selectedCard?.Option;
 
-    public OpggBuildPickerForm(OpggBuildChoices choices, IGameAssetService gameAssetService)
+    public OpggBuildPickerForm(
+        OpggBuildChoices choices,
+        IGameAssetService gameAssetService,
+        int initiallySelectedOrder = 0)
     {
         _choices = choices;
         _gameAssetService = gameAssetService;
@@ -44,7 +47,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         Padding = new Padding(14);
         Font = new Font("Microsoft YaHei UI", 9F);
 
-        BuildUi();
+        BuildUi(initiallySelectedOrder);
         UiTheme.Apply(this);
         Shown += async (_, _) =>
         {
@@ -55,7 +58,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         FormClosed += (_, _) => DisposeOwnedImages();
     }
 
-    private void BuildUi()
+    private void BuildUi(int initiallySelectedOrder)
     {
         var heroHeader = new Panel { Dock = DockStyle.Top, Height = 78, Padding = new Padding(10, 8, 10, 8) };
         _championIcon.Size = new Size(58, 58);
@@ -69,7 +72,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         _title.Text = $"{_choices.ChampionName} · {_choices.PositionName} · 选择一套对局方案";
         _note.Dock = DockStyle.Fill;
         _note.Font = new Font("Microsoft YaHei UI", 9F);
-        _note.Text = "每张卡片同时展示核心装备、符文图标、胜率与样本量。选择后点击“应用”，才会写入客户端。";
+        _note.Text = BuildRecommendationNote();
         headerText.Controls.Add(_note);
         headerText.Controls.Add(_title);
         heroHeader.Controls.Add(headerText);
@@ -88,7 +91,8 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
             _cards.Add(card);
             _routeCards.Controls.Add(card.Root);
         }
-        if (_cards.Count > 0) SelectCard(_cards[0]);
+        if (_cards.Count > 0)
+            SelectCard(_cards.FirstOrDefault(card => card.Option.Order == initiallySelectedOrder) ?? _cards[0]);
 
         var footer = new FlowLayoutPanel
         {
@@ -108,6 +112,19 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         Controls.Add(heroHeader);
         AcceptButton = _apply;
         CancelButton = cancel;
+    }
+
+    private string BuildRecommendationNote()
+    {
+        int spellCount = _choices.Options.FirstOrDefault()?.SummonerSpellIds?.Count ?? 0;
+        string spells = spellCount >= 2 ? "含推荐召唤师技能" : "该模式未提供可写入的召唤师技能";
+        string augments = _choices.Augments?.Count > 0
+            ? "海克斯：" + string.Join("、", _choices.Augments.Take(3).Select(item => $"#{item.Id} {item.WinRate:F1}%"))
+            : "暂无海克斯数据";
+        string matchups = _choices.Matchups?.Count > 0
+            ? "对位：" + string.Join("、", _choices.Matchups.Take(3).Select(item => $"英雄#{item.ChampionId} {item.WinRate:F1}%"))
+            : "暂无对位数据";
+        return $"{spells}；{augments}；{matchups}。选择后点击“应用”才会写入客户端；同英雄同模式会记住手动方案。";
     }
 
     private RouteCard CreateRouteCard(OpggBuildOption option)

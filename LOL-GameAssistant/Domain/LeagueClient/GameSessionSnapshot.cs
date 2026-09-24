@@ -7,6 +7,7 @@ public sealed class GameTeamMember
     public string SummonerName { get; init; } = "";
     public int ChampionId { get; init; }
     public string Position { get; init; } = "";
+    public string SecondaryPosition { get; init; } = "";
     public bool IsBot { get; init; }
 }
 
@@ -16,6 +17,8 @@ public sealed class LobbySnapshot
     public string GameMode { get; init; } = "";
     public int QueueId { get; init; }
     public string LocalPlayerPuuid { get; init; } = "";
+    public string LocalPrimaryPosition { get; init; } = "";
+    public string LocalSecondaryPosition { get; init; } = "";
     public IReadOnlyList<GameTeamMember> Team100 { get; init; } = Array.Empty<GameTeamMember>();
     public IReadOnlyList<GameTeamMember> Team200 { get; init; } = Array.Empty<GameTeamMember>();
 }

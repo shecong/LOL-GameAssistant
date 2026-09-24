@@ -30,6 +30,8 @@ public sealed class LegacyLobbyService : ILobbyService
             GameMode = legacy.GameConfig?.GameMode ?? "",
             QueueId = legacy.GameConfig?.QueueId ?? 0,
             LocalPlayerPuuid = legacy.LocalMember?.Puuid ?? "",
+            LocalPrimaryPosition = legacy.LocalMember?.FirstPositionPreference ?? "",
+            LocalSecondaryPosition = legacy.LocalMember?.SecondPositionPreference ?? "",
             Team100 = MapLobbyMembers(legacy.GameConfig?.CustomTeam100),
             Team200 = MapLobbyMembers(legacy.GameConfig?.CustomTeam200)
         };
@@ -65,6 +67,7 @@ public sealed class LegacyLobbyService : ILobbyService
                 SummonerName = member.SummonerName,
                 ChampionId = member.IsBot ? member.BotChampionId : 0,
                 Position = member.FirstPositionPreference,
+                SecondaryPosition = member.SecondPositionPreference,
                 IsBot = member.IsBot
             }).ToList();
     }
@@ -80,6 +83,7 @@ public sealed class LegacyLobbyService : ILobbyService
                 SummonerName = member.SummonerName,
                 ChampionId = member.ChampionId,
                 Position = member.SelectedPosition,
+                SecondaryPosition = "",
                 IsBot = false
             }).ToList();
     }

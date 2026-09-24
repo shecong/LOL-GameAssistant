@@ -9,5 +9,11 @@ public interface IChampionSelectService
 
     Task<bool> AutoBanAsync(IReadOnlyList<int> championIds, CancellationToken cancellationToken = default);
 
-    Task<bool> AutoPickAsync(IReadOnlyList<int> championIds, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// 按优先级选择可用英雄。<paramref name="lockIn"/> 为 false 时仅预选，不会锁定。
+    /// </summary>
+    Task<bool> AutoPickAsync(
+        IReadOnlyList<int> championIds,
+        bool lockIn,
+        CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,5 @@
 ﻿using LOL_GameAssistant.Application.ChampionSelect;
+using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Lobby;
@@ -6,6 +7,7 @@ using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.LeagueClient;
+using LOL_GameAssistant.Domain.ChampionSelect;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
 using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
@@ -17,28 +19,34 @@ namespace LOL_GameAssistant
         public static InfoMsgForm infoMsg = new InfoMsgForm();
         public static HomeForm home = new HomeForm(infoMsg!);
         public static FriendsForm friendsForm = new FriendsForm();
-        public static SettingForm settingForm = new SettingForm();
         public static LiveGameForm liveGameForm = new LiveGameForm();
         public static BattleQueryForm battleQueryForm = new BattleQueryForm();
         public static CoachForm coachForm = new CoachForm();
         public static DiagnosticsForm diagnosticsForm = new DiagnosticsForm();
+        // SettingForm may load while controls are attached; its side effects need these pages.
+        public static SettingForm settingForm = new SettingForm();
 
         private readonly ILeagueClientEventStream _eventStream;
         private readonly ILobbyService _lobbyService;
         private readonly IChampionSelectService _championSelectService;
+        private readonly IClientFeatureService _clientFeatureService;
         private readonly IApplicationSettingsStore _settingsStore;
         private readonly IGameClientLauncher _gameClientLauncher;
         private readonly IRecommendationCoordinator _recommendationCoordinator;
         private CancellationTokenSource? _lcuRetryCts;
         private NotifyIcon? _trayIcon;
         private CancellationTokenSource? _autoActionCts;
+        private CancellationTokenSource? _autoAcceptCts;
         private CancellationTokenSource? _opggPromptCts;
         private CancellationTokenSource? _phaseDataLoadCts;
         private GameFlowPhase? _lastNotifiedEndPhase;
+        private bool _readyCheckDeclinedByUser;
+        private bool _postGameAutomationsTriggered;
         private bool _restoringFromTray;
         private readonly WindowHoldController _windowHoldController;
         private readonly QuickMessageSenderController _quickMessageController;
         private bool _autoClientLaunchAttempted;
+        private bool? _lastAntdDarkMode;
 
         /// <summary>
         /// 游戏状态枚举
@@ -58,6 +66,24 @@ namespace LOL_GameAssistant
 
         public bool IsLiveGameTabActive => tabs1.SelectedIndex == LiveGameTabIndex;
 
+        public Task<GameShoutSendResult> SendQuickShoutToGameAsync(string phrase, bool sendToAll,
+            bool useClipboard, bool perCharacter, int minimumIntervalSeconds) =>
+            _quickMessageController.SendSelectedToGameAsync(phrase, sendToAll,
+                useClipboard, perCharacter, minimumIntervalSeconds);
+
+        public Task<GameShoutSendResult> TestGameChatOpenAsync() =>
+            _quickMessageController.TestChatOpenAsync();
+
+        public Task<GameShoutSendResult> SendGameKdaAnnouncementAsync(
+            IReadOnlyList<string> messages, AssistantSettings settings) =>
+            _quickMessageController.SendBatchToGameAsync(messages,
+                settings.QuickShoutSendToAll, settings.QuickShoutUseClipboard,
+                settings.QuickMessageSendIntervalSeconds);
+
+        public void ConfigureQuickShoutHotkeys(AssistantSettings config) =>
+            _windowHoldController.ConfigureQuickShoutHotkeys(config,
+                custom => _ = settingForm.SendRandomQuickShoutToGameAsync(custom));
+
         /// <summary>
         /// 切换到“战绩查询”标签页（供其他界面点击玩家头像跳转使用）。
         /// </summary>
@@ -73,6 +99,7 @@ namespace LOL_GameAssistant
             AppCompositionRoot.LeagueClientEventStream,
             AppCompositionRoot.LobbyService,
             AppCompositionRoot.ChampionSelectService,
+            AppCompositionRoot.ClientFeatureService,
             AppCompositionRoot.ApplicationSettingsStore,
             AppCompositionRoot.GameClientLauncher,
             AppCompositionRoot.RecommendationCoordinator)
@@ -84,6 +111,7 @@ namespace LOL_GameAssistant
             ILeagueClientEventStream eventStream,
             ILobbyService lobbyService,
             IChampionSelectService championSelectService,
+            IClientFeatureService clientFeatureService,
             IApplicationSettingsStore settingsStore,
             IGameClientLauncher gameClientLauncher,
             IRecommendationCoordinator recommendationCoordinator)
@@ -91,6 +119,7 @@ namespace LOL_GameAssistant
             _eventStream = eventStream;
             _lobbyService = lobbyService;
             _championSelectService = championSelectService;
+            _clientFeatureService = clientFeatureService;
             _settingsStore = settingsStore;
             _gameClientLauncher = gameClientLauncher;
             _recommendationCoordinator = recommendationCoordinator;
@@ -114,7 +143,7 @@ namespace LOL_GameAssistant
         public void ApplyWindowSettings(AssistantSettings config)
         {
             _windowHoldController.Apply(config);
-            _quickMessageController.Apply(config);
+            ConfigureQuickShoutHotkeys(config);
             UiTheme.SetMode(config.ThemeMode);
             ApplyTheme();
         }
@@ -127,7 +156,41 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>Reapply the semantic palette to all pages already attached to the main window.</summary>
-        public void ApplyTheme() => UiTheme.Apply(this);
+        public void ApplyTheme()
+        {
+            ThemePalette palette = UiTheme.Palette;
+            // 与参考实现一致：AntdUI 的全局主题和窗口语义色同时更新，避免混用控件出现两套配色。
+            if (_lastAntdDarkMode != palette.IsDark)
+            {
+                AntdUI.Style.Clear();
+                if (palette.IsDark)
+                {
+                    AntdUI.Style.Set(AntdUI.Colour.BgBase, palette.Surface);
+                    AntdUI.Style.Set(AntdUI.Colour.BgLayout, palette.Surface);
+                    AntdUI.Style.Set(AntdUI.Colour.BgContainer, palette.SurfaceRaised);
+                    AntdUI.Style.Set(AntdUI.Colour.BgElevated, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.TextBase, palette.TextPrimary);
+                    AntdUI.Style.Set(AntdUI.Colour.Text, palette.TextPrimary);
+                    AntdUI.Style.Set(AntdUI.Colour.TextSecondary, palette.TextSecondary);
+                    AntdUI.Style.Set(AntdUI.Colour.TextTertiary, palette.TextSecondary);
+                    AntdUI.Style.Set(AntdUI.Colour.TextQuaternary, palette.TextSecondary);
+                    AntdUI.Style.Set(AntdUI.Colour.Fill, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.FillSecondary, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.FillTertiary, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.FillQuaternary, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.HoverBg, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.BorderColor, palette.Border);
+                }
+                _lastAntdDarkMode = palette.IsDark;
+            }
+            AntdUI.Config.IsDark = palette.IsDark;
+            btn_theme_toggle.IconSvg = palette.IsDark ? "MoonFilled" : "SunOutlined";
+            btn_theme_toggle.AccessibleName = palette.IsDark ? "切换到浅色主题" : "切换到深色主题";
+            BackColor = palette.Surface;
+            ForeColor = palette.TextPrimary;
+            UiTheme.Apply(this);
+            Refresh();
+        }
 
         /// <summary>同步建议开关与调度周期；协调器不依赖设置页是否可见。</summary>
         public void ApplyRecommendationSettings(AssistantSettings config) =>
@@ -150,6 +213,8 @@ namespace LOL_GameAssistant
             TryAutoLaunchLeagueClient(startupSettings);
             //初始化模块
             LoadAllForm();
+            liveGameForm.ConfigureAutoRefresh(startupSettings.AutoRefresh,
+                Math.Max(10, startupSettings.AutoRefreshIntervalSeconds));
             ApplyTheme();
             _ = InitializeLiveGameAsync();
         }
@@ -291,6 +356,7 @@ namespace LOL_GameAssistant
             tab4_grid1.Controls.Add(new AboutForm() { Dock = DockStyle.Fill });
             //加载设置
             tabPage5.Controls.Clear();
+            settingForm.Dock = DockStyle.Fill;
             tabPage5.Controls.Add(settingForm);
             //加载日志窗口
             tab5_grid1.Controls.Clear();
@@ -305,6 +371,18 @@ namespace LOL_GameAssistant
         private async void dj_refresh_Click(object sender, EventArgs e)
         {
             await liveGameForm.AddView(force: true);
+        }
+
+        /// <summary>标题栏快捷切换明确写入浅色/深色，不改变用户在设置中选择的“跟随系统”之外的其它配置。</summary>
+        private void btn_theme_toggle_Click(object sender, EventArgs e)
+        {
+            AssistantSettings settings = _settingsStore.Load();
+            settings.ThemeMode = UiTheme.Palette.IsDark ? "Light" : "Dark";
+            settings.Normalize();
+            _settingsStore.Save(settings);
+            UiTheme.SetMode(settings.ThemeMode);
+            ApplyTheme();
+            AntdUI.Message.success(this, settings.ThemeMode == "Dark" ? "已切换为深色主题" : "已切换为浅色主题");
         }
 
         /// <summary>
@@ -498,6 +576,26 @@ namespace LOL_GameAssistant
                 _ = gameflowphaseStatus(gameEvent.Data);
                 infoMsg.AddMsg(gameEvent.Data);
             }
+            else if (string.Equals(gameEvent.Uri, "/lol-matchmaking/v1/ready-check", StringComparison.Ordinal))
+            {
+                ObserveReadyCheckResponse(gameEvent.Data);
+            }
+        }
+
+        /// <summary>
+        /// 仅在明确收到 Declined 时抑制本轮自动接受，保证手动拒绝不会被延迟任务覆盖。
+        /// </summary>
+        private void ObserveReadyCheckResponse(string data)
+        {
+            if (!data.Contains("\"playerResponse\":\"Declined\"", StringComparison.OrdinalIgnoreCase) &&
+                !data.Contains("\"playerResponse\": \"Declined\"", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _readyCheckDeclinedByUser = true;
+            CancelAutoAccept();
+            AddInfoMessage("检测到手动拒绝，本轮不再自动接受");
         }
 
         /// <summary>
@@ -520,6 +618,12 @@ namespace LOL_GameAssistant
                 if (parsedPhase != GameFlowPhase.WaitingForStats && parsedPhase != GameFlowPhase.EndOfGame)
                 {
                     _lastNotifiedEndPhase = null;
+                    _postGameAutomationsTriggered = false;
+                }
+                if (parsedPhase != GameFlowPhase.ReadyCheck)
+                {
+                    CancelAutoAccept();
+                    _readyCheckDeclinedByUser = false;
                 }
                 // 已在 UI 线程上，直接更新表头即可
                 this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
@@ -547,8 +651,7 @@ namespace LOL_GameAssistant
 
                 case "readycheck":
                     StopPhaseDataLoad();
-                    //匹配中,如果有开启自动接受,则自动接受
-                    SettingForm.GameTrue(settingForm);
+                    ScheduleAutoAccept();
                     liveGameForm.ResetRosterCache();
                     break;
 
@@ -576,11 +679,101 @@ namespace LOL_GameAssistant
                     // 该局已经结束，释放对局页的开黑检测结果；下一局必须重新检测。
                     liveGameForm.ResetRosterCache();
                     await NotifyGameEndedAsync();
+                    TriggerPostGameAutomations();
                     _ = liveGameForm.AddView();
                     break;
 
                 default:
                     break;
+            }
+        }
+
+        /// <summary>根据持久化延迟范围安排一次自动接受；同一轮 Ready Check 不重复排队。</summary>
+        private void ScheduleAutoAccept()
+        {
+            if (_readyCheckDeclinedByUser || _autoAcceptCts != null) return;
+
+            AssistantSettings config = _settingsStore.Load();
+            if (!config.AutoAccept) return;
+
+            _autoAcceptCts = new CancellationTokenSource();
+            _ = AcceptReadyCheckAfterDelayAsync(config, _autoAcceptCts);
+        }
+
+        private async Task AcceptReadyCheckAfterDelayAsync(AssistantSettings config, CancellationTokenSource source)
+        {
+            try
+            {
+                int min = Math.Max(0, config.AutoAcceptDelayMinMilliseconds);
+                int max = Math.Max(min, config.AutoAcceptDelayMaxMilliseconds);
+                int delay = min == max ? min : Random.Shared.Next(min, max + 1);
+                if (delay > 0)
+                    await Task.Delay(delay, source.Token).ConfigureAwait(true);
+
+                if (source.Token.IsCancellationRequested || _readyCheckDeclinedByUser ||
+                    gameFlowPhase != GameFlowPhase.ReadyCheck)
+                {
+                    return;
+                }
+
+                await _lobbyService.AcceptReadyCheckAsync(source.Token).ConfigureAwait(true);
+                AddInfoMessage(delay > 0 ? $"已延迟 {delay}ms 自动接受对局" : "已自动接受对局");
+            }
+            catch (OperationCanceledException)
+            {
+                // 阶段结束、用户拒绝或应用关闭时，取消本轮延迟是预期行为。
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.Report("自动接受", "执行失败", ex.Message);
+                AddInfoMessage($"自动接受失败：{ex.Message}");
+            }
+            finally
+            {
+                if (ReferenceEquals(_autoAcceptCts, source))
+                {
+                    _autoAcceptCts.Dispose();
+                    _autoAcceptCts = null;
+                }
+            }
+        }
+
+        private void CancelAutoAccept()
+        {
+            CancellationTokenSource? source = _autoAcceptCts;
+            _autoAcceptCts = null;
+            source?.Cancel();
+            source?.Dispose();
+        }
+
+        /// <summary>赛后自动化只在同一局的第一个结束阶段执行一次。</summary>
+        private void TriggerPostGameAutomations()
+        {
+            if (_postGameAutomationsTriggered) return;
+            _postGameAutomationsTriggered = true;
+            _ = RunPostGameAutomationsAsync(_settingsStore.Load());
+        }
+
+        private async Task RunPostGameAutomationsAsync(AssistantSettings config)
+        {
+            try
+            {
+                if (config.AutoHonor)
+                {
+                    ClientFeatureResult honor = await _clientFeatureService.HonorRandomEligibleAllyAsync();
+                    AddInfoMessage(honor.Message);
+                }
+
+                if (config.AutoReturnToLobby)
+                {
+                    ClientFeatureResult result = await _clientFeatureService.ReturnToLobbyAsync(config.AutoReturnStartMatchmaking);
+                    AddInfoMessage(result.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.Report("赛后自动化", "执行失败", ex.Message);
+                AddInfoMessage($"赛后自动化失败：{ex.Message}");
             }
         }
 
@@ -605,7 +798,7 @@ namespace LOL_GameAssistant
 
                 // 自动抢英雄立即开始，独立于自动禁用循环和其间隔设置。
                 Task pickTask = autoPickEnabled && cachedPickIds.Count > 0
-                    ? AutoPickFastLoopAsync(cachedPickIds, token)
+                    ? AutoPickFastLoopAsync(cachedPickIds, config, token)
                     : Task.CompletedTask;
 
                 // 自动禁用仍按设置的“自动禁用间隔”执行。
@@ -635,17 +828,29 @@ namespace LOL_GameAssistant
         /// <summary>
         /// 快速尝试自动选英雄：首次立即请求，选人动作尚未生成时每 100ms 重试一次。
         /// </summary>
-        private async Task AutoPickFastLoopAsync(List<int> pickChampionIds, CancellationToken token)
+        private async Task AutoPickFastLoopAsync(
+            List<int> pickChampionIds,
+            AssistantSettings config,
+            CancellationToken token)
         {
             const int RetryDelayMilliseconds = 100;
+
+            if (config.SkipAutoPickOnFill && await ShouldSkipAutoPickForFillAsync(token))
+            {
+                AddInfoMessage("检测到补位，已跳过自动选人");
+                return;
+            }
 
             while (gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
             {
                 try
                 {
-                    if (await _championSelectService.AutoPickAsync(pickChampionIds))
+                    if (await _championSelectService.AutoPickAsync(
+                        pickChampionIds,
+                        lockIn: !config.AutoPickPreselectOnly,
+                        cancellationToken: token))
                     {
-                        infoMsg.AddMsg("自动选用英雄成功");
+                        infoMsg.AddMsg(config.AutoPickPreselectOnly ? "已自动预选英雄" : "自动选用英雄成功");
                         return;
                     }
                 }
@@ -657,6 +862,38 @@ namespace LOL_GameAssistant
                 await Task.Delay(RetryDelayMilliseconds, token).ConfigureAwait(false);
             }
         }
+
+        /// <summary>
+        /// 仅在客户端同时给出偏好分路和实际分路时判定补位；信息缺失时继续自动选人，
+        /// 避免在没有分路概念的模式误跳过。
+        /// </summary>
+        private async Task<bool> ShouldSkipAutoPickForFillAsync(CancellationToken cancellationToken)
+        {
+            ChampionSelectionSnapshot? selection = await _championSelectService.GetSessionAsync(cancellationToken);
+            LobbySnapshot? lobby = await _lobbyService.GetLobbyAsync(cancellationToken);
+            if (selection == null || lobby == null) return false;
+
+            var me = selection.MyTeam.FirstOrDefault(member => member.CellId == selection.LocalPlayerCellId);
+            if (me?.IsAutofilled == true) return true;
+            string assigned = NormalizePosition(me?.AssignedPosition);
+            string primary = NormalizePosition(lobby.LocalPrimaryPosition);
+            string secondary = NormalizePosition(lobby.LocalSecondaryPosition);
+            if (string.IsNullOrEmpty(assigned) || string.IsNullOrEmpty(primary)) return false;
+
+            return !string.Equals(assigned, primary, StringComparison.Ordinal) &&
+                   !string.IsNullOrEmpty(secondary) &&
+                   !string.Equals(assigned, secondary, StringComparison.Ordinal);
+        }
+
+        private static string NormalizePosition(string? position) => position?.Trim().ToUpperInvariant() switch
+        {
+            "TOP" => "TOP",
+            "JUNGLE" or "JNG" => "JUNGLE",
+            "MIDDLE" or "MID" => "MIDDLE",
+            "BOTTOM" or "BOT" or "ADC" => "BOTTOM",
+            "UTILITY" or "SUPPORT" or "SUP" => "UTILITY",
+            _ => ""
+        };
 
         /// <summary>
         /// 把设置中的英雄名列表转换为英雄 ID 列表。
@@ -848,6 +1085,7 @@ namespace LOL_GameAssistant
             else
             {
                 _autoActionCts?.Cancel();
+                CancelAutoAccept();
                 StopOpggChampSelectMonitor();
                 StopPhaseDataLoad();
                 _lcuRetryCts?.Cancel();
