@@ -41,7 +41,8 @@ public sealed record OpggBuildOption(
     IReadOnlyList<int> RunePerkIds,
     int Matches,
     int Wins,
-    IReadOnlyList<int>? SummonerSpellIds = null)
+    IReadOnlyList<int>? SummonerSpellIds = null,
+    string Mode = "ranked")
 {
     public double WinRate => Matches <= 0 ? 0 : Math.Round(Wins * 100D / Matches, 1);
 }
@@ -55,7 +56,8 @@ public sealed record OpggBuildChoices(
     IReadOnlyList<OpggBuildOption> Options,
     string Mode = "ranked",
     IReadOnlyList<OpggAugmentRecommendation>? Augments = null,
-    IReadOnlyList<OpggMatchup>? Matchups = null)
+    IReadOnlyList<OpggMatchup>? Matchups = null,
+    int ChampionId = 0)
 {
     public static OpggBuildChoices Failure(string message) => new(false, message, "", "", Array.Empty<OpggBuildOption>());
 }

@@ -27,6 +27,8 @@ public sealed class LobbySnapshot
 public sealed class ActiveGameSnapshot
 {
     public string Phase { get; init; } = "";
+    public string GameMode { get; init; } = "";
+    public int QueueId { get; init; }
     public IReadOnlyList<GameTeamMember> TeamOne { get; init; } = Array.Empty<GameTeamMember>();
     public IReadOnlyList<GameTeamMember> TeamTwo { get; init; } = Array.Empty<GameTeamMember>();
 }

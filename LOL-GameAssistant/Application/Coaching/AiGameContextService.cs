@@ -64,16 +64,24 @@ public sealed class AiGameContextService : IAiGameContextService
     {
         Task<ChampionSelectionSnapshot?> sessionTask = _championSelectService.GetSessionAsync(cancellationToken);
         Task<LobbySnapshot?> lobbyTask = _lobbyService.GetLobbyAsync(cancellationToken);
+        Task<ActiveGameSnapshot?> flowTask = _lobbyService.GetCurrentSessionAsync(cancellationToken);
         ChampionSelectionSnapshot? session = await sessionTask.ConfigureAwait(false);
         LobbySnapshot? lobby = await lobbyTask.ConfigureAwait(false);
+        ActiveGameSnapshot? flow;
+        try { flow = await flowTask.ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { flow = null; }
+        string gameMode = !string.IsNullOrWhiteSpace(lobby?.GameMode)
+            ? lobby.GameMode : flow?.GameMode ?? "";
+        int queueId = lobby?.QueueId is > 0 ? lobby.QueueId : flow?.QueueId ?? 0;
         if (session == null)
         {
             return new AiGameContext
             {
                 Phase = phase,
                 Mode = "峡谷选人",
-                GameMode = lobby?.GameMode ?? "CLASSIC",
-                QueueId = lobby?.QueueId ?? 0,
+                GameMode = gameMode,
+                QueueId = queueId,
                 LaneKnowledge = _laneKnowledgeService.GetAdvice("通用", "通用")
             };
         }
@@ -94,9 +102,9 @@ public sealed class AiGameContextService : IAiGameContextService
         return new AiGameContext
         {
             Phase = phase,
-            Mode = NormalizeLiveMode(lobby?.GameMode),
-            GameMode = lobby?.GameMode ?? "CLASSIC",
-            QueueId = lobby?.QueueId ?? 0,
+            Mode = NormalizeLiveMode(gameMode),
+            GameMode = gameMode,
+            QueueId = queueId,
             MyChampion = champion,
             MyChampionId = championId,
             MyRole = role,

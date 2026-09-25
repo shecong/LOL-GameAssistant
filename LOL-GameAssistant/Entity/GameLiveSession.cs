@@ -17,11 +17,29 @@
     /// </summary>
     public class GameData
     {
+        [Newtonsoft.Json.JsonProperty("gameMode")]
+        public string GameMode { get; set; } = "";
+
+        [Newtonsoft.Json.JsonProperty("queueId")]
+        public int QueueId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("queue")]
+        public GameQueue? Queue { get; set; }
+
         [Newtonsoft.Json.JsonProperty("teamOne")]
         public List<TeamMember> TeamOne { get; set; } = new();
 
         [Newtonsoft.Json.JsonProperty("teamTwo")]
         public List<TeamMember> TeamTwo { get; set; } = new();
+    }
+
+    public class GameQueue
+    {
+        [Newtonsoft.Json.JsonProperty("id")]
+        public int Id { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("gameMode")]
+        public string GameMode { get; set; } = "";
     }
 
     /// <summary>

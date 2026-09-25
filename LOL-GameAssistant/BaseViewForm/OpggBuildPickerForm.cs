@@ -3,6 +3,7 @@ using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Infrastructure.GameData;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -17,6 +18,9 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
     private readonly Button _apply = new() { Text = "应用选中方案", AutoSize = true, Enabled = false };
     private readonly Label _title = new();
     private readonly Label _note = new();
+    private readonly Label _modeBadge = new();
+    private readonly Label _sourceHint = new();
+    private readonly Panel _heroHeader = new();
     private readonly PictureBox _championIcon = new();
     private readonly List<RouteCard> _cards = new();
     private readonly List<Image> _ownedImages = new();
@@ -34,17 +38,17 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         _choices = choices;
         _gameAssetService = gameAssetService;
         Text = $"OP.GG 方案选择 · {choices.ChampionName} {choices.PositionName}";
-        FormBorderStyle = FormBorderStyle.FixedDialog;
+        FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
-        MaximizeBox = false;
+        MaximizeBox = true;
         MinimizeBox = false;
         ShowInTaskbar = false;
         // 选人阶段英雄联盟客户端在前台，而本窗口不占任务栏：
         // 不置顶的话它可能开在客户端后面且完全看不出来。
         TopMost = true;
-        MinimumSize = new Size(880, 590);
-        ClientSize = new Size(1040, 700);
-        Padding = new Padding(14);
+        MinimumSize = new Size(860, 600);
+        ClientSize = new Size(1080, 760);
+        Padding = new Padding(18);
         Font = new Font("Microsoft YaHei UI", 9F);
 
         BuildUi(initiallySelectedOrder);
@@ -53,6 +57,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         {
             Activate();
             BringToFront();
+            await UpdateRecommendationNoteAsync();
             await LoadVisualsAsync();
         };
         FormClosed += (_, _) => DisposeOwnedImages();
@@ -60,29 +65,45 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
     private void BuildUi(int initiallySelectedOrder)
     {
-        var heroHeader = new Panel { Dock = DockStyle.Top, Height = 78, Padding = new Padding(10, 8, 10, 8) };
-        _championIcon.Size = new Size(58, 58);
+        _heroHeader.Dock = DockStyle.Top;
+        _heroHeader.Height = 126;
+        _heroHeader.Padding = new Padding(14, 12, 14, 12);
+        _championIcon.Size = new Size(72, 72);
         _championIcon.SizeMode = PictureBoxSizeMode.Zoom;
         _championIcon.Dock = DockStyle.Left;
 
-        var headerText = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 1, 0, 0) };
-        _title.Dock = DockStyle.Top;
-        _title.Height = 28;
-        _title.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold);
-        _title.Text = $"{_choices.ChampionName} · {_choices.PositionName} · 选择一套对局方案";
+        var headerText = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(16, 0, 0, 0) };
+        headerText.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        headerText.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        headerText.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        _title.Dock = DockStyle.Fill;
+        _title.Font = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold);
+        _title.Text = $"{_choices.ChampionName} · 当前对局推荐";
         _note.Dock = DockStyle.Fill;
         _note.Font = new Font("Microsoft YaHei UI", 9F);
         _note.Text = BuildRecommendationNote();
-        headerText.Controls.Add(_note);
-        headerText.Controls.Add(_title);
-        heroHeader.Controls.Add(headerText);
-        heroHeader.Controls.Add(_championIcon);
+        _modeBadge.AutoSize = true;
+        _modeBadge.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+        _modeBadge.Padding = new Padding(8, 3, 8, 2);
+        _modeBadge.Text = $"当前模式：{_choices.PositionName}";
+        _sourceHint.AutoSize = true;
+        _sourceHint.TextAlign = ContentAlignment.MiddleLeft;
+        _sourceHint.Padding = new Padding(12, 0, 0, 0);
+        _sourceHint.Text = $"OP.GG 公开数据 · {_choices.Options.Count} 套方案 · 选择后点击应用";
+        var contextRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        contextRow.Controls.Add(_modeBadge);
+        contextRow.Controls.Add(_sourceHint);
+        headerText.Controls.Add(_title, 0, 0);
+        headerText.Controls.Add(_note, 0, 1);
+        headerText.Controls.Add(contextRow, 0, 2);
+        _heroHeader.Controls.Add(headerText);
+        _heroHeader.Controls.Add(_championIcon);
 
         _routeCards.Dock = DockStyle.Fill;
         _routeCards.AutoScroll = true;
         _routeCards.FlowDirection = FlowDirection.TopDown;
         _routeCards.WrapContents = false;
-        _routeCards.Padding = new Padding(0, 6, 8, 4);
+        _routeCards.Padding = new Padding(0, 16, 8, 4);
         _routeCards.SizeChanged += (_, _) => ResizeRouteCards();
 
         foreach (OpggBuildOption option in _choices.Options)
@@ -97,9 +118,9 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         var footer = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 52,
+            Height = 62,
             FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(0, 9, 0, 0),
+            Padding = new Padding(0, 13, 0, 0),
             WrapContents = false
         };
         var cancel = new Button { Text = "暂不应用", AutoSize = true, DialogResult = DialogResult.Cancel };
@@ -109,7 +130,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
         Controls.Add(_routeCards);
         Controls.Add(footer);
-        Controls.Add(heroHeader);
+        Controls.Add(_heroHeader);
         AcceptButton = _apply;
         CancelButton = cancel;
     }
@@ -118,34 +139,48 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
     {
         int spellCount = _choices.Options.FirstOrDefault()?.SummonerSpellIds?.Count ?? 0;
         string spells = spellCount >= 2 ? "含推荐召唤师技能" : "该模式未提供可写入的召唤师技能";
-        string augments = _choices.Augments?.Count > 0
-            ? "海克斯：" + string.Join("、", _choices.Augments.Take(3).Select(item => $"#{item.Id} {item.WinRate:F1}%"))
-            : "暂无海克斯数据";
+        string augments = _choices.Augments?.Count > 0 ? "正在整理海克斯推荐" : "暂无海克斯数据";
         string matchups = _choices.Matchups?.Count > 0
-            ? "对位：" + string.Join("、", _choices.Matchups.Take(3).Select(item => $"英雄#{item.ChampionId} {item.WinRate:F1}%"))
+            ? "正在整理对位推荐"
             : "暂无对位数据";
-        return $"{spells}；{augments}；{matchups}。选择后点击“应用”才会写入客户端；同英雄同模式会记住手动方案。";
+        return $"{spells}。{augments}；{matchups}。";
+    }
+
+    private async Task UpdateRecommendationNoteAsync()
+    {
+        int spellCount = _choices.Options.FirstOrDefault()?.SummonerSpellIds?.Count ?? 0;
+        string spells = spellCount >= 2 ? "含推荐召唤师技能" : "当前模式无可写入技能";
+        var augments = _choices.Augments?.Take(3).ToArray() ?? [];
+        var names = await AugmentCatalog.ResolveAsync(augments.Select(item => item.Id));
+        string augmentText = augments.Length == 0 ? "无海克斯统计" :
+            "海克斯：" + string.Join("、", names.Select((name, index) =>
+                $"{name.Name} {augments[index].WinRate:F1}%"));
+        var matchups = _choices.Matchups?.Take(3).ToArray() ?? [];
+        string matchupText = matchups.Length == 0 ? "无对位统计" :
+            "对位：" + string.Join("、", matchups.Select(item =>
+                $"{AppCompositionRoot.ChampionCatalog.GetDisplayName(item.ChampionId)} {item.WinRate:F1}%"));
+        if (!IsDisposed) _note.Text = $"{spells}。{augmentText}；{matchupText}。";
     }
 
     private RouteCard CreateRouteCard(OpggBuildOption option)
     {
         var root = new Panel
         {
-            Height = 214,
+            Height = 244,
             Width = 1000,
-            Margin = new Padding(0, 0, 0, 10),
-            Padding = new Padding(12),
+            Margin = new Padding(0, 0, 0, 14),
+            Padding = new Padding(16),
             Cursor = Cursors.Hand
         };
         var indicator = new Panel { Dock = DockStyle.Left, Width = 5, Margin = new Padding(0, 0, 10, 0) };
         var content = new Panel { Dock = DockStyle.Fill };
 
-        var cardHeader = new Panel { Dock = DockStyle.Top, Height = 36 };
+        var cardHeader = new Panel { Dock = DockStyle.Top, Height = 42 };
         var label = new Label
         {
             AutoSize = true,
             Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
-            Text = $"方案 {option.Order}"
+            Text = option.Order == 1 ? "方案 1 · 热门路线" : $"方案 {option.Order} · 备选路线"
         };
         var sample = new Label
         {
@@ -176,7 +211,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 41));
 
         var itemPanel = new Panel { Dock = DockStyle.Fill };
-        var itemTitle = new Label { Dock = DockStyle.Top, Height = 24, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold), Text = "推荐出装 · 起始 / 核心 / 备选" };
+        var itemTitle = new Label { Dock = DockStyle.Top, Height = 24, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold), Text = "装备路线   起始 / 核心 / 可选" };
         var itemSlots = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true, Padding = new Padding(0, 2, 0, 0) };
         var itemTileList = new List<AssetTile>();
         AddItemSection(itemSlots, "起始", option.StarterItemIds, itemTileList);
@@ -191,7 +226,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
             Dock = DockStyle.Top,
             Height = 24,
             Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
-            Text = "符文 · 主系 / 副系 / 属性碎片"
+            Text = "符文配置   主系 / 副系 / 属性"
         };
         var runeSlots = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true, Padding = new Padding(0, 2, 0, 0) };
         var runeTileList = new List<AssetTile>();
@@ -282,7 +317,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
     private void ResizeRouteCards()
     {
-        int width = Math.Max(720, _routeCards.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 10);
+        int width = Math.Max(300, _routeCards.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 18);
         foreach (RouteCard card in _cards) card.Root.Width = width;
     }
 
@@ -367,8 +402,9 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         }
     }
 
-    private int ResolveChampionId() =>
-        AppCompositionRoot.ChampionCatalog.FindIdByDisplayName(_choices.ChampionName) ?? 0;
+    private int ResolveChampionId() => _choices.ChampionId > 0
+        ? _choices.ChampionId
+        : AppCompositionRoot.ChampionCatalog.FindIdByDisplayName(_choices.ChampionName) ?? 0;
 
     private void AssignImage(PictureBox target, Image? image)
     {
@@ -416,6 +452,10 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         ForeColor = palette.TextPrimary;
         _title.ForeColor = palette.TextPrimary;
         _note.ForeColor = palette.TextSecondary;
+        _heroHeader.BackColor = palette.SurfaceRaised;
+        _modeBadge.BackColor = palette.IsDark ? Color.FromArgb(30, 53, 78) : Color.FromArgb(232, 243, 253);
+        _modeBadge.ForeColor = palette.Accent;
+        _sourceHint.ForeColor = palette.TextSecondary;
         foreach (RouteCard card in _cards)
         {
             bool selected = ReferenceEquals(card, _selectedCard);

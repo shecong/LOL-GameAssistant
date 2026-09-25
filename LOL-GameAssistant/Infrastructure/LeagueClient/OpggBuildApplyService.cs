@@ -53,6 +53,10 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         {
             string role = NormalizePosition(position);
             string mode = NormalizeMode(request.GameMode, request.QueueId);
+            if (mode == "unknown")
+                return OpggBuildChoices.Failure("尚未识别当前对局模式，无法确认 OP.GG 方案适用性。请在选人界面稍后重试。");
+            if (mode == "aram_mayhem")
+                return OpggBuildChoices.Failure("当前为海克斯大乱斗；OP.GG 的公开推荐接口暂未提供该模式数据，已停止普通大乱斗方案的错误套用。");
             OpggBuildPayload payload = await FetchBuildPayloadAsync(championId, role, mode, cancellationToken).ConfigureAwait(false);
             IReadOnlyList<OpggBuildOption> options = payload.Options;
             if (options.Count == 0)
@@ -69,7 +73,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 options,
                 mode,
                 payload.Augments,
-                payload.Matchups);
+                payload.Matchups,
+                championId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -109,7 +114,9 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             string role = NormalizePosition(position);
             string championName = _championCatalog.GetDisplayName(championId);
             if (string.IsNullOrWhiteSpace(championName)) championName = $"英雄{championId}";
-            string label = $"{championName} {GetPositionName(role)} · 方案 {option.Order}";
+            string contextName = option.Mode == "ranked"
+                ? GetPositionName(role) : GetModeName(option.Mode);
+            string label = $"{championName} {contextName} · 方案 {option.Order}";
             var build = new OpggBuild(
                 option.PrimaryStyleId,
                 option.SubStyleId,
@@ -227,7 +234,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 runePerks,
                 matches,
                 coreVariant.Value<int?>("win") ?? 0,
-                summonerSpells));
+                summonerSpells,
+                mode));
         }
         var augments = data["augment_group"]?.OfType<JObject>()
             .SelectMany(group => group["augments"]?.OfType<JObject>()
@@ -448,19 +456,33 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         _ => position
     };
 
-    private static string NormalizeMode(string? gameMode, int queueId)
+    internal static string NormalizeMode(string? gameMode, int queueId)
     {
         string mode = (gameMode ?? "").Trim().ToUpperInvariant();
-        if (mode is "ARAM" or "KIWI" || queueId is 450 or 1710) return "aram";
-        if (mode is "CHERRY" or "ARENA" || queueId is 1700 or 1701 or 1704) return "arena";
-        if (mode is "NEXUSBLITZ" or "NEXUS_BLITZ" || queueId == 1300) return "nexus_blitz";
-        if (mode is "URF" or "ARURF" || queueId is 900 or 1900) return "urf";
-        return "ranked";
+        if (queueId > 0)
+            return queueId switch
+            {
+                2400 => "aram_mayhem",
+                450 => "aram",
+                1700 or 1701 or 1704 or 1710 => "arena",
+                1300 => "nexus_blitz",
+                900 or 1900 => "urf",
+                400 or 420 or 430 or 440 or 490 => "ranked",
+                _ => "unknown"
+            };
+        if (mode.StartsWith("KIWI", StringComparison.Ordinal)) return "aram_mayhem";
+        if (mode == "ARAM") return "aram";
+        if (mode is "CHERRY" or "ARENA") return "arena";
+        if (mode is "NEXUSBLITZ" or "NEXUS_BLITZ") return "nexus_blitz";
+        if (mode is "URF" or "ARURF") return "urf";
+        if (mode is "CLASSIC" or "CLASSIC SR") return "ranked";
+        return "unknown";
     }
 
     private static string GetModeName(string mode) => mode switch
     {
         "aram" => "极地大乱斗",
+        "aram_mayhem" => "海克斯大乱斗",
         "arena" => "斗魂竞技场",
         "nexus_blitz" => "极限闪击",
         "urf" => "无限火力",

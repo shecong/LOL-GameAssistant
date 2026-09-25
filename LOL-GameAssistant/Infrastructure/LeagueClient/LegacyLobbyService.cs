@@ -51,6 +51,10 @@ public sealed class LegacyLobbyService : ILobbyService
         return legacy == null ? null : new ActiveGameSnapshot
         {
             Phase = legacy.Phase,
+            GameMode = !string.IsNullOrWhiteSpace(legacy.GameData?.GameMode)
+                ? legacy.GameData.GameMode : legacy.GameData?.Queue?.GameMode ?? "",
+            QueueId = legacy.GameData?.QueueId is > 0
+                ? legacy.GameData.QueueId : legacy.GameData?.Queue?.Id ?? 0,
             TeamOne = MapActiveMembers(legacy.GameData?.TeamOne),
             TeamTwo = MapActiveMembers(legacy.GameData?.TeamTwo)
         };

@@ -26,7 +26,7 @@ public sealed class CoachForm : UserControl
     private readonly RecommendationOverlayForm _overlay = new();
     private bool _applyingOpgg;
     private bool _opggPickerOpen;
-    private int _opggPromptedChampionId;
+    private string _opggPromptedContext = "";
     private string _lastOverlaySignature = "";
 
     public CoachForm() : this(
@@ -110,7 +110,7 @@ public sealed class CoachForm : UserControl
         bool enabled = _settingsStore.Load().OpggBuildAssistantEnabled;
         _applyOpgg.Visible = enabled;
         _applyOpgg.Enabled = enabled && !_applyingOpgg;
-        if (!enabled) _opggPromptedChampionId = 0;
+        if (!enabled) _opggPromptedContext = "";
     }
 
     /// <summary>
@@ -152,7 +152,7 @@ public sealed class CoachForm : UserControl
     /// <summary>一次选人阶段结束后重置“已提示”状态，下一局可再次展示方案。</summary>
     public void ResetOpggChampSelectPrompt()
     {
-        _opggPromptedChampionId = 0;
+        _opggPromptedContext = "";
     }
 
     private async Task PromptOpggBuildIfNeededCoreAsync(CancellationToken cancellationToken)
@@ -162,10 +162,11 @@ public sealed class CoachForm : UserControl
         AiGameContext context = await _aiCoachingService.CollectContextAsync(cancellationToken);
         if (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0)
             return;
-        if (_opggPromptedChampionId == context.MyChampionId) return;
+        string promptKey = $"{context.MyChampionId}:{context.QueueId}:{context.GameMode}";
+        if (_opggPromptedContext == promptKey) return;
 
         // 在请求 OP.GG 前先标记本英雄，避免 LCU 的连续选人事件重复打开同一模态框。
-        _opggPromptedChampionId = context.MyChampionId;
+        _opggPromptedContext = promptKey;
         RuntimeDiagnostics.Report("OP.GG 选人推荐", "检测到英雄", $"英雄 {context.MyChampionId} · 位置 {context.MyRole}");
         await ApplyOpggBuildAsync(context, automatic: true, cancellationToken);
     }

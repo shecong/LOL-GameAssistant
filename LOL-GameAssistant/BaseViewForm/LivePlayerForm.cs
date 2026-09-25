@@ -459,8 +459,9 @@ namespace LOL_GameAssistant.BaseViewForm
             int wins = results.Count(r => r.gamer.IsWin());
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
-            RecentModePerformanceAssessment assessment = ApplyLivePerformanceTag(
+            RecentModePerformanceAssessment assessment = await ApplyLivePerformanceTagAsync(
                 matchlists.Games.Games, results, wins, losses, rate);
+            if (IsDisposed) return;
             PublishRecentPerformance(assessment);
 
             // 清掉加载微光，手工定位渲染战绩行（新→旧）
@@ -514,10 +515,10 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>
         /// 评分只统计与当前队列相同的近期已结束对局，并排除重开局；
-        /// 数据取自战绩摘要（已含本人 KDA 与胜负），因此不必为评分逐场拉详情。
+        /// 优先使用战绩摘要；摘要中的 KDA 全为零时，用单局详情核实，避免把缺失字段当成绩。
         /// 少于 <see cref="MinimumPerformanceSampleSize"/> 场时标注样本不足，不推断玩家表现。
         /// </summary>
-        private RecentModePerformanceAssessment ApplyLivePerformanceTag(
+        private async Task<RecentModePerformanceAssessment> ApplyLivePerformanceTagAsync(
             IReadOnlyList<MatchHistoryGame> history,
             IReadOnlyList<(MatchDetail detail, MatchParticipant gamer)> results,
             int allWins,
@@ -531,18 +532,35 @@ namespace LOL_GameAssistant.BaseViewForm
                 .Take(MaximumPerformanceSampleSize)
                 .ToList();
 
-            var assessments = new List<MatchPerformanceAssessment>();
-            var wins = new List<bool>();
-            foreach (MatchHistoryGame game in comparable)
+            var samples = await Task.WhenAll(comparable.Select(async game =>
             {
-                MatchParticipant? gamer = game.GetParticipant(_playerPuuid);
-                if (gamer?.stats == null) continue;
-                // 摘要里只有本人数据，缺少队内对比，因此这里只承载 KDA 供近期汇总使用。
-                assessments.Add(new MatchPerformanceAssessment(
-                    MatchPerformanceTier.Medium, 0, "",
-                    gamer.stats.kills, gamer.stats.deaths, gamer.stats.assists));
-                wins.Add(gamer.stats.Win);
-            }
+                MatchParticipant? summary = game.GetParticipant(_playerPuuid);
+                MatchParticipantStats? stats = summary?.stats;
+                if (RecentKdaStatsResolver.NeedsDetail(stats))
+                {
+                    await GlobalMatchDetailLoadGate.WaitAsync();
+                    try
+                    {
+                        MatchDetail? detail = await GetMatchDetailAsync(game.GameId);
+                        stats = RecentKdaStatsResolver.Resolve(stats,
+                            detail?.GetParticipant(_playerPuuid)?.stats);
+                    }
+                    catch
+                    {
+                        stats = null;
+                    }
+                    finally
+                    {
+                        GlobalMatchDetailLoadGate.Release();
+                    }
+                }
+                return stats;
+            }));
+
+            var validSamples = samples.Where(stats => stats != null).Select(stats => stats!).ToList();
+            var assessments = validSamples.Select(stats => new MatchPerformanceAssessment(
+                MatchPerformanceTier.Medium, 0, "", stats.kills, stats.deaths, stats.assists)).ToList();
+            var wins = validSamples.Select(stats => stats.Win).ToList();
 
             RecentModePerformanceAssessment assessment = comparable.Count == 0
                 ? CreateInsufficientPerformanceAssessment()
@@ -551,7 +569,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     MinimumPerformanceSampleSize, MaximumPerformanceSampleSize);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);
-            lblSummary.Text = comparable.Count == 0 ? label : $"{label} · KDA {assessment.Kda:F2}";
+            lblSummary.Text = assessment.SampleSize == 0 ? label : $"{label} · KDA {assessment.Kda:F2}";
             lblSummary.ForeColor = assessment.Label switch
             {
                 RecentPerformanceLabel.Upper => Color.FromArgb(27, 94, 32),
@@ -562,7 +580,7 @@ namespace LOL_GameAssistant.BaseViewForm
             string recentRecord = results.Count > 0
                 ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
                 : "暂无战绩";
-            _performanceTip.SetToolTip(lblSummary, comparable.Count == 0
+            _performanceTip.SetToolTip(lblSummary, assessment.SampleSize == 0
                 ? $"没有可用于判定的同队列战绩，暂不分档。{recentRecord}"
                 : assessment.Detail);
             return assessment;
