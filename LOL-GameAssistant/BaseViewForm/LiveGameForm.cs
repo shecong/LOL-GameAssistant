@@ -606,6 +606,14 @@ namespace LOL_GameAssistant.BaseViewForm
             await Task.Delay(TimeSpan.FromSeconds(45));
             if (IsDisposed || signature != _gameAssessmentSignature || _gameAssessmentSent ||
                 GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
+            // 单局详情补取可能仍在进行；不能把尚未返回的玩家提前喊成“无数据”。
+            for (int attempt = 0; attempt < 3 &&
+                 !_expectedGameAssessmentPuuids.All(puuid => _gameAssessments.ContainsKey(puuid)); attempt++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30));
+                if (IsDisposed || signature != _gameAssessmentSignature || _gameAssessmentSent ||
+                    GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
+            }
             SendGameKdaAnnouncement();
         }
 

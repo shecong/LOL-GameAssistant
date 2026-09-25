@@ -75,4 +75,29 @@ public sealed class MatchHistoryGameExtensionsTests
         Assert.Equal("海克斯大乱斗", summary.GetModeText());
         Assert.Equal("海克斯大乱斗", detail.GetModeText());
     }
+
+    [Fact]
+    public void KiwiMode_MatchesHistoryEvenWhenQueueIsMissing()
+    {
+        Assert.True(MatchModeComparer.IsSameMode(2400, "KIWI",
+            new MatchHistoryGame { GameMode = "KIWI", QueueId = 0 }));
+        Assert.True(MatchModeComparer.IsSameMode(0, "KIWI",
+            new MatchHistoryGame { GameMode = "", QueueId = 2400 }));
+        Assert.False(MatchModeComparer.IsSameMode(2400, "KIWI",
+            new MatchHistoryGame { GameMode = "ARAM", QueueId = 450 }));
+    }
+
+    [Fact]
+    public void SingleParticipantSummaryWithoutIdentity_UsesQueriedPlayerStats()
+    {
+        var game = new MatchHistoryGame
+        {
+            Participants = { new MatchParticipant
+                { stats = new MatchParticipantStats { kills = 5, deaths = 2, assists = 9 } } }
+        };
+
+        Assert.Equal(5, game.GetParticipant("queried-player")?.stats?.kills);
+        game.Participants.Add(new MatchParticipant());
+        Assert.Null(game.GetParticipant("queried-player"));
+    }
 }

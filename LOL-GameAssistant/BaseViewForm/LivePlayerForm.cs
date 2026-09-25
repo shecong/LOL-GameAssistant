@@ -35,6 +35,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>评分取数范围：先拉 100 场摘要，再按同队列筛出评分样本。</summary>
         private const int HistoryFetchCount = 100;
+        private const int MaximumPerformanceHistoryPages = 3;
 
         /// <summary>最多统计最近 20 场同队列战绩；满 8 场即可按 KDA 分档。</summary>
         private const int MaximumPerformanceSampleSize = 20;
@@ -459,8 +460,9 @@ namespace LOL_GameAssistant.BaseViewForm
             int wins = results.Count(r => r.gamer.IsWin());
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
+            IReadOnlyList<MatchHistoryGame> performanceHistory = await GetPerformanceHistoryAsync(matchlists);
             RecentModePerformanceAssessment assessment = await ApplyLivePerformanceTagAsync(
-                matchlists.Games.Games, results, wins, losses, rate);
+                performanceHistory, results, wins, losses, rate);
             if (IsDisposed) return;
             PublishRecentPerformance(assessment);
 
@@ -496,6 +498,35 @@ namespace LOL_GameAssistant.BaseViewForm
         private Task<MatchDetail?> GetMatchDetailAsync(long gameId) =>
             GetCachedAsync(MatchDetailCache, gameId, () => _matchHistoryService.GetDetailAsync(gameId));
 
+        private async Task<IReadOnlyList<MatchHistoryGame>> GetPerformanceHistoryAsync(MatchHistoryResponse firstPage)
+        {
+            var games = (firstPage.Games?.Games ?? []).ToList();
+            if (string.IsNullOrWhiteSpace(_playerPuuid)) return games;
+            var seen = games.Select(game => game.GameId).ToHashSet();
+            int offset = games.Count;
+            for (int pageNumber = 1; pageNumber < MaximumPerformanceHistoryPages &&
+                 games.Count(game => IsComparableMode(game) && game.IsCompletedGame()) < MaximumPerformanceSampleSize;
+                 pageNumber++)
+            {
+                if (firstPage.Games?.GameCount is > 0 && offset >= firstPage.Games.GameCount) break;
+                MatchHistoryResponse? page;
+                try
+                {
+                    page = await _matchHistoryService.GetPageAsync(_playerPuuid,
+                        offset, offset + HistoryFetchCount - 1);
+                }
+                catch { break; }
+                var next = page?.Games?.Games;
+                if (next == null || next.Count == 0) break;
+                offset += next.Count;
+                int added = 0;
+                foreach (MatchHistoryGame game in next)
+                    if (seen.Add(game.GameId)) { games.Add(game); added++; }
+                if (added == 0) break;
+            }
+            return games;
+        }
+
         private static Task<T?> GetCachedAsync<TKey, T>(
             ConcurrentDictionary<TKey, (DateTime CachedAt, Task<T?> Value)> cache,
             TKey key,
@@ -508,7 +539,8 @@ namespace LOL_GameAssistant.BaseViewForm
             cache[key] = (DateTime.UtcNow, task);
             _ = task.ContinueWith(completed =>
             {
-                if (completed.IsFaulted || completed.IsCanceled) cache.TryRemove(key, out _);
+                if (completed.IsFaulted || completed.IsCanceled || completed.Result is null)
+                    cache.TryRemove(key, out _);
             }, TaskScheduler.Default);
             return task;
         }
@@ -529,35 +561,41 @@ namespace LOL_GameAssistant.BaseViewForm
                 .Where(IsComparableMode)
                 .Where(game => game.IsCompletedGame())
                 .OrderByDescending(game => game.GameCreation)
-                .Take(MaximumPerformanceSampleSize)
+                .Take(HistoryFetchCount)
                 .ToList();
 
-            var samples = await Task.WhenAll(comparable.Select(async game =>
+            var validSamples = new List<MatchParticipantStats>();
+            foreach (MatchHistoryGame[] batch in comparable.Chunk(MaximumPerformanceSampleSize))
             {
-                MatchParticipant? summary = game.GetParticipant(_playerPuuid);
-                MatchParticipantStats? stats = summary?.stats;
-                if (RecentKdaStatsResolver.NeedsDetail(stats))
+                var samples = await Task.WhenAll(batch.Select(async game =>
                 {
-                    await GlobalMatchDetailLoadGate.WaitAsync();
-                    try
+                    MatchParticipant? summary = game.GetParticipant(_playerPuuid);
+                    MatchParticipantStats? stats = summary?.stats;
+                    if (RecentKdaStatsResolver.NeedsDetail(stats))
                     {
-                        MatchDetail? detail = await GetMatchDetailAsync(game.GameId);
-                        stats = RecentKdaStatsResolver.Resolve(stats,
-                            detail?.GetParticipant(_playerPuuid)?.stats);
+                        await GlobalMatchDetailLoadGate.WaitAsync();
+                        try
+                        {
+                            MatchDetail? detail = await GetMatchDetailAsync(game.GameId);
+                            stats = RecentKdaStatsResolver.Resolve(stats,
+                                detail?.GetParticipant(_playerPuuid)?.stats);
+                        }
+                        catch
+                        {
+                            stats = null;
+                        }
+                        finally
+                        {
+                            GlobalMatchDetailLoadGate.Release();
+                        }
                     }
-                    catch
-                    {
-                        stats = null;
-                    }
-                    finally
-                    {
-                        GlobalMatchDetailLoadGate.Release();
-                    }
-                }
-                return stats;
-            }));
+                    return stats;
+                }));
 
-            var validSamples = samples.Where(stats => stats != null).Select(stats => stats!).ToList();
+                validSamples.AddRange(samples.Where(stats => stats != null).Select(stats => stats!));
+                if (validSamples.Count >= MaximumPerformanceSampleSize) break;
+            }
+            validSamples = validSamples.Take(MaximumPerformanceSampleSize).ToList();
             var assessments = validSamples.Select(stats => new MatchPerformanceAssessment(
                 MatchPerformanceTier.Medium, 0, "", stats.kills, stats.deaths, stats.assists)).ToList();
             var wins = validSamples.Select(stats => stats.Win).ToList();
@@ -580,15 +618,17 @@ namespace LOL_GameAssistant.BaseViewForm
             string recentRecord = results.Count > 0
                 ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
                 : "暂无战绩";
-            _performanceTip.SetToolTip(lblSummary, assessment.SampleSize == 0
-                ? $"没有可用于判定的同队列战绩，暂不分档。{recentRecord}"
-                : assessment.Detail);
+            _performanceTip.SetToolTip(lblSummary,
+                $"同模式已结束 {comparable.Count} 场，可读取 KDA {assessment.SampleSize} 场。" +
+                (assessment.SampleSize == 0 ? $"暂不分档。{recentRecord}" : assessment.Detail));
             return assessment;
         }
 
         private RecentModePerformanceAssessment CreateInsufficientPerformanceAssessment() =>
             RecentModePerformanceEvaluator.Evaluate(
-                string.IsNullOrWhiteSpace(_currentGameMode) ? "当前队列" : _currentGameMode,
+                string.IsNullOrWhiteSpace(_currentGameMode) && _currentQueueId <= 0
+                    ? "当前队列"
+                    : LolGameModeNames.GetModeText(_currentQueueId > 0 ? _currentQueueId.ToString() : "", _currentGameMode),
                 Array.Empty<MatchPerformanceAssessment>(),
                 Array.Empty<bool>(),
                 MinimumPerformanceSampleSize, MaximumPerformanceSampleSize);
@@ -606,10 +646,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private bool IsComparableMode(MatchHistoryGame game)
         {
-            if (_currentQueueId > 0)
-                return game.QueueId == _currentQueueId;
-            return !string.IsNullOrWhiteSpace(_currentGameMode) &&
-                   string.Equals(game.GameMode, _currentGameMode, StringComparison.OrdinalIgnoreCase);
+            return MatchModeComparer.IsSameMode(_currentQueueId, _currentGameMode, game);
         }
 
         private void ShowShimmer()

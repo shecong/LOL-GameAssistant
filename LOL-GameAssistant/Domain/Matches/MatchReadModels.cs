@@ -50,6 +50,10 @@ public static class MatchHistoryGameExtensions
         if (string.IsNullOrWhiteSpace(puuid)) return null;
         int? participantId = game.ParticipantIdentities
             .FirstOrDefault(item => item.Player?.Puuid == puuid)?.ParticipantId;
+        // 部分 LCU 战绩摘要只返回被查询者本人一条 participant，却省略身份列表。
+        // 该情况下仍可安全地用唯一的参赛数据；多人摘要绝不猜测身份。
+        if (participantId is null && game.ParticipantIdentities.Count == 0 && game.Participants.Count == 1)
+            return game.Participants[0];
         return participantId is null
             ? null
             : game.Participants.FirstOrDefault(item => item.participantId == participantId.Value);
@@ -57,6 +61,26 @@ public static class MatchHistoryGameExtensions
 
     public static string GetModeText(this MatchHistoryGame game) =>
         LolGameModeNames.GetModeText(game.QueueId.ToString(), game.GameMode);
+}
+
+/// <summary>实时对局与战绩摘要的模式匹配，兼容 KIWI 队列字段在不同端点缺失的情况。</summary>
+public static class MatchModeComparer
+{
+    public static bool IsSameMode(int currentQueueId, string? currentMode, MatchHistoryGame history)
+    {
+        bool currentKiwi = currentQueueId == 2400 || IsKiwi(currentMode);
+        bool historyKiwi = history.QueueId == 2400 || IsKiwi(history.GameMode);
+        if (currentKiwi || historyKiwi) return currentKiwi && historyKiwi;
+
+        if (currentQueueId > 0 && history.QueueId > 0)
+            return currentQueueId == history.QueueId;
+        if (currentQueueId > 0 || string.IsNullOrWhiteSpace(currentMode) ||
+            string.IsNullOrWhiteSpace(history.GameMode)) return false;
+        return string.Equals(currentMode, history.GameMode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsKiwi(string? mode) =>
+        (mode ?? "").Trim().StartsWith("KIWI", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>战绩摘要中的参赛者身份。</summary>
