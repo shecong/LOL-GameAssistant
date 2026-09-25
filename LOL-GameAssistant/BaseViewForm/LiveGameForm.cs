@@ -6,6 +6,7 @@ using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ChampionSelect;
 using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.MatchAnalysis;
+using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Teams;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.LiveGame;
@@ -255,8 +256,15 @@ namespace LOL_GameAssistant.BaseViewForm
                             .FirstOrDefault(member => member.CellId == selection.LocalPlayerCellId)?.Puuid;
                         selectionMyPuuid ??= gameInfo?.LocalPlayerPuuid;
                         selectionMyPuuid ??= await GetMyPuuidAsync();
-                        string mode = gameInfo?.GameMode ?? "选人阶段";
-                        int queueId = gameInfo?.QueueId ?? 0;
+                        ActiveGameSnapshot? flow = null;
+                        if (string.IsNullOrWhiteSpace(gameInfo?.GameMode) || gameInfo.QueueId <= 0)
+                        {
+                            try { flow = await _lobbyService.GetCurrentSessionAsync(); }
+                            catch { /* 会话切换时仍可使用大厅信息。 */ }
+                        }
+                        string mode = !string.IsNullOrWhiteSpace(gameInfo?.GameMode)
+                            ? gameInfo.GameMode : flow?.GameMode ?? "选人阶段";
+                        int queueId = gameInfo?.QueueId is > 0 ? gameInfo.QueueId : flow?.QueueId ?? 0;
                         SetGameInfo(mode, queueId);
                         RenderTeamsCore(
                             selection.MyTeam.Select(member => (
@@ -329,7 +337,8 @@ namespace LOL_GameAssistant.BaseViewForm
                     }
 
                     string liveGameMode = await AppCompositionRoot.LiveClientGameStateService.GetGameModeAsync() ?? "";
-                    SetGameInfo(liveGameMode, 0);
+                    string currentMode = string.IsNullOrWhiteSpace(liveGameMode) ? session.GameMode : liveGameMode;
+                    SetGameInfo(currentMode, session.QueueId);
                     // 对局中通过当前召唤师接口获取 puuid
                     string? myPuuid = await GetMyPuuidAsync();
                     RenderTeams(
@@ -337,8 +346,8 @@ namespace LOL_GameAssistant.BaseViewForm
                         session.TeamTwo,
                         force,
                         myPuuid,
-                        0,
-                        liveGameMode);
+                        session.QueueId,
+                        currentMode);
                 }
                 else
                 {
@@ -382,7 +391,10 @@ namespace LOL_GameAssistant.BaseViewForm
         private void SetGameInfo(string mode, int queueId)
         {
             string phase = GameMain.gameFlowPhase.GetChineseName();
-            string modeText = string.IsNullOrEmpty(mode) ? "" : $" · 模式: {mode}";
+            string modeName = mode == "选人阶段" ? mode :
+                string.IsNullOrWhiteSpace(mode) && queueId <= 0 ? "" :
+                LolGameModeNames.GetModeText(queueId > 0 ? queueId.ToString() : "", mode);
+            string modeText = string.IsNullOrEmpty(modeName) ? "" : $" · 模式: {modeName}";
             string queueText = queueId > 0 ? $" · 队列: {queueId}" : "";
             lblGameInfo.Text = $"{phase}{modeText}{queueText}";
         }

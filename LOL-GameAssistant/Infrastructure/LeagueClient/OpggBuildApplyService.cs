@@ -459,6 +459,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     internal static string NormalizeMode(string? gameMode, int queueId)
     {
         string mode = (gameMode ?? "").Trim().ToUpperInvariant();
+        if (mode.StartsWith("KIWI", StringComparison.Ordinal)) return "aram_mayhem";
         if (queueId > 0)
             return queueId switch
             {
@@ -470,7 +471,6 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 400 or 420 or 430 or 440 or 490 => "ranked",
                 _ => "unknown"
             };
-        if (mode.StartsWith("KIWI", StringComparison.Ordinal)) return "aram_mayhem";
         if (mode == "ARAM") return "aram";
         if (mode is "CHERRY" or "ARENA") return "arena";
         if (mode is "NEXUSBLITZ" or "NEXUS_BLITZ") return "nexus_blitz";

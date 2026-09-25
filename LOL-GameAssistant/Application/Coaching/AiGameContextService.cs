@@ -198,6 +198,7 @@ public sealed class AiGameContextService : IAiGameContextService
     private static string NormalizeLiveMode(string? mode) => mode?.Trim().ToUpperInvariant() switch
     {
         "ARAM" => "深渊大乱斗",
+        string kiwi when kiwi.StartsWith("KIWI", StringComparison.Ordinal) => "海克斯大乱斗",
         "CHERRY" or "ARENA" => "斗魂竞技场",
         "URF" or "ARURF" => "无限火力",
         "NEXUSBLITZ" or "NEXUS_BLITZ" => "极限闪击",

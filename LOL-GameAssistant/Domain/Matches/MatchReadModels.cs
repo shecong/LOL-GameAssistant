@@ -160,7 +160,7 @@ public static class MatchDetailExtensions
         (game.queueId == "2400" || game._queueId == "2400") ||
         (game.HasAugments() &&
         (string.Equals(game.gameMode, "ARAM", StringComparison.OrdinalIgnoreCase) ||
-         string.Equals(game.gameMode, "KIWI", StringComparison.OrdinalIgnoreCase) ||
+         game.gameMode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase) ||
          LolGameModeNames.GetModeText(string.IsNullOrWhiteSpace(game.queueId) ? game._queueId : game.queueId, game.gameMode).Contains("大乱斗", StringComparison.Ordinal)));
 
     public static IReadOnlyList<int> GetBannedChampionIds(this MatchDetail game, int teamId) =>
@@ -217,6 +217,8 @@ public static class LolGameModeNames
     public static string GetModeText(string? queueId, string? gameMode)
     {
         string queue = (queueId ?? "").Trim();
+        if ((gameMode ?? "").Trim().StartsWith("KIWI", StringComparison.OrdinalIgnoreCase))
+            return "海克斯大乱斗";
         if (int.TryParse(queue, out int id))
         {
             string? name = id switch
@@ -244,6 +246,7 @@ public static class LolGameModeNames
         {
             "CLASSIC" => "峡谷对局",
             "ARAM" => "深渊大乱斗",
+            string kiwi when kiwi.StartsWith("KIWI", StringComparison.Ordinal) => "海克斯大乱斗",
             "CHERRY" => "斗魂竞技场",
             "URF" => "无限火力",
             "NEXUS_BLITZ" => "极限闪击",

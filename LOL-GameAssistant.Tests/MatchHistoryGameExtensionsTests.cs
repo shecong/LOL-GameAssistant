@@ -63,4 +63,16 @@ public sealed class MatchHistoryGameExtensionsTests
         Assert.True(participant.stats.Win);
         Assert.Null(game.GetParticipant("someone-else"));
     }
+
+    [Theory]
+    [InlineData("KIWI")]
+    [InlineData("KIWI_JADE")]
+    public void KiwiMode_IsDisplayedAsAugmentAram(string mode)
+    {
+        var summary = new MatchHistoryGame { GameMode = mode };
+        var detail = new MatchDetail { gameMode = mode };
+
+        Assert.Equal("海克斯大乱斗", summary.GetModeText());
+        Assert.Equal("海克斯大乱斗", detail.GetModeText());
+    }
 }

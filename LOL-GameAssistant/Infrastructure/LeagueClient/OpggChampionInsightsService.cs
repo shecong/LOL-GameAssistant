@@ -18,6 +18,8 @@ public sealed class OpggChampionInsightsService : IChampionInsightsService
         CancellationToken cancellationToken = default)
     {
         string normalizedMode = NormalizeMode(mode);
+        if (normalizedMode == "aram_mayhem")
+            throw new InvalidOperationException("KIWI 是海克斯大乱斗；OP.GG 当前公开接口不提供该模式的英雄 T 级数据。");
         string tier = normalizedMode == "arena" ? "all" : "gold_plus";
         JObject root = await GetJsonAsync(
             $"https://lol-api-champion.op.gg/api/global/champions/{normalizedMode}?tier={tier}",
@@ -99,7 +101,8 @@ public sealed class OpggChampionInsightsService : IChampionInsightsService
 
     private static string NormalizeMode(string? mode) => mode?.Trim().ToLowerInvariant() switch
     {
-        "aram" or "kiwi" => "aram",
+        string kiwi when kiwi.StartsWith("kiwi", StringComparison.Ordinal) => "aram_mayhem",
+        "aram" => "aram",
         "arena" or "cherry" => "arena",
         "urf" or "arurf" => "urf",
         "nexusblitz" or "nexus_blitz" => "nexus_blitz",
