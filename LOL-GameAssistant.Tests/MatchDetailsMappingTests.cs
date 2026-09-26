@@ -1,7 +1,7 @@
-using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Domain.Matches;
-using LOL_GameAssistant.Infrastructure.LeagueClient;
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Infrastructure.GameData;
+using LOL_GameAssistant.Infrastructure.LeagueClient;
 using Xunit;
 
 namespace LOL_GameAssistant.Tests;

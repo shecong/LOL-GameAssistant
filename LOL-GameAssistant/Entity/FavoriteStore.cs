@@ -20,35 +20,39 @@ namespace LOL_GameAssistant.Entity
     public static class FavoriteStore
     {
         private static readonly string CacheFilePath =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LOL-GameAssistant", "favorites.json");
+
+        private static readonly string LegacyFilePath =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "favorites.json");
 
         public static string GetCacheFilePath() => CacheFilePath;
 
         public static List<FavoritePlayer> Load()
         {
-            try
+            foreach (string path in new[] { CacheFilePath, CacheFilePath + ".bak", LegacyFilePath })
             {
-                if (!File.Exists(CacheFilePath)) return new List<FavoritePlayer>();
-                string json = File.ReadAllText(CacheFilePath);
-                return JsonConvert.DeserializeObject<List<FavoritePlayer>>(json) ?? new List<FavoritePlayer>();
+                try
+                {
+                    if (!File.Exists(path)) continue;
+                    string json = File.ReadAllText(path);
+                    return JsonConvert.DeserializeObject<List<FavoritePlayer>>(json) ?? new List<FavoritePlayer>();
+                }
+                catch { /* 损坏或不可读时尝试下一份。 */ }
             }
-            catch
-            {
-                return new List<FavoritePlayer>();
-            }
+            return new List<FavoritePlayer>();
         }
 
         public static void Save(List<FavoritePlayer> favorites)
         {
-            try
-            {
-                string json = JsonConvert.SerializeObject(favorites, Formatting.Indented);
-                File.WriteAllText(CacheFilePath, json);
-            }
-            catch
-            {
-                // 保存失败不阻断主流程
-            }
+            string json = JsonConvert.SerializeObject(favorites, Formatting.Indented);
+            Directory.CreateDirectory(Path.GetDirectoryName(CacheFilePath)!);
+            string temporaryPath = CacheFilePath + ".tmp";
+            File.WriteAllText(temporaryPath, json);
+            if (File.Exists(CacheFilePath))
+                File.Replace(temporaryPath, CacheFilePath, CacheFilePath + ".bak", ignoreMetadataErrors: true);
+            else
+                File.Move(temporaryPath, CacheFilePath);
         }
     }
 }

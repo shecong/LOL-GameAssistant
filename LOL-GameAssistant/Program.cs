@@ -5,7 +5,7 @@ namespace LOL_GameAssistant
 {
     internal static class Program
     {
-        public static GameMain GameMain { get; private set; } = new GameMain();
+        public static GameMain GameMain { get; private set; } = null!;
 
         /// <summary>
         ///  The main entry point for the application.
@@ -34,6 +34,7 @@ namespace LOL_GameAssistant
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
             ApplicationConfiguration.Initialize();
+            GameMain = new GameMain();
 
             // 说明：读取 LCU lockfile / WMI 命令行并不需要管理员权限，
             // 因此不再强制 UAC 提权，避免每次启动都弹窗。
@@ -46,7 +47,7 @@ namespace LOL_GameAssistant
         {
             HandleException(e.Exception);
 
-            GameMain.infoMsg.AddMsg($"{e.Exception}");
+            GameMain?.infoMsg.AddMsg($"{e.Exception}");
         }
 
         // 非UI线程异常处理
@@ -55,7 +56,7 @@ namespace LOL_GameAssistant
             if (e.ExceptionObject is Exception ex)
             {
                 HandleException(ex);
-                GameMain.infoMsg.AddMsg($"{ex}");
+                GameMain?.infoMsg.AddMsg($"{ex}");
             }
         }
 
@@ -66,10 +67,7 @@ namespace LOL_GameAssistant
             {
                 // 用相对路径时，开机自启（注册表 Run 项没有工作目录，CWD 是 System32）
                 // 会写失败；而这里本身就在异常处理路径上，再抛一次会直接把进程带崩。
-                string logPath = System.IO.Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory, "error.log");
-                string logMessage = $"[{DateTime.Now}] 异常信息: {ex.Message}\n堆栈跟踪: {ex.StackTrace}\n";
-                System.IO.File.AppendAllText(logPath, logMessage);
+                RuntimeDiagnostics.WriteException(ex);
             }
             catch
             {
@@ -78,7 +76,7 @@ namespace LOL_GameAssistant
 
             try
             {
-                GameMain.infoMsg.AddMsg($"{ex.Message}");
+                GameMain?.infoMsg.AddMsg($"{ex.Message}");
             }
             catch
             {
@@ -88,7 +86,8 @@ namespace LOL_GameAssistant
             // 显示友好错误信息
             try
             {
-                AntdUI.Message.error(GameMain, $"程序发生错误: {ex.Message}\n请查看日志文件获取详细信息。");
+                if (GameMain is { IsDisposed: false } main)
+                    AntdUI.Message.error(main, $"程序发生错误: {ex.Message}\n请查看日志文件获取详细信息。");
             }
             catch
             {

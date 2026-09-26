@@ -54,8 +54,10 @@ public sealed class LcuQuickShoutServiceTests
 
         public Task<string?> GetStringAsync(string endpoint, CancellationToken cancellationToken = default) =>
             Task.FromResult<string?>(Conversations);
+
         public Task<byte[]?> GetBytesAsync(string endpoint, CancellationToken cancellationToken = default) =>
             Task.FromResult<byte[]?>(null);
+
         public Task<bool> PostAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
         {
             PostedEndpoint = endpoint;
@@ -63,10 +65,13 @@ public sealed class LcuQuickShoutServiceTests
             PostedBodies.Add(jsonBody);
             return Task.FromResult(true);
         }
+
         public Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
         public Task<bool> PatchAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
         public Task<bool> DeleteAsync(string endpoint, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
     }

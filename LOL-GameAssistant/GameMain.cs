@@ -6,8 +6,8 @@ using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Bootstrap;
-using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.ChampionSelect;
+using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
 using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
@@ -16,15 +16,16 @@ namespace LOL_GameAssistant
 {
     public partial class GameMain : AntdUI.Window
     {
-        public static InfoMsgForm infoMsg = new InfoMsgForm();
-        public static HomeForm home = new HomeForm(infoMsg!);
-        public static FriendsForm friendsForm = new FriendsForm();
-        public static LiveGameForm liveGameForm = new LiveGameForm();
-        public static BattleQueryForm battleQueryForm = new BattleQueryForm();
-        public static CoachForm coachForm = new CoachForm();
-        public static DiagnosticsForm diagnosticsForm = new DiagnosticsForm();
+        public readonly InfoMsgForm infoMsg = new InfoMsgForm();
+        public readonly HomeForm home;
+        public readonly FriendsForm friendsForm = new FriendsForm();
+        public readonly LiveGameForm liveGameForm = new LiveGameForm();
+        public readonly BattleQueryForm battleQueryForm = new BattleQueryForm();
+        public readonly CoachForm coachForm = new CoachForm();
+        public readonly DiagnosticsForm diagnosticsForm = new DiagnosticsForm();
+
         // SettingForm may load while controls are attached; its side effects need these pages.
-        public static SettingForm settingForm = new SettingForm();
+        public readonly SettingForm settingForm = new SettingForm();
 
         private readonly ILeagueClientEventStream _eventStream;
         private readonly ILobbyService _lobbyService;
@@ -36,6 +37,7 @@ namespace LOL_GameAssistant
         private CancellationTokenSource? _lcuRetryCts;
         private NotifyIcon? _trayIcon;
         private CancellationTokenSource? _autoActionCts;
+        private bool _autoActionStartedForChampSelect;
         private CancellationTokenSource? _autoAcceptCts;
         private CancellationTokenSource? _opggPromptCts;
         private CancellationTokenSource? _phaseDataLoadCts;
@@ -51,7 +53,7 @@ namespace LOL_GameAssistant
         /// <summary>
         /// 游戏状态枚举
         /// </summary>
-        public static GameFlowPhase gameFlowPhase;
+        public GameFlowPhase gameFlowPhase;
 
         /// <summary>
         /// 当前是否停留在“对局”标签页。
@@ -127,6 +129,7 @@ namespace LOL_GameAssistant
             IGameClientLauncher gameClientLauncher,
             IRecommendationCoordinator recommendationCoordinator)
         {
+            home = new HomeForm(infoMsg);
             _eventStream = eventStream;
             _lobbyService = lobbyService;
             _championSelectService = championSelectService;
@@ -653,7 +656,11 @@ namespace LOL_GameAssistant
             }
             _recommendationCoordinator.NotifyGamePhaseChanged(statustype);
             if (!string.Equals(phase, "champselect", StringComparison.OrdinalIgnoreCase))
+            {
+                _autoActionCts?.Cancel();
+                _autoActionStartedForChampSelect = false;
                 StopOpggChampSelectMonitor();
+            }
             switch (phase)
             {
                 case "none":
@@ -802,13 +809,15 @@ namespace LOL_GameAssistant
 
         /// <summary>
         /// 选人阶段后台处理自动禁用和自动选用英雄。
-        /// 自动选用单独快速轮询，避免受到自动禁用间隔影响。
+        /// 禁用和选用分别快速轮询，避免错过各自的短暂动作窗口。
         /// </summary>
         private async Task AutoBanPickLoopAsync()
         {
-            _autoActionCts?.Cancel();
-            _autoActionCts = new CancellationTokenSource();
-            var token = _autoActionCts.Token;
+            if (_autoActionStartedForChampSelect) return;
+            _autoActionStartedForChampSelect = true;
+            var actionCts = new CancellationTokenSource();
+            _autoActionCts = actionCts;
+            var token = actionCts.Token;
 
             try
             {
@@ -819,32 +828,54 @@ namespace LOL_GameAssistant
                 var cachedBanIds = ResolveChampionIds(config.BanChampions);
                 var cachedPickIds = ResolveChampionIds(config.PickChampions);
 
-                // 自动抢英雄立即开始，独立于自动禁用循环和其间隔设置。
+                // 自动抢英雄立即开始，独立于自动禁用循环。
                 Task pickTask = autoPickEnabled && cachedPickIds.Count > 0
                     ? AutoPickFastLoopAsync(cachedPickIds, config, token)
                     : Task.CompletedTask;
 
-                // 自动禁用仍按设置的“自动禁用间隔”执行。
+                // 禁用窗口通常很短，快速检查直到首次成功；成功后不再重复提交。
                 while (autoBanEnabled && cachedBanIds.Count > 0 &&
                        gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
                 {
-                    if (await _championSelectService.AutoBanAsync(cachedBanIds))
+                    try
                     {
-                        infoMsg.AddMsg("自动禁用英雄成功");
+                        if (await _championSelectService.AutoBanAsync(cachedBanIds, token))
+                        {
+                            AddInfoMessage("自动禁用英雄成功");
+                            break;
+                        }
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        RuntimeDiagnostics.Report("自动禁英雄", "重试中", ex.Message);
                     }
 
                     await Task.Delay(
-                        TimeSpan.FromSeconds(Math.Max(1, config.CheckIntervalSeconds)),
+                        TimeSpan.FromMilliseconds(250),
                         token).ConfigureAwait(false);
                 }
 
                 // 等待快速抢英雄任务正常收尾，避免留下未观察的后台任务。
                 await pickTask.ConfigureAwait(false);
-                infoMsg.AddMsg("选人阶段结束，停止自动禁/选");
             }
             catch (OperationCanceledException)
             {
                 // 窗体关闭时正常取消
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.Report("自动禁选英雄", "失败", ex.Message);
+                AddInfoMessage($"自动禁选英雄失败：{ex.Message}");
+            }
+            finally
+            {
+                if (ReferenceEquals(_autoActionCts, actionCts))
+                    _autoActionCts = null;
+                actionCts.Dispose();
             }
         }
 
@@ -858,22 +889,21 @@ namespace LOL_GameAssistant
         {
             const int RetryDelayMilliseconds = 100;
 
-            if (config.SkipAutoPickOnFill && await ShouldSkipAutoPickForFillAsync(token))
-            {
-                AddInfoMessage("检测到补位，已跳过自动选人");
-                return;
-            }
-
             while (gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
             {
                 try
                 {
+                    if (config.SkipAutoPickOnFill && await ShouldSkipAutoPickForFillAsync(token))
+                    {
+                        AddInfoMessage("检测到补位，已跳过自动选人");
+                        return;
+                    }
                     if (await _championSelectService.AutoPickAsync(
                         pickChampionIds,
                         lockIn: !config.AutoPickPreselectOnly,
                         cancellationToken: token))
                     {
-                        infoMsg.AddMsg(config.AutoPickPreselectOnly ? "已自动预选英雄" : "自动选用英雄成功");
+                        AddInfoMessage(config.AutoPickPreselectOnly ? "已自动预选英雄" : "自动选用英雄成功");
                         return;
                     }
                 }
@@ -893,11 +923,12 @@ namespace LOL_GameAssistant
         private async Task<bool> ShouldSkipAutoPickForFillAsync(CancellationToken cancellationToken)
         {
             ChampionSelectionSnapshot? selection = await _championSelectService.GetSessionAsync(cancellationToken);
-            LobbySnapshot? lobby = await _lobbyService.GetLobbyAsync(cancellationToken);
-            if (selection == null || lobby == null) return false;
+            if (selection == null) return false;
 
             var me = selection.MyTeam.FirstOrDefault(member => member.CellId == selection.LocalPlayerCellId);
             if (me?.IsAutofilled == true) return true;
+            LobbySnapshot? lobby = await _lobbyService.GetLobbyAsync(cancellationToken);
+            if (lobby == null) return false;
             string assigned = NormalizePosition(me?.AssignedPosition);
             string primary = NormalizePosition(lobby.LocalPrimaryPosition);
             string secondary = NormalizePosition(lobby.LocalSecondaryPosition);

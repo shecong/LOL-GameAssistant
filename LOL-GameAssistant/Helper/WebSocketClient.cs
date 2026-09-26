@@ -174,18 +174,18 @@ namespace LOL_GameAssistant.Helper
             }
 
             // 关闭WebSocket
-            if (_socket != null && _socket.State == WebSocketState.Open)
+            if (_socket != null)
             {
-                try
+                if (_socket.State == WebSocketState.Open)
                 {
-                    await _socket.CloseAsync(
-                        WebSocketCloseStatus.NormalClosure,
-                        "清理连接",
-                        CancellationToken.None
-                    ).ConfigureAwait(false);
+                    try
+                    {
+                        using var closeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+                        await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "清理连接", closeTimeout.Token)
+                            .ConfigureAwait(false);
+                    }
+                    catch { }
                 }
-                catch { }
-
                 _socket.Dispose();
                 _socket = null;
             }
@@ -261,7 +261,8 @@ namespace LOL_GameAssistant.Helper
                         break;
                     }
 
-                    segments.Add(new ArraySegment<byte>(buffer, 0, result.Count));
+                    // ReceiveAsync 会复用 buffer；每帧必须保留自己的字节副本。
+                    segments.Add(new ArraySegment<byte>(buffer[..result.Count].ToArray()));
 
                     if (!result.EndOfMessage)
                         continue;
@@ -475,7 +476,16 @@ namespace LOL_GameAssistant.Helper
         /// </summary>
         public void Dispose()
         {
-            DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
+            if (_disposed) return;
+            _cts?.Cancel();
+            _socket?.Abort();
+            _ = FinishDisposeAsync();
+        }
+
+        private async Task FinishDisposeAsync()
+        {
+            try { await DisposeAsync().ConfigureAwait(false); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"WebSocket 清理失败: {ex.Message}"); }
         }
 
         /// <summary>
@@ -483,8 +493,9 @@ namespace LOL_GameAssistant.Helper
         /// </summary>
         public async ValueTask DisposeAsync()
         {
-            _cts?.Cancel();
+            if (_disposed) return;
             _disposed = true;
+            _cts?.Cancel();
             _isRunning = false;
 
             StopReconnect();

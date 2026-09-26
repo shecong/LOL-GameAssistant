@@ -7,7 +7,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
 /// <summary>
 /// 通过本机 LCU 发起好友观战。
-/// LCU 认证与 HTTPS 细节统一由 HttpClentHelper 承担，应用层不接触 token。
+/// LCU 认证与 HTTPS 细节统一由 HttpClientHelper 承担，应用层不接触 token。
 /// </summary>
 public sealed class LcuFriendSpectateService : IFriendSpectateService
 {

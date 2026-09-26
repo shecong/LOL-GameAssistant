@@ -35,20 +35,26 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>评分取数范围：先拉 100 场摘要，再按同队列筛出评分样本。</summary>
         private const int HistoryFetchCount = 100;
+
         private const int MaximumPerformanceHistoryPages = 3;
 
         /// <summary>最多统计最近 20 场同队列战绩；满 8 场即可按 KDA 分档。</summary>
         private const int MaximumPerformanceSampleSize = 20;
+
         private const int MinimumPerformanceSampleSize = RecentModePerformanceEvaluator.RequiredSampleSize;
+        private static readonly TimeSpan MaximumLoadDuration = TimeSpan.FromMinutes(1);
         private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<long, (DateTime CachedAt, Task<MatchDetail?> Value)> MatchDetailCache = new();
         private static readonly SemaphoreSlim GlobalMatchDetailLoadGate = new(8, 8);
         private Image? _ownedProfileImage;
+        private Image? _ownedChampionImage;
         private ToolTip? _premadeTip;
         private ToolTip? _copyTip;
         private readonly ToolTip _performanceTip = new();
+        private readonly CancellationTokenSource _lifetimeCancellation = new();
+
         private readonly Button _historyButton = new()
         {
             Text = "查战绩",
@@ -58,6 +64,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ForeColor = Color.White,
             UseVisualStyleBackColor = false
         };
+
         private readonly bool _showCopyButton;
         private bool _recentPerformancePublished;
 
@@ -189,8 +196,11 @@ namespace LOL_GameAssistant.BaseViewForm
             _glowTimer.Tick += (_, _) => GlowTick();
             Disposed += (_, _) =>
             {
+                _lifetimeCancellation.Cancel();
+                _lifetimeCancellation.Dispose();
                 _glowTimer.Dispose();
                 _ownedProfileImage?.Dispose();
+                _ownedChampionImage?.Dispose();
                 _copyTip?.Dispose();
                 _premadeTip?.Dispose();
                 _performanceTip.Dispose();
@@ -210,7 +220,21 @@ namespace LOL_GameAssistant.BaseViewForm
             this.Load += async (_, _) =>
             {
                 ApplyDeferredVisibility();
-                await LoadAsync();
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+                timeout.CancelAfter(MaximumLoadDuration);
+                try
+                {
+                    await LoadAsync(timeout.Token);
+                }
+                catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+                {
+                    if (!_lifetimeCancellation.IsCancellationRequested && !IsDisposed)
+                        ShowLoadFailure("获取超时", "对局数据获取超过 1 分钟，已取消本次加载。");
+                }
+                catch (Exception ex)
+                {
+                    if (!IsDisposed) ShowLoadFailure("获取失败", $"对局数据获取失败：{ex.Message}");
+                }
             };
             UiTheme.Apply(this);
         }
@@ -332,6 +356,23 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        private void ShowLoadFailure(string status, string detail)
+        {
+            lblSummary.Text = status;
+            lblSummary.ForeColor = UiTheme.Palette.TextSecondary;
+            _performanceTip.SetToolTip(lblSummary, detail);
+            ControlLifetime.ClearAndDispose(panelMatches);
+            panelMatches.Controls.Add(new AntdUI.Label
+            {
+                Text = detail,
+                AutoSize = true,
+                ForeColor = UiTheme.Palette.TextSecondary,
+                Padding = new Padding(8)
+            });
+            PublishRecentPerformance(CreateInsufficientPerformanceAssessment());
+            RuntimeDiagnostics.Report("对局玩家战绩", status, detail);
+        }
+
         /// <summary>
         /// 设置/清除开黑标记（由对局页开黑检测结果回填）。
         /// </summary>
@@ -365,11 +406,11 @@ namespace LOL_GameAssistant.BaseViewForm
             RecalcHeaderLayout();
         }
 
-        private async Task LoadAsync()
+        private async Task LoadAsync(CancellationToken cancellationToken)
         {
             if (_isBot || string.IsNullOrEmpty(_playerPuuid))
             {
-                await RenderBotHeaderAsync();
+                await RenderBotHeaderAsync(cancellationToken);
                 return;
             }
 
@@ -382,7 +423,7 @@ namespace LOL_GameAssistant.BaseViewForm
             int profileIconId = 0;
             try
             {
-                PlayerProfile? info = await GetPlayerProfileAsync(_playerPuuid);
+                PlayerProfile? info = await GetPlayerProfileAsync(_playerPuuid, cancellationToken);
                 if (info != null)
                 {
                     if (!string.IsNullOrEmpty(info.GameName)) displayName = info.GameName;
@@ -391,6 +432,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     profileIconId = info.ProfileIconId;
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch
             {
                 // 玩家信息获取失败时使用兜底名称
@@ -403,15 +445,16 @@ namespace LOL_GameAssistant.BaseViewForm
                 ? (string.IsNullOrEmpty(tagLine) ? positionText : $"#{tagLine} {positionText}")
                 : $"Lv.{level}  #{tagLine} {positionText}".Trim();
 
-            await LoadProfileIconAsync(profileIconId);
-            await LoadCurrentChampionAsync();
+            await LoadProfileIconAsync(profileIconId, cancellationToken);
+            await LoadCurrentChampionAsync(cancellationToken);
 
             // ── 近 10 场战绩 ──
             MatchHistoryResponse? matchlists;
             try
             {
-                matchlists = await GetRecentHistoryAsync(_playerPuuid);
+                matchlists = await GetRecentHistoryAsync(_playerPuuid, cancellationToken);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch
             {
                 if (!IsDisposed) PublishRecentPerformance(CreateInsufficientPerformanceAssessment());
@@ -431,15 +474,16 @@ namespace LOL_GameAssistant.BaseViewForm
             // 并发加载每场详情
             var tasks = games.Select(async head =>
             {
-                await GlobalMatchDetailLoadGate.WaitAsync();
+                await GlobalMatchDetailLoadGate.WaitAsync(cancellationToken);
                 try
                 {
-                    var detail = await GetMatchDetailAsync(head.GameId);
+                    var detail = await GetMatchDetailAsync(head.GameId, cancellationToken);
                     if (detail == null || string.IsNullOrEmpty(_playerPuuid))
                         return (detail: (MatchDetail?)null, gamer: (MatchParticipant?)null);
                     var gamer = detail.GetParticipant(_playerPuuid);
                     return (detail, gamer);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch
                 {
                     return (detail: (MatchDetail?)null, gamer: (MatchParticipant?)null);
@@ -450,7 +494,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
             }).ToList();
 
-            var results = (await Task.WhenAll(tasks))
+            var results = (await Task.WhenAll(tasks).WaitAsync(cancellationToken))
                 .Where(r => r.detail != null && r.gamer != null)
                 .Select(r => (detail: r.detail!, gamer: r.gamer!))
                 .ToList();
@@ -460,14 +504,14 @@ namespace LOL_GameAssistant.BaseViewForm
             int wins = results.Count(r => r.gamer.IsWin());
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
-            IReadOnlyList<MatchHistoryGame> performanceHistory = await GetPerformanceHistoryAsync(matchlists);
+            IReadOnlyList<MatchHistoryGame> performanceHistory = await GetPerformanceHistoryAsync(matchlists, cancellationToken);
             RecentModePerformanceAssessment assessment = await ApplyLivePerformanceTagAsync(
-                performanceHistory, results, wins, losses, rate);
+                performanceHistory, results, wins, losses, rate, cancellationToken);
             if (IsDisposed) return;
             PublishRecentPerformance(assessment);
 
             // 清掉加载微光，手工定位渲染战绩行（新→旧）
-            panelMatches.Controls.Clear();
+            ControlLifetime.ClearAndDispose(panelMatches);
             int y = 0;
             for (int i = 0; i < results.Count; i++)
             {
@@ -489,16 +533,22 @@ namespace LOL_GameAssistant.BaseViewForm
             UiTheme.Apply(this);
         }
 
-        private Task<PlayerProfile?> GetPlayerProfileAsync(string puuid) =>
-            GetCachedAsync(PlayerProfileCache, puuid, () => _playerProfileService.GetByPuuidAsync(puuid));
+        private Task<PlayerProfile?> GetPlayerProfileAsync(string puuid, CancellationToken cancellationToken) =>
+            GetCachedAsync(PlayerProfileCache, puuid,
+                () => _playerProfileService.GetByPuuidAsync(puuid, cancellationToken)).WaitAsync(cancellationToken);
 
-        private Task<MatchHistoryResponse?> GetRecentHistoryAsync(string puuid) =>
-            GetCachedAsync(RecentHistoryCache, puuid, () => _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1));
+        private Task<MatchHistoryResponse?> GetRecentHistoryAsync(string puuid, CancellationToken cancellationToken) =>
+            GetCachedAsync(RecentHistoryCache, puuid,
+                () => _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1, cancellationToken))
+                .WaitAsync(cancellationToken);
 
-        private Task<MatchDetail?> GetMatchDetailAsync(long gameId) =>
-            GetCachedAsync(MatchDetailCache, gameId, () => _matchHistoryService.GetDetailAsync(gameId));
+        private Task<MatchDetail?> GetMatchDetailAsync(long gameId, CancellationToken cancellationToken) =>
+            GetCachedAsync(MatchDetailCache, gameId,
+                () => _matchHistoryService.GetDetailAsync(gameId, cancellationToken: cancellationToken))
+                .WaitAsync(cancellationToken);
 
-        private async Task<IReadOnlyList<MatchHistoryGame>> GetPerformanceHistoryAsync(MatchHistoryResponse firstPage)
+        private async Task<IReadOnlyList<MatchHistoryGame>> GetPerformanceHistoryAsync(
+            MatchHistoryResponse firstPage, CancellationToken cancellationToken)
         {
             var games = (firstPage.Games?.Games ?? []).ToList();
             if (string.IsNullOrWhiteSpace(_playerPuuid)) return games;
@@ -508,13 +558,15 @@ namespace LOL_GameAssistant.BaseViewForm
                  games.Count(game => IsComparableMode(game) && game.IsCompletedGame()) < MaximumPerformanceSampleSize;
                  pageNumber++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (firstPage.Games?.GameCount is > 0 && offset >= firstPage.Games.GameCount) break;
                 MatchHistoryResponse? page;
                 try
                 {
                     page = await _matchHistoryService.GetPageAsync(_playerPuuid,
-                        offset, offset + HistoryFetchCount - 1);
+                        offset, offset + HistoryFetchCount - 1, cancellationToken);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch { break; }
                 var next = page?.Games?.Games;
                 if (next == null || next.Count == 0) break;
@@ -555,7 +607,8 @@ namespace LOL_GameAssistant.BaseViewForm
             IReadOnlyList<(MatchDetail detail, MatchParticipant gamer)> results,
             int allWins,
             int allLosses,
-            double allRate)
+            double allRate,
+            CancellationToken cancellationToken)
         {
             var comparable = history
                 .Where(IsComparableMode)
@@ -567,19 +620,21 @@ namespace LOL_GameAssistant.BaseViewForm
             var validSamples = new List<MatchParticipantStats>();
             foreach (MatchHistoryGame[] batch in comparable.Chunk(MaximumPerformanceSampleSize))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var samples = await Task.WhenAll(batch.Select(async game =>
                 {
                     MatchParticipant? summary = game.GetParticipant(_playerPuuid);
                     MatchParticipantStats? stats = summary?.stats;
                     if (RecentKdaStatsResolver.NeedsDetail(stats))
                     {
-                        await GlobalMatchDetailLoadGate.WaitAsync();
+                        await GlobalMatchDetailLoadGate.WaitAsync(cancellationToken);
                         try
                         {
-                            MatchDetail? detail = await GetMatchDetailAsync(game.GameId);
+                            MatchDetail? detail = await GetMatchDetailAsync(game.GameId, cancellationToken);
                             stats = RecentKdaStatsResolver.Resolve(stats,
                                 detail?.GetParticipant(_playerPuuid)?.stats);
                         }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                         catch
                         {
                             stats = null;
@@ -590,7 +645,7 @@ namespace LOL_GameAssistant.BaseViewForm
                         }
                     }
                     return stats;
-                }));
+                })).WaitAsync(cancellationToken);
 
                 validSamples.AddRange(samples.Where(stats => stats != null).Select(stats => stats!));
                 if (validSamples.Count >= MaximumPerformanceSampleSize) break;
@@ -651,7 +706,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void ShowShimmer()
         {
-            panelMatches.Controls.Clear();
+            ControlLifetime.ClearAndDispose(panelMatches);
             var shimmer = new ShimmerPanel
             {
                 Dock = DockStyle.Fill,
@@ -660,7 +715,7 @@ namespace LOL_GameAssistant.BaseViewForm
             panelMatches.Controls.Add(shimmer);
         }
 
-        private async Task RenderBotHeaderAsync()
+        private async Task RenderBotHeaderAsync(CancellationToken cancellationToken)
         {
             lblName.Text = string.IsNullOrEmpty(lblName.Text) ? "机器人" : lblName.Text;
             lblSub.Text = "机器人";
@@ -672,11 +727,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblChampionNow.Text = $"当前: {GetChampionDisplayName(_championId)}";
                 lblChampionNow.Visible = true;
                 RecalcHeaderLayout();
-                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(_championId));
-                if (icon != null && !IsDisposed) picCurrent.Image = icon;
+                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(_championId, cancellationToken)
+                    .WaitAsync(cancellationToken));
+                if (icon != null && !IsDisposed) ReplaceChampionImage(icon);
                 else icon?.Dispose();
             }
-            panelMatches.Controls.Clear();
+            ControlLifetime.ClearAndDispose(panelMatches);
             panelMatches.Controls.Add(new AntdUI.Label
             {
                 Text = "机器人没有战绩数据",
@@ -686,12 +742,13 @@ namespace LOL_GameAssistant.BaseViewForm
             });
         }
 
-        private async Task LoadProfileIconAsync(int profileIconId)
+        private async Task LoadProfileIconAsync(int profileIconId, CancellationToken cancellationToken)
         {
             if (profileIconId <= 0) return;
             try
             {
-                byte[]? imageBytes = await _profileIconService.GetProfileIconAsync(profileIconId);
+                byte[]? imageBytes = await _profileIconService.GetProfileIconAsync(profileIconId, cancellationToken)
+                    .WaitAsync(cancellationToken);
                 if (imageBytes is { Length: > 0 } && !IsDisposed)
                 {
                     using var ms = new MemoryStream(imageBytes);
@@ -701,13 +758,14 @@ namespace LOL_GameAssistant.BaseViewForm
                     picProfile.Image = _ownedProfileImage;
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch
             {
                 // 头像加载失败不影响卡片
             }
         }
 
-        private async Task LoadCurrentChampionAsync()
+        private async Task LoadCurrentChampionAsync(CancellationToken cancellationToken)
         {
             if (_championId <= 0) return;
             try
@@ -715,10 +773,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblChampionNow.Text = $"当前: {GetChampionDisplayName(_championId)}";
                 lblChampionNow.Visible = true;
                 RecalcHeaderLayout();
-                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(_championId));
-                if (icon != null && !IsDisposed) picCurrent.Image = icon;
+                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(_championId, cancellationToken)
+                    .WaitAsync(cancellationToken));
+                if (icon != null && !IsDisposed) ReplaceChampionImage(icon);
                 else icon?.Dispose();
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch
             {
                 // 当前英雄加载失败不影响卡片
@@ -726,6 +786,13 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>将应用服务的二进制英雄资源解码为当前 WinForms 控件所需的位图。</summary>
+        private void ReplaceChampionImage(Image image)
+        {
+            picCurrent.Image = image;
+            _ownedChampionImage?.Dispose();
+            _ownedChampionImage = image;
+        }
+
         private static Image? ToImage(GameAsset? asset)
         {
             try

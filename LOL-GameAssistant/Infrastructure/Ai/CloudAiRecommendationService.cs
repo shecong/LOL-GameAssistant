@@ -105,7 +105,7 @@ public sealed class CloudAiRecommendationService
         CancellationToken cancellationToken = default)
     {
         string key = ReadApiKey(settings);
-        EnsureConfigured(settings, key);
+        EnsureConfigured(settings, key, requireModel: false);
 
         string url = settings.GetBaseUrl() + (settings.UsesClaudeProtocol ? "/v1/models" : "/models");
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -148,14 +148,14 @@ public sealed class CloudAiRecommendationService
         }
     }
 
-    private static void EnsureConfigured(CloudAiSettings settings, string key)
+    private static void EnsureConfigured(CloudAiSettings settings, string key, bool requireModel = true)
     {
         if (string.IsNullOrWhiteSpace(key))
             throw new InvalidOperationException("未配置 API Key。");
-        if (string.IsNullOrWhiteSpace(settings.Model))
+        if (requireModel && string.IsNullOrWhiteSpace(settings.Model))
             throw new InvalidOperationException("未填写模型名称。");
-        if (string.IsNullOrWhiteSpace(settings.GetBaseUrl()))
-            throw new InvalidOperationException("未配置有效的服务地址。");
+        if (!settings.TryGetSafeBaseUri(out _, out string addressError))
+            throw new InvalidOperationException(addressError);
     }
 
     private Task<string> CallAsync(

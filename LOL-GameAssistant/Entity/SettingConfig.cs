@@ -36,6 +36,7 @@ namespace LOL_GameAssistant.Entity
 
         [JsonProperty("quickMessageCustomPhrases")]
         public string QuickMessageCustomPhrases { get; set; } = "";
+
         public bool QuickShoutPerCharacter { get; set; }
         public bool QuickShoutSendToAll { get; set; }
         public bool QuickShoutUseClipboard { get; set; }
@@ -175,6 +176,10 @@ namespace LOL_GameAssistant.Entity
     public static class SettingCache
     {
         private static readonly string CacheFilePath =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LOL-GameAssistant", "settings.json");
+
+        private static readonly string LegacyFilePath =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
 
         /// <summary>
@@ -182,26 +187,12 @@ namespace LOL_GameAssistant.Entity
         /// </summary>
         public static SettingConfig Load()
         {
-            try
+            foreach (string path in new[] { CacheFilePath, CacheFilePath + ".bak", LegacyFilePath })
             {
-                if (!File.Exists(CacheFilePath))
-                    return new SettingConfig();
-
-                return LoadFromFile(CacheFilePath);
+                try { if (File.Exists(path)) return LoadFromFile(path); }
+                catch { /* 损坏或不可读时尝试下一份。 */ }
             }
-            catch
-            {
-                try
-                {
-                    string backupPath = CacheFilePath + ".bak";
-                    if (!File.Exists(backupPath)) return new SettingConfig();
-                    return LoadFromFile(backupPath);
-                }
-                catch
-                {
-                    return new SettingConfig();
-                }
-            }
+            return new SettingConfig();
         }
 
         private static SettingConfig LoadFromFile(string path)
@@ -217,39 +208,23 @@ namespace LOL_GameAssistant.Entity
         /// </summary>
         public static void Save(SettingConfig config)
         {
-            try
-            {
-                config.Normalize();
-                string json = JsonConvert.SerializeObject(config, Newtonsoft.Json.Formatting.Indented);
-                string directory = Path.GetDirectoryName(CacheFilePath) ?? AppDomain.CurrentDomain.BaseDirectory;
-                Directory.CreateDirectory(directory);
-                string temporaryPath = CacheFilePath + ".tmp";
-                string backupPath = CacheFilePath + ".bak";
+            config.Normalize();
+            string json = JsonConvert.SerializeObject(config, Newtonsoft.Json.Formatting.Indented);
+            string directory = Path.GetDirectoryName(CacheFilePath) ?? AppDomain.CurrentDomain.BaseDirectory;
+            Directory.CreateDirectory(directory);
+            string temporaryPath = CacheFilePath + ".tmp";
+            string backupPath = CacheFilePath + ".bak";
 
-                File.WriteAllText(temporaryPath, json);
-                if (File.Exists(CacheFilePath))
-                {
-                    // Replace keeps the last known good settings file available if a power loss or
-                    // process termination happens while the new file is being committed.
-                    File.Replace(temporaryPath, CacheFilePath, backupPath, ignoreMetadataErrors: true);
-                }
-                else
-                {
-                    File.Move(temporaryPath, CacheFilePath);
-                }
-            }
-            catch (Exception ex)
+            File.WriteAllText(temporaryPath, json);
+            if (File.Exists(CacheFilePath))
             {
-                try
-                {
-                    string temporaryPath = CacheFilePath + ".tmp";
-                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-                }
-                catch
-                {
-                    // A stale temp file is harmless; never hide the original save failure.
-                }
-                System.Diagnostics.Debug.WriteLine($"保存设置失败: {ex.Message}");
+                // Replace keeps the last known good settings file available if a power loss or
+                // process termination happens while the new file is being committed.
+                File.Replace(temporaryPath, CacheFilePath, backupPath, ignoreMetadataErrors: true);
+            }
+            else
+            {
+                File.Move(temporaryPath, CacheFilePath);
             }
         }
 

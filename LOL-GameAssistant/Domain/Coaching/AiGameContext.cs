@@ -8,8 +8,10 @@ public sealed class AiGameContext
 {
     public string Phase { get; init; } = "未知";
     public string Mode { get; init; } = "峡谷对局";
+
     /// <summary>LCU 原始游戏模式，用于映射 OP.GG 的 ranked/aram/arena 等接口。</summary>
     public string GameMode { get; init; } = "CLASSIC";
+
     public int QueueId { get; init; }
     public string MyChampion { get; init; } = "未选择英雄";
     public int MyChampionId { get; init; }

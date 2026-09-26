@@ -16,16 +16,16 @@ public sealed class LeagueClientConnection : ILeagueClientConnection
     public LeagueClientCredentials? TryGetCredentials(bool forceRefresh = false)
     {
         if (!forceRefresh &&
-            !string.IsNullOrWhiteSpace(HttpClentHelper.Port) &&
-            !string.IsNullOrWhiteSpace(HttpClentHelper.Token))
+            !string.IsNullOrWhiteSpace(HttpClientHelper.Port) &&
+            !string.IsNullOrWhiteSpace(HttpClientHelper.Token))
         {
-            return new LeagueClientCredentials(HttpClentHelper.Port, HttpClentHelper.Token);
+            return new LeagueClientCredentials(HttpClientHelper.Port, HttpClientHelper.Token);
         }
 
         (string? port, string? token) = GetlolLcu.GetAuth();
         if (string.IsNullOrWhiteSpace(port) || string.IsNullOrWhiteSpace(token)) return null;
-        HttpClentHelper.Port = port;
-        HttpClentHelper.Token = token;
+        HttpClientHelper.Port = port;
+        HttpClientHelper.Token = token;
         return new LeagueClientCredentials(port, token);
     }
 }

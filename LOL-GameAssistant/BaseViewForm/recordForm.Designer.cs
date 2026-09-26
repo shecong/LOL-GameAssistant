@@ -1,6 +1,6 @@
-﻿namespace LOL_GameAssistant.BaseViewForm
+namespace LOL_GameAssistant.BaseViewForm
 {
-    partial class recordForm
+    partial class RecordForm
     {
         /// <summary> 
         /// 必需的设计器变量。
@@ -292,7 +292,7 @@
             flowEnemy.Size = new Size(176, 30);
             flowEnemy.TabIndex = 22;
             // 
-            // recordForm
+            // RecordForm
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
@@ -321,7 +321,7 @@
             Controls.Add(game_win);
             Controls.Add(game_pic);
             DoubleBuffered = true;
-            Name = "recordForm";
+            Name = "RecordForm";
             Size = new Size(600, 138);
             game_pic.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pic_D).EndInit();

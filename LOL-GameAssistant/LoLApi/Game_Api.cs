@@ -1,7 +1,7 @@
-﻿using LOL_GameAssistant.Entity;
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
-using System.Collections.Concurrent;
 using Newtonsoft.Json.Linq;
+using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.LoLApi
 {
@@ -39,6 +39,7 @@ namespace LOL_GameAssistant.LoLApi
 
         /// <summary>Data Dragon 符文 ID 到图标相对路径的只读缓存。</summary>
         private static readonly SemaphoreSlim RuneDataGate = new SemaphoreSlim(1, 1);
+
         private static IReadOnlyDictionary<int, string>? RuneIconPaths;
 
         /// <summary>
@@ -62,7 +63,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task GetGameversion()
         {
             if ((DateTime.Now - _lastVersionFetch).TotalHours < 6 && !string.IsNullOrEmpty(gameversion)) return;
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync("https://ddragon.leagueoflegends.com/api/versions.json").ConfigureAwait(false);
             if (responseStream == null) return;
             List<string>? version = await responseStream.ReadAsJsonAsync<List<string>>().ConfigureAwait(false);
@@ -83,7 +84,7 @@ namespace LOL_GameAssistant.LoLApi
             try
             {
                 if (zBData is { Count: > 0 }) return zBData;
-                HttpClentHelper client = new HttpClentHelper();
+                HttpClientHelper client = new HttpClientHelper();
                 Stream? stream = await client.GetAsync("/lol-game-data/assets/v1/items.json").ConfigureAwait(false);
                 if (stream != null)
                 {
@@ -108,7 +109,7 @@ namespace LOL_GameAssistant.LoLApi
             try
             {
                 if (jNData is { Count: > 0 }) return jNData;
-                HttpClentHelper client = new HttpClentHelper();
+                HttpClientHelper client = new HttpClientHelper();
                 Stream? stream = await client.GetAsync("/lol-game-data/assets/v1/summoner-spells.json").ConfigureAwait(false);
                 if (stream != null)
                 {
@@ -148,7 +149,7 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         public static async Task<Stream> GetGameUserImg(string key)
         {
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/profileicon/{key}.png").ConfigureAwait(false);
             return responseStream ?? Stream.Null;
         }
@@ -171,7 +172,7 @@ namespace LOL_GameAssistant.LoLApi
             string? path = items.FirstOrDefault(p => string.Equals(p.id, key, StringComparison.Ordinal))?.iconPath;
             if (string.IsNullOrEmpty(path)) return Stream.Null;
 
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync(path).ConfigureAwait(false);
             return responseStream ?? Stream.Null;
         }
@@ -186,7 +187,7 @@ namespace LOL_GameAssistant.LoLApi
             string? path = spells.FirstOrDefault(p => string.Equals(p.id, key, StringComparison.Ordinal))?.iconPath;
             if (string.IsNullOrEmpty(path)) return Stream.Null;
 
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync(path).ConfigureAwait(false);
             return responseStream ?? Stream.Null;
         }
@@ -202,7 +203,7 @@ namespace LOL_GameAssistant.LoLApi
             if (!paths.TryGetValue(perkId, out string? iconPath) || string.IsNullOrWhiteSpace(iconPath))
                 return Stream.Null;
 
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             // 符文图片位于 Data Dragon 的共享 /cdn/img/perk-images 目录，
             // 并不像英雄/装备一样放在版本化的 /cdn/{version}/img 路径下。
             Stream? responseStream = await client.GetAsync(
@@ -219,7 +220,7 @@ namespace LOL_GameAssistant.LoLApi
             {
                 if (RuneIconPaths is { Count: > 0 } loaded) return loaded;
 
-                HttpClentHelper client = new HttpClentHelper();
+                HttpClientHelper client = new HttpClientHelper();
                 using Stream? stream = await client.GetAsync(
                     $"https://ddragon.leagueoflegends.com/cdn/{gameversion}/data/zh_CN/runesReforged.json").ConfigureAwait(false);
                 if (stream == null || stream == Stream.Null) return new Dictionary<int, string>();
@@ -252,7 +253,7 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         public static async Task<Stream> GetGameYXImg(int id)
         {
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync($"/lol-game-data/assets/v1/champion-icons/{id}.png").ConfigureAwait(false);
             return responseStream ?? Stream.Null;
         }

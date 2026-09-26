@@ -130,6 +130,7 @@ public static class RecentModePerformanceEvaluator
 
     /// <summary>下等马档位的分数上限。</summary>
     public const int LowerTierMaxScore = 59;
+
     public const double HumanKdaThreshold = 1.0;
     public const double LowerKdaThreshold = 2.2;
     public const double UpperKdaThreshold = 4.5;

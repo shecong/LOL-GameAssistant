@@ -34,6 +34,28 @@ public sealed class CloudAiSettings
         };
     }
 
+    /// <summary>密钥只能发送到 HTTPS 服务，或明确指定的本机开发服务。</summary>
+    public bool TryGetSafeBaseUri(out Uri? uri, out string error)
+    {
+        string address = GetBaseUrl();
+        if (!Uri.TryCreate(address, UriKind.Absolute, out uri) ||
+            !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) ||
+            !string.IsNullOrEmpty(uri.Fragment))
+        {
+            error = "AI 服务地址必须是有效的绝对 URL，且不能包含账号、查询参数或片段。";
+            return false;
+        }
+
+        bool local = uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || uri.Host == "127.0.0.1";
+        if (uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && local))
+        {
+            error = "AI 服务地址必须使用 HTTPS；仅 localhost 或 127.0.0.1 可使用 HTTP。";
+            return false;
+        }
+        error = "";
+        return true;
+    }
+
     public string GetKeyPortalUrl() => Provider switch
     {
         AiProvider.OpenAI => "https://platform.openai.com/api-keys",

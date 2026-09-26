@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Entity;
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 using Newtonsoft.Json;
 
@@ -12,10 +12,11 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 获取当前选人会话
         /// </summary>
-        public static async Task<ChampSelectSession?> GetSessionAsync()
+        public static async Task<ChampSelectSession?> GetSessionAsync(CancellationToken cancellationToken = default)
         {
-            using var client = new HttpClentHelper();
-            Stream? responseStream = await client.GetAsync("/lol-champ-select/v1/session").ConfigureAwait(false);
+            using var client = new HttpClientHelper();
+            using Stream? responseStream = await client.GetAsync(
+                "/lol-champ-select/v1/session", cancellationToken: cancellationToken).ConfigureAwait(false);
             if (responseStream == null) return null;
             return await responseStream.ReadAsJsonAsync<ChampSelectSession>().ConfigureAwait(false);
         }
@@ -26,13 +27,15 @@ namespace LOL_GameAssistant.LoLApi
         /// <param name="actionId">动作ID</param>
         /// <param name="championId">英雄ID（0表示取消选择）</param>
         /// <param name="completed">是否完成（通常true）</param>
-        public static async Task<bool> PerformActionAsync(long actionId, int championId, bool completed = true)
+        public static async Task<bool> PerformActionAsync(
+            long actionId, int championId, bool completed = true, CancellationToken cancellationToken = default)
         {
-            using var client = new HttpClentHelper();
+            using var client = new HttpClientHelper();
             var body = JsonConvert.SerializeObject(new { championId, completed });
             using Stream? response = await client.PatchAsync(
                 $"/lol-champ-select/v1/session/actions/{actionId}",
-                body: body
+                body: body,
+                cancellationToken: cancellationToken
             ).ConfigureAwait(false);
             return response != null;
         }
@@ -42,9 +45,10 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="banChampionIds">设置中选定的禁用英雄ID列表</param>
         /// <returns>是否成功执行了禁用动作</returns>
-        public static async Task<bool> AutoBanAsync(List<int> banChampionIds)
+        public static async Task<bool> AutoBanAsync(
+            List<int> banChampionIds, CancellationToken cancellationToken = default)
         {
-            return await ExecuteAutoActionAsync(banChampionIds, "ban", completed: true).ConfigureAwait(false);
+            return await ExecuteAutoActionAsync(banChampionIds, "ban", completed: true, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -52,9 +56,10 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         /// <param name="pickChampionIds">设置中选定的选用英雄ID列表</param>
         /// <returns>是否成功执行了选用动作</returns>
-        public static async Task<bool> AutoPickAsync(List<int> pickChampionIds, bool lockIn = true)
+        public static async Task<bool> AutoPickAsync(
+            List<int> pickChampionIds, bool lockIn = true, CancellationToken cancellationToken = default)
         {
-            return await ExecuteAutoActionAsync(pickChampionIds, "pick", completed: lockIn).ConfigureAwait(false);
+            return await ExecuteAutoActionAsync(pickChampionIds, "pick", completed: lockIn, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -63,18 +68,19 @@ namespace LOL_GameAssistant.LoLApi
         private static async Task<bool> ExecuteAutoActionAsync(
             List<int> desiredChampionIds,
             string actionType,
-            bool completed)
+            bool completed,
+            CancellationToken cancellationToken)
         {
             if (desiredChampionIds.Count == 0) return false;
 
-            var session = await GetSessionAsync().ConfigureAwait(false);
+            var session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
             if (session == null) return false;
 
             // 收集所有已被禁用/选用的英雄ID（不可用）
             var unavailableIds = CollectUnavailableChampionIds(session);
 
-            // 找到当前轮到我方、未完成的指定类型动作
-            var currentAction = FindCurrentAllyAction(session, actionType);
+            // 同一轮可能有多个我方动作；只允许修改本地玩家自己的动作。
+            var currentAction = ChampionSelectActionResolver.FindCurrentLocalAction(session, actionType);
             if (currentAction == null) return false;
 
             int manualIntent = actionType.Equals("pick", StringComparison.OrdinalIgnoreCase)
@@ -84,7 +90,8 @@ namespace LOL_GameAssistant.LoLApi
             {
                 // championPickIntent 是用户在客户端中已点击但还未锁定的英雄。
                 // 只在锁定模式下完成该意图，预选模式不覆盖玩家的当前选择。
-                return completed && await PerformActionAsync(currentAction.Id, manualIntent, completed: true).ConfigureAwait(false);
+                return completed && await PerformActionAsync(
+                    currentAction.Id, manualIntent, completed: true, cancellationToken).ConfigureAwait(false);
             }
 
             // 玩家已经在客户端中点选了英雄时，不再用优先级列表覆盖它。
@@ -94,15 +101,16 @@ namespace LOL_GameAssistant.LoLApi
                 return completed && await PerformActionAsync(
                     currentAction.Id,
                     currentAction.ChampionId,
-                    completed: true).ConfigureAwait(false);
+                    completed: true,
+                    cancellationToken).ConfigureAwait(false);
             }
 
             var allowedIds = await GetChampionIdSetAsync(
                 actionType.Equals("ban", StringComparison.OrdinalIgnoreCase)
                     ? "/lol-champ-select/v1/bannable-champion-ids"
-                    : "/lol-champ-select/v1/pickable-champion-ids").ConfigureAwait(false);
+                    : "/lol-champ-select/v1/pickable-champion-ids", cancellationToken).ConfigureAwait(false);
             var disabledIds = await GetChampionIdSetAsync(
-                "/lol-champ-select/v1/disabled-champion-ids").ConfigureAwait(false)
+                "/lol-champ-select/v1/disabled-champion-ids", cancellationToken).ConfigureAwait(false)
                 ?? new HashSet<int>();
 
             // 在期望列表中找第一个未被禁用/选用的英雄
@@ -126,17 +134,20 @@ namespace LOL_GameAssistant.LoLApi
             return await PerformActionAsync(
                 currentAction.Id,
                 championToUse.Value,
-                completed).ConfigureAwait(false);
+                completed,
+                cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
         /// LCU 会为不同阶段给出可选/可禁英雄；请求不可用时回退到会话内校验，
         /// 避免因客户端版本差异导致自动化完全失效。
         /// </summary>
-        private static async Task<HashSet<int>?> GetChampionIdSetAsync(string endpoint)
+        private static async Task<HashSet<int>?> GetChampionIdSetAsync(
+            string endpoint, CancellationToken cancellationToken)
         {
-            using var client = new HttpClentHelper();
-            using Stream? responseStream = await client.GetAsync(endpoint).ConfigureAwait(false);
+            using var client = new HttpClientHelper();
+            using Stream? responseStream = await client.GetAsync(
+                endpoint, cancellationToken: cancellationToken).ConfigureAwait(false);
             if (responseStream == null)
             {
                 return null;
@@ -178,27 +189,6 @@ namespace LOL_GameAssistant.LoLApi
             }
 
             return unavailable;
-        }
-
-        /// <summary>
-        /// 找到当前轮到我方进行的指定类型动作
-        /// </summary>
-        private static ChampSelectAction? FindCurrentAllyAction(ChampSelectSession session, string actionType)
-        {
-            foreach (var round in session.Actions)
-            {
-                foreach (var action in round)
-                {
-                    if (action.IsInProgress &&
-                        !action.Completed &&
-                        action.IsAllyAction &&
-                        string.Equals(action.Type, actionType, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return action;
-                    }
-                }
-            }
-            return null;
         }
 
         /// <summary>

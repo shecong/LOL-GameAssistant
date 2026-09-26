@@ -19,8 +19,10 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
         Dock = DockStyle.Top,
         Height = 34,
         Padding = new Padding(10, 8, 10, 0),
-        Text = "这里只显示本机运行状态，不记录 LCU Token、聊天内容或 API Key。"
+        Text = "本机运行状态；诊断日志不会记录 LCU Token、聊天内容或 API Key。悬停查看日志路径。"
     };
+
+    private readonly ToolTip _logTip = new();
 
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1500 };
 
@@ -32,12 +34,14 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
         _list.Columns.Add("更新时间", 155);
         Controls.Add(_list);
         Controls.Add(_hint);
+        _logTip.SetToolTip(_hint, RuntimeDiagnostics.GetLogPath());
         _timer.Tick += (_, _) => RefreshSnapshot();
         _timer.Start();
         RuntimeDiagnostics.Changed += DiagnosticsChanged;
         Disposed += (_, _) =>
         {
             _timer.Dispose();
+            _logTip.Dispose();
             RuntimeDiagnostics.Changed -= DiagnosticsChanged;
         };
         RefreshSnapshot();

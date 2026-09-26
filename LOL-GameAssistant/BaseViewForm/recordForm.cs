@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
@@ -10,7 +10,7 @@ using System.Data;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
-    public partial class recordForm : UserControl
+    public partial class RecordForm : UserControl
     {
         private MatchDetail? _gameDetail;
         private string? _playerPuuid;
@@ -18,6 +18,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IGameAssetService _gameAssetService;
         private readonly Label _performanceTag = new();
         private readonly ToolTip _performanceTip = new();
+        private readonly Dictionary<Control, Image> _ownedImages = new();
 
         /// <summary>判定取数范围：先拉最近这些场摘要，再从中筛出同模式对局。</summary>
         private const int HistoryFetchCount = 100;
@@ -28,12 +29,12 @@ namespace LOL_GameAssistant.BaseViewForm
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryGame[]> Games)> RecentHistoryCache = new(StringComparer.Ordinal);
         private static readonly TimeSpan RecentHistoryCacheTtl = TimeSpan.FromMinutes(3);
 
-        public recordForm() : this(AppCompositionRoot.MatchHistoryService, AppCompositionRoot.GameAssetService)
+        public RecordForm() : this(AppCompositionRoot.MatchHistoryService, AppCompositionRoot.GameAssetService)
         {
         }
 
         /// <summary>战绩卡片仅依赖应用服务，图像解码保留在 WinForms 表现层。</summary>
-        internal recordForm(IMatchHistoryService matchHistoryService, IGameAssetService gameAssetService)
+        internal RecordForm(IMatchHistoryService matchHistoryService, IGameAssetService gameAssetService)
         {
             _matchHistoryService = matchHistoryService;
             _gameAssetService = gameAssetService;
@@ -46,9 +47,15 @@ namespace LOL_GameAssistant.BaseViewForm
             Controls.Add(_performanceTag);
             _performanceTag.BringToFront();
             AttachDoubleClickToAllControls(this);
+            Disposed += (_, _) =>
+            {
+                _performanceTip.Dispose();
+                foreach (Image image in _ownedImages.Values) image.Dispose();
+                _ownedImages.Clear();
+            };
         }
 
-        private void recordForm_Load(object sender, EventArgs e)
+        private void RecordForm_Load(object sender, EventArgs e)
         {
         }
 
@@ -239,8 +246,8 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void BuildTeamAvatars(MatchDetail detail, string? puuid)
         {
-            flowAlly.Controls.Clear();
-            flowEnemy.Controls.Clear();
+            ControlLifetime.ClearAndDispose(flowAlly);
+            ControlLifetime.ClearAndDispose(flowEnemy);
 
             var participants = detail.participants;
             var identities = detail.participantIdentities;
@@ -260,7 +267,9 @@ namespace LOL_GameAssistant.BaseViewForm
                     BorderColor = isMe ? Color.FromArgb(255, 193, 7) : Color.FromArgb(160, 255, 255, 255),
                     Margin = new Padding(0, 0, 4, 0)
                 };
+                avatar.Disposed += (_, _) => avatar.Image?.Dispose();
                 var tip = new ToolTip();
+                avatar.Disposed += (_, _) => tip.Dispose();
                 string? playerPuuid = identity?.puuid;
                 tip.SetToolTip(avatar, string.IsNullOrEmpty(playerPuuid)
                     ? name
@@ -322,18 +331,18 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 替换控件图片并释放旧图，避免内存泄漏。
         /// </summary>
-        private static void ReplaceImage(PictureBox box, Image? image)
+        private void ReplaceImage(PictureBox box, Image? image)
         {
-            var old = box.Image;
+            if (_ownedImages.Remove(box, out Image? old)) old.Dispose();
             box.Image = image;
-            old?.Dispose();
+            if (image != null) _ownedImages[box] = image;
         }
 
-        private static void ReplaceImage(AntdUI.Avatar box, Image? image)
+        private void ReplaceImage(AntdUI.Avatar box, Image? image)
         {
-            var old = box.Image;
+            if (_ownedImages.Remove(box, out Image? old)) old.Dispose();
             box.Image = image;
-            old?.Dispose();
+            if (image != null) _ownedImages[box] = image;
         }
 
         private void AttachDoubleClickToAllControls(Control parent)

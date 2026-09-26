@@ -247,7 +247,7 @@ public sealed class CoachForm : UserControl
                 _status.ForeColor = Color.Firebrick;
                 _status.Text = choices.Message;
                 // 取数失败时不会弹窗，只写状态栏容易被忽略；同时写进消息区，让“没弹窗”总有原因可查。
-                GameMain.infoMsg.AddMsg($"OP.GG 未弹出方案：{choices.Message}");
+                Program.GameMain.infoMsg.AddMsg($"OP.GG 未弹出方案：{choices.Message}");
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "取数失败", choices.Message);
                 return;
             }
@@ -295,7 +295,7 @@ public sealed class CoachForm : UserControl
         {
             _status.ForeColor = Color.Firebrick;
             _status.Text = "OP.GG 一键配置失败：" + ex.Message;
-            GameMain.infoMsg.AddMsg("OP.GG 一键配置失败：" + ex.Message);
+            Program.GameMain.infoMsg.AddMsg("OP.GG 一键配置失败：" + ex.Message);
         }
         finally
         {

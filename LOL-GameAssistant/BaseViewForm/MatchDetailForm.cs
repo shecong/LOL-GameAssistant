@@ -74,11 +74,15 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         public static void OpenAndHandle(MatchDetail detail, string? puuid, Control? parent)
         {
-            var form = new MatchDetailForm(detail, puuid)
+            using var form = new MatchDetailForm(detail, puuid)
             {
                 StartPosition = FormStartPosition.CenterParent
             };
-            form.ShowDialog(parent?.FindForm() ?? Program.GameMain);
+            Form owner = parent?.FindForm() ?? Program.GameMain;
+            Rectangle available = Screen.FromControl(owner).WorkingArea;
+            form.Size = new Size(Math.Min(form.Width, Math.Max(1, available.Width - 32)),
+                Math.Min(form.Height, Math.Max(1, available.Height - 32)));
+            form.ShowDialog(owner);
 
             if (!string.IsNullOrEmpty(form.SelectedPlayerPuuid))
             {
@@ -137,8 +141,8 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void BuildPlayerPanels()
         {
-            flowAlly.Controls.Clear();
-            flowEnemy.Controls.Clear();
+            ControlLifetime.ClearAndDispose(flowAlly);
+            ControlLifetime.ClearAndDispose(flowEnemy);
             _premadeTagsByPuuid.Clear();
             _performanceTagsByPuuid.Clear();
 
@@ -192,6 +196,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 BorderWidth = isMe ? 3 : 1,
                 BorderColor = isMe ? Color.FromArgb(255, 193, 7) : Color.FromArgb(120, 255, 255, 255)
             };
+            avatar.Disposed += (_, _) => avatar.Image?.Dispose();
             _ = LoadAvatarAsync(avatar, p.championId);
             panel.Controls.Add(avatar);
 
@@ -316,8 +321,11 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 var tag = new AntdUI.Tag
                 {
-                    Text = GetChampionDisplayName(championId), Width = 76, Height = 27,
-                    AutoEllipsis = true, Margin = new Padding(0, 0, 4, 0)
+                    Text = GetChampionDisplayName(championId),
+                    Width = 76,
+                    Height = 27,
+                    AutoEllipsis = true,
+                    Margin = new Padding(0, 0, 4, 0)
                 };
                 row.Controls.Add(tag);
                 _ = LoadChampionTagIconAsync(tag, championId);
@@ -332,7 +340,9 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 var placeholder = new AntdUI.Tag
                 {
-                    Text = $"强化 #{ids[index]}", Width = 112, Height = 23,
+                    Text = $"强化 #{ids[index]}",
+                    Width = 112,
+                    Height = 23,
                     Location = new Point(70 + index % 3 * 118, 109 + index / 3 * 25),
                     AutoEllipsis = true,
                     ForeColor = UiTheme.Palette.TextPrimary,
@@ -393,6 +403,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     SizeMode = PictureBoxSizeMode.Zoom,
                     BackColor = Color.FromArgb(238, 241, 245)
                 };
+                icon.Disposed += (_, _) => icon.Image?.Dispose();
                 panel.Controls.Add(icon);
                 int spellId = spells[index];
                 _ = LoadSpellIconAsync(icon, spellId);
@@ -416,6 +427,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     SizeMode = PictureBoxSizeMode.Zoom,
                     BackColor = Color.FromArgb(238, 241, 245)
                 };
+                icon.Disposed += (_, _) => icon.Image?.Dispose();
                 panel.Controls.Add(icon);
                 int itemId = items[index];
                 _ = LoadItemIconAsync(icon, itemId);

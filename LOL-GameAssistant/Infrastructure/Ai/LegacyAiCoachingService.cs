@@ -1,6 +1,5 @@
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Domain.Coaching;
-using LOL_GameAssistant.Domain.Settings;
 
 namespace LOL_GameAssistant.Infrastructure.Ai;
 
@@ -19,5 +18,4 @@ public sealed class LegacyAiCoachingService : IAiCoachingService
 
     public Task<AiGameContext> CollectContextAsync(CancellationToken cancellationToken = default) =>
         _contextService.CollectAsync(cancellationToken);
-
 }

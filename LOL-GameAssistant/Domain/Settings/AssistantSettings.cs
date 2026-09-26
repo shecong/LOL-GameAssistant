@@ -22,16 +22,22 @@ public sealed class AssistantSettings
     public bool QuickShoutHotkeysEnabled { get; set; } = true;
     public string QuickShoutBuiltInHotkey { get; set; } = "F6";
     public string QuickShoutCustomHotkey { get; set; } = "F7";
+
     /// <summary>在选人阶段选定英雄后，显示 OP.GG 图文出装/符文选择器。</summary>
     public bool OpggBuildAssistantEnabled { get; set; }
+
     /// <summary>选人阵容加载完成后，汇总近期 KDA 并通过 LCU 发送到选人聊天。</summary>
     public bool ChampSelectKdaAnnouncementEnabled { get; set; }
+
     /// <summary>对局中双方近期 KDA 评估齐备后，通过游戏内喊话发送一次。</summary>
     public bool GameKdaAnnouncementEnabled { get; set; }
+
     /// <summary>对局 KDA 喊话中每名玩家单独发送一条；默认按蓝红双方各汇总一条。</summary>
     public bool GameKdaOnePlayerPerLine { get; set; }
+
     /// <summary>选人 KDA 汇总消息模板，支持 {players}、{allies}、{enemies} 占位符。</summary>
     public string ChampSelectKdaAnnouncementTemplate { get; set; } = "【选人近期 KDA 评估】\n{allies}\n{enemies}";
+
     public CloudAiSettings Ai { get; set; } = new();
     public bool AutoMatch { get; set; }
     public bool AutoAccept { get; set; }

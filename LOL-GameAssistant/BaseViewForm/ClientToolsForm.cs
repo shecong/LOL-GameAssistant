@@ -38,6 +38,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
     private readonly AntdUI.Select _insightMode = Select(140);
     private readonly AntdUI.Panel _friendRows = new() { Dock = DockStyle.Fill, Padding = new Padding(6), Radius = 8, BorderWidth = 1 };
     private readonly AntdUI.Panel _insightRows = new() { Dock = DockStyle.Fill, Padding = new Padding(6), Radius = 8, BorderWidth = 1 };
+
     private readonly AntdUI.Label _status = new()
     {
         Dock = DockStyle.Bottom,
@@ -45,14 +46,17 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         Padding = new Padding(12, 7, 12, 0),
         Text = "所有操作仅作用于当前电脑已登录的英雄联盟客户端。"
     };
+
     private readonly AntdUI.Label _backgroundPreviewCaption = Caption("输入皮肤 ID 后点击预览。", 260);
     private readonly AntdUI.Label _profileIconPreviewCaption = Caption("输入头像 ID 后点击预览。", 180);
+
     private readonly PictureBox _backgroundPreview = new()
     {
         Size = new Size(208, 96),
         BackColor = Color.FromArgb(34, 43, 56),
         SizeMode = PictureBoxSizeMode.Zoom
     };
+
     private readonly PictureBox _profileIconPreview = new()
     {
         Size = new Size(82, 82),
@@ -551,7 +555,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         {
             IReadOnlyList<FriendActivity> entries = await _features.GetFriendActivitiesAsync();
             _friendRows.SuspendLayout();
-            _friendRows.Controls.Clear();
+            LOL_GameAssistant.Helper.ControlLifetime.ClearAndDispose(_friendRows);
             foreach (FriendActivity friend in entries.OrderByDescending(item => item.StartedAt))
             {
                 string elapsed = friend.Elapsed is { } value && value >= TimeSpan.Zero ? $"{(int)value.TotalHours:00}:{value.Minutes:00}:{value.Seconds:00}" : "-";
@@ -586,7 +590,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         {
             IReadOnlyList<ChampionTierInsight> entries = await _championInsights.GetChampionTiersAsync(mode);
             _insightRows.SuspendLayout();
-            _insightRows.Controls.Clear();
+            LOL_GameAssistant.Helper.ControlLifetime.ClearAndDispose(_insightRows);
             foreach (ChampionTierInsight entry in entries)
                 AddDataRow(_insightRows, $"{entry.ChampionName}  ·  {ToChineseMode(entry.Mode)} {entry.Tier}  ·  排名 {Display(entry.Rank)}  ·  胜率 {Percent(entry.WinRate)}  ·  登场 {Percent(entry.PickRate)}");
             if (entries.Count == 0) AddEmptyRow(_insightRows, "暂无可用的英雄 T 级数据。");
@@ -602,7 +606,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         {
             IReadOnlyList<ChampionBalanceAdjustment> entries = await _championInsights.GetAramBalanceAdjustmentsAsync();
             _insightRows.SuspendLayout();
-            _insightRows.Controls.Clear();
+            LOL_GameAssistant.Helper.ControlLifetime.ClearAndDispose(_insightRows);
             foreach (ChampionBalanceAdjustment entry in entries)
             {
                 string adjustments = string.Join(" · ", new[] { $"造成 {entry.DamageDealt - 100:+0.##;-0.##;0}%", $"承受 {entry.DamageTaken - 100:+0.##;-0.##;0}%", $"治疗 {entry.Healing - 100:+0.##;-0.##;0}%", $"护盾 {entry.ShieldAmount - 100:+0.##;-0.##;0}%", $"韧性 {entry.Tenacity - 100:+0.##;-0.##;0}%" });
@@ -643,14 +647,23 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
     }
 
     private string GetAvailabilityValue() => _availability.Text switch { "离开" => "away", "请勿打扰" => "dnd", "离线" => "offline", "手机在线" => "mobile", _ => "chat" };
+
     private string GetInsightModeKey() => _insightMode.Text switch { "极地大乱斗" => "aram", "斗魂竞技场" => "arena", "无限火力" => "urf", "极限闪击" => "nexus_blitz", _ => "ranked" };
+
     private static string ToChineseAvailability(string value) => value.ToLowerInvariant() switch { "chat" => "在线", "away" => "离开", "dnd" => "请勿打扰", "mobile" => "手机在线", "offline" => "离线", _ => "未知状态" };
+
     private static string ToChineseGameStatus(string value) => value.ToLowerInvariant() switch { "inprogress" => "游戏中", "championselect" => "英雄选择中", "inqueue" => "匹配中", "outofgame" => "空闲", _ => string.IsNullOrWhiteSpace(value) ? "未知" : value };
+
     private static string ToChineseQueue(int queueId, string value) => queueId switch { 420 => "单双排", 430 => "匹配模式", 440 => "灵活排位", 450 => "极地大乱斗", 490 => "快速模式", 900 => "无限火力", 1700 => "斗魂竞技场", _ => ToChineseMode(value) };
+
     private static string ToChineseMode(string? value) => (value ?? "").ToLowerInvariant() switch { "ranked" or "classic" or "summonersrift" => "峡谷 / 排位", "ranked_solo_5x5" => "单双排", "ranked_flex_sr" => "灵活排位", "normal" or "normal_draft" => "匹配模式", "practice_tool" => "训练模式", "aram" or "howlingabyss" => "极地大乱斗", "arena" or "cherry" => "斗魂竞技场", "urf" or "arurf" => "无限火力", "nexus_blitz" or "nexusblitz" => "极限闪击", "" => "-", _ => value! };
+
     private static string Display(int value) => value > 0 ? value.ToString() : "-";
+
     private static string Percent(double value) => value > 0 ? $"{value:F1}%" : "-";
+
     private static void AddDataRow(AntdUI.Panel target, string text) => target.Controls.Add(new AntdUI.Label { Dock = DockStyle.Top, Height = 28, Padding = new Padding(8, 5, 8, 0), Text = text });
+
     private static void AddEmptyRow(AntdUI.Panel target, string text) => AddDataRow(target, text);
 
     private static Image? DecodeImage(byte[] bytes)

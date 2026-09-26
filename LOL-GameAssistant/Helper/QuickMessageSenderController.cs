@@ -12,7 +12,8 @@ public sealed class QuickMessageSenderController : IDisposable
     private DateTime _lastSentAtUtc = DateTime.MinValue;
     private int _sending;
 
-    public QuickMessageSenderController(Form owner) { }
+    public QuickMessageSenderController(Form owner)
+    { }
 
     public async Task<GameShoutSendResult> TestChatOpenAsync()
     {
@@ -197,7 +198,7 @@ public sealed class QuickMessageSenderController : IDisposable
         }
         catch (Exception ex)
         {
-            GameMain.infoMsg.AddMsg($"游戏内喊话失败：{ex.Message}");
+            Program.GameMain.infoMsg.AddMsg($"游戏内喊话失败：{ex.Message}");
             RuntimeDiagnostics.Report("快捷消息", "输入失败", ex.Message);
             return new(false, $"游戏内喊话失败：{ex.Message}");
         }
@@ -249,7 +250,8 @@ public sealed class QuickMessageSenderController : IDisposable
         catch { return false; }
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    { }
 
     private readonly record struct ClipboardSnapshot(bool HasText, string? Text);
 

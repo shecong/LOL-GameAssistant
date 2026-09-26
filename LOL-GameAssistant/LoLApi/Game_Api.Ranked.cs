@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Entity;
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.LoLApi
@@ -45,7 +45,7 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<string?> GetRankedStatsRawAsync(string? puuid)
         {
             if (string.IsNullOrEmpty(puuid)) return null;
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync($"/lol-ranked/v1/ranked-stats/{puuid}").ConfigureAwait(false);
             if (responseStream == null) return null;
             return await responseStream.ReadAsStringJsonAsync().ConfigureAwait(false);
@@ -56,7 +56,7 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         private static async Task<string?> GetCurrentSummonerRankedStatsRawAsync()
         {
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync("/lol-ranked/v1/current-ranked-stats").ConfigureAwait(false);
             if (responseStream == null) return null;
             return await responseStream.ReadAsStringJsonAsync().ConfigureAwait(false);

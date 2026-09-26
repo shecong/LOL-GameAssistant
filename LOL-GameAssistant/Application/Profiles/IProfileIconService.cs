@@ -5,6 +5,7 @@ public interface IProfileIconService
 {
     /// <summary>读取客户端资源目录中的头像 ID，用于分页式可视化选择。</summary>
     Task<IReadOnlyList<ProfileIconChoice>> GetProfileIconsAsync(CancellationToken cancellationToken = default);
+
     Task<byte[]?> GetProfileIconAsync(int iconId, CancellationToken cancellationToken = default);
 }
 

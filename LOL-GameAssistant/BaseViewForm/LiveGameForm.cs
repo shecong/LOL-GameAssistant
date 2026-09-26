@@ -30,6 +30,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         // 选人聊天只在一套确定的十人阵容全部完成近期战绩计算后发送一次，避免卡片异步完成时刷屏。
         private readonly Dictionary<string, PlayerRecentPerformanceEventArgs> _champSelectAssessments = new(StringComparer.Ordinal);
+
         private readonly HashSet<string> _expectedChampSelectAssessmentPuuids = new(StringComparer.Ordinal);
         private string _champSelectAssessmentSignature = "";
         private bool _champSelectAssessmentSent;
@@ -44,7 +45,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private GameFlowPhase? _lastRenderedPhase;
 
         public bool NeedsGameAssessmentRoster =>
-            !IsDisposed && GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
+            !IsDisposed && Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
             AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled &&
             _gameAssessmentRoster.Count == 0;
 
@@ -222,7 +223,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>保存 KDA 发送设置后重新读取当前阵容，让选人和对局开关立即生效。</summary>
         public void RefreshKdaAnnouncements()
         {
-            if (IsDisposed || GameMain.gameFlowPhase is not (GameFlowPhase.ChampSelect or GameFlowPhase.InProgress)) return;
+            if (IsDisposed || Program.GameMain.gameFlowPhase is not (GameFlowPhase.ChampSelect or GameFlowPhase.InProgress)) return;
             _ = AddView(force: true);
         }
 
@@ -238,7 +239,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 // 缓存的 gameFlowPhase 只由 WebSocket 事件驱动，而 LCU 订阅时不会补发当前阶段，
                 // 所以启动/重连时若已经在大厅或对局中，这个值会停在默认值，
                 // 表现就是"点刷新没反应"。用户主动刷新、或当前阶段不可渲染时，主动问一次 LCU。
-                var phase = GameMain.gameFlowPhase;
+                var phase = Program.GameMain.gameFlowPhase;
                 if (force || !IsRenderablePhase(phase))
                 {
                     string? livePhase = await _lobbyService.GetGameFlowPhaseAsync();
@@ -390,7 +391,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void SetGameInfo(string mode, int queueId)
         {
-            string phase = GameMain.gameFlowPhase.GetChineseName();
+            string phase = Program.GameMain.gameFlowPhase.GetChineseName();
             string modeName = mode == "选人阶段" ? mode :
                 string.IsNullOrWhiteSpace(mode) && queueId <= 0 ? "" :
                 LolGameModeNames.GetModeText(queueId > 0 ? queueId.ToString() : "", mode);
@@ -429,11 +430,11 @@ namespace LOL_GameAssistant.BaseViewForm
             string signature = BuildPremadeCacheKey(team1, team2);
 
             // 阵容未变化时跳过重建，避免自动刷新反复销毁/重建控件
-            if (!force && signature == _lastSignature && _lastRenderedPhase == GameMain.gameFlowPhase &&
+            if (!force && signature == _lastSignature && _lastRenderedPhase == Program.GameMain.gameFlowPhase &&
                 panelTeam1.Controls.Count > 0)
                 return;
             _lastSignature = signature;
-            _lastRenderedPhase = GameMain.gameFlowPhase;
+            _lastRenderedPhase = Program.GameMain.gameFlowPhase;
             PrepareChampSelectAssessments(signature, team1, team2, myPuuid);
             PrepareGameAssessments(signature, team1, team2);
             _activePremadeCacheKey = signature;
@@ -520,7 +521,7 @@ namespace LOL_GameAssistant.BaseViewForm
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2,
             string? myPuuid)
         {
-            bool enabled = GameMain.gameFlowPhase == GameFlowPhase.ChampSelect &&
+            bool enabled = Program.GameMain.gameFlowPhase == GameFlowPhase.ChampSelect &&
                 AppCompositionRoot.ApplicationSettingsStore.Load().ChampSelectKdaAnnouncementEnabled;
             if (!enabled)
             {
@@ -563,7 +564,7 @@ namespace LOL_GameAssistant.BaseViewForm
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2)
         {
-            bool enabled = GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
+            bool enabled = Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
                 AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled;
             if (!enabled)
             {
@@ -605,14 +606,14 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             await Task.Delay(TimeSpan.FromSeconds(45));
             if (IsDisposed || signature != _gameAssessmentSignature || _gameAssessmentSent ||
-                GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
+                Program.GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
             // 单局详情补取可能仍在进行；不能把尚未返回的玩家提前喊成“无数据”。
             for (int attempt = 0; attempt < 3 &&
                  !_expectedGameAssessmentPuuids.All(puuid => _gameAssessments.ContainsKey(puuid)); attempt++)
             {
                 await Task.Delay(TimeSpan.FromSeconds(30));
                 if (IsDisposed || signature != _gameAssessmentSignature || _gameAssessmentSent ||
-                    GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
+                    Program.GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
             }
             SendGameKdaAnnouncement();
         }
@@ -620,7 +621,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private void OnPlayerRecentPerformanceReady(object? sender, PlayerRecentPerformanceEventArgs result)
         {
             if (IsDisposed) return;
-            if (GameMain.gameFlowPhase == GameFlowPhase.InProgress)
+            if (Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress)
             {
                 if (_gameAssessmentSent || !_expectedGameAssessmentPuuids.Contains(result.Puuid)) return;
                 _gameAssessments[result.Puuid] = result;
@@ -628,7 +629,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     SendGameKdaAnnouncement();
                 return;
             }
-            if (_champSelectAssessmentSent || GameMain.gameFlowPhase != GameFlowPhase.ChampSelect ||
+            if (_champSelectAssessmentSent || Program.GameMain.gameFlowPhase != GameFlowPhase.ChampSelect ||
                 !_expectedChampSelectAssessmentPuuids.Contains(result.Puuid)) return;
 
             _champSelectAssessments[result.Puuid] = result;
@@ -648,7 +649,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private void SendGameKdaAnnouncement()
         {
             if (_gameAssessmentSent || _gameAssessmentSending || _gameAssessmentRoster.Count == 0 ||
-                GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
+                Program.GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
             var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
             if (!settings.GameKdaAnnouncementEnabled) return;
 
@@ -677,7 +678,7 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 while (!IsDisposed && generation == _gameAssessmentGeneration &&
                        signature == _gameAssessmentSignature &&
-                       GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
+                       Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
                        AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled)
                 {
                     // InProgress 在加载画面就会出现；实时客户端接口可用后才允许注入聊天按键。
@@ -696,19 +697,19 @@ namespace LOL_GameAssistant.BaseViewForm
                     if (sentCount >= messages.Count)
                     {
                         _gameAssessmentSent = true;
-                        GameMain.infoMsg.AddMsg("对局双方近期 KDA 评估已注入游戏聊天；请确认聊天窗口。");
+                        Program.GameMain.infoMsg.AddMsg("对局双方近期 KDA 评估已注入游戏聊天；请确认聊天窗口。");
                         RuntimeDiagnostics.Report("对局 KDA 评估", "按键已注入", result.Message);
                         return;
                     }
                     await Task.Delay(TimeSpan.FromSeconds(5));
                 }
                 if (sentCount > 0 && !IsDisposed && generation == _gameAssessmentGeneration)
-                    GameMain.infoMsg.AddMsg($"对局 KDA 评估已注入 {sentCount}/{messages.Count} 条，对局结束或设置关闭后停止发送。");
+                    Program.GameMain.infoMsg.AddMsg($"对局 KDA 评估已注入 {sentCount}/{messages.Count} 条，对局结束或设置关闭后停止发送。");
             }
             catch (Exception ex)
             {
                 if (IsDisposed || generation != _gameAssessmentGeneration) return;
-                GameMain.infoMsg.AddMsg($"对局双方近期 KDA 评估未发送：{ex.Message}");
+                Program.GameMain.infoMsg.AddMsg($"对局双方近期 KDA 评估未发送：{ex.Message}");
                 RuntimeDiagnostics.Report("对局 KDA 评估", "发送失败", ex.Message);
             }
             finally
@@ -761,7 +762,7 @@ namespace LOL_GameAssistant.BaseViewForm
             string summary = result.Succeeded
                 ? "选人近期 KDA 评估已发送到聊天窗口。"
                 : $"选人近期 KDA 评估未发送：{result.Message}";
-            GameMain.infoMsg.AddMsg(summary);
+            Program.GameMain.infoMsg.AddMsg(summary);
         }
 
         /// <summary>

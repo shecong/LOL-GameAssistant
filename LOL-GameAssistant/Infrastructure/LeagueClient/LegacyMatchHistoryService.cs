@@ -19,7 +19,7 @@ public sealed class LegacyMatchHistoryService : IMatchHistoryService
     {
         cancellationToken.ThrowIfCancellationRequested();
         GameHeadModel.MatchHistoryResponse? legacy = await Game_Api
-            .GetUserGame(puuid, beginIndex.ToString(), endIndex.ToString())
+            .GetUserGame(puuid, beginIndex.ToString(), endIndex.ToString(), cancellationToken)
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return LegacyMatchReadModelMapper.ToDomain(legacy);
@@ -32,7 +32,7 @@ public sealed class LegacyMatchHistoryService : IMatchHistoryService
     {
         cancellationToken.ThrowIfCancellationRequested();
         GameHeadModel.MatchHistoryResponse? legacy = await Game_Api
-            .GetAllUserGamesAsync(puuid, maxGames)
+            .GetAllUserGamesAsync(puuid, maxGames, cancellationToken)
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return LegacyMatchReadModelMapper.ToDomain(legacy);
@@ -44,7 +44,7 @@ public sealed class LegacyMatchHistoryService : IMatchHistoryService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        GameDetailModel.GameInfo? legacy = await Game_Api.GetGameDetail(gameId, useCache).ConfigureAwait(false);
+        GameDetailModel.GameInfo? legacy = await Game_Api.GetGameDetail(gameId, useCache, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return LegacyMatchReadModelMapper.ToDomain(legacy);
     }

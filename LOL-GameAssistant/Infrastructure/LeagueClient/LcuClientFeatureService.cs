@@ -321,11 +321,11 @@ public sealed class LcuClientFeatureService : IClientFeatureService
                 if (!string.IsNullOrWhiteSpace(inventoryJson))
                 {
                     foreach (JObject champion in JArray.Parse(inventoryJson).OfType<JObject>())
-                    foreach (JObject ownedSkin in champion["skins"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
-                    {
-                        if (ownedSkin.SelectToken("ownership.owned")?.Value<bool?>() == true)
-                            ownedIds.Add(ownedSkin.Value<long?>("id") ?? 0);
-                    }
+                        foreach (JObject ownedSkin in champion["skins"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+                        {
+                            if (ownedSkin.SelectToken("ownership.owned")?.Value<bool?>() == true)
+                                ownedIds.Add(ownedSkin.Value<long?>("id") ?? 0);
+                        }
                 }
             }
             var catalog = new Dictionary<long, ProfileSkinAsset>();

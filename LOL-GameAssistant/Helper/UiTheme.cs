@@ -22,6 +22,16 @@ public interface IThemeAware
     void ApplyTheme(ThemePalette palette);
 }
 
+/// <summary>新建页面统一使用的基础字体、间距和输入控件高度。</summary>
+public static class UiMetrics
+{
+    public const string FontFamily = "Microsoft YaHei UI";
+    public const int SpaceSmall = 8;
+    public const int SpaceMedium = 12;
+    public const int SpaceLarge = 16;
+    public const int ControlHeight = 34;
+}
+
 public static class UiTheme
 {
     private sealed record OriginalColors(Color BackColor, Color ForeColor, bool CapturedDark);

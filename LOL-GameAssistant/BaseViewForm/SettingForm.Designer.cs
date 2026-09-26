@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant.BaseViewForm
+namespace LOL_GameAssistant.BaseViewForm
 {
     partial class SettingForm
     {
@@ -29,9 +29,9 @@
         private void InitializeComponent()
         {
             gridPanel2 = new TableLayoutPanel();
-            label1 = new AntdUI.Label();
+            labelAutoMatch = new AntdUI.Label();
             swi_open = new AntdUI.Switch();
-            label2 = new AntdUI.Label();
+            labelAutoAccept = new AntdUI.Label();
             swi_gametrue = new AntdUI.Switch();
             label3 = new AntdUI.Label();
             swi_jyyx = new AntdUI.Switch();
@@ -40,7 +40,7 @@
             swi_xyx = new AntdUI.Switch();
             setting_select_xyx = new AntdUI.SelectMultiple();
             label5 = new AntdUI.Label();
-            inputNumber1 = new AntdUI.InputNumber();
+            inputCheckInterval = new AntdUI.InputNumber();
             label_resolution = new AntdUI.Label();
             select_resolution = new AntdUI.Select();
             label_tray = new AntdUI.Label();
@@ -68,9 +68,9 @@
             gridPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
             gridPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170F));
             gridPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            gridPanel2.Controls.Add(label1, 0, 0);
+            gridPanel2.Controls.Add(labelAutoMatch, 0, 0);
             gridPanel2.Controls.Add(swi_open, 1, 0);
-            gridPanel2.Controls.Add(label2, 0, 1);
+            gridPanel2.Controls.Add(labelAutoAccept, 0, 1);
             gridPanel2.Controls.Add(swi_gametrue, 1, 1);
             gridPanel2.Controls.Add(label3, 0, 2);
             gridPanel2.Controls.Add(swi_jyyx, 1, 2);
@@ -79,7 +79,7 @@
             gridPanel2.Controls.Add(swi_xyx, 1, 3);
             gridPanel2.Controls.Add(setting_select_xyx, 2, 3);
             gridPanel2.Controls.Add(label5, 0, 4);
-            gridPanel2.Controls.Add(inputNumber1, 1, 4);
+            gridPanel2.Controls.Add(inputCheckInterval, 1, 4);
             gridPanel2.Controls.Add(label_resolution, 0, 5);
             gridPanel2.Controls.Add(select_resolution, 1, 5);
             gridPanel2.Controls.Add(label_tray, 0, 6);
@@ -119,11 +119,11 @@
             gridPanel2.Size = new Size(828, 721);
             gridPanel2.TabIndex = 1;
             // 
-            // label1
+            // labelAutoMatch
             // 
-            label1.Dock = DockStyle.Fill;
-            label1.Text = "自动匹配对局：";
-            label1.TextAlign = ContentAlignment.MiddleLeft;
+            labelAutoMatch.Dock = DockStyle.Fill;
+            labelAutoMatch.Text = "自动匹配对局：";
+            labelAutoMatch.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // swi_open
             // 
@@ -132,11 +132,11 @@
             swi_open.UnCheckedText = "关";
             swi_open.Width = 80;
             // 
-            // label2
+            // labelAutoAccept
             // 
-            label2.Dock = DockStyle.Fill;
-            label2.Text = "自动接受对局：";
-            label2.TextAlign = ContentAlignment.MiddleLeft;
+            labelAutoAccept.Dock = DockStyle.Fill;
+            labelAutoAccept.Text = "自动接受对局：";
+            labelAutoAccept.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // swi_gametrue
             // 
@@ -200,12 +200,12 @@
             label5.Text = "自动禁用间隔(秒)：";
             label5.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // inputNumber1
+            // inputCheckInterval
             // 
-            inputNumber1.Dock = DockStyle.Left;
-            inputNumber1.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
-            inputNumber1.Value = new decimal(new int[] { 2, 0, 0, 0 });
-            inputNumber1.Width = 120;
+            inputCheckInterval.Dock = DockStyle.Left;
+            inputCheckInterval.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            inputCheckInterval.Value = new decimal(new int[] { 2, 0, 0, 0 });
+            inputCheckInterval.Width = 120;
             // 
             // label_resolution
             // 
@@ -351,9 +351,9 @@
         private AntdUI.Switch swi_open;
         private AntdUI.Label label4;
         private AntdUI.Label label3;
-        private AntdUI.Label label2;
-        private AntdUI.Label label1;
-        public AntdUI.InputNumber inputNumber1;
+        private AntdUI.Label labelAutoAccept;
+        private AntdUI.Label labelAutoMatch;
+        public AntdUI.InputNumber inputCheckInterval;
         private AntdUI.Label label_auto_refresh;
         private AntdUI.Switch swi_auto_refresh;
         private FlowLayoutPanel flow_auto_refresh;

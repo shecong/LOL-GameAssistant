@@ -1,5 +1,4 @@
 using LOL_GameAssistant.Domain.Coaching;
-using LOL_GameAssistant.Domain.Settings;
 
 namespace LOL_GameAssistant.Application.Coaching;
 

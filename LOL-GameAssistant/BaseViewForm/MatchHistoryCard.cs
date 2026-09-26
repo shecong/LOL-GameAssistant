@@ -107,7 +107,9 @@ public sealed class MatchHistoryCard : UserControl
     {
         var panel = new AntdUI.Panel
         {
-            Tag = teamId, Radius = 8, BorderWidth = 1,
+            Tag = teamId,
+            Radius = 8,
+            BorderWidth = 1,
             BackColor = UiTheme.Palette.SurfaceRaised
         };
         Label title = MakeLabel($"{caption} · {_match.participants.Count(player => player.teamId == teamId)} 人", true,
@@ -125,8 +127,10 @@ public sealed class MatchHistoryCard : UserControl
             {
                 var tag = new AntdUI.Tag
                 {
-                    Text = GetChampionName(championId), Size = new Size(90, 25),
-                    AutoEllipsis = true, Tag = "ban"
+                    Text = GetChampionName(championId),
+                    Size = new Size(90, 25),
+                    AutoEllipsis = true,
+                    Tag = "ban"
                 };
                 panel.Controls.Add(tag);
                 _ = LoadChampionAsync(tag, championId);
@@ -165,7 +169,9 @@ public sealed class MatchHistoryCard : UserControl
             false, UiTheme.Palette.TextSecondary);
         var premade = new AntdUI.Tag
         {
-            Text = "开黑", Size = new Size(57, 22), Visible = false,
+            Text = "开黑",
+            Size = new Size(57, 22),
+            Visible = false,
             ForeColor = UiTheme.Palette.BlueHeader
         };
         if (!string.IsNullOrWhiteSpace(identity?.Puuid))
@@ -182,7 +188,8 @@ public sealed class MatchHistoryCard : UserControl
             {
                 var tag = new AntdUI.Tag
                 {
-                    Text = $"未知强化 #{id}", Size = new Size(108, 23),
+                    Text = $"未知强化 #{id}",
+                    Size = new Size(108, 23),
                     AutoEllipsis = true,
                     ForeColor = UiTheme.Palette.TextPrimary,
                     BackColor = UiTheme.Palette.SurfaceMuted

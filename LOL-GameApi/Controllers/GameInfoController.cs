@@ -25,6 +25,7 @@ namespace LOL_GameApi.Controllers
         public async Task<ActionResult<ApiResponse<string?>>> GetVersion(CancellationToken cancellationToken)
         {
             string? version = await _dataDragon.GetLatestVersionAsync(cancellationToken);
+            // 兼容既有调用方：失败状态由 JSON code 表达，HTTP 仍返回 200。
             return version == null
                 ? ApiResponse<string?>.Fail("版本获取失败", "VERSION_UNAVAILABLE")
                 : ApiResponse<string?>.Ok(version);

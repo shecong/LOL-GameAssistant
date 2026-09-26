@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 
 namespace LOL_GameAssistant.LoLApi
 {
@@ -12,7 +12,7 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         public static async Task<string> SearchSummonerByRiotId(string gameName, string tagLine)
         {
-            using var client = new HttpClentHelper();
+            using var client = new HttpClientHelper();
 
             // 方式一：通过 query 参数搜索
             var queryParams = new Dictionary<string, string>
@@ -42,7 +42,7 @@ namespace LOL_GameAssistant.LoLApi
 
         public static async Task<string> GetUser()
         {
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync("/lol-summoner/v1/current-summoner").ConfigureAwait(false);
             if (responseStream == null)
             {
@@ -61,7 +61,7 @@ namespace LOL_GameAssistant.LoLApi
             if (puuid == null) return String.Empty;
             Dictionary<string, String> dic = new Dictionary<string, string>();
             dic.Add("puuid", puuid);
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync($"/lol-summoner/v2/summoners/puuid/{puuid}").ConfigureAwait(false);
             if (responseStream == null)
             {
@@ -77,7 +77,7 @@ namespace LOL_GameAssistant.LoLApi
 
         public static async Task<Stream> GetImg(String? id)
         {
-            HttpClentHelper client = new HttpClentHelper();
+            HttpClientHelper client = new HttpClientHelper();
             Stream? responseStream = await client.GetAsync($@"/lol-game-data/assets/v1/profile-icons/{id}.jpg").ConfigureAwait(false);
             if (responseStream == null)
             {

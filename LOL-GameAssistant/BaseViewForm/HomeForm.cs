@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
@@ -28,6 +28,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IGameDataVersionService _gameDataVersionService;
 
         private MatchHistoryResponse? matchlists;
+        private Image? _ownedProfileImage;
 
         /// <summary>
         /// 首页战绩一次拉取的场数上限。
@@ -44,7 +45,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 1=当前玩家，2=指定玩家
         /// </summary>
-        public static int UserStatus = 1;
+        public int UserStatus = 1;
 
         public HomeForm(IInfoMsgForm infoMsgForm) : this(
             infoMsgForm,
@@ -75,6 +76,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _matchHistoryService = matchHistoryService;
             _rankedStatsService = rankedStatsService;
             _gameDataVersionService = gameDataVersionService;
+            Disposed += (_, _) => _ownedProfileImage?.Dispose();
         }
 
         /// <summary>
@@ -94,7 +96,9 @@ namespace LOL_GameAssistant.BaseViewForm
         private async Task LoadGame()
         {
             // 连接与认证由基础设施层处理；首页只决定未连接时的展示状态。
-            if (!_leagueClientConnection.TryConnect())
+            bool connected = await Task.Run(() => _leagueClientConnection.TryConnect());
+            if (IsDisposed) return;
+            if (!connected)
             {
                 // 助手允许先于 LOL 客户端启动。此时不能继续访问依赖 LCU 的接口，
                 // 等主窗体的重连逻辑发现客户端后会调用 RefreshAsync 再加载首页。
@@ -219,7 +223,11 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private async Task GetGameInfo(PlayerProfile userinfo, int pageindex)
         {
-            stackPanel1.Controls.Clear();
+            foreach (Control control in stackPanel1.Controls.Cast<Control>().ToArray())
+            {
+                stackPanel1.Controls.Remove(control);
+                control.Dispose();
+            }
             if (userinfo == null || matchlists?.Games?.Games == null) return;
             if (!int.TryParse(this.game_count.Text, out int pageSize) || pageSize <= 0) pageSize = 10;
 
@@ -247,7 +255,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 await semaphore.WaitAsync();
                 try
                 {
-                    recordForm record = new recordForm
+                    RecordForm record = new RecordForm
                     {
                         Width = cardWidth,
                         Margin = new Padding(0, 0, CardGap, 10)
@@ -266,6 +274,11 @@ namespace LOL_GameAssistant.BaseViewForm
             }).ToList();
 
             var records = await Task.WhenAll(tasks);
+            if (IsDisposed)
+            {
+                foreach (var record in records) record?.Dispose();
+                return;
+            }
             foreach (var record in records)
             {
                 if (record != null) this.stackPanel1.Controls.Add(record);
@@ -362,7 +375,10 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 using var stream = new MemoryStream(imageBytes);
                 using var sourceImage = Image.FromStream(stream);
-                play_HeadIcon.Image = new Bitmap(sourceImage);
+                var image = new Bitmap(sourceImage);
+                play_HeadIcon.Image = image;
+                _ownedProfileImage?.Dispose();
+                _ownedProfileImage = image;
             }
             catch (ArgumentException)
             {

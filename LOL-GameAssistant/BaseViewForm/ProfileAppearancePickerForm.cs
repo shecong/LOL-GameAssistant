@@ -19,6 +19,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
     private readonly AntdUI.Input _search = new() { Dock = DockStyle.Left, Width = 310, Height = 34, PlaceholderText = "搜索名称或 ID" };
     private readonly AntdUI.Label _summary = new() { Dock = DockStyle.Fill, Padding = new Padding(12, 8, 8, 0) };
     private readonly AntdUI.Button _loadMore = new() { Dock = DockStyle.Bottom, Height = 38, Text = "加载更多" };
+
     private readonly FlowLayoutPanel _grid = new()
     {
         Dock = DockStyle.Fill,
@@ -26,6 +27,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         Padding = new Padding(14),
         WrapContents = true
     };
+
     private readonly List<PickerItem> _items = [];
     private readonly List<Image> _tileImages = [];
     private int _visibleCount = PageSize;
@@ -120,8 +122,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         if (IsDisposed) return;
         int version = ++_renderVersion;
         DisposeTileImages();
-        foreach (Control tile in _grid.Controls.Cast<Control>().ToArray()) tile.Dispose();
-        _grid.Controls.Clear();
+        LOL_GameAssistant.Helper.ControlLifetime.ClearAndDispose(_grid);
 
         string query = _search.Text.Trim();
         PickerItem[] filtered = _items
@@ -151,9 +152,14 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         ThemePalette palette = UiTheme.Palette;
         var tile = new AntdUI.Panel
         {
-            Width = width, Height = _isBackgroundPicker ? 202 : 142,
-            Padding = new Padding(7), Radius = 8, BorderWidth = 1, Margin = new Padding(6),
-            BackColor = palette.SurfaceRaised, ForeColor = palette.TextPrimary
+            Width = width,
+            Height = _isBackgroundPicker ? 202 : 142,
+            Padding = new Padding(7),
+            Radius = 8,
+            BorderWidth = 1,
+            Margin = new Padding(6),
+            BackColor = palette.SurfaceRaised,
+            ForeColor = palette.TextPrimary
         };
         picture = new PictureBox
         {

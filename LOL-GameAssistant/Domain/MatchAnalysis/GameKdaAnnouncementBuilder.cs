@@ -11,6 +11,7 @@ public static class GameKdaAnnouncementBuilder
 {
     private const int MaximumTeamMessageLength = 300;
     private const string PlayerSeparator = "      ";
+
     // 2560×1440 默认聊天栏实测：所有人频道前缀后，正文约 30 个半角宽度仍可单行显示。
     private const int MaximumBodyWidth = 30;
 

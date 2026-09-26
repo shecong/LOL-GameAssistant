@@ -19,6 +19,7 @@
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\RecentKdaStatsResolver.cs" Link="Domain\RecentKdaStatsResolver.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Matches\MatchReadModels.cs" Link="Domain\MatchReadModels.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Settings\AiServiceErrorMessage.cs" Link="Domain\AiServiceErrorMessage.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Settings\CloudAiSettings.cs" Link="Domain\CloudAiSettings.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\GameData\ChampionReference.cs" Link="Domain\GameData\ChampionReference.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Coaching\CoachRecommendation.cs" Link="Domain\Coaching\CoachRecommendation.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Builds\IOpggBuildApplyService.cs" Link="Application\Builds\IOpggBuildApplyService.cs" />
@@ -32,5 +33,7 @@
     <EmbeddedResource Include="..\LOL-GameAssistant\Resources\augment-names.json" LogicalName="LOL_GameAssistant.Resources.AugmentNames.json" />
     <Compile Include="..\LOL-GameAssistant\Entity\GameDetailModel.cs" Link="Entity\GameDetailModel.cs" />
     <Compile Include="..\LOL-GameAssistant\Entity\GameHeadModel.cs" Link="Entity\GameHeadModel.cs" />
+    <Compile Include="..\LOL-GameAssistant\Entity\ChampSelectSession.cs" Link="Entity\ChampSelectSession.cs" />
+    <Compile Include="..\LOL-GameAssistant\Entity\ChampionSelectActionResolver.cs" Link="Entity\ChampionSelectActionResolver.cs" />
   </ItemGroup>
 </Project>

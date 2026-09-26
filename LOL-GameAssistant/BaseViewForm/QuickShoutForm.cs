@@ -53,12 +53,17 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
 
         var header = new Label
         {
-            Dock = DockStyle.Top, Height = 49, Padding = new Padding(16, 12, 0, 0),
+            Dock = DockStyle.Top,
+            Height = 49,
+            Padding = new Padding(16, 12, 0, 0),
             Text = "一键喊话  ·  从默认或自定义词库随机选句，预览后主动发送到客户端或游戏内。"
         };
         var columns = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(12, 4, 12, 4)
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(12, 4, 12, 4)
         };
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));

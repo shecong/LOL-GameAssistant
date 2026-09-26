@@ -6,9 +6,9 @@ using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Application.Friends;
 using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Insights;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.LiveGame;
-using LOL_GameAssistant.Application.Insights;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
@@ -137,7 +137,11 @@ public static class AppCompositionRoot
     public static IAiCoachingService AiCoachingService { get; } = new LegacyAiCoachingService(AiGameContextService);
 
     /// <summary>云端 AI 共用的 HTTP 客户端：单实例复用连接，避免每次建议都重新握手。</summary>
-    private static readonly HttpClient AiHttpClient = new() { Timeout = TimeSpan.FromSeconds(25) };
+    // 禁止重定向，避免自定义服务把带 API Key 的请求转发到另一个地址。
+    private static readonly HttpClient AiHttpClient = new(new HttpClientHandler { AllowAutoRedirect = false })
+    {
+        Timeout = TimeSpan.FromSeconds(25)
+    };
 
     /// <summary>根据当前可见对局数据生成时间线建议的 AI 适配器。</summary>
     public static IAiRecommendationProvider AiRecommendationProvider { get; } =

@@ -349,10 +349,10 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
 
     private static AssistantSettings Clone(AssistantSettings source) => new()
     {
-            Ai = new CloudAiSettings
-            {
-                RecommendationEnabled = source.Ai.RecommendationEnabled,
-                Provider = source.Ai.Provider,
+        Ai = new CloudAiSettings
+        {
+            RecommendationEnabled = source.Ai.RecommendationEnabled,
+            Provider = source.Ai.Provider,
             Model = source.Ai.Model,
             BaseUrl = source.Ai.BaseUrl,
             EncryptedApiKey = source.Ai.EncryptedApiKey,
@@ -363,7 +363,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
             RecommendationOverlayPosition = source.Ai.RecommendationOverlayPosition,
             RecommendationOverlayOffsetX = source.Ai.RecommendationOverlayOffsetX,
             RecommendationOverlayOffsetY = source.Ai.RecommendationOverlayOffsetY,
-                RecommendationOverlayDurationSeconds = source.Ai.RecommendationOverlayDurationSeconds
+            RecommendationOverlayDurationSeconds = source.Ai.RecommendationOverlayDurationSeconds
         }
     };
 
@@ -376,12 +376,15 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        CancelActiveRefresh();
+        lock (_sync)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _activeRefreshCts?.Cancel();
+        }
         _lifetime.Cancel();
         _timer?.Dispose();
-        _refreshGate.Dispose();
-        _lifetime.Dispose();
+        // 已排队或正在运行的刷新仍会经过 finally 释放 gate。让这两个托管对象
+        // 随协调器一起回收，避免关闭时 Dispose 与 Release/Token 访问竞态。
     }
 }

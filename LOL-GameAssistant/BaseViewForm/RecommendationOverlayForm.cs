@@ -27,6 +27,7 @@ internal sealed class RecommendationOverlayForm : Form
 
     /// <summary>正文最大宽度，超出后换行；窗口高度按内容自适应。</summary>
     private const int MaxTextWidth = 470;
+
     private const int TextPadding = 8;
 
     private const string HeaderText = "LOL 助手 · 当前时间线建议";
@@ -42,6 +43,7 @@ internal sealed class RecommendationOverlayForm : Form
     private readonly Font _titleFont = new("Microsoft YaHei UI", 10.5F, FontStyle.Bold);
     private readonly Font _bodyFont = new("Microsoft YaHei UI", 10F);
     private readonly Font _evidenceFont = new("Microsoft YaHei UI", 8.5F);
+
     private readonly StringFormat _textFormat = new(StringFormatFlags.LineLimit)
     {
         Trimming = StringTrimming.EllipsisCharacter

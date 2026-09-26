@@ -12,11 +12,10 @@ namespace LOL_GameAssistant.Tests;
 public sealed class OpggBuildApplyServiceTests
 {
     /// <summary>
-    /// 自定义符文页额度已满时（选人阶段客户端还会自建一个临时页），
-    /// 只能就地改写当前页：既不能删用户的自定义页，也不能因为 pages 数量虚高而误判并中止。
+    /// 额度已满且没有助手创建的页面时，用户页和选人阶段的临时页都不能改写。
     /// </summary>
     [Fact]
-    public async Task ApplyBuild_WhenCustomRunePagesAreFull_RewritesCurrentPageWithoutDeletingAnything()
+    public async Task ApplyBuild_WhenCustomRunePagesAreFull_LeavesUserPagesUnchanged()
     {
         var lcu = new FakeLcuRequestSender(
             ownedPageCount: 2,
@@ -28,15 +27,46 @@ public sealed class OpggBuildApplyServiceTests
 
         OpggBuildApplyResult result = await service.ApplyBuildAsync(1, "TOP", CreateOption());
 
-        Assert.True(result.Succeeded);
-        Assert.Contains("已改写当前使用的符文页", result.Message);
+        Assert.False(result.Succeeded);
+        Assert.Contains("没有可替换的助手符文页", result.Message);
         Assert.Empty(lcu.DeleteEndpoints);
-        Assert.Contains("/lol-perks/v1/pages/33", lcu.PutEndpoints);
+        Assert.DoesNotContain("/lol-perks/v1/pages/33", lcu.PutEndpoints);
         Assert.Contains(lcu.RunePages, page => page.Value<long?>("id") == 11 && page.Value<string>("name") == "101资料站-菲兹");
         Assert.Contains(lcu.RunePages, page => page.Value<long?>("id") == 22 && page.Value<string>("name") == "101资料站-提莫");
-        Assert.Contains(lcu.RunePages, page =>
-            page.Value<long?>("id") == 33 &&
-            (page.Value<string>("name") ?? "").StartsWith("LOL助手 OP.GG ·", StringComparison.Ordinal));
+        Assert.Contains(lcu.RunePages, page => page.Value<long?>("id") == 33 && page.Value<string>("name") == "诺克萨斯之手 - 征服者");
+    }
+
+    [Fact]
+    public async Task ApplyBuild_WhenManagedPageExists_ReplacesOnlyManagedPage()
+    {
+        var lcu = new FakeLcuRequestSender(2, 2,
+            new JObject { ["id"] = 11, ["name"] = "用户符文页", ["current"] = true },
+            new JObject { ["id"] = 22, ["name"] = "LOL助手 OP.GG · 旧方案", ["current"] = false });
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        OpggBuildApplyResult result = await service.ApplyBuildAsync(1, "TOP", CreateOption());
+
+        Assert.True(result.Succeeded);
+        Assert.Contains("已替换助手创建的旧页", result.Message);
+        Assert.Contains(lcu.RunePages, page => page.Value<long?>("id") == 11 && page.Value<string>("name") == "用户符文页");
+        Assert.Contains(lcu.RunePages, page => page.Value<long?>("id") == 22 && page.Value<string>("name") == "LOL助手 OP.GG · 测试英雄 上路 · 方案 1");
+        Assert.Empty(lcu.DeleteEndpoints);
+    }
+
+    [Fact]
+    public async Task ApplyBuild_WhenCurrentSwitchFails_RestoresManagedPage()
+    {
+        var lcu = new FakeLcuRequestSender(2, 2,
+            new JObject { ["id"] = 11, ["name"] = "用户符文页", ["current"] = true },
+            new JObject { ["id"] = 22, ["name"] = "LOL助手 OP.GG · 旧方案", ["current"] = false })
+        { FailNextCurrentSwitch = true };
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        OpggBuildApplyResult result = await service.ApplyBuildAsync(1, "TOP", CreateOption());
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(lcu.RunePages, page => page.Value<long?>("id") == 22 && page.Value<string>("name") == "LOL助手 OP.GG · 旧方案");
+        Assert.Contains("/lol-perks/v1/pages/22", lcu.PutEndpoints);
     }
 
     [Fact]
@@ -77,6 +107,22 @@ public sealed class OpggBuildApplyServiceTests
         Assert.Contains("/lol-champ-select/v1/session/my-selection", lcu.PatchEndpoints);
     }
 
+    [Fact]
+    public async Task ApplyBuild_WhenSpellWriteFails_ReportsPartialApply()
+    {
+        var lcu = new FakeLcuRequestSender(2, 1,
+            new JObject { ["id"] = 11, ["name"] = "用户符文页", ["current"] = true })
+        { FailSpellWrite = true };
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        OpggBuildApplyResult result = await service.ApplyBuildAsync(1, "TOP",
+            CreateOption() with { SummonerSpellIds = new[] { 4, 14 } });
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("部分已写入", result.Message);
+        Assert.Contains("召唤师技能写入失败", result.Message);
+    }
+
     private static OpggBuildOption CreateOption() => new(
         1,
         new[] { 1055 },
@@ -91,7 +137,9 @@ public sealed class OpggBuildApplyServiceTests
     private sealed class FakeChampionCatalog : IChampionCatalog
     {
         public string GetDisplayName(int championId) => championId == 1 ? "测试英雄" : "";
+
         public IReadOnlyList<ChampionReference> GetAll() => Array.Empty<ChampionReference>();
+
         public int? FindIdByDisplayName(string? displayName) => null;
     }
 
@@ -104,6 +152,8 @@ public sealed class OpggBuildApplyServiceTests
         public List<string> DeleteEndpoints { get; } = new();
         public List<string> PutEndpoints { get; } = new();
         public List<string> PatchEndpoints { get; } = new();
+        public bool FailNextCurrentSwitch { get; set; }
+        public bool FailSpellWrite { get; set; }
 
         public FakeLcuRequestSender(int ownedPageCount, int? customPageCount, params JObject[] pages)
         {
@@ -147,6 +197,11 @@ public sealed class OpggBuildApplyServiceTests
         public Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
         {
             PutEndpoints.Add(endpoint);
+            if (endpoint == "/lol-perks/v1/currentpage" && FailNextCurrentSwitch)
+            {
+                FailNextCurrentSwitch = false;
+                return Task.FromResult(false);
+            }
             if (endpoint.StartsWith("/lol-perks/v1/pages/", StringComparison.Ordinal))
             {
                 long id = long.Parse(endpoint[(endpoint.LastIndexOf('/') + 1)..]);
@@ -162,7 +217,7 @@ public sealed class OpggBuildApplyServiceTests
         public Task<bool> PatchAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
         {
             PatchEndpoints.Add(endpoint);
-            return Task.FromResult(true);
+            return Task.FromResult(!FailSpellWrite);
         }
 
         public Task<bool> DeleteAsync(string endpoint, CancellationToken cancellationToken = default)

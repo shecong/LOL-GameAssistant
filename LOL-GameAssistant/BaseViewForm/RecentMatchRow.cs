@@ -26,6 +26,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly Label _teamQueueTag;
         private readonly FlowLayoutPanel _teammatesPanel;
         private ToolTip? _teamQueueTip;
+        private readonly ToolTip _championTip = new();
+        private Image? _ownedChampionImage;
         private bool _showTeammateInfo;
         private bool _teamQueueDetectionStarted;
         private static readonly SemaphoreSlim TeamQueueDetectionGate = new(2, 2);
@@ -116,8 +118,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _hoverTimer.Tick += (_, _) => HoverTick();
             Disposed += (_, _) => _hoverTimer.Dispose();
 
-            var tip = new ToolTip();
-            tip.SetToolTip(picChampion, "双击查看对局详情");
+            _championTip.SetToolTip(picChampion, "双击查看对局详情");
+            Disposed += (_, _) => { _championTip.Dispose(); _teamQueueTip?.Dispose(); _ownedChampionImage?.Dispose(); };
 
             this.DoubleClick += (_, _) => OpenDetail();
             this.MouseEnter += (_, _) => StartHover(true);
@@ -254,8 +256,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblDuration.Text = detail.GetDurationText();
 
                 string champName = GetChampionDisplayName(gamer.championId);
-                var tip = new ToolTip();
-                tip.SetToolTip(picChampion, $"{playerName} · {champName} · {modeText} · {detail.GetDurationText()}\n{gamer.GetKdaText()} · {(win ? "胜利" : "失败")}");
+                _championTip.SetToolTip(picChampion, $"{playerName} · {champName} · {modeText} · {detail.GetDurationText()}\n{gamer.GetKdaText()} · {(win ? "胜利" : "失败")}");
 
                 if (_showTeammateInfo)
                 {
@@ -267,6 +268,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (icon != null && !IsDisposed)
                 {
                     picChampion.Image = icon;
+                    _ownedChampionImage?.Dispose();
+                    _ownedChampionImage = icon;
                 }
                 else
                 {
@@ -362,7 +365,7 @@ namespace LOL_GameAssistant.BaseViewForm
             MatchParticipant gamer,
             string? puuid)
         {
-            _teammatesPanel.Controls.Clear();
+            ControlLifetime.ClearAndDispose(_teammatesPanel);
 
             var identities = detail.participantIdentities;
             var teammates = detail.participants
@@ -462,6 +465,7 @@ namespace LOL_GameAssistant.BaseViewForm
             card.Controls.Add(detailLabel);
 
             var tip = new ToolTip();
+            card.Disposed += (_, _) => { tip.Dispose(); avatar.Image?.Dispose(); };
             tip.SetToolTip(card, $"{name}\n{champion} · KDA {participant.GetKdaText()} · {(win ? "胜利" : "失败")}\n双击查看本局详情");
             tip.SetToolTip(nameLabel, tip.GetToolTip(card));
             tip.SetToolTip(detailLabel, tip.GetToolTip(card));

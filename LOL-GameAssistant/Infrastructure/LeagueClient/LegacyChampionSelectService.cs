@@ -11,7 +11,7 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
     public async Task<ChampionSelectionSnapshot?> GetSessionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ChampSelectSession? legacy = await Select_Api.GetSessionAsync().ConfigureAwait(false);
+        ChampSelectSession? legacy = await Select_Api.GetSessionAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return legacy == null ? null : new ChampionSelectionSnapshot
         {
@@ -37,7 +37,7 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
     public Task<bool> AutoBanAsync(IReadOnlyList<int> championIds, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Select_Api.AutoBanAsync(championIds.ToList());
+        return Select_Api.AutoBanAsync(championIds.ToList(), cancellationToken);
     }
 
     public Task<bool> AutoPickAsync(
@@ -46,7 +46,7 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Select_Api.AutoPickAsync(championIds.ToList(), lockIn);
+        return Select_Api.AutoPickAsync(championIds.ToList(), lockIn, cancellationToken);
     }
 
     /// <summary>选人成员 DTO 到领域快照的单向转换。</summary>

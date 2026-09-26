@@ -126,7 +126,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             catch (Exception ex)
             {
-                _friendList.Controls.Clear();
+                ClearFriendCards();
                 _emptyLabel.Visible = true;
                 _emptyLabel.Text = "好友列表加载失败，请确认 LOL 客户端已启动并登录";
                 _statusLabel.Text = $"加载失败：{ex.Message}";
@@ -143,7 +143,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _friendList.SuspendLayout();
             try
             {
-                _friendList.Controls.Clear();
+                ClearFriendCards();
 
                 var ordered = friends
                     .OrderByDescending(friend => friend.IsOnline)
@@ -174,6 +174,15 @@ namespace LOL_GameAssistant.BaseViewForm
             finally
             {
                 _friendList.ResumeLayout(true);
+            }
+        }
+
+        private void ClearFriendCards()
+        {
+            foreach (Control card in _friendList.Controls.Cast<Control>().ToArray())
+            {
+                _friendList.Controls.Remove(card);
+                card.Dispose();
             }
         }
 
@@ -225,6 +234,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     Cursor = Cursor
                 };
                 Controls.Add(avatar);
+                Disposed += (_, _) => avatar.Image?.Dispose();
                 _ = LoadAvatarAsync(avatar, friend.ProfileIconId, _profileIconService);
 
                 string displayName = friend.DisplayName;
@@ -280,6 +290,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 string? note = friend.StatusMessage;
                 var toolTip = new ToolTip();
+                Disposed += (_, _) => toolTip.Dispose();
                 toolTip.SetToolTip(this, BuildToolTip(displayName, note));
                 toolTip.SetToolTip(avatar, BuildToolTip(displayName, note));
                 toolTip.SetToolTip(nameLabel, BuildToolTip(displayName, note));
@@ -306,11 +317,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
             }
 
-            private void OpenBattleQuery()
+            private async void OpenBattleQuery()
             {
                 if (_querying || string.IsNullOrWhiteSpace(_friend.Puuid)) return;
                 _querying = true;
-                _ = BattleQueryForm.QueryPlayerAsync(_friend.Puuid);
+                try { await BattleQueryForm.QueryPlayerAsync(_friend.Puuid); }
+                finally { _querying = false; }
             }
 
             /// <summary>用户点击观战按钮后才调用 LCU，不会自动观战任何好友。</summary>
