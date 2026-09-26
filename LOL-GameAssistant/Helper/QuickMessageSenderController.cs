@@ -52,13 +52,27 @@ public sealed class QuickMessageSenderController : IDisposable
         return await SendOnceAsync(body, sendToAll, useClipboard, perCharacter, interval);
     }
 
-    /// <summary>按同一游戏内喊话序列依次发送多条短消息，用于双方 KDA 汇总。</summary>
-    public async Task<GameShoutSendResult> SendBatchToGameAsync(IReadOnlyList<string> messages,
-        bool sendToAll, bool useClipboard, int minimumIntervalSeconds, bool requireForeground = false)
+    public Task<GameShoutSendResult> SendSelectedBatchToGameAsync(IReadOnlyList<string> phrases,
+        bool sendToAll, bool useClipboard, bool perCharacter, int minimumIntervalSeconds)
     {
-        if (messages.Count == 0 || messages.Count > 10 ||
+        if (phrases.Count is < 1 or > 10 ||
+            phrases.Any(phrase => string.IsNullOrWhiteSpace(phrase) || phrase.Trim().Length > 500))
+            return Task.FromResult(new GameShoutSendResult(false, "请选择 1–10 条不超过 500 字的短句。"));
+        List<string> messages = phrases.SelectMany(phrase => BuildMessages(phrase.Trim(), perCharacter)).ToList();
+        if (messages.Count > 40)
+            return Task.FromResult(new GameShoutSendResult(false, "逐字批量发送最多支持 40 字，请减少选中短句。"));
+        return SendBatchToGameAsync(messages, sendToAll, useClipboard,
+            minimumIntervalSeconds, description: "一键喊话", maximumMessages: 40);
+    }
+
+    /// <summary>按同一游戏内喊话序列依次发送多条短消息。</summary>
+    public async Task<GameShoutSendResult> SendBatchToGameAsync(IReadOnlyList<string> messages,
+        bool sendToAll, bool useClipboard, int minimumIntervalSeconds, bool requireForeground = false,
+        string description = "双方 KDA 汇总", int maximumMessages = 10)
+    {
+        if (messages.Count == 0 || messages.Count > maximumMessages ||
             messages.Any(message => string.IsNullOrWhiteSpace(message) || message.Length > 500))
-            return new(false, "游戏内 KDA 汇总内容为空、过长或消息数量过多。");
+            return new(false, $"{description}内容为空、过长或消息数量过多。");
         if (Interlocked.Exchange(ref _sending, 1) != 0)
             return new(false, "另一条游戏内喊话正在发送。");
 
@@ -77,17 +91,18 @@ public sealed class QuickMessageSenderController : IDisposable
             for (int index = 0; index < messages.Count; index++)
             {
                 if (!IsLeagueGameForeground())
-                    return new(false, $"游戏失去前台焦点；已注入 {index}/{messages.Count} 条 KDA 汇总。", index);
+                    return new(false, $"游戏失去前台焦点；{description}已注入 {index}/{messages.Count} 条。", index);
                 string text = sendToAll ? "/all " + messages[index] : messages[index];
                 GameShoutSendResult result = await SendChatLineAsync(text, useClipboard);
-                if (!result.Succeeded) return result with { SentCount = index };
+                if (!result.Succeeded) return result with { SentCount = index,
+                    Message = $"{result.Message} {description}已注入 {index}/{messages.Count} 条。" };
                 _lastSentAtUtc = DateTime.UtcNow;
                 if (index < messages.Count - 1)
                     await Task.Delay(TimeSpan.FromSeconds(interval));
             }
-            RuntimeDiagnostics.Report("对局 KDA 评估", "按键已注入",
+            RuntimeDiagnostics.Report(description, "按键已注入",
                 $"已通过 WindowsInput 依次注入 {messages.Count} 条；游戏端没有送达回执");
-            return new(true, $"已注入双方 KDA 汇总（{messages.Count} 条）；请在游戏聊天中确认。", messages.Count);
+            return new(true, $"已注入{description}（{messages.Count} 条）；请在游戏聊天中确认。", messages.Count);
         }
         finally { Volatile.Write(ref _sending, 0); }
     }

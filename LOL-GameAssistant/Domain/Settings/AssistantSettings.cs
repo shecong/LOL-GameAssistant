@@ -22,6 +22,9 @@ public sealed class AssistantSettings
     public bool QuickShoutHotkeysEnabled { get; set; } = true;
     public string QuickShoutBuiltInHotkey { get; set; } = "F6";
     public string QuickShoutCustomHotkey { get; set; } = "F7";
+    public string QuickShoutBatchHotkey { get; set; } = "F8";
+    public bool QuickShoutMultiSelectEnabled { get; set; }
+    public List<string> QuickShoutSelectedPhrases { get; set; } = new();
 
     /// <summary>在选人阶段选定英雄后，显示 OP.GG 图文出装/符文选择器。</summary>
     public bool OpggBuildAssistantEnabled { get; set; }
@@ -73,6 +76,8 @@ public sealed class AssistantSettings
         QuickMessageCustomPhrases ??= "";
         QuickShoutBuiltInHotkey = string.IsNullOrWhiteSpace(QuickShoutBuiltInHotkey) ? "F6" : QuickShoutBuiltInHotkey;
         QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
+        QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
+        QuickShoutSelectedPhrases ??= new List<string>();
         QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
         AutoAcceptDelayMinMilliseconds = Math.Clamp(AutoAcceptDelayMinMilliseconds, 0, 15000);
         AutoAcceptDelayMaxMilliseconds = Math.Clamp(AutoAcceptDelayMaxMilliseconds, 0, 15000);

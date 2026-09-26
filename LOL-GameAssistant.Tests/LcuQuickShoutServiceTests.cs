@@ -45,15 +45,50 @@ public sealed class LcuQuickShoutServiceTests
             .Select(body => JObject.Parse(body).Value<string>("body")));
     }
 
+    [Fact]
+    public async Task BatchSendsSelectedPhrasesInOrderUsingOneConversationLookup()
+    {
+        var sender = new FakeSender { Conversations = """[{"id":"party@example","type":"party"}]""" };
+
+        string result = await new LcuQuickShoutService(sender)
+            .SendBatchAsync(["准备打龙", "先做视野", "一起集合"]);
+
+        Assert.Contains("共 3 条", result);
+        Assert.Equal(1, sender.ConversationLookupCount);
+        Assert.Equal(new[] { "准备打龙", "先做视野", "一起集合" }, sender.PostedBodies
+            .Select(body => JObject.Parse(body).Value<string>("body")));
+    }
+
+    [Fact]
+    public async Task BatchStopsAfterClientRejectsMessageAndReportsProgress()
+    {
+        var sender = new FakeSender
+        {
+            Conversations = """[{"id":"party@example","type":"party"}]""",
+            FailAtPost = 2
+        };
+
+        string result = await new LcuQuickShoutService(sender)
+            .SendBatchAsync(["第一句", "第二句", "第三句"]);
+
+        Assert.Contains("已发送 1/3", result);
+        Assert.Equal(2, sender.PostedBodies.Count);
+    }
+
     private sealed class FakeSender : ILcuRequestSender
     {
         public string Conversations { get; set; } = "[]";
         public string? PostedEndpoint { get; private set; }
         public string? PostedBody { get; private set; }
         public List<string> PostedBodies { get; } = new();
+        public int ConversationLookupCount { get; private set; }
+        public int FailAtPost { get; set; } = -1;
 
-        public Task<string?> GetStringAsync(string endpoint, CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(Conversations);
+        public Task<string?> GetStringAsync(string endpoint, CancellationToken cancellationToken = default)
+        {
+            ConversationLookupCount++;
+            return Task.FromResult<string?>(Conversations);
+        }
 
         public Task<byte[]?> GetBytesAsync(string endpoint, CancellationToken cancellationToken = default) =>
             Task.FromResult<byte[]?>(null);
@@ -63,7 +98,7 @@ public sealed class LcuQuickShoutServiceTests
             PostedEndpoint = endpoint;
             PostedBody = jsonBody;
             PostedBodies.Add(jsonBody);
-            return Task.FromResult(true);
+            return Task.FromResult(PostedBodies.Count != FailAtPost);
         }
 
         public Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default) =>

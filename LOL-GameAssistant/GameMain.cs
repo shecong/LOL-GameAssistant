@@ -73,6 +73,11 @@ namespace LOL_GameAssistant
             _quickMessageController.SendSelectedToGameAsync(phrase, sendToAll,
                 useClipboard, perCharacter, minimumIntervalSeconds);
 
+        public Task<GameShoutSendResult> SendQuickShoutBatchToGameAsync(IReadOnlyList<string> phrases,
+            bool sendToAll, bool useClipboard, bool perCharacter, int minimumIntervalSeconds) =>
+            _quickMessageController.SendSelectedBatchToGameAsync(phrases, sendToAll,
+                useClipboard, perCharacter, minimumIntervalSeconds);
+
         public Task<GameShoutSendResult> TestGameChatOpenAsync() =>
             _quickMessageController.TestChatOpenAsync();
 
@@ -84,7 +89,9 @@ namespace LOL_GameAssistant
 
         public void ConfigureQuickShoutHotkeys(AssistantSettings config) =>
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
-                custom => _ = settingForm.SendRandomQuickShoutToGameAsync(custom));
+                action => _ = action == QuickShoutHotkeyAction.SelectedBatch
+                    ? settingForm.SendSelectedQuickShoutToGameAsync()
+                    : settingForm.SendRandomQuickShoutToGameAsync(action == QuickShoutHotkeyAction.RandomCustom));
 
         public void SetWindowHotkeyCapturePaused(bool paused) =>
             _windowHoldController.SetCapturePaused(paused);

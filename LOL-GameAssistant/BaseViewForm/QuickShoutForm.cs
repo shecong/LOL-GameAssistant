@@ -23,10 +23,12 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
 
     private readonly LcuQuickShoutService _clientChat;
     private readonly Func<string, bool, bool, bool, int, Task<GameShoutSendResult>> _sendGameMessage;
+    private readonly Func<IReadOnlyList<string>, bool, bool, bool, int, Task<GameShoutSendResult>> _sendGameBatch;
     private readonly Func<Task<GameShoutSendResult>> _testGameChatOpen;
     private readonly Action _saveSettings;
     private readonly ListBox _phrases = new() { Dock = DockStyle.Fill, IntegralHeight = false };
-    private readonly TextBox _selectedPhrase = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true };
+    private readonly TextBox _selectedPhrase = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true,
+        ScrollBars = ScrollBars.Vertical };
     private readonly TextBox _customPhrases = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
     private readonly CheckBox _perCharacter = new() { Text = "逐字发送", AutoSize = true };
     private readonly CheckBox _sendToAll = new() { Text = "游戏内发给所有人（/all）", AutoSize = true };
@@ -34,6 +36,9 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly CheckBox _hotkeysEnabled = new() { Text = "启用游戏内快捷键", AutoSize = true };
     private readonly TextBox _builtInHotkey = new() { ReadOnly = true, Width = 48, Text = "F6" };
     private readonly TextBox _customHotkey = new() { ReadOnly = true, Width = 48, Text = "F7" };
+    private readonly TextBox _batchHotkey = new() { ReadOnly = true, Width = 48, Text = "F8" };
+    private readonly AntdUI.Button _multiSelect = new() { Text = "多选：关", AutoSize = true };
+    private readonly Label _previewLabel = new() { Text = "待发送内容预览", Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) };
     private readonly NumericUpDown _minimumInterval = new() { Minimum = 2, Maximum = 30, Value = 3, Width = 56 };
     private readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(12, 9, 0, 0) };
     private readonly AntdUI.Button _clientSend = new() { Text = "发送到客户端群聊", AutoSize = true };
@@ -43,10 +48,12 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
 
     public QuickShoutForm(LcuQuickShoutService clientChat,
         Func<string, bool, bool, bool, int, Task<GameShoutSendResult>> sendGameMessage,
+        Func<IReadOnlyList<string>, bool, bool, bool, int, Task<GameShoutSendResult>> sendGameBatch,
         Func<Task<GameShoutSendResult>> testGameChatOpen, Action saveSettings)
     {
         _clientChat = clientChat;
         _sendGameMessage = sendGameMessage;
+        _sendGameBatch = sendGameBatch;
         _testGameChatOpen = testGameChatOpen;
         _saveSettings = saveSettings;
         Dock = DockStyle.Fill;
@@ -56,7 +63,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
             Dock = DockStyle.Top,
             Height = 49,
             Padding = new Padding(16, 12, 0, 0),
-            Text = "一键喊话  ·  从默认或自定义词库随机选句，预览后主动发送到客户端或游戏内。"
+            Text = "一键喊话  ·  开启多选后点击多句，可按词库顺序发送到客户端或游戏内。"
         };
         var columns = new TableLayoutPanel
         {
@@ -69,23 +76,24 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
 
         var left = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 7, ColumnCount = 1, Padding = new Padding(0, 0, 10, 0) };
-        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         left.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
+        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        var randomButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var randomButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
         var randomBuiltIn = new AntdUI.Button { Text = "默认词库随机", AutoSize = true };
         var randomCustom = new AntdUI.Button { Text = "自定义词库随机", AutoSize = true };
         randomBuiltIn.Click += (_, _) => SelectRandom(false);
         randomCustom.Click += (_, _) => SelectRandom(true);
         randomButtons.Controls.Add(randomBuiltIn);
         randomButtons.Controls.Add(randomCustom);
+        randomButtons.Controls.Add(_multiSelect);
         left.Controls.Add(randomButtons, 0, 0);
         left.Controls.Add(_phrases, 0, 1);
-        left.Controls.Add(new Label { Text = "待发送内容预览", Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) }, 0, 2);
+        left.Controls.Add(_previewLabel, 0, 2);
         left.Controls.Add(_selectedPhrase, 0, 3);
         var options = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, Padding = new Padding(0, 10, 0, 0) };
         options.Controls.Add(_perCharacter);
@@ -95,12 +103,14 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         options.Controls.Add(_minimumInterval);
         options.Controls.Add(new Label { Text = "秒", AutoSize = true, Padding = new Padding(0, 3, 0, 0) });
         left.Controls.Add(options, 0, 4);
-        var hotkeys = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 6, 0, 0) };
+        var hotkeys = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, Padding = new Padding(0, 6, 0, 0) };
         hotkeys.Controls.Add(_hotkeysEnabled);
         hotkeys.Controls.Add(new Label { Text = "默认词库", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
         hotkeys.Controls.Add(_builtInHotkey);
         hotkeys.Controls.Add(new Label { Text = "自定义词库", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
         hotkeys.Controls.Add(_customHotkey);
+        hotkeys.Controls.Add(new Label { Text = "多选发送", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
+        hotkeys.Controls.Add(_batchHotkey);
         left.Controls.Add(hotkeys, 0, 5);
         var sendButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
         sendButtons.Controls.Add(_clientSend);
@@ -121,7 +131,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         right.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
-            Text = "逐字发送会把每个字作为独立消息；“所有人”仅对游戏生效。快捷键只在游戏前台触发。若文字未出现，勾选“游戏内使用粘贴输入”并保存后重试。"
+            Text = "多选最多 10 句，按词库顺序逐条发送；逐字批量最多 40 字。快捷键只在游戏前台触发。保存后会记住多选内容。若文字未出现，可启用粘贴输入。"
         }, 0, 3);
         columns.Controls.Add(left, 0, 0);
         columns.Controls.Add(right, 1, 0);
@@ -129,15 +139,16 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         Controls.Add(_status);
         Controls.Add(header);
 
-        _phrases.SelectedIndexChanged += (_, _) =>
-            _selectedPhrase.Text = (_phrases.SelectedItem as PhraseItem)?.Text ?? "";
+        _phrases.SelectedIndexChanged += (_, _) => UpdateSelectionPreview();
+        _multiSelect.Click += (_, _) => SetMultiSelect(_phrases.SelectionMode == SelectionMode.One);
         _customPhrases.TextChanged += (_, _) => RefreshPhrases();
         _clientSend.Click += async (_, _) => await SendClientAsync();
         _gameSend.Click += async (_, _) => await SendGameAsync();
         _testGameEnter.Click += async (_, _) => await TestGameEnterAsync();
         _builtInHotkey.KeyDown += (_, e) => CaptureHotkey(_builtInHotkey, e);
         _customHotkey.KeyDown += (_, e) => CaptureHotkey(_customHotkey, e);
-        _status.Text = "从词库选一句，或用随机按钮选句；客户端发送仅面向当前队伍群聊。";
+        _batchHotkey.KeyDown += (_, e) => CaptureHotkey(_batchHotkey, e);
+        _status.Text = "从词库选句；多选发送会逐条发送到客户端群聊或游戏内。";
         RefreshPhrases();
     }
 
@@ -150,8 +161,11 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _hotkeysEnabled.Checked = settings.QuickShoutHotkeysEnabled;
         _builtInHotkey.Text = settings.QuickShoutBuiltInHotkey;
         _customHotkey.Text = settings.QuickShoutCustomHotkey;
+        _batchHotkey.Text = settings.QuickShoutBatchHotkey;
         _minimumInterval.Value = Math.Clamp(settings.QuickMessageSendIntervalSeconds, 2, 30);
+        SetMultiSelect(settings.QuickShoutMultiSelectEnabled);
         RefreshPhrases();
+        RestoreSelection(settings.QuickShoutSelectedPhrases);
     }
 
     public void WriteSettings(AssistantSettings settings)
@@ -163,19 +177,28 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         settings.QuickShoutHotkeysEnabled = _hotkeysEnabled.Checked;
         settings.QuickShoutBuiltInHotkey = _builtInHotkey.Text;
         settings.QuickShoutCustomHotkey = _customHotkey.Text;
+        settings.QuickShoutBatchHotkey = _batchHotkey.Text;
+        settings.QuickShoutMultiSelectEnabled = _phrases.SelectionMode == SelectionMode.MultiSimple;
+        settings.QuickShoutSelectedPhrases = SelectedItems().Select(PhraseKey).ToList();
         settings.QuickMessageSendIntervalSeconds = (int)_minimumInterval.Value;
     }
 
     private void SaveOptions()
     {
+        if (SelectedItems().Length > 10)
+        {
+            _status.Text = "一次最多发送 10 句，请减少选中短句后保存。";
+            return;
+        }
         if (_customPhrases.Lines.Any(line => line.Trim().Length > 500))
         {
             _status.Text = "自定义词条每句最多 500 字，请缩短后保存。";
             return;
         }
-        if (_hotkeysEnabled.Checked && _builtInHotkey.Text == _customHotkey.Text)
+        if (_hotkeysEnabled.Checked && new[] { _builtInHotkey.Text, _customHotkey.Text, _batchHotkey.Text }
+            .Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3)
         {
-            _status.Text = "默认与自定义词库不能使用同一个快捷键。";
+            _status.Text = "三个喊话快捷键不能重复。";
             return;
         }
         try
@@ -197,14 +220,21 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
 
     public async Task SendRandomToGameAsync(bool custom)
     {
-        SelectRandom(custom);
-        if ((_phrases.SelectedItem as PhraseItem)?.IsCustom != custom) return;
-        await SendGameAsync();
+        PhraseItem[] candidates = _phrases.Items.Cast<PhraseItem>()
+            .Where(item => item.IsCustom == custom).ToArray();
+        if (candidates.Length == 0)
+        {
+            _status.Text = custom ? "自定义词库为空，请先填写并保存。" : "默认词库为空。";
+            return;
+        }
+        await SendGameAsync([candidates[Random.Shared.Next(candidates.Length)].Text]);
     }
+
+    public Task SendSelectedBatchToGameAsync() => SendGameAsync(SelectedItems().Select(item => item.Text).ToArray());
 
     private void RefreshPhrases()
     {
-        string? selected = (_phrases.SelectedItem as PhraseItem)?.Text;
+        string[] selected = SelectedItems().Select(PhraseKey).ToArray();
         PhraseItem[] items = BuiltInPhrases.Select(text => new PhraseItem(text, false))
             .Concat(_customPhrases.Lines.Select(text => text.Trim())
                 .Where(text => text.Length is > 0 and <= 500)
@@ -216,9 +246,47 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         {
             _phrases.Items.Clear();
             _phrases.Items.AddRange(items);
-            _phrases.SelectedIndex = Math.Max(0, Array.FindIndex(items, item => item.Text == selected));
+            RestoreSelection(selected);
         }
         finally { _phrases.EndUpdate(); }
+    }
+
+    private static string PhraseKey(PhraseItem item) => $"{(item.IsCustom ? "C" : "D")}|{item.Text}";
+
+    private PhraseItem[] SelectedItems() => _phrases.SelectedItems.Cast<PhraseItem>().ToArray();
+
+    private void RestoreSelection(IReadOnlyCollection<string>? keys)
+    {
+        var wanted = new HashSet<string>(keys ?? Array.Empty<string>(), StringComparer.Ordinal);
+        _phrases.ClearSelected();
+        for (int index = 0; index < _phrases.Items.Count; index++)
+        {
+            if (_phrases.Items[index] is PhraseItem item && wanted.Contains(PhraseKey(item)))
+            {
+                _phrases.SetSelected(index, true);
+                if (_phrases.SelectionMode == SelectionMode.One) break;
+            }
+        }
+        if (_phrases.SelectedItems.Count == 0 && _phrases.Items.Count > 0)
+            _phrases.SetSelected(0, true);
+        UpdateSelectionPreview();
+    }
+
+    private void SetMultiSelect(bool enabled)
+    {
+        string[] selected = SelectedItems().Select(PhraseKey).ToArray();
+        _phrases.SelectionMode = enabled ? SelectionMode.MultiSimple : SelectionMode.One;
+        _multiSelect.Text = enabled ? "多选：开" : "多选：关";
+        RestoreSelection(selected);
+    }
+
+    private void UpdateSelectionPreview()
+    {
+        PhraseItem[] selected = SelectedItems();
+        _previewLabel.Text = $"待发送内容预览（{selected.Length}/10 句）";
+        _selectedPhrase.Text = string.Join(Environment.NewLine, selected.Select(item => item.Text));
+        _clientSend.Text = selected.Length > 1 ? $"发送客户端（{selected.Length}）" : "发送到客户端群聊";
+        _gameSend.Text = selected.Length > 1 ? $"发送游戏（{selected.Length}）" : "一键发送到游戏";
     }
 
     private void SelectRandom(bool custom)
@@ -230,12 +298,19 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
             _status.Text = custom ? "自定义词库为空，请先填写并保存。" : "默认词库为空。";
             return;
         }
-        _phrases.SelectedIndex = indices[Random.Shared.Next(indices.Length)];
+        _phrases.ClearSelected();
+        _phrases.SetSelected(indices[Random.Shared.Next(indices.Length)], true);
     }
 
-    private bool CanSend()
+    private bool CanSend(IReadOnlyList<string> phrases)
     {
-        if (_phrases.SelectedItem is not PhraseItem) { _status.Text = "请先选择一句。"; return false; }
+        if (!_clientSend.Enabled || !_gameSend.Enabled)
+        {
+            _status.Text = "上一组消息仍在发送，请稍候。";
+            return false;
+        }
+        if (phrases.Count == 0) { _status.Text = "请先选择短句。"; return false; }
+        if (phrases.Count > 10) { _status.Text = "一次最多发送 10 句，请减少选中短句。"; return false; }
         int seconds = (int)_minimumInterval.Value;
         if ((DateTime.UtcNow - _lastSentAtUtc).TotalSeconds >= seconds) return true;
         _status.Text = $"发送间隔至少 {seconds} 秒，请稍后再试。";
@@ -244,14 +319,16 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
 
     private async Task SendClientAsync()
     {
-        if (!CanSend()) return;
-        string phrase = ((PhraseItem)_phrases.SelectedItem!).Text;
+        string[] phrases = SelectedItems().Select(item => item.Text).ToArray();
+        if (!CanSend(phrases)) return;
         _clientSend.Enabled = false;
         _gameSend.Enabled = false;
         _status.Text = "正在发送到客户端群聊…";
         try
         {
-            string result = await _clientChat.SendAsync(phrase, _perCharacter.Checked);
+            string result = phrases.Length == 1
+                ? await _clientChat.SendAsync(phrases[0], _perCharacter.Checked)
+                : await _clientChat.SendBatchAsync(phrases, _perCharacter.Checked);
             _status.Text = result;
             if (result.StartsWith("已发送", StringComparison.Ordinal)) _lastSentAtUtc = DateTime.UtcNow;
         }
@@ -259,19 +336,25 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         finally { _clientSend.Enabled = true; _gameSend.Enabled = true; }
     }
 
-    private async Task SendGameAsync()
+    private Task SendGameAsync() => SendGameAsync(SelectedItems().Select(item => item.Text).ToArray());
+
+    private async Task SendGameAsync(IReadOnlyList<string> phrases)
     {
-        if (!CanSend()) return;
-        string phrase = ((PhraseItem)_phrases.SelectedItem!).Text;
+        if (!CanSend(phrases)) return;
         _clientSend.Enabled = false;
         _gameSend.Enabled = false;
+        _status.Text = phrases.Count > 1
+            ? $"正在按顺序发送 {phrases.Count} 句到游戏…"
+            : "正在发送到游戏…";
         try
         {
-            GameShoutSendResult result = await _sendGameMessage(phrase, _sendToAll.Checked,
-                _useClipboard.Checked,
-                _perCharacter.Checked, (int)_minimumInterval.Value);
+            GameShoutSendResult result = phrases.Count == 1
+                ? await _sendGameMessage(phrases[0], _sendToAll.Checked,
+                    _useClipboard.Checked, _perCharacter.Checked, (int)_minimumInterval.Value)
+                : await _sendGameBatch(phrases, _sendToAll.Checked,
+                    _useClipboard.Checked, _perCharacter.Checked, (int)_minimumInterval.Value);
             _status.Text = result.Message;
-            if (result.Succeeded) _lastSentAtUtc = DateTime.UtcNow;
+            if (result.Succeeded || result.SentCount > 0) _lastSentAtUtc = DateTime.UtcNow;
         }
         catch (Exception ex) { _status.Text = $"游戏内发送失败：{ex.Message}"; }
         finally { _clientSend.Enabled = true; _gameSend.Enabled = true; }

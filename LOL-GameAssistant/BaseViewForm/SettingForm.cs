@@ -397,6 +397,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 (phrase, sendToAll, useClipboard, perCharacter, interval) =>
                     Program.GameMain.SendQuickShoutToGameAsync(phrase, sendToAll, useClipboard,
                         perCharacter, interval),
+                (phrases, sendToAll, useClipboard, perCharacter, interval) =>
+                    Program.GameMain.SendQuickShoutBatchToGameAsync(phrases, sendToAll, useClipboard,
+                        perCharacter, interval),
                 () => Program.GameMain.TestGameChatOpenAsync(),
                 SaveShoutSettings);
             _quickShoutForm.LoadSettings(_settingsStore.Load());
@@ -406,6 +409,9 @@ namespace LOL_GameAssistant.BaseViewForm
         public Task SendRandomQuickShoutToGameAsync(bool custom) =>
             _quickShoutForm?.SendRandomToGameAsync(custom) ?? Task.CompletedTask;
 
+        public Task SendSelectedQuickShoutToGameAsync() =>
+            _quickShoutForm?.SendSelectedBatchToGameAsync() ?? Task.CompletedTask;
+
         private void SaveShoutSettings()
         {
             if (_isLoading || _quickShoutForm is null) return;
@@ -413,7 +419,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _quickShoutForm.WriteSettings(latest);
             if (latest.QuickShoutHotkeysEnabled &&
                 (latest.QuickShoutBuiltInHotkey.Equals(latest.HoldToTopHotkey, StringComparison.OrdinalIgnoreCase) ||
-                 latest.QuickShoutCustomHotkey.Equals(latest.HoldToTopHotkey, StringComparison.OrdinalIgnoreCase)))
+                 latest.QuickShoutCustomHotkey.Equals(latest.HoldToTopHotkey, StringComparison.OrdinalIgnoreCase) ||
+                 latest.QuickShoutBatchHotkey.Equals(latest.HoldToTopHotkey, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("喊话快捷键不能与按住置顶键相同。 ");
             _settingsStore.Save(latest);
             _config = latest;

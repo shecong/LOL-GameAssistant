@@ -43,6 +43,9 @@ namespace LOL_GameAssistant.Entity
         public bool QuickShoutHotkeysEnabled { get; set; } = true;
         public string QuickShoutBuiltInHotkey { get; set; } = "F6";
         public string QuickShoutCustomHotkey { get; set; } = "F7";
+        public string QuickShoutBatchHotkey { get; set; } = "F8";
+        public bool QuickShoutMultiSelectEnabled { get; set; }
+        public List<string> QuickShoutSelectedPhrases { get; set; } = new();
 
         /// <summary>是否在选人后显示 OP.GG 图文出装与符文选择器。</summary>
         [JsonProperty("opggBuildAssistantEnabled")]
@@ -156,6 +159,8 @@ namespace LOL_GameAssistant.Entity
             QuickMessageCustomPhrases ??= "";
             QuickShoutBuiltInHotkey = string.IsNullOrWhiteSpace(QuickShoutBuiltInHotkey) ? "F6" : QuickShoutBuiltInHotkey;
             QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
+            QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
+            QuickShoutSelectedPhrases ??= new List<string>();
             QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
             AutoAcceptDelayMinMilliseconds = Math.Clamp(AutoAcceptDelayMinMilliseconds, 0, 15000);
             AutoAcceptDelayMaxMilliseconds = Math.Clamp(AutoAcceptDelayMaxMilliseconds, 0, 15000);

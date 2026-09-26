@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant.Helper;
 
+public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch }
+
 /// <summary>
 /// 置顶键由 Windows 注册热键触发，按键状态负责松开；喊话保留独立的键盘钩子。
 /// </summary>
@@ -33,8 +35,9 @@ public sealed class WindowHoldController : IDisposable
     private Keys _hotkey = Keys.Oem3;
     private Keys _shoutBuiltInKey = Keys.F6;
     private Keys _shoutCustomKey = Keys.F7;
+    private Keys _shoutBatchKey = Keys.F8;
     private bool _shoutHotkeysEnabled;
-    private Action<bool>? _shoutAction;
+    private Action<QuickShoutHotkeyAction>? _shoutAction;
     private bool _onlyWhenLeagueFocused = true;
     private bool _capturePaused;
     private bool _holding;
@@ -77,20 +80,22 @@ public sealed class WindowHoldController : IDisposable
         else RefreshRegistration();
     }
 
-    public void ConfigureQuickShoutHotkeys(AssistantSettings config, Action<bool> action)
+    public void ConfigureQuickShoutHotkeys(AssistantSettings config, Action<QuickShoutHotkeyAction> action)
     {
         _shoutAction = action;
         _shoutBuiltInKey = ParseFunctionKey(config.QuickShoutBuiltInHotkey, Keys.F6);
         _shoutCustomKey = ParseFunctionKey(config.QuickShoutCustomHotkey, Keys.F7);
+        _shoutBatchKey = ParseFunctionKey(config.QuickShoutBatchHotkey, Keys.F8);
         _shoutHotkeysEnabled = config.QuickShoutHotkeysEnabled &&
             _shoutBuiltInKey != _shoutCustomKey && _shoutBuiltInKey != _hotkey &&
-            _shoutCustomKey != _hotkey;
+            _shoutCustomKey != _hotkey && _shoutBatchKey != _hotkey &&
+            _shoutBatchKey != _shoutBuiltInKey && _shoutBatchKey != _shoutCustomKey;
         if (_shoutHotkeysEnabled) InstallShoutHook();
         else RemoveShoutHook();
         RuntimeDiagnostics.Report("游戏内喊话快捷键",
             _shoutHotkeysEnabled && _hook != IntPtr.Zero ? "已启用" : "不可用",
             _shoutHotkeysEnabled
-                ? $"默认词库 {_shoutBuiltInKey} · 自定义词库 {_shoutCustomKey} · 仅游戏前台"
+                ? $"默认词库 {_shoutBuiltInKey} · 自定义词库 {_shoutCustomKey} · 多选发送 {_shoutBatchKey} · 仅游戏前台"
                 : "已关闭、快捷键重复或与置顶键冲突");
     }
 
@@ -207,13 +212,18 @@ public sealed class WindowHoldController : IDisposable
         bool keyUp = wParam == (IntPtr)WmKeyUp || wParam == (IntPtr)WmSysKeyUp;
         bool keyDown = wParam == (IntPtr)WmKeyDown || wParam == (IntPtr)WmSysKeyDown;
         if (_shoutHotkeysEnabled && (keyDown || keyUp) &&
-            (virtualKey == (int)_shoutBuiltInKey || virtualKey == (int)_shoutCustomKey) &&
+            (virtualKey == (int)_shoutBuiltInKey || virtualKey == (int)_shoutCustomKey ||
+             virtualKey == (int)_shoutBatchKey) &&
             IsLeagueGameForeground())
         {
             if (keyUp)
             {
-                bool custom = virtualKey == (int)_shoutCustomKey;
-                RunOnWindowThread(() => _shoutAction?.Invoke(custom));
+                QuickShoutHotkeyAction action = virtualKey == (int)_shoutBatchKey
+                    ? QuickShoutHotkeyAction.SelectedBatch
+                    : virtualKey == (int)_shoutCustomKey
+                        ? QuickShoutHotkeyAction.RandomCustom
+                        : QuickShoutHotkeyAction.RandomBuiltIn;
+                RunOnWindowThread(() => _shoutAction?.Invoke(action));
             }
             return (IntPtr)1;
         }
