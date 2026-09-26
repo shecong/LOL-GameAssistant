@@ -62,13 +62,14 @@ public sealed class QuickMessageSenderController : IDisposable
         if (messages.Count > 40)
             return Task.FromResult(new GameShoutSendResult(false, "逐字批量发送最多支持 40 字，请减少选中短句。"));
         return SendBatchToGameAsync(messages, sendToAll, useClipboard,
-            minimumIntervalSeconds, description: "一键喊话", maximumMessages: 40);
+            minimumIntervalSeconds, description: "一键喊话", maximumMessages: 40,
+            fastBatch: true);
     }
 
     /// <summary>按同一游戏内喊话序列依次发送多条短消息。</summary>
     public async Task<GameShoutSendResult> SendBatchToGameAsync(IReadOnlyList<string> messages,
         bool sendToAll, bool useClipboard, int minimumIntervalSeconds, bool requireForeground = false,
-        string description = "双方 KDA 汇总", int maximumMessages = 10)
+        string description = "双方 KDA 汇总", int maximumMessages = 10, bool fastBatch = false)
     {
         if (messages.Count == 0 || messages.Count > maximumMessages ||
             messages.Any(message => string.IsNullOrWhiteSpace(message) || message.Length > 500))
@@ -93,11 +94,12 @@ public sealed class QuickMessageSenderController : IDisposable
                 if (!IsLeagueGameForeground())
                     return new(false, $"游戏失去前台焦点；{description}已注入 {index}/{messages.Count} 条。", index);
                 string text = sendToAll ? "/all " + messages[index] : messages[index];
-                GameShoutSendResult result = await SendChatLineAsync(text, useClipboard);
+                GameShoutSendResult result = await SendChatLineAsync(text, useClipboard,
+                    fastBatch ? 50 : 100);
                 if (!result.Succeeded) return result with { SentCount = index,
                     Message = $"{result.Message} {description}已注入 {index}/{messages.Count} 条。" };
                 _lastSentAtUtc = DateTime.UtcNow;
-                if (index < messages.Count - 1)
+                if (!fastBatch && index < messages.Count - 1)
                     await Task.Delay(TimeSpan.FromSeconds(interval));
             }
             RuntimeDiagnostics.Report(description, "按键已注入",
@@ -183,7 +185,8 @@ public sealed class QuickMessageSenderController : IDisposable
         return messages;
     }
 
-    private static async Task<GameShoutSendResult> SendChatLineAsync(string text, bool useClipboard)
+    private static async Task<GameShoutSendResult> SendChatLineAsync(string text, bool useClipboard,
+        int stepDelayMilliseconds = 100)
     {
         ClipboardSnapshot originalClipboard = default;
         bool clipboardChanged = false;
@@ -195,18 +198,18 @@ public sealed class QuickMessageSenderController : IDisposable
                 Clipboard.SetText(text);
                 clipboardChanged = true;
                 await Simulate.Events()
-                    .Click(KeyCode.Enter).Wait(100)
-                    .ClickChord(KeyCode.Control, KeyCode.V).Wait(100)
-                    .Click(KeyCode.Enter).Wait(100)
+                    .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
+                    .ClickChord(KeyCode.Control, KeyCode.V).Wait(stepDelayMilliseconds)
+                    .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
                     .Invoke();
             }
             else
             {
                 // 与 ZuAnBot 的游戏内发送序列保持一致。
                 await Simulate.Events()
-                    .Click(KeyCode.Enter).Wait(100)
-                    .Click(text).Wait(100)
-                    .Click(KeyCode.Enter).Wait(100)
+                    .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
+                    .Click(text).Wait(stepDelayMilliseconds)
+                    .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
                     .Invoke();
             }
             return new(true, "聊天按键序列已执行。");

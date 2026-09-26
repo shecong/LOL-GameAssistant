@@ -114,8 +114,6 @@ public sealed class LcuQuickShoutService
             if (!sent)
                 return index == 0 ? "客户端拒绝了消息，请确认群聊仍可用。"
                     : $"已发送 {index}/{messages.Count} 条消息；客户端拒绝了后续消息。";
-            if (index < messages.Count - 1)
-                await Task.Delay(350, cancellationToken).ConfigureAwait(false);
         }
         return $"已发送到客户端群聊，共 {messages.Count} 条消息。";
     }

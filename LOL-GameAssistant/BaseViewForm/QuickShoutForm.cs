@@ -99,7 +99,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         options.Controls.Add(_perCharacter);
         options.Controls.Add(_sendToAll);
         options.Controls.Add(_useClipboard);
-        options.Controls.Add(new Label { Text = "最小间隔", AutoSize = true, Padding = new Padding(10, 3, 0, 0) });
+        options.Controls.Add(new Label { Text = "触发冷却", AutoSize = true, Padding = new Padding(10, 3, 0, 0) });
         options.Controls.Add(_minimumInterval);
         options.Controls.Add(new Label { Text = "秒", AutoSize = true, Padding = new Padding(0, 3, 0, 0) });
         left.Controls.Add(options, 0, 4);
@@ -131,7 +131,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         right.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
-            Text = "多选最多 10 句，按词库顺序逐条发送；逐字批量最多 40 字。快捷键只在游戏前台触发。保存后会记住多选内容。若文字未出现，可启用粘贴输入。"
+            Text = "多选最多 10 句，句间快速发送；触发冷却只限制两组喊话。逐字批量最多 40 字。快捷键只在游戏前台触发。保存后会记住多选内容。"
         }, 0, 3);
         columns.Controls.Add(left, 0, 0);
         columns.Controls.Add(right, 1, 0);
@@ -313,7 +313,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         if (phrases.Count > 10) { _status.Text = "一次最多发送 10 句，请减少选中短句。"; return false; }
         int seconds = (int)_minimumInterval.Value;
         if ((DateTime.UtcNow - _lastSentAtUtc).TotalSeconds >= seconds) return true;
-        _status.Text = $"发送间隔至少 {seconds} 秒，请稍后再试。";
+        _status.Text = $"两次喊话至少间隔 {seconds} 秒，请稍后再试。";
         return false;
     }
 
