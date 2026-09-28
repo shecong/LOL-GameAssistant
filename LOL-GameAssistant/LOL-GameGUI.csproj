@@ -59,7 +59,7 @@
     <Content Include="Data\lane-knowledge.zh-CN.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="icon_16x16.ico" />
+    <EmbeddedResource Include="icon_16x16.ico" LogicalName="LOL_GameAssistant.AppIcon.ico" />
   </ItemGroup>
 
 </Project>

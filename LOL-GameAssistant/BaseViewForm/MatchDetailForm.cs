@@ -55,6 +55,9 @@ namespace LOL_GameAssistant.BaseViewForm
             _matchHistoryService = AppCompositionRoot.MatchHistoryService;
             _premadeDetectionService = AppCompositionRoot.PremadeDetectionService;
             InitializeComponent();
+            var detailIcon = (Icon)AppIcon.Shared.Clone();
+            Icon = detailIcon;
+            Disposed += (_, _) => detailIcon.Dispose();
             UiTheme.Apply(this);
             this.Load += async (_, _) => await LoadDataAsync();
             Disposed += (_, _) => _assetToolTip.Dispose();

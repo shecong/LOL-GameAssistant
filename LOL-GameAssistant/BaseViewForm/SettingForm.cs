@@ -341,10 +341,10 @@ namespace LOL_GameAssistant.BaseViewForm
             pathPanel.Controls.Add(browse);
 
             _launchClientButton.Click += async (_, _) => await StartLeagueClientFromSettingsAsync();
-            var note = CreateNote("选择 LOL 安装文件夹后，助手会查找 LeagueClient.exe，并按 Riot 安装清单中的分支启动；国服可能还需要在 Riot/WeGame 启动器完成登录或更新。\n也可留空，由助手从安装清单和常见位置查找。自动启动只在助手打开时执行一次。");
+            var note = CreateNote("选择 LOL 安装文件夹后，助手会优先使用国服 TCLS/client.exe；其他安装使用 LeagueClient.exe 或 Riot 启动器。首次启动可能需要在启动器完成登录或更新。\n也可留空，由助手从安装清单和常见位置查找。自动启动只在助手打开时执行一次。");
 
             AddSegmentRow(layout, 0, "安装文件夹：", pathPanel,
-                "LOL 安装目录。助手会在其子目录中查找 LeagueClient.exe，用于“立即启动”和启动助手时的自动启动；留空则尝试常见安装位置。");
+                "LOL 安装目录。助手会查找 TCLS/client.exe 或 LeagueClient.exe，用于“立即启动”和启动助手时的自动启动；留空则尝试常见安装位置。");
             AddSegmentRow(layout, 1, "自动启动：", _autoLaunchClient,
                 "开启后，每次启动助手时尝试启动 LOL 客户端；国服可能需要先在 Riot/WeGame 启动器登录。只在助手启动时执行一次，保存设置不会重复拉起客户端。");
             AddSegmentRow(layout, 2, "操作：", _launchClientButton,
@@ -714,7 +714,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             using var dialog = new FolderBrowserDialog
             {
-                Description = "选择 LOL 安装文件夹（程序会自动扫描 LeagueClient.exe）",
+                Description = "选择 LOL 安装文件夹（程序会自动查找国服 TCLS 或 LeagueClient）",
                 UseDescriptionForTitle = true,
                 ShowNewFolderButton = false
             };

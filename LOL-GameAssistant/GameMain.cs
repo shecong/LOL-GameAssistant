@@ -36,6 +36,7 @@ namespace LOL_GameAssistant
         private readonly IRecommendationCoordinator _recommendationCoordinator;
         private CancellationTokenSource? _lcuRetryCts;
         private NotifyIcon? _trayIcon;
+        private Image? _headerIconImage;
         private CancellationTokenSource? _autoActionCts;
         private bool _autoActionStartedForChampSelect;
         private CancellationTokenSource? _autoAcceptCts;
@@ -145,6 +146,9 @@ namespace LOL_GameAssistant
             _gameClientLauncher = gameClientLauncher;
             _recommendationCoordinator = recommendationCoordinator;
             InitializeComponent();
+            Icon = AppIcon.Shared;
+            _headerIconImage = AppIcon.Shared.ToBitmap();
+            HeadContent.Icon = _headerIconImage;
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
             _diagnosticsTab = new AntdUI.TabPage { Text = "运行诊断", Dock = DockStyle.Fill };
             tabs1.Controls.Add(_coachTab);
@@ -1055,7 +1059,7 @@ namespace LOL_GameAssistant
             _trayIcon = new NotifyIcon
             {
                 Text = "LOL GameAssistant 运行中",
-                Icon = SystemIcons.Application,
+                Icon = AppIcon.Shared,
                 Visible = false
             };
 
@@ -1151,6 +1155,7 @@ namespace LOL_GameAssistant
                 StopPhaseDataLoad();
                 _lcuRetryCts?.Cancel();
                 _trayIcon?.Dispose();
+                _headerIconImage?.Dispose();
                 _eventStream.Dispose();
                 _windowHoldController.Dispose();
                 _quickMessageController.Dispose();

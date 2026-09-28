@@ -8,7 +8,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
 /// <summary>
 /// 本机文件系统和进程启动实现。
-/// 用户只需选择安装文件夹，基础设施层负责扫描并启动 LeagueClient.exe。
+/// 用户只需选择安装文件夹，基础设施层负责查找国服 TCLS 或 LeagueClient 启动入口。
 /// </summary>
 public sealed class LocalGameClientLauncher : IGameClientLauncher
 {
@@ -20,7 +20,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     {
         if (string.IsNullOrWhiteSpace(configuredDirectory)) return "";
         string path = configuredDirectory.Trim().Trim('"');
-        return File.Exists(path)
+        return File.Exists(path) && GameClientExecutablePaths.IsSupportedExecutable(path)
             ? Path.GetDirectoryName(path) ?? path
             : path;
     }
@@ -38,8 +38,8 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         string? executable = ResolveExecutable(configuredDirectory);
         if (executable == null)
             return new GameClientLaunchResult(false, string.IsNullOrWhiteSpace(configuredDirectory)
-                ? "未找到 LeagueClient.exe，请选择 LOL 安装文件夹。"
-                : $"所选位置没有 LeagueClient.exe：{configuredDirectory}。请选择游戏安装目录或 LeagueClient 文件夹。");
+                ? "未找到 LOL 客户端启动程序，请选择游戏安装文件夹。"
+                : $"所选位置没有 LOL 客户端启动程序：{configuredDirectory}。请选择游戏安装目录、LeagueClient 或 TCLS 文件夹。");
 
         try
         {
@@ -55,7 +55,11 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
                 return new GameClientLaunchResult(false, "Windows 未返回客户端启动进程。", executable);
 
             RuntimeDiagnostics.Report("LOL 客户端", "启动中", $"已请求启动 {Path.GetFileName(target.Executable)}，等待主窗口与 LCU");
-            return new GameClientLaunchResult(true, $"已启动 {Path.GetFileName(target.Executable)}，正在等待 LOL 客户端。", executable);
+            // 设置中只保存游戏客户端位置，不能把 RiotClientServices.exe 写成游戏目录。
+            string savedExecutable = GameClientExecutablePaths.IsTencentLauncher(target.Executable)
+                ? target.Executable
+                : executable;
+            return new GameClientLaunchResult(true, $"已启动 {Path.GetFileName(target.Executable)}，正在等待 LOL 客户端。", savedExecutable);
         }
         catch (Exception ex)
         {
@@ -180,6 +184,14 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
 
     private static LaunchTarget ResolveLaunchTarget(string leagueClientExecutable)
     {
+        // Frank 的国服流程使用 TCLS/client.exe；有它时应从游戏启动器进入，
+        // 而不是直接运行 LeagueClient.exe 绕过国服登录及更新流程。
+        string preferred = GameClientExecutablePaths.PreferTencentLauncher(leagueClientExecutable);
+        if (!string.Equals(preferred, leagueClientExecutable, StringComparison.OrdinalIgnoreCase))
+            return new LaunchTarget(preferred, "");
+        if (GameClientExecutablePaths.IsTencentLauncher(leagueClientExecutable))
+            return new LaunchTarget(leagueClientExecutable, "");
+
         string? leagueDirectory = Path.GetDirectoryName(leagueClientExecutable);
         string? installDirectory = leagueDirectory == null ? null : Directory.GetParent(leagueDirectory)?.FullName;
         string? candidate = installDirectory == null ? null : Path.Combine(installDirectory, "Riot Client", "RiotClientServices.exe");
@@ -240,9 +252,8 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         if (!string.IsNullOrWhiteSpace(configuredDirectory))
         {
             configuredDirectory = configuredDirectory.Trim().Trim('"');
-            // 兼容旧版本保存的 LeagueClient.exe 完整路径。
-            if (File.Exists(configuredDirectory) &&
-                string.Equals(Path.GetFileName(configuredDirectory), "LeagueClient.exe", StringComparison.OrdinalIgnoreCase))
+            // 兼容旧版 LeagueClient.exe 路径，也允许直接指定国服 TCLS/client.exe。
+            if (File.Exists(configuredDirectory) && GameClientExecutablePaths.IsSupportedExecutable(configuredDirectory))
                 return configuredDirectory;
 
             if (Directory.Exists(configuredDirectory))
@@ -274,8 +285,8 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
             string current = pending.Pop();
             try
             {
-                string directCandidate = Path.Combine(current, "LeagueClient.exe");
-                if (File.Exists(directCandidate)) return directCandidate;
+                string? directCandidate = GameClientExecutablePaths.FindDirectlyIn(current);
+                if (directCandidate != null) return directCandidate;
 
                 foreach (string child in Directory.EnumerateDirectories(current))
                     pending.Push(child);

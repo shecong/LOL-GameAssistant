@@ -39,7 +39,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private bool _resizingMatchRows;
         private TableLayoutPanel? _rootLayout;
 
-        private readonly SemaphoreSlim _pageLoadGate = new(1, 1);
+        private CancellationTokenSource? _pageLoadCts;
+        private bool _suppressPaginationEvents;
         private readonly ToolTip _playerIdentityTip = new();
         private readonly Label _historyTitle = new();
         private readonly Label _historyHint = new();
@@ -100,7 +101,12 @@ namespace LOL_GameAssistant.BaseViewForm
             panelPlayer.SizeChanged += (_, _) => LayoutPlayerPanel();
             ConfigureCopyablePlayerIdentity();
             InitializeModernLayout();
-            Disposed += (_, _) => { _playerIdentityTip.Dispose(); _ownedPlayerImage?.Dispose(); };
+            Disposed += (_, _) =>
+            {
+                CancelPageLoad();
+                _playerIdentityTip.Dispose();
+                _ownedPlayerImage?.Dispose();
+            };
         }
 
         private void InitializeModernLayout()
@@ -218,7 +224,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             _historyTitle.Text = totalGames > 0 ? $"最近对局 · {totalGames} 场" : "最近对局";
             _historyHint.Text = totalGames > 0
-                ? "双方玩家、KDA 与开黑标记直接显示；有禁用时展示禁用英雄，海克斯大乱斗展示强化。"
+                ? "对局摘要先显示，双方详情逐场补齐；详情包含玩家、禁用英雄与强化。"
                 : "输入 Riot ID（名称#TAG）或 PUUID 查询；每局直接展示双方玩家。";
         }
 
@@ -348,19 +354,22 @@ namespace LOL_GameAssistant.BaseViewForm
         private void ResizeMatchRows()
         {
             if (_resizingMatchRows) return;
-            var rows = stackMatches.Controls.OfType<MatchHistoryCard>().ToList();
+            var rows = stackMatches.Controls.Cast<Control>()
+                .Where(row => row is MatchHistoryCard or MatchHistoryPreviewCard)
+                .OrderBy(row => row.Tag is int index ? index : int.MaxValue)
+                .ToList();
             if (rows.Count == 0 || stackMatches.ClientSize.Width <= 0) return;
             _resizingMatchRows = true;
             try
             {
                 int height = 8 + rows.Sum(row => row.Height + 8) + 6;
                 int width = GetMatchRowWidth(height);
-                foreach (MatchHistoryCard row in rows) row.Width = width;
+                foreach (Control row in rows) row.Width = width;
                 height = 8 + rows.Sum(row => row.Height + 8) + 6;
                 width = GetMatchRowWidth(height);
-                foreach (MatchHistoryCard row in rows) row.Width = width;
+                foreach (Control row in rows) row.Width = width;
                 int y = 8;
-                foreach (MatchHistoryCard row in rows)
+                foreach (Control row in rows)
                 {
                     row.Location = new Point(10, y);
                     y += row.Height + 8;
@@ -555,10 +564,18 @@ namespace LOL_GameAssistant.BaseViewForm
             _currentPlayer = await _playerProfileService.GetByPuuidAsync(puuid);
             if (_currentPlayer == null) { lblStatus.Text = "获取玩家信息失败，请确认客户端已启动并登录。"; return; }
 
-            _matchHistoryService.ClearDetailCache();
+            CancelPageLoad();
+            ClearMatchControls();
+            pagination.Visible = false;
             _statsLoaded = false;
             _matchHistory = null;
             _totalGameCount = 0;
+            UpdateHistoryHeader();
+
+            solo = null;
+            flex = null;
+            var rankedTask = LoadRankedDataAsync(puuid);
+            var matchTask = LoadMatchHistoryAsync(puuid);
 
             avatarPlayer.Visible = true;
             try
@@ -583,14 +600,9 @@ namespace LOL_GameAssistant.BaseViewForm
             panelPlayer.Visible = true;
             _playerPlaceholder.Visible = false;
 
-            solo = null;
-            flex = null;
-            var rankedTask = LoadRankedDataAsync(puuid);
-            var matchTask = LoadMatchHistoryAsync(puuid);
             await Task.WhenAll(rankedTask, matchTask);
 
             RefreshFavoriteState();
-            lblStatus.Text = _currentPlayer.RiotId;
         }
 
         /// <summary>头像字节由应用服务提供，窗体只负责解码为 WinForms 图片。</summary>
@@ -673,11 +685,16 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
 
                 _totalGameCount = Math.Max(_matchHistory.Games.GameCount, _matchHistory.Games.Games.Count);
-                pagination.Total = _totalGameCount;
-                pagination.PageSize = _pageSize;
-                pagination.Current = 1;
-                pagination.Visible = true;
                 _currentPage = 1;
+                _suppressPaginationEvents = true;
+                try
+                {
+                    pagination.Total = _totalGameCount;
+                    pagination.PageSize = _pageSize;
+                    pagination.Current = 1;
+                    pagination.Visible = true;
+                }
+                finally { _suppressPaginationEvents = false; }
                 await RenderMatchPageAsync(_matchHistory);
             }
             catch (Exception ex)
@@ -690,13 +707,17 @@ namespace LOL_GameAssistant.BaseViewForm
         private async Task RenderMatchPageAsync(MatchHistoryResponse? preloadedPage = null)
         {
             if (_currentPlayer == null) return;
-
-            await _pageLoadGate.WaitAsync();
+            CancelPageLoad();
+            var pageLoad = new CancellationTokenSource();
+            _pageLoadCts = pageLoad;
+            CancellationToken token = pageLoad.Token;
+            string puuid = _currentPlayer.Puuid;
+            int requestedPage = _currentPage;
+            int requestedPageSize = _pageSize;
+            bool enrichmentStarted = false;
             try
             {
-                string puuid = _currentPlayer.Puuid;
-                int requestedPage = _currentPage;
-                int start = (requestedPage - 1) * _pageSize;
+                int start = (requestedPage - 1) * requestedPageSize;
                 ClearMatchControls();
                 // 加载中先显示微光占位，避免空白闪烁
                 var shimmer = new ShimmerPanel
@@ -707,8 +728,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 stackMatches.Controls.Add(shimmer);
 
                 MatchHistoryResponse? page = preloadedPage ?? await _matchHistoryService.GetPageAsync(
-                    puuid, start, start + _pageSize - 1);
-                if (IsDisposed || _currentPlayer?.Puuid != puuid || _currentPage != requestedPage) return;
+                    puuid, start, start + requestedPageSize - 1, token);
+                if (!IsCurrentPage(puuid, requestedPage, requestedPageSize, token)) return;
                 _matchHistory = page;
                 if (page == null)
                 {
@@ -716,76 +737,134 @@ namespace LOL_GameAssistant.BaseViewForm
                     lblStatus.Text = "战绩页读取失败，请稍后重试";
                     return;
                 }
-                var pageGames = page?.Games?.Games?.OrderByDescending(g => g.GameCreation).ToList();
+                var pageGames = page.Games?.Games?.OrderByDescending(g => g.GameCreation).ToList();
                 if (pageGames == null || pageGames.Count == 0)
                 {
                     ClearMatchControls();
                     lblStatus.Text = "该页暂无比赛记录";
                     return;
                 }
-                _totalGameCount = Math.Max(_totalGameCount, page!.Games!.GameCount);
-                pagination.Total = _totalGameCount;
-
-                // 并行加载本页详情；缓存策略由战绩应用服务负责。
-                var semaphore = new SemaphoreSlim(DetailLoadConcurrency, DetailLoadConcurrency);
-                var tasks = pageGames.Select(async head =>
+                _totalGameCount = Math.Max(_totalGameCount, page.Games!.GameCount);
+                _suppressPaginationEvents = true;
+                try { pagination.Total = _totalGameCount; }
+                finally { _suppressPaginationEvents = false; }
+                ClearMatchControls();
+                var previews = new List<MatchHistoryPreviewCard>(pageGames.Count);
+                for (int index = 0; index < pageGames.Count; index++)
                 {
-                    await semaphore.WaitAsync();
-                    try
+                    var preview = new MatchHistoryPreviewCard(pageGames[index], puuid)
                     {
-                        var detail = await _matchHistoryService.GetDetailAsync(head.GameId);
-                        if (detail == null) return null;
-                        var gamer = detail.GetParticipant(_currentPlayer.Puuid);
-                        if (gamer == null) return null;
-
-                        var rec = new MatchHistoryCard(detail, _currentPlayer.Puuid, AppCompositionRoot.GameAssetService)
-                        {
-                            Width = Math.Max(1, stackMatches.ClientSize.Width - MatchListHorizontalInset),
-                            Margin = new Padding(0, 0, 0, 8)
-                        };
-                        return rec;
-                    }
-                    catch
-                    {
-                        return null;
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                }).ToList();
-
-                var records = await Task.WhenAll(tasks);
-                if (IsDisposed || _currentPlayer?.Puuid != puuid || _currentPage != requestedPage)
-                {
-                    foreach (var record in records) record?.Dispose();
-                    return;
+                        Tag = index,
+                        Width = Math.Max(1, stackMatches.ClientSize.Width - MatchListHorizontalInset)
+                    };
+                    stackMatches.Controls.Add(preview);
+                    UiTheme.Apply(preview);
+                    previews.Add(preview);
                 }
-
-                ClearMatchControls(); // 移除微光
-                int y = 8;
-                int index = 0;
-                foreach (var rec in records)
-                {
-                    if (rec == null) continue;
-                    rec.Location = new Point(10, y);
-                    stackMatches.Controls.Add(rec);
-                    UiTheme.Apply(rec);
-                    rec.SizeChanged += (_, _) => ResizeMatchRows();
-                    y += rec.Height + 8;
-                    index++;
-                }
-                stackMatches.AutoScrollMinSize = new Size(0, y + 6);
                 ResizeMatchRows();
-
-                int totalPages = Math.Max(1, (int)Math.Ceiling((double)_totalGameCount / _pageSize));
-                lblStatus.Text = $"共 {_totalGameCount} 场 · 第 {requestedPage}/{totalPages} 页";
+                lblStatus.Text = $"已显示 {pageGames.Count} 场摘要，正在加载双方详情...";
                 UpdateHistoryHeader(_totalGameCount);
+                _ = EnrichMatchPageAsync(pageGames, previews, puuid, requestedPage,
+                    requestedPageSize, pageLoad);
+                enrichmentStarted = true;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            catch (Exception ex)
+            {
+                if (!IsCurrentPage(puuid, requestedPage, requestedPageSize, token)) return;
+                ClearMatchControls();
+                lblStatus.Text = $"战绩页读取失败：{ex.Message}";
+                RuntimeDiagnostics.Report("战绩查询", "战绩页读取失败", ex.Message);
             }
             finally
             {
-                _pageLoadGate.Release();
+                if (!enrichmentStarted)
+                {
+                    if (ReferenceEquals(_pageLoadCts, pageLoad)) _pageLoadCts = null;
+                    pageLoad.Dispose();
+                }
             }
+        }
+
+        private async Task EnrichMatchPageAsync(
+            IReadOnlyList<MatchHistoryGame> games,
+            IReadOnlyList<MatchHistoryPreviewCard> previews,
+            string puuid,
+            int page,
+            int pageSize,
+            CancellationTokenSource pageLoad)
+        {
+            CancellationToken token = pageLoad.Token;
+            using var gate = new SemaphoreSlim(DetailLoadConcurrency, DetailLoadConcurrency);
+            int failures = 0;
+            try
+            {
+                var tasks = games.Select(async (head, index) =>
+                {
+                    await gate.WaitAsync(token);
+                    try
+                    {
+                        MatchDetail? detail = await _matchHistoryService.GetDetailAsync(
+                            head.GameId, cancellationToken: token);
+                        if (!IsCurrentPage(puuid, page, pageSize, token)) return;
+                        if (detail?.GetParticipant(puuid) == null)
+                        {
+                            previews[index].SetDetailUnavailable();
+                            Interlocked.Increment(ref failures);
+                            return;
+                        }
+
+                        var card = new MatchHistoryCard(detail, puuid, AppCompositionRoot.GameAssetService)
+                        {
+                            Tag = index,
+                            Width = Math.Max(1, stackMatches.ClientSize.Width - MatchListHorizontalInset)
+                        };
+                        var preview = previews[index];
+                        stackMatches.Controls.Remove(preview);
+                        preview.Dispose();
+                        stackMatches.Controls.Add(card);
+                        UiTheme.Apply(card);
+                        card.SizeChanged += (_, _) => ResizeMatchRows();
+                        ResizeMatchRows();
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+                    catch (Exception ex)
+                    {
+                        if (!IsCurrentPage(puuid, page, pageSize, token)) return;
+                        previews[index].SetDetailUnavailable();
+                        if (Interlocked.Increment(ref failures) == 1)
+                            RuntimeDiagnostics.Report("战绩查询", "对局详情读取失败", ex.Message);
+                    }
+                    finally { gate.Release(); }
+                }).ToArray();
+                await Task.WhenAll(tasks);
+                if (!IsCurrentPage(puuid, page, pageSize, token)) return;
+                int totalPages = Math.Max(1, (int)Math.Ceiling((double)_totalGameCount / pageSize));
+                lblStatus.Text = failures == 0
+                    ? $"共 {_totalGameCount} 场 · 第 {page}/{totalPages} 页"
+                    : $"第 {page}/{totalPages} 页 · {failures} 场详情暂不可用，摘要仍可查看";
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            catch (Exception ex)
+            {
+                if (IsCurrentPage(puuid, page, pageSize, token))
+                    RuntimeDiagnostics.Report("战绩查询", "加载对局详情失败", ex.Message);
+            }
+            finally
+            {
+                if (ReferenceEquals(_pageLoadCts, pageLoad)) _pageLoadCts = null;
+                pageLoad.Dispose();
+            }
+        }
+
+        private bool IsCurrentPage(string puuid, int page, int pageSize, CancellationToken token) =>
+            !IsDisposed && !token.IsCancellationRequested &&
+            _currentPlayer?.Puuid == puuid && _currentPage == page && _pageSize == pageSize;
+
+        private void CancelPageLoad()
+        {
+            _pageLoadCts?.Cancel();
+            _pageLoadCts = null;
         }
 
         private void ClearMatchControls()
@@ -795,10 +874,13 @@ namespace LOL_GameAssistant.BaseViewForm
                 stackMatches.Controls.Remove(control);
                 control.Dispose();
             }
+            stackMatches.AutoScrollMinSize = Size.Empty;
+            stackMatches.AutoScrollPosition = Point.Empty;
         }
 
         private void Pagination_ValueChanged(object? sender, AntdUI.PagePageEventArgs e)
         {
+            if (_suppressPaginationEvents) return;
             _currentPage = e.Current;
             _ = RenderMatchPageAsync();
         }
@@ -814,8 +896,13 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (_matchHistory != null && !_statsLoaded)
                 {
                     _currentPage = 1;
-                    pagination.PageSize = _pageSize;
-                    pagination.Current = 1;
+                    _suppressPaginationEvents = true;
+                    try
+                    {
+                        pagination.PageSize = _pageSize;
+                        pagination.Current = 1;
+                    }
+                    finally { _suppressPaginationEvents = false; }
                     _ = RenderMatchPageAsync();
                 }
             }
