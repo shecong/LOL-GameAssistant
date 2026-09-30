@@ -25,15 +25,26 @@ public sealed class LegacyLobbyService : ILobbyService
         cancellationToken.ThrowIfCancellationRequested();
         LobbyGameInfo? legacy = await Game_Api.GameNowServer().ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return legacy == null ? null : new LobbySnapshot
+        if (legacy == null) return null;
+
+        // 普通大厅的 partyId 属于 members；自定义房间不能用它推断双方预组队。
+        string partyId = legacy.GameConfig?.IsCustom == true ? "" : legacy.PartyId ?? "";
+        IReadOnlyList<GameTeamMember> partyMembers = MapLobbyMembers(legacy.Members, partyId);
+        IReadOnlyList<GameTeamMember> team100 = MapLobbyMembers(legacy.GameConfig?.CustomTeam100, partyId);
+        IReadOnlyList<GameTeamMember> team200 = MapLobbyMembers(legacy.GameConfig?.CustomTeam200, partyId);
+        return new LobbySnapshot
         {
             GameMode = legacy.GameConfig?.GameMode ?? "",
             QueueId = legacy.GameConfig?.QueueId ?? 0,
+            PartyId = partyId,
             LocalPlayerPuuid = legacy.LocalMember?.Puuid ?? "",
             LocalPrimaryPosition = legacy.LocalMember?.FirstPositionPreference ?? "",
             LocalSecondaryPosition = legacy.LocalMember?.SecondPositionPreference ?? "",
-            Team100 = MapLobbyMembers(legacy.GameConfig?.CustomTeam100),
-            Team200 = MapLobbyMembers(legacy.GameConfig?.CustomTeam200)
+            PartyMembers = partyMembers,
+            // 普通匹配大厅通常只给 members，不给 customTeam100。
+            Team100 = team100.Count == 0 && team200.Count == 0 && partyId.Length > 0
+                ? partyMembers : team100,
+            Team200 = team200
         };
     }
 
@@ -61,7 +72,7 @@ public sealed class LegacyLobbyService : ILobbyService
     }
 
     /// <summary>大厅 DTO 仅在此处转换为应用可消费的队伍成员快照。</summary>
-    private static IReadOnlyList<GameTeamMember> MapLobbyMembers(IEnumerable<Member>? members)
+    private static IReadOnlyList<GameTeamMember> MapLobbyMembers(IEnumerable<Member>? members, string partyId)
     {
         return members == null
             ? Array.Empty<GameTeamMember>()
@@ -72,7 +83,8 @@ public sealed class LegacyLobbyService : ILobbyService
                 ChampionId = member.IsBot ? member.BotChampionId : 0,
                 Position = member.FirstPositionPreference,
                 SecondaryPosition = member.SecondPositionPreference,
-                IsBot = member.IsBot
+                IsBot = member.IsBot,
+                PartyId = partyId
             }).ToList();
     }
 
@@ -88,7 +100,9 @@ public sealed class LegacyLobbyService : ILobbyService
                 ChampionId = member.ChampionId,
                 Position = member.SelectedPosition,
                 SecondaryPosition = "",
-                IsBot = false
+                IsBot = false,
+                PartyId = member.PartyId,
+                TeamParticipantId = member.TeamParticipantId
             }).ToList();
     }
 }

@@ -51,7 +51,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             catch (Exception ex)
             {
-                AntdUI.Message.error(ParentForm!, $"检查更新失败: {ex.Message}");
+                LOL_GameAssistant.Helper.UiMessage.error(ParentForm!, $"检查更新失败: {ex.Message}");
             }
             finally
             {
@@ -65,7 +65,7 @@ namespace LOL_GameAssistant.BaseViewForm
             UpdateRelease? release = await _updateReleaseService.GetLatestAsync();
             if (release == null)
             {
-                AntdUI.Message.warn(ParentForm!, "未获取到版本信息");
+                LOL_GameAssistant.Helper.UiMessage.warn(ParentForm!, "未获取到版本信息");
                 return;
             }
 
@@ -82,12 +82,12 @@ namespace LOL_GameAssistant.BaseViewForm
                     msg += $"\n更新内容:\n{release.ReleaseNotes}";
                 }
 
-                AntdUI.Message.info(ParentForm!, msg);
+                LOL_GameAssistant.Helper.UiMessage.info(ParentForm!, msg);
                 OpenUrl(release.ReleaseUrl);
             }
             else
             {
-                AntdUI.Message.success(ParentForm!, $"当前已是最新版本 ({currentVer})");
+                LOL_GameAssistant.Helper.UiMessage.success(ParentForm!, $"当前已是最新版本 ({currentVer})");
             }
         }
 

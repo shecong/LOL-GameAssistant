@@ -9,6 +9,7 @@ public sealed class ChampionSelectionSnapshot
     public IReadOnlyList<ChampionSelectionMember> MyTeam { get; init; } = Array.Empty<ChampionSelectionMember>();
     public IReadOnlyList<ChampionSelectionMember> TheirTeam { get; init; } = Array.Empty<ChampionSelectionMember>();
     public int LocalPlayerCellId { get; init; }
+    public IReadOnlyList<int> BenchChampionIds { get; init; } = Array.Empty<int>();
 }
 
 /// <summary>选人或禁用动作。</summary>

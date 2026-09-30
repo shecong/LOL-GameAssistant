@@ -1,9 +1,11 @@
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
+using LOL_GameAssistant.Domain.Builds;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
@@ -15,6 +17,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 public sealed class OpggBuildApplyService : IOpggBuildApplyService
 {
     private const string ManagedRunePrefix = "LOL助手 OP.GG · ";
+    private const string PersonalRunePrefix = "LOL助手 个人 · ";
     private const string ManagedItemPrefix = "LOL助手 OP.GG · ";
     private static readonly HttpClient OpggHttp = CreateHttpClient();
 
@@ -25,6 +28,58 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     {
         _lcu = lcu;
         _championCatalog = championCatalog;
+    }
+
+    public async Task<PersonalRunePreset?> CaptureCurrentRunePresetAsync(
+        int championId, string mode, string position, CancellationToken cancellationToken = default)
+    {
+        if (championId <= 0) return null;
+        JObject? page = await ReadObjectAsync("/lol-perks/v1/currentpage", cancellationToken).ConfigureAwait(false);
+        JObject? selection = await ReadObjectAsync("/lol-champ-select/v1/session/my-selection", cancellationToken).ConfigureAwait(false);
+        if (page == null) return null;
+        if ((selection?.Value<int?>("spell1Id") ?? 0) <= 0 ||
+            (selection?.Value<int?>("spell2Id") ?? 0) <= 0)
+        {
+            JObject? session = await ReadObjectAsync("/lol-champ-select/v1/session", cancellationToken).ConfigureAwait(false);
+            int cellId = session?.Value<int?>("localPlayerCellId") ?? -1;
+            selection = (session?["myTeam"] as JArray)?.OfType<JObject>()
+                .FirstOrDefault(member => member.Value<int?>("cellId") == cellId);
+        }
+        if (selection == null) return null;
+        var preset = new PersonalRunePreset
+        {
+            Name = page.Value<string>("name") ?? "我的符文",
+            ChampionId = championId,
+            Mode = mode,
+            Position = PersonalRunePresetResolver.NormalizePosition(position),
+            PrimaryStyleId = page.Value<int?>("primaryStyleId") ?? 0,
+            SubStyleId = page.Value<int?>("subStyleId") ?? 0,
+            RunePerkIds = page["selectedPerkIds"]?.Values<int>().ToList() ?? new List<int>(),
+            SummonerSpellIds = new List<int>
+            {
+                selection.Value<int?>("spell1Id") ?? 0,
+                selection.Value<int?>("spell2Id") ?? 0
+            }
+        };
+        return preset.IsValid ? preset : null;
+    }
+
+    public async Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(
+        PersonalRunePreset preset, CancellationToken cancellationToken = default)
+    {
+        if (!preset.IsValid) return OpggBuildApplyResult.Failure("个人方案缺少有效符文或召唤师技能。");
+        try
+        {
+            var build = new OpggBuild(preset.PrimaryStyleId, preset.SubStyleId,
+                preset.RunePerkIds.ToList(), new(), new(), new());
+            await ApplyRunePageAsync(build, preset.Name, cancellationToken, PersonalRunePrefix).ConfigureAwait(false);
+            string spells = await ApplySummonerSpellsAsync(preset.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
+            return spells.StartsWith("客户端未写入", StringComparison.Ordinal)
+                ? OpggBuildApplyResult.Failure($"符文已应用，但{spells}。请检查选人界面。")
+                : OpggBuildApplyResult.Success($"已应用个人方案“{preset.Name}”：符文和召唤师技能已配置。");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex) { return OpggBuildApplyResult.Failure($"个人方案应用失败：{ex.Message}"); }
     }
 
     public async Task<OpggBuildChoices> GetBuildChoicesAsync(
@@ -54,9 +109,9 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             string mode = NormalizeMode(request.GameMode, request.QueueId);
             if (mode == "unknown")
                 return OpggBuildChoices.Failure("尚未识别当前对局模式，无法确认 OP.GG 方案适用性。请在选人界面稍后重试。");
-            if (mode == "aram_mayhem")
-                return OpggBuildChoices.Failure("当前为海克斯大乱斗；OP.GG 的公开推荐接口暂未提供该模式数据，已停止普通大乱斗方案的错误套用。");
-            OpggBuildPayload payload = await FetchBuildPayloadAsync(championId, role, mode, cancellationToken).ConfigureAwait(false);
+            OpggBuildPayload payload = mode == "aram_mayhem"
+                ? await FetchMayhemBuildPayloadAsync(championId, cancellationToken).ConfigureAwait(false)
+                : await FetchBuildPayloadAsync(championId, role, mode, cancellationToken).ConfigureAwait(false);
             IReadOnlyList<OpggBuildOption> options = payload.Options;
             if (options.Count == 0)
                 return OpggBuildChoices.Failure("OP.GG 没有返回可用的核心出装方案。");
@@ -66,7 +121,9 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             string positionName = mode == "ranked" ? GetPositionName(role) : GetModeName(mode);
             return new OpggBuildChoices(
                 true,
-                "请选择要应用的出装路线。召唤师技能会随方案写入；海克斯与对位仅供展示参考。",
+                mode == "aram_mayhem"
+                    ? "海克斯大乱斗使用专属出装与增幅数据；本模式没有常规符文页，应用时只写入出装和召唤师技能。"
+                    : "请选择要应用的出装路线。召唤师技能会随方案写入；海克斯与对位仅供展示参考。",
                 championName,
                 positionName,
                 options,
@@ -134,7 +191,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             string spellResult = await ApplySummonerSpellsAsync(option.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
             if (spellResult.StartsWith("客户端未写入", StringComparison.Ordinal))
                 return OpggBuildApplyResult.Failure($"部分已写入（{string.Join("、", completed)}），召唤师技能写入失败；请在客户端核对。");
-            return OpggBuildApplyResult.Success($"已应用 OP.GG {label}：{runeResult}；{itemResult}；{spellResult}。游戏内请在商店的“自定义物品集”查看出装。");
+            string source = option.Mode == "aram_mayhem" ? "海克斯大乱斗专属" : "OP.GG";
+            return OpggBuildApplyResult.Success($"已应用 {source} {label}：{runeResult}；{itemResult}；{spellResult}。游戏内请在商店的“自定义物品集”查看出装。");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -171,6 +229,106 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
         http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("LOLGameAssistant", "1.0"));
         return http;
+    }
+
+    /// <summary>海克斯大乱斗独立数据源；不会把普通 ARAM 推荐伪装为本模式数据。</summary>
+    private static async Task<OpggBuildPayload> FetchMayhemBuildPayloadAsync(
+        int championId, CancellationToken cancellationToken)
+    {
+        string html = await OpggHttp.GetStringAsync(
+            $"https://aramgg.com/en/champion-stats/{championId}", cancellationToken).ConfigureAwait(false);
+        var options = ParseMayhemBuildOptions(html);
+
+        var augments = new List<OpggAugmentRecommendation>();
+        try
+        {
+            JObject versions = JObject.Parse(await OpggHttp.GetStringAsync(
+                "https://data.aramkit.com/data/versions.json", cancellationToken).ConfigureAwait(false));
+            string? latest = versions.Value<string>("latest");
+            string? path = versions["versions"]?.OfType<JObject>()
+                .FirstOrDefault(item => item.Value<string>("version") == latest)?.Value<string>("dataPath");
+            if (!string.IsNullOrWhiteSpace(path) && !path.Contains("..", StringComparison.Ordinal))
+            {
+                JObject detail = JObject.Parse(await OpggHttp.GetStringAsync(
+                    $"https://data.aramkit.com/{path.Trim('/')}/stats/all/champion-details/{championId}.json",
+                    cancellationToken).ConfigureAwait(false));
+                augments.AddRange((detail.SelectToken("augments.all") as JArray ?? new JArray())
+                    .OfType<JObject>()
+                    .Select(item => new OpggAugmentRecommendation(
+                        item.Value<int?>("id") ?? 0, 0,
+                        item.Value<int?>("sampleCount") ?? 0,
+                        (int)Math.Round((item.Value<double?>("winRate") ?? 0) *
+                            (item.Value<int?>("sampleCount") ?? 0))))
+                    .Where(item => item.Id > 0 && item.Matches >= 100)
+                    .OrderByDescending(item => item.WinRate).ThenByDescending(item => item.Matches)
+                    .Take(30));
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { /* 出装数据可用时，增幅网络暂不可用不阻止应用。 */ }
+        return new OpggBuildPayload(options, augments, new List<OpggMatchup>());
+    }
+
+    internal static IReadOnlyList<OpggBuildOption> ParseMayhemBuildOptions(string html)
+    {
+        if (!html.Contains("Core Items", StringComparison.Ordinal))
+            throw new InvalidOperationException("海克斯大乱斗专属出装暂不可用，未使用普通大乱斗方案代替。");
+
+        int spellsAt = html.IndexOf("Summoner Spells", StringComparison.Ordinal);
+        int[] spells = spellsAt < 0 ? Array.Empty<int>() :
+            Regex.Matches(html.Substring(spellsAt, Math.Min(4500, html.Length - spellsAt)),
+                @"summoner-spell-icons/(\d+)\.png", RegexOptions.IgnoreCase)
+                .Select(match => int.Parse(match.Groups[1].Value))
+                .Distinct().Take(2).ToArray();
+
+        MatchCollection panels = Regex.Matches(html, "data-build-panel=\"[0-9]+\"");
+        var options = new List<OpggBuildOption>();
+        int panelCount = panels.Count == 0 ? 1 : Math.Min(panels.Count, 5);
+        for (int panelIndex = 0; panelIndex < panelCount; panelIndex++)
+        {
+            int start = panels.Count == 0 ? 0 : panels[panelIndex].Index;
+            int end = panels.Count == 0 ? html.Length :
+                panelIndex + 1 < panels.Count ? panels[panelIndex + 1].Index : Math.Min(html.Length, start + 25000);
+            string panel = html[start..end];
+            static List<int> ItemsInSection(string source, string heading, params string[] following)
+            {
+                int from = source.IndexOf(heading, StringComparison.Ordinal);
+                if (from < 0) return new List<int>();
+                int to = source.Length;
+                foreach (string next in following)
+                {
+                    int nextAt = source.IndexOf(next, from + heading.Length, StringComparison.Ordinal);
+                    if (nextAt >= 0) to = Math.Min(to, nextAt);
+                }
+                return Regex.Matches(source[from..to], @"item-icons/(\d+)\.png")
+                    .Select(match => int.Parse(match.Groups[1].Value)).ToList();
+            }
+
+            List<int> starter = ItemsInSection(panel, "Starting Items", "Core Items", "Situational Items");
+            List<int> situational = ItemsInSection(panel, "Situational Items", "Starting Items");
+            int coreAt = panel.IndexOf("Core Items", StringComparison.Ordinal);
+            int nextAt = coreAt < 0 ? -1 : panel.IndexOf("Situational Items", coreAt, StringComparison.Ordinal);
+            string coreSection = coreAt < 0 ? "" : panel[coreAt..(nextAt < 0 ? panel.Length : nextAt)];
+            MatchCollection routes = Regex.Matches(coreSection,
+                @"#\d+\s*</span>(?<items>.*?)Win Rate:\s*<span[^>]*>(?<win>[\d.]+)%</span>.*?Pick Rate:\s*<span[^>]*>(?<pick>[\d.]+)%</span>",
+                RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            foreach (Match route in routes.Cast<Match>().Take(3))
+            {
+                int[] core = Regex.Matches(route.Groups["items"].Value, @"item-icons/(\d+)\.png")
+                    .Select(match => int.Parse(match.Groups[1].Value)).Take(3).ToArray();
+                if (core.Length != 3 ||
+                    !double.TryParse(route.Groups["win"].Value, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out double winRate) ||
+                    !double.TryParse(route.Groups["pick"].Value, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out double pickRate)) continue;
+                options.Add(new OpggBuildOption(options.Count + 1, starter.Take(5).ToArray(),
+                    core, situational.Distinct().Take(6).ToArray(),
+                    0, 0, Array.Empty<int>(), 0, 0, spells, "aram_mayhem", winRate, pickRate));
+            }
+        }
+        if (options.Count == 0)
+            throw new InvalidOperationException("海克斯大乱斗出装页面结构已变化，未找到可应用的三件核心装备。");
+        return options;
     }
 
     /// <summary>
@@ -281,7 +439,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         return updated ? "召唤师技能已写入" : "客户端未写入召唤师技能，已保留当前技能";
     }
 
-    private async Task<string> ApplyRunePageAsync(OpggBuild build, string label, CancellationToken cancellationToken)
+    private async Task<string> ApplyRunePageAsync(OpggBuild build, string label, CancellationToken cancellationToken,
+        string prefix = ManagedRunePrefix)
     {
         if (build.PrimaryStyleId <= 0 || build.SubStyleId <= 0)
             throw new InvalidOperationException("OP.GG 符文缺少主系或副系，本次未写入客户端。");
@@ -290,7 +449,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         JObject? inventory = await ReadObjectAsync("/lol-perks/v1/inventory", cancellationToken).ConfigureAwait(false);
         int pageLimit = inventory?.Value<int?>("ownedPageCount") ?? 2;
         int customPageCount = inventory?.Value<int?>("customPageCount") ?? CountCustomPages(pages);
-        string pageName = ManagedRunePrefix + label;
+        string pageName = prefix + label;
         string body = JsonConvert.SerializeObject(new
         {
             name = pageName,
@@ -304,7 +463,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         JObject? oldCurrent = pages.OfType<JObject>().FirstOrDefault(IsCurrentRunePage);
         long? oldCurrentId = oldCurrent?.Value<long?>("id");
         JObject? managedPage = pages.OfType<JObject>()
-            .Where(page => (page.Value<string>("name") ?? "").StartsWith(ManagedRunePrefix, StringComparison.Ordinal))
+            .Where(page => IsManagedRunePage(page.Value<string>("name")))
             .FirstOrDefault(page => page.Value<bool?>("isEditable") != false && page.Value<long?>("id").HasValue);
         if (managedPage != null)
         {
@@ -402,6 +561,10 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
 
     private static bool IsCurrentRunePage(JObject page) =>
         page.Value<bool?>("current") == true || page.Value<bool?>("isActive") == true;
+
+    private static bool IsManagedRunePage(string? name) =>
+        (name ?? "").StartsWith(ManagedRunePrefix, StringComparison.Ordinal) ||
+        (name ?? "").StartsWith(PersonalRunePrefix, StringComparison.Ordinal);
 
     private async Task<string> ApplyItemSetAsync(
         OpggBuild build,
@@ -513,11 +676,11 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     internal static string NormalizeMode(string? gameMode, int queueId)
     {
         string mode = (gameMode ?? "").Trim().ToUpperInvariant();
-        if (mode.StartsWith("KIWI", StringComparison.Ordinal)) return "aram_mayhem";
+        if (mode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase)) return "aram_mayhem";
         if (queueId > 0)
             return queueId switch
             {
-                2400 => "aram_mayhem",
+                2400 or 3270 => "aram_mayhem",
                 450 => "aram",
                 1700 or 1701 or 1704 or 1710 => "arena",
                 1300 => "nexus_blitz",

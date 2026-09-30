@@ -28,20 +28,20 @@ public sealed class RecentModePerformanceEvaluatorTests
     }
 
     [Fact]
-    public void KdaBelowOne_IsHumanTierInsteadOfBotAccount()
+    public void KdaBelowOne_IsPureCowHorseTier()
     {
         RecentModePerformanceAssessment result = Evaluate(8, kills: 1, deaths: 4, assists: 2);
 
         Assert.True(result.HasEnoughSample);
         Assert.Equal(MatchPerformanceTier.Lower, result.Tier);
         Assert.Equal(RecentPerformanceLabel.Human, result.Label);
-        Assert.Equal("人机", RecentPerformanceLabelFormatter.GetText(result));
+        Assert.Equal("纯牛马", RecentPerformanceLabelFormatter.GetText(result));
     }
 
     [Fact]
-    public void FewerThanEightGames_DoNotProducePerformanceLabel()
+    public void FewerThanFiveGames_DoNotProducePerformanceLabel()
     {
-        RecentModePerformanceAssessment result = Evaluate(7, kills: 20, deaths: 1, assists: 10);
+        RecentModePerformanceAssessment result = Evaluate(4, kills: 20, deaths: 1, assists: 10);
 
         Assert.False(result.HasEnoughSample);
         Assert.Equal(MatchPerformanceTier.Medium, result.Tier);
@@ -78,6 +78,25 @@ public sealed class RecentModePerformanceEvaluatorTests
         Assert.True(result.HasEnoughSample);
         Assert.Equal(20, result.SampleSize);
         Assert.Equal(RecentPerformanceLabel.Upper, result.Label);
+    }
+
+    [Fact]
+    public void FiveGamesAreEnoughToProducePerformanceLabel()
+    {
+        RecentModePerformanceAssessment result = Evaluate(5, kills: 10, deaths: 4, assists: 8);
+
+        Assert.True(result.HasEnoughSample);
+        Assert.Equal(5, result.SampleSize);
+        Assert.Equal(RecentPerformanceLabel.Upper, result.Label);
+    }
+
+    [Fact]
+    public void AllAvailableGamesAreCountedWithoutTwentyGameCap()
+    {
+        RecentModePerformanceAssessment result = Evaluate(35, kills: 10, deaths: 4, assists: 8);
+
+        Assert.Equal(35, result.SampleSize);
+        Assert.Equal(4.5, result.Kda, 2);
     }
 
     [Fact]

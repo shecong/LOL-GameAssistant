@@ -1,6 +1,6 @@
 namespace LOL_GameAssistant.Domain.Teams;
 
-/// <summary>近期同队关系推断出的开黑小组。</summary>
+/// <summary>同队分组；来源可为本局房间标识或近期同队推断。</summary>
 public sealed record PremadeGroup(
     int Index,
     IReadOnlyList<string> Puuids,
@@ -48,6 +48,13 @@ public sealed class PremadeDetectionResult
             5 => "五排",
             _ => "多排"
         };
+    }
+
+    /// <summary>历史战绩只能推断一起排队的可能性，不能断定当局的房间关系。</summary>
+    public string GetInferredTeamStatus(int teamIndex)
+    {
+        string status = GetTeamQueueStatus(teamIndex);
+        return status == "单排" ? "未发现" : $"疑似{status}";
     }
 
     public string GetTeamQueueDetail(int teamIndex)

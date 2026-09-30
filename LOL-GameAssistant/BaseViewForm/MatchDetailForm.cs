@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
@@ -8,7 +8,6 @@ using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Teams;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.GameData;
-using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -23,19 +22,9 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IGameAssetService _gameAssetService;
         private readonly IMatchHistoryService _matchHistoryService;
         private readonly IPremadeDetectionService _premadeDetectionService;
-        private readonly Dictionary<string, Label> _premadeTagsByPuuid = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, Label> _performanceTagsByPuuid = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, AntdUI.Label> _premadeTagsByPuuid = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, AntdUI.Label> _performanceTagsByPuuid = new(StringComparer.Ordinal);
         private readonly ToolTip _assetToolTip = new();
-        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchDetail[]> Details)> RecentModeDetailCache = new();
-        private static readonly TimeSpan RecentModeDetailCacheTtl = TimeSpan.FromMinutes(3);
-        private static readonly SemaphoreSlim RecentModeDetailLoadGate = new(4, 4);
-
-        /// <summary>判定取数范围：先拉最近这些场摘要，再从中筛出同模式对局。</summary>
-        private const int HistoryFetchCount = 100;
-
-        /// <summary>最多取最新这些场同模式对局参与判定。</summary>
-        private const int RecentSampleSize = 12;
-
         /// <summary>点击玩家头像后选中的玩家 puuid（用于跳转战绩查询）。</summary>
         public string? SelectedPlayerPuuid { get; private set; }
 
@@ -183,7 +172,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             bool win = p.IsWin();
             ThemePalette palette = UiTheme.Palette;
-            var panel = new Panel
+            var panel = new AntdUI.Panel
             {
                 Size = new Size(455, _gameInfo.IsAugmentAram() ? 166 : 118),
                 Margin = new Padding(0, 0, 0, 6),
@@ -218,7 +207,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
             }
 
-            panel.Controls.Add(new Label
+            panel.Controls.Add(new AntdUI.Label
             {
                 Text = displayName,
                 Location = new Point(70, 8),
@@ -227,7 +216,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 BackColor = Color.Transparent,
                 ForeColor = palette.TextPrimary
             });
-            var championLabel = new Label
+            var championLabel = new AntdUI.Label
             {
                 Text = $"{GetChampionDisplayName(p.championId)} · KDA {p.GetKdaText()} ({p.GetKdaRatio()})",
                 Location = new Point(70, 31),
@@ -248,7 +237,7 @@ namespace LOL_GameAssistant.BaseViewForm
             panel.Controls.Add(championLabel);
             if (!string.IsNullOrWhiteSpace(playerPuuid))
             {
-                var performanceTag = new Label
+                var performanceTag = new AntdUI.Label
                 {
                     AutoSize = false,
                     BackColor = Color.FromArgb(238, 241, 245),
@@ -262,7 +251,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 panel.Controls.Add(performanceTag);
                 _performanceTagsByPuuid[playerPuuid] = performanceTag;
             }
-            panel.Controls.Add(new Label
+            panel.Controls.Add(new AntdUI.Label
             {
                 Text = win ? "胜利" : "失败",
                 Location = new Point(365, 8),
@@ -273,7 +262,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     : (palette.IsDark ? Color.FromArgb(239, 154, 154) : Color.FromArgb(198, 40, 40)),
                 BackColor = Color.Transparent
             });
-            panel.Controls.Add(new Label
+            panel.Controls.Add(new AntdUI.Label
             {
                 Text = $"伤害 {p.stats?.totalDamageDealtToChampions ?? 0:N0} · 补刀 {(p.stats?.totalMinionsKilled ?? 0) + (p.stats?.neutralMinionsKilled ?? 0)}",
                 Location = new Point(70, 54),
@@ -292,7 +281,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             if (!string.IsNullOrWhiteSpace(playerPuuid))
             {
-                var premadeTag = new Label
+                var premadeTag = new AntdUI.Label
                 {
                     AutoSize = false,
                     BackColor = Color.FromArgb(255, 243, 224),
@@ -336,7 +325,7 @@ namespace LOL_GameAssistant.BaseViewForm
             target.Controls.Add(row);
         }
 
-        private static async Task LoadAugmentTagsAsync(Panel host, IReadOnlyList<int> ids)
+        private static async Task LoadAugmentTagsAsync(AntdUI.Panel host, IReadOnlyList<int> ids)
         {
             var tags = new List<AntdUI.Tag>();
             for (int index = 0; index < ids.Count; index++)
@@ -360,7 +349,8 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 AugmentCatalog.AugmentDisplay augment = augments[index];
                 AntdUI.Tag tag = tags[index];
-                tag.Text = augment.Name;
+                tag.Text = UiLanguage.IsEnglish && !string.IsNullOrWhiteSpace(augment.EnglishName)
+                    ? augment.EnglishName : augment.Name;
                 if (augment.IconUrl != null) _ = LoadAugmentTagIconAsync(tag, augment.IconUrl);
             }
         }
@@ -394,7 +384,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch { /* 图标失败时保留英雄名称 */ }
         }
 
-        private void AddSummonerSpellIcons(Panel panel, MatchParticipant participant, int x, int y)
+        private void AddSummonerSpellIcons(AntdUI.Panel panel, MatchParticipant participant, int x, int y)
         {
             int[] spells = { participant.Spell1Id, participant.Spell2Id };
             for (int index = 0; index < spells.Length; index++)
@@ -413,7 +403,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        private void AddItemIcons(Panel panel, MatchParticipant participant, int x, int y)
+        private void AddItemIcons(AntdUI.Panel panel, MatchParticipant participant, int x, int y)
         {
             int[] items =
             {
@@ -496,108 +486,29 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             try
             {
-                MatchDetail[] details = await GetRecentModeDetailsAsync(puuid);
-                var assessments = new List<MatchPerformanceAssessment>();
-                var wins = new List<bool>();
-                foreach (MatchDetail detail in details)
-                {
-                    MatchParticipant? participant = detail.GetParticipant(puuid);
-                    if (participant?.stats == null) continue;
-                    assessments.Add(EvaluatePerformance(detail, puuid));
-                    wins.Add(participant.IsWin());
-                }
-
-                RecentModePerformanceAssessment assessment = RecentModePerformanceEvaluator.Evaluate(
-                    _gameInfo.GetModeText(), assessments, wins);
+                string queueText = string.IsNullOrWhiteSpace(_gameInfo.queueId)
+                    ? _gameInfo._queueId : _gameInfo.queueId;
+                int.TryParse(queueText, out int queueId);
+                var service = new RecentModePerformanceService(_matchHistoryService);
+                RecentModePerformanceAssessment assessment = await service.EvaluateAsync(
+                    puuid, queueId, _gameInfo.gameMode, _gameInfo.GetModeText());
                 SetPerformanceTag(puuid, assessment);
             }
             catch
             {
-                if (_performanceTagsByPuuid.TryGetValue(puuid, out Label? tag) && !tag.IsDisposed)
+                if (_performanceTagsByPuuid.TryGetValue(puuid, out AntdUI.Label? tag) && !tag.IsDisposed)
                 {
                     tag.Text = "数据不足";
                     tag.BackColor = Color.FromArgb(245, 245, 245);
                     tag.ForeColor = SystemColors.GrayText;
-                    _assetToolTip.SetToolTip(tag, "近期同模式战绩暂时无法读取，未作表现判定。");
+                    _assetToolTip.SetToolTip(tag, "最近 30 天同模式战绩暂时无法读取，未作表现判定。");
                 }
             }
         }
 
-        private async Task<MatchDetail[]> GetRecentModeDetailsAsync(string puuid)
-        {
-            string key = $"{puuid}|{GetModeCacheKey(_gameInfo)}";
-            if (RecentModeDetailCache.TryGetValue(key, out var cached) &&
-                DateTime.UtcNow - cached.CachedAt < RecentModeDetailCacheTtl)
-                return await cached.Details;
-
-            Task<MatchDetail[]> task = LoadRecentModeDetailsAsync(puuid);
-            RecentModeDetailCache[key] = (DateTime.UtcNow, task);
-            try
-            {
-                return await task;
-            }
-            catch
-            {
-                RecentModeDetailCache.TryRemove(key, out _);
-                throw;
-            }
-        }
-
-        private async Task<MatchDetail[]> LoadRecentModeDetailsAsync(string puuid)
-        {
-            MatchHistoryResponse? history = await _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1);
-            var heads = history?.Games?.Games
-                .Where(head => SameMode(head, _gameInfo))
-                .OrderByDescending(head => head.GameCreation)
-                .Take(RecentSampleSize)
-                .ToList() ?? new List<MatchHistoryGame>();
-
-            var tasks = heads.Select(async head =>
-            {
-                await RecentModeDetailLoadGate.WaitAsync();
-                try { return await _matchHistoryService.GetDetailAsync(head.GameId); }
-                finally { RecentModeDetailLoadGate.Release(); }
-            });
-            return (await Task.WhenAll(tasks)).Where(detail => detail != null).Cast<MatchDetail>().ToArray();
-        }
-
-        private static bool SameMode(MatchHistoryGame candidate, MatchDetail current)
-        {
-            string currentQueue = current.queueId ?? current._queueId ?? "";
-            if (int.TryParse(currentQueue, out int queueId) && candidate.QueueId > 0)
-                return candidate.QueueId == queueId;
-            return string.Equals(candidate.GameMode, current.gameMode, StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(candidate.GameMode, current.GetModeText(), StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string GetModeCacheKey(MatchDetail detail)
-        {
-            string queue = detail.queueId ?? detail._queueId ?? "";
-            return string.IsNullOrWhiteSpace(queue) ? detail.GetModeText() : queue;
-        }
-
-        private static MatchPerformanceAssessment EvaluatePerformance(MatchDetail game, string puuid)
-        {
-            var snapshots = game.participants
-                .Where(participant => participant.stats != null)
-                .Select(participant => new MatchPerformanceSnapshot(
-                    game.participantIdentities.FirstOrDefault(identity => identity.participantId == participant.participantId)?.player?.puuid
-                    ?? $"participant-{participant.participantId}",
-                    participant.teamId,
-                    participant.IsWin(),
-                    participant.stats!.kills,
-                    participant.stats.deaths,
-                    participant.stats.assists,
-                    participant.stats.totalDamageDealtToChampions,
-                    participant.stats.goldEarned,
-                    participant.stats.visionScore))
-                .ToList();
-            return MatchPerformanceEvaluator.Evaluate(snapshots.FirstOrDefault(snapshot => snapshot.PlayerId == puuid), snapshots);
-        }
-
         private void SetPerformanceTag(string puuid, RecentModePerformanceAssessment assessment)
         {
-            if (IsDisposed || !_performanceTagsByPuuid.TryGetValue(puuid, out Label? tag) || tag.IsDisposed) return;
+            if (IsDisposed || !_performanceTagsByPuuid.TryGetValue(puuid, out AntdUI.Label? tag) || tag.IsDisposed) return;
             if (!assessment.HasEnoughSample)
             {
                 tag.Text = "数据不足";
@@ -626,14 +537,14 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void ApplyPremadeResult(PremadeDetectionResult result)
         {
-            lblAllyHeader.Text = $"我方 · {result.GetTeamQueueStatus(0)}";
-            lblEnemyHeader.Text = $"敌方 · {result.GetTeamQueueStatus(1)}";
+            lblAllyHeader.Text = $"我方 · {result.GetInferredTeamStatus(0)}";
+            lblEnemyHeader.Text = $"敌方 · {result.GetInferredTeamStatus(1)}";
             foreach (var pair in _premadeTagsByPuuid)
             {
                 PremadeGroup? group = result.GroupByPuuid.GetValueOrDefault(pair.Key);
                 pair.Value.Visible = group != null;
                 if (group == null) continue;
-                pair.Value.Text = $"开黑 {group.Index}";
+                pair.Value.Text = $"疑似{group.Index}";
                 _assetToolTip.SetToolTip(pair.Value, $"{group.Puuids.Count} 人组队：{string.Join("、", group.Names)}（近期多次同队推断）");
             }
         }

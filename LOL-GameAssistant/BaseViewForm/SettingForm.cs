@@ -22,8 +22,59 @@ namespace LOL_GameAssistant.BaseViewForm
             AutoPopDelay = 20000,
             InitialDelay = 350,
             ReshowDelay = 100,
-            ShowAlways = true
+            ShowAlways = false
         };
+        private readonly Dictionary<(ToolTip Tip, Control Control), string> _originalTips = new();
+        private readonly HashSet<Control> _featureTipTargets = [];
+        private Control? _activeFeatureTipControl;
+        private Control? _activeDesignerTipControl;
+
+        public void ApplyLanguage()
+        {
+            HideSettingTips();
+            string[] sections = ["对局自动化", "客户端与数据", "外观与窗口", "喊话", "AI 与推荐", "客户端工具"];
+            for (int index = 0; index < sections.Length && index < _settingsSegmented.Items.Count; index++)
+                _settingsSegmented.Items[index].Text = UiLanguage.T(sections[index]);
+            foreach (Control segment in _settingsSegments)
+                if (segment != null) ResizeSettingColumns(segment);
+            ApplyTips(this, _featureTip);
+            ApplyTips(this, toolTip1);
+        }
+
+        private static void ResizeSettingColumns(Control root)
+        {
+            if (root is TableLayoutPanel layout && layout.ColumnStyles.Count >= 2 &&
+                layout.ColumnStyles[0].SizeType == SizeType.Absolute &&
+                layout.ColumnStyles[0].Width is >= 110 and <= 250)
+                layout.ColumnStyles[0].Width = UiLanguage.IsEnglish ? 245 : 118;
+            foreach (Control child in root.Controls) ResizeSettingColumns(child);
+        }
+
+        private void ApplyTips(Control root, ToolTip tip)
+        {
+            string current = tip.GetToolTip(root) ?? "";
+            if (!string.IsNullOrWhiteSpace(current))
+            {
+                var key = (tip, root);
+                if (!_originalTips.TryGetValue(key, out string? original))
+                    _originalTips[key] = original = current;
+                tip.SetToolTip(root, UiLanguage.T(original));
+            }
+            foreach (Control child in root.Controls) ApplyTips(child, tip);
+        }
+
+        private void SwitchLanguage()
+        {
+            if (_isLoading) return;
+            string mode = _languageMode.SelectedIndex == 1 ? "en-US" : "zh-CN";
+            if (_config.LanguageMode == mode) return;
+            _config.LanguageMode = mode;
+            AssistantSettings saved = _settingsStore.Load();
+            saved.LanguageMode = mode;
+            _settingsStore.Save(saved);
+            UiLanguage.SetMode(mode);
+            ApplyLanguage();
+        }
 
         private readonly IGameClientLauncher _gameClientLauncher;
         private readonly IApplicationSettingsStore _settingsStore;
@@ -31,40 +82,46 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Segmented _settingsSegmented = new();
         private readonly AntdUI.Panel _settingsSegmentHost = new();
         private readonly Control[] _settingsSegments = new Control[6];
-        private readonly TextBox _clientPath = new() { Dock = DockStyle.Fill };
-        private readonly CheckBox _autoLaunchClient = new() { Text = "启动助手时直接启动 LOL 客户端", AutoSize = true };
+        private readonly AntdUI.Input _clientPath = new() { Dock = DockStyle.Fill };
+        private readonly AntdUI.Checkbox _autoLaunchClient = new() { Text = "启动助手时直接启动 LOL 客户端", AutoSize = true };
         private readonly AntdUI.Label _clientStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
         private readonly AntdUI.Button _launchClientButton = new() { Text = "立即启动 LOL", AutoSize = true };
-        private readonly NumericUpDown _opacity = new() { Minimum = 40, Maximum = 100, Width = 130 };
-        private readonly ComboBox _themeMode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
-        private readonly TextBox _hotkey = new() { ReadOnly = true, Width = 160, TabStop = true };
-        private readonly CheckBox _onlyLeagueFocused = new() { Text = "仅在 LOL 位于前台时响应", AutoSize = true };
+        private readonly AntdUI.InputNumber _opacity = new() { Minimum = 40, Maximum = 100, Width = 130 };
+        private readonly AntdUI.Select _themeMode = new() { ReadOnly = true, Width = 160 };
+        private readonly AntdUI.Select _languageMode = new() { ReadOnly = true, Width = 160 };
+        private readonly AntdUI.Input _hotkey = new() { ReadOnly = true, Width = 160, TabStop = true };
+        private readonly AntdUI.Checkbox _onlyLeagueFocused = new() { Text = "仅在 LOL 位于前台时响应", AutoSize = true };
         private QuickShoutForm? _quickShoutForm;
-        private readonly CheckBox _recommendationEnabled = new() { Text = "启用 AI 时间线建议", AutoSize = true };
-        private readonly CheckBox _opggBuildAssistantEnabled = new() { Text = "启用 OP.GG 选人出装与符文推荐", AutoSize = true };
-        private readonly CheckBox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
-        private readonly CheckBox _gameKdaAnnouncementEnabled = new() { Text = "对局中发送双方玩家近期 KDA 评估", AutoSize = true };
-        private readonly CheckBox _gameKdaOnePlayerPerLine = new() { Text = "每名玩家单独发送一条（单人一行）", AutoSize = true };
-        private readonly TextBox _champSelectKdaAnnouncementTemplate = new() { Dock = DockStyle.Fill, Multiline = true, Height = 86, ScrollBars = ScrollBars.Vertical };
-        private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210 };
+        private readonly AntdUI.Checkbox _recommendationEnabled = new() { Text = "启用 AI 时间线建议", AutoSize = true };
+        private readonly AntdUI.Checkbox _opggBuildAssistantEnabled = new() { Text = "启用 OP.GG 选人出装与符文推荐", AutoSize = true };
+        private readonly AntdUI.Checkbox _autoApplyRuneBuild = new() { Text = "选人自动应用个人符文；无匹配时使用 OP.GG", AutoSize = true };
+        private readonly AntdUI.Checkbox _mayhemOverlayEnabled = new() { Text = "海克斯大乱斗显示局内增幅侧边栏", AutoSize = true };
+        private readonly AntdUI.Checkbox _champSelectCompanionEnabled = new() { Text = "选人时在客户端侧边显示队友伴随窗", AutoSize = true };
+        private readonly AntdUI.Checkbox _autoSwapAramBench = new() { Text = "按优先级自动交换备战席英雄", AutoSize = true };
+        private readonly AntdUI.SelectMultiple _aramBenchPriority = new() { Dock = DockStyle.Fill };
+        private readonly AntdUI.Checkbox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
+        private readonly AntdUI.Checkbox _gameKdaAnnouncementEnabled = new() { Text = "对局中发送双方玩家近期 KDA 评估", AutoSize = true };
+        private readonly AntdUI.Checkbox _gameKdaOnePlayerPerLine = new() { Text = "每名玩家单独发送一条（单人一行）", AutoSize = true };
+        private readonly AntdUI.Input _champSelectKdaAnnouncementTemplate = new() { Dock = DockStyle.Fill, Multiline = true, Height = 86 };
+        private readonly AntdUI.Select _provider = new() { ReadOnly = true, Width = 210 };
 
         // 可下拉可手填：模型名写错时服务端只回一个 400，所以按服务商给出可选值。
         private readonly ComboBox _model = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 290 };
 
-        private readonly Button _testAi = new() { Text = "测试连接", AutoSize = true };
-        private readonly Button _fetchModels = new() { Text = "获取可用模型", AutoSize = true };
-        private readonly Label _aiTestStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
-        private readonly TextBox _baseUrl = new() { Dock = DockStyle.Fill };
-        private readonly TextBox _apiKey = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true, PlaceholderText = "留空则保留已保存的密钥" };
-        private readonly Label _apiKeyStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
-        private readonly CheckBox _dynamicRefresh = new() { Text = "游戏中自动刷新建议", AutoSize = true };
-        private readonly NumericUpDown _dynamicSeconds = new() { Minimum = 15, Maximum = 600, Width = 100 };
-        private readonly CheckBox _showPopup = new() { Text = "建议刷新后弹出提醒", AutoSize = true };
-        private readonly CheckBox _overlayEnabled = new() { Text = "游戏内显示建议浮窗", AutoSize = true };
-        private readonly ComboBox _overlayPosition = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
-        private readonly NumericUpDown _overlayOffsetX = new() { Minimum = -600, Maximum = 600, Width = 80 };
-        private readonly NumericUpDown _overlayOffsetY = new() { Minimum = -600, Maximum = 600, Width = 80 };
-        private readonly NumericUpDown _overlayDuration = new() { Minimum = 3, Maximum = 30, Width = 80 };
+        private readonly AntdUI.Button _testAi = new() { Text = "测试连接", AutoSize = true };
+        private readonly AntdUI.Button _fetchModels = new() { Text = "获取可用模型", AutoSize = true };
+        private readonly AntdUI.Label _aiTestStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
+        private readonly AntdUI.Input _baseUrl = new() { Dock = DockStyle.Fill };
+        private readonly AntdUI.Input _apiKey = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true, PlaceholderText = "留空则保留已保存的密钥" };
+        private readonly AntdUI.Label _apiKeyStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
+        private readonly AntdUI.Checkbox _dynamicRefresh = new() { Text = "游戏中自动刷新建议", AutoSize = true };
+        private readonly AntdUI.InputNumber _dynamicSeconds = new() { Minimum = 15, Maximum = 600, Width = 100 };
+        private readonly AntdUI.Checkbox _showPopup = new() { Text = "建议刷新后弹出提醒", AutoSize = true };
+        private readonly AntdUI.Checkbox _overlayEnabled = new() { Text = "游戏内显示建议浮窗", AutoSize = true };
+        private readonly AntdUI.Select _overlayPosition = new() { ReadOnly = true, Width = 150 };
+        private readonly AntdUI.InputNumber _overlayOffsetX = new() { Minimum = -600, Maximum = 600, Width = 80 };
+        private readonly AntdUI.InputNumber _overlayOffsetY = new() { Minimum = -600, Maximum = 600, Width = 80 };
+        private readonly AntdUI.InputNumber _overlayDuration = new() { Minimum = 3, Maximum = 30, Width = 80 };
         private bool _clearAiKey;
         private static readonly string[] ResolutionPresets = { "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3840x2160" };
 
@@ -86,6 +143,10 @@ namespace LOL_GameAssistant.BaseViewForm
             _settingsSecretProtector = settingsSecretProtector;
             InitializeComponent();
             _config = new AssistantSettings();
+            _featureTip.Popup += (_, e) => _activeFeatureTipControl = e.AssociatedControl;
+            toolTip1.Popup += (_, e) => _activeDesignerTipControl = e.AssociatedControl;
+            VisibleChanged += (_, _) => { if (!Visible) HideSettingTips(); };
+            MouseLeave += (_, _) => HideSettingTips();
             AttachCommonSegmentTips();
             InitializeSegmentedSettings();
             Disposed += (_, _) => { toolTip1.Dispose(); _featureTip.Dispose(); };
@@ -96,7 +157,10 @@ namespace LOL_GameAssistant.BaseViewForm
             await LoadCachedSettings();
             await LoadBase();
             _isLoading = false;
+            _languageMode.SelectedIndexChanged += (_, _) => SwitchLanguage();
             ApplySideEffects(_config);
+            Program.GameMain?.RefreshMayhemOverlaySetting();
+            Program.GameMain?.RefreshChampSelectCompanionSetting();
 
             // 自动启动由 GameMain 的启动生命周期统一执行，避免依赖用户是否打开“设置”标签。
         }
@@ -146,8 +210,19 @@ namespace LOL_GameAssistant.BaseViewForm
         private void ShowSettingsSegment(int index)
         {
             if (index < 0 || index >= _settingsSegments.Length) return;
+            HideSettingTips();
             for (int i = 0; i < _settingsSegments.Length; i++)
                 _settingsSegments[i].Visible = i == index;
+        }
+
+        private void HideSettingTips()
+        {
+            if (_activeFeatureTipControl is { IsDisposed: false } feature)
+                _featureTip.Hide(feature);
+            if (_activeDesignerTipControl is { IsDisposed: false } designer)
+                toolTip1.Hide(designer);
+            _activeFeatureTipControl = null;
+            _activeDesignerTipControl = null;
         }
 
         #region 本地缓存
@@ -163,6 +238,7 @@ namespace LOL_GameAssistant.BaseViewForm
             swi_gametrue.Checked = _config.AutoAccept;
             swi_jyyx.Checked = _config.AutoBan;
             swi_xyx.Checked = _config.AutoPick;
+            _autoSwapAramBench.Checked = _config.AutoSwapAramBench;
             swi_tray.Checked = _config.MinimizeToTray;
             swi_auto_refresh.Checked = _config.AutoRefresh;
             input_auto_refresh.Value = _config.AutoRefreshIntervalSeconds;
@@ -192,6 +268,8 @@ namespace LOL_GameAssistant.BaseViewForm
             inputCheckInterval.ValueChanged += (_, _) => SaveSettings();
             setting_select_jyx.SelectedValueChanged += (_, _) => { SaveSettings(); _ = UpdateBanPreviewAsync(); };
             setting_select_xyx.SelectedValueChanged += (_, _) => { SaveSettings(); _ = UpdatePickPreviewAsync(); };
+            _aramBenchPriority.SelectedValueChanged += (_, _) => SaveSettings();
+            _autoSwapAramBench.CheckedChanged += (_, _) => SaveSettings();
         }
 
         private void SaveSettings()
@@ -210,21 +288,35 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.CheckIntervalSeconds = (int)inputCheckInterval.Value;
             _config.BanChampions = GetSelectedTexts(setting_select_jyx);
             _config.PickChampions = GetSelectedTexts(setting_select_xyx);
+            _config.AutoSwapAramBench = _autoSwapAramBench.Checked;
+            _config.AramBenchPriorityChampions = GetSelectedTexts(_aramBenchPriority);
 
             if (select_resolution.SelectedIndex >= 0 && select_resolution.SelectedIndex < ResolutionPresets.Length)
                 _config.Resolution = ResolutionPresets[select_resolution.SelectedIndex];
 
             try
             {
-                _settingsStore.Save(_config);
+                SaveConfigPreservingSelections();
             }
             catch (Exception ex)
             {
-                AntdUI.Message.error(Program.GameMain, $"设置保存失败：{ex.Message}");
+                LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, $"设置保存失败：{ex.Message}");
                 return;
             }
             ApplySideEffects(_config);
+            Program.GameMain?.RefreshMayhemOverlaySetting();
+            Program.GameMain?.RefreshChampSelectCompanionSetting();
             label_cache_status.Text = $"已缓存: {_settingsStore.GetStoragePath()}";
+        }
+
+        // The rune editor and OP.GG picker save through the same store while this settings
+        // page remains open. Keep their newer data when an unrelated setting is changed.
+        private void SaveConfigPreservingSelections()
+        {
+            AssistantSettings latest = _settingsStore.Load();
+            _config.PersonalRunePresets = latest.PersonalRunePresets;
+            _config.OpggManualBuildSelections = latest.OpggManualBuildSelections;
+            _settingsStore.Save(_config);
         }
 
         /// <summary>
@@ -310,6 +402,10 @@ namespace LOL_GameAssistant.BaseViewForm
             flow_pick_preview.Height = 96;
             AddSegmentRow(layout, row++, "选用预览：", flow_pick_preview);
             layout.SetColumnSpan(flow_pick_preview, 1);
+            AddSegmentRow(layout, row++, "大乱斗自动交换：", _autoSwapAramBench,
+                "仅在大乱斗选人阶段，备战席有更高优先级英雄时交换。");
+            AddSegmentRow(layout, row++, "备战席优先级：", _aramBenchPriority,
+                "按选取顺序排列优先级；先选的英雄优先。取消选择后可重新排序。");
             AddSegmentRow(layout, row++, "说明：", CreateNote("本页的对局开关和英雄列表会自动保存；自动接受延迟、预选与补位策略在“客户端工具”中设置。"));
             return panel;
         }
@@ -336,7 +432,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             var browse = new AntdUI.Button { Text = "选择安装文件夹", AutoSize = true, Dock = DockStyle.Right };
             browse.Click += (_, _) => BrowseClientExecutable();
-            var pathPanel = new Panel { Dock = DockStyle.Fill, Height = 32 };
+            var pathPanel = new AntdUI.Panel { Dock = DockStyle.Fill, Height = 32 };
             pathPanel.Controls.Add(_clientPath);
             pathPanel.Controls.Add(browse);
 
@@ -367,27 +463,29 @@ namespace LOL_GameAssistant.BaseViewForm
 
             var opacityPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             opacityPanel.Controls.Add(_opacity);
-            opacityPanel.Controls.Add(new Label { Text = "%（40–100）", AutoSize = true, Padding = new Padding(6, 6, 0, 0) });
+            opacityPanel.Controls.Add(new AntdUI.Label { Text = "%（40–100）", AutoSize = true, Padding = new Padding(6, 6, 0, 0) });
             _hotkey.KeyDown += CaptureHoldToTopHotkey;
             _hotkey.Click += (_, _) => _hotkey.Focus();
             _hotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
             _hotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
             _themeMode.Items.AddRange(new object[] { "跟随系统", "浅色", "深色" });
+            _languageMode.Items.AddRange(new object[] { "中文", "English" });
             var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后隐藏到托盘；默认是键盘左上角的 · 键。\nWindows 会接管已注册的按键；快捷键不会注入或修改游戏客户端。");
 
             AddSegmentRow(layout, 0, "界面主题：", _themeMode,
                 "界面配色：跟随系统、浅色或深色，保存后立即生效。");
-            AddSegmentRow(layout, 1, "窗口透明度：", opacityPanel,
+            AddSegmentRow(layout, 1, "界面语言：", _languageMode, "保存后立即切换中英文界面。");
+            AddSegmentRow(layout, 2, "窗口透明度：", opacityPanel,
                 "助手窗口的不透明度（40–100），数值越小越透明。");
-            AddSegmentRow(layout, 2, "按住置顶键：", _hotkey,
+            AddSegmentRow(layout, 3, "按住置顶键：", _hotkey,
                 "点击输入框后按一个键即可设定。按住该键时助手临时置顶且不抢焦点，松开后隐藏到托盘。");
-            AddSegmentRow(layout, 3, "快捷键范围：", _onlyLeagueFocused,
+            AddSegmentRow(layout, 4, "快捷键范围：", _onlyLeagueFocused,
                 "开启时只有 LOL 位于前台才响应置顶键；关闭则任何窗口下都响应。");
-            AddSegmentRow(layout, 4, "置顶说明：", holdNote);
-            AddSectionHeader(layout, 5, "窗口行为");
-            AddSegmentRow(layout, 6, "最小化到托盘：", swi_tray);
-            AddSegmentRow(layout, 7, "游戏分辨率：", select_resolution);
-            AddSaveRow(layout, 8, "保存窗口设置");
+            AddSegmentRow(layout, 5, "置顶说明：", holdNote);
+            AddSectionHeader(layout, 6, "窗口行为");
+            AddSegmentRow(layout, 7, "最小化到托盘：", swi_tray);
+            AddSegmentRow(layout, 8, "游戏分辨率：", select_resolution);
+            AddSaveRow(layout, 9, "保存窗口设置");
             return panel;
         }
 
@@ -445,7 +543,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             var providerPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             providerPanel.Controls.Add(_provider);
-            var keyPortal = new Button { Text = "获取 API Key", AutoSize = true };
+            var keyPortal = new AntdUI.Button { Text = "获取 API Key", AutoSize = true };
             keyPortal.Click += (_, _) => OpenKeyPortal();
             providerPanel.Controls.Add(keyPortal);
             _testAi.Click += async (_, _) => await TestAiConnectionAsync();
@@ -453,35 +551,35 @@ namespace LOL_GameAssistant.BaseViewForm
             _fetchModels.Click += async (_, _) => await FetchAiModelsAsync();
             providerPanel.Controls.Add(_fetchModels);
 
-            var clearApiKeyButton = new Button { Text = "清除已保存密钥", AutoSize = true, Dock = DockStyle.Right };
+            var clearApiKeyButton = new AntdUI.Button { Text = "清除已保存密钥", AutoSize = true, Dock = DockStyle.Right };
             clearApiKeyButton.Click += (_, _) =>
             {
                 _clearAiKey = true;
                 _apiKey.Clear();
                 _apiKeyStatus.Text = "将在保存后清除";
             };
-            var keyPanel = new Panel { Dock = DockStyle.Fill, Height = 32 };
+            var keyPanel = new AntdUI.Panel { Dock = DockStyle.Fill, Height = 32 };
             keyPanel.Controls.Add(_apiKey);
             keyPanel.Controls.Add(clearApiKeyButton);
 
             var refreshPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             refreshPanel.Controls.Add(_dynamicRefresh);
-            refreshPanel.Controls.Add(new Label { Text = "间隔（秒）", AutoSize = true, Padding = new Padding(10, 5, 0, 0) });
+            refreshPanel.Controls.Add(new AntdUI.Label { Text = "间隔（秒）", AutoSize = true, Padding = new Padding(10, 5, 0, 0) });
             refreshPanel.Controls.Add(_dynamicSeconds);
 
             _showPopup.Text = "生成 AI 建议后显示提醒";
             _overlayPosition.Items.AddRange(new object[] { "左下", "左上", "右下", "右上", "屏幕中央" });
             var overlayOffsetPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-            overlayOffsetPanel.Controls.Add(new Label { Text = "横向", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
+            overlayOffsetPanel.Controls.Add(new AntdUI.Label { Text = "横向", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayOffsetX);
-            overlayOffsetPanel.Controls.Add(new Label { Text = "纵向", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
+            overlayOffsetPanel.Controls.Add(new AntdUI.Label { Text = "纵向", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayOffsetY);
-            overlayOffsetPanel.Controls.Add(new Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
+            overlayOffsetPanel.Controls.Add(new AntdUI.Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayDuration);
             var overlayNote = CreateNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
             var privacyNote = CreateNote("隐私说明：启用 AI 时间线建议并主动保存后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商以生成建议；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据，也不会显示替代建议。");
             var opggNote = CreateNote("开启后，助手会在选人阶段弹出图文方案。只有选中并点击应用才会写入客户端。若符文页已满，只会替换本助手创建的旧页；没有可替换页时会提示先在客户端释放额度。替换失败会尝试恢复原页。");
-            var kdaAnnouncementNote = CreateNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者最多统计最近同队列的 20 场已结束对局，满 8 场按累计 KDA 分档；不足 8 场标“样本不足”。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
+            var kdaAnnouncementNote = CreateNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者统计最近 30 天内同模式全部有效对局，满 5 场按累计 KDA 分档；不足 5 场标“样本不足”。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
 
             AddSegmentRow(layout, 0, "AI 时间线：", _recommendationEnabled,
                 "开启后按设定间隔采集对局上下文并请求 AI 生成时间线建议；关闭则不请求，也不发送任何数据。");
@@ -521,12 +619,18 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 19, "位置与时长：", overlayOffsetPanel,
                 "横向/纵向偏移以所选角落为基准；停留秒数是浮窗自动隐藏前的显示时长。");
             AddSegmentRow(layout, 20, "浮窗说明：", overlayNote);
-            AddSaveRow(layout, 21, "保存 AI 设置");
+            AddSegmentRow(layout, 21, "符文自动配置：", _autoApplyRuneBuild,
+                "按英雄、模式和分路优先选择已启用的个人方案；没有匹配方案时自动应用 OP.GG 推荐。仅选人阶段执行一次，手动选择方案不受影响。");
+            AddSegmentRow(layout, 22, "海克斯侧边栏：", _mayhemOverlayEnabled,
+                "仅海克斯大乱斗时显示专用浮窗；可扫描本机屏幕识别正在展示的增幅卡片并比较胜率。");
+            AddSegmentRow(layout, 23, "选人伴随窗：", _champSelectCompanionEnabled,
+                "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
+            AddSaveRow(layout, 24, "保存 AI 设置");
             return panel;
         }
 
         // AntdUI.Panel 自身不提供滚动条；此处仅作为滚动内容承载容器，内部控件仍使用 AntdUI。
-        private static Panel CreateSegmentPanel() => new()
+        private static AntdUI.Panel CreateSegmentPanel() => new()
         {
             AutoScroll = true,
             Padding = new Padding(UiMetrics.SpaceMedium)
@@ -547,7 +651,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return layout;
         }
 
-        private static System.Windows.Forms.Label CreateNote(string text) => new()
+        private static AntdUI.Label CreateNote(string text) => new()
         {
             AutoSize = true,
             MaximumSize = new Size(620, 0),
@@ -589,7 +693,17 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>只给控件本身挂说明（用于内部已有自定义提示的控件，避免覆盖它的提示）。</summary>
-        private void AttachTip(Control control, string text) => _featureTip.SetToolTip(control, text);
+        private void AttachTip(Control control, string text)
+        {
+            _featureTip.SetToolTip(control, text);
+            if (_featureTipTargets.Add(control))
+                control.MouseLeave += (_, _) =>
+                {
+                    if (IsDisposed || control.IsDisposed) return;
+                    _featureTip.Hide(control);
+                    if (ReferenceEquals(_activeFeatureTipControl, control)) _activeFeatureTipControl = null;
+                };
+        }
 
         /// <summary>
         /// 给控件及其所有子控件挂同一段说明。设置了说明的控件多为容器（面板、下拉框、按钮组），
@@ -597,7 +711,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void AttachTipDeep(Control control, string text)
         {
-            _featureTip.SetToolTip(control, text);
+            AttachTip(control, text);
             foreach (Control child in control.Controls) AttachTipDeep(child, text);
         }
 
@@ -621,6 +735,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _autoLaunchClient.Checked = _config.AutoLaunchGameClient;
             _opacity.Value = _config.WindowOpacityPercent;
             _themeMode.SelectedIndex = _config.ThemeMode switch { "Light" => 1, "Dark" => 2, _ => 0 };
+            _languageMode.SelectedIndex = _config.LanguageMode == "en-US" ? 1 : 0;
             Keys holdKey = WindowHoldController.ParseKey(_config.HoldToTopHotkey);
             _hotkey.Tag = holdKey;
             _hotkey.Text = WindowHoldController.DescribeKey(holdKey);
@@ -630,13 +745,16 @@ namespace LOL_GameAssistant.BaseViewForm
             CloudAiSettings ai = _config.Ai;
             _recommendationEnabled.Checked = ai.RecommendationEnabled;
             _opggBuildAssistantEnabled.Checked = _config.OpggBuildAssistantEnabled;
+            _autoApplyRuneBuild.Checked = _config.AutoApplyRuneBuild;
+            _mayhemOverlayEnabled.Checked = _config.MayhemOverlayEnabled;
+            _champSelectCompanionEnabled.Checked = _config.ChampSelectCompanionEnabled;
             _champSelectKdaAnnouncementEnabled.Checked = _config.ChampSelectKdaAnnouncementEnabled;
             _gameKdaAnnouncementEnabled.Checked = _config.GameKdaAnnouncementEnabled;
             _gameKdaOnePlayerPerLine.Checked = _config.GameKdaOnePlayerPerLine;
             _gameKdaOnePlayerPerLine.Enabled = _config.GameKdaAnnouncementEnabled;
             _champSelectKdaAnnouncementTemplate.Text = _config.ChampSelectKdaAnnouncementTemplate;
-            _provider.SelectedItem = ai.Provider;
-            if (_provider.SelectedIndex < 0) _provider.SelectedItem = LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
+            _provider.SelectedValue = ai.Provider;
+            if (_provider.SelectedIndex < 0) _provider.SelectedValue = LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
             _model.Text = ai.Model;
             _baseUrl.Text = ai.GetBaseUrl();
             _dynamicRefresh.Checked = ai.DynamicRefreshEnabled;
@@ -658,24 +776,28 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.AutoLaunchGameClient = _autoLaunchClient.Checked;
             _config.WindowOpacityPercent = (int)_opacity.Value;
             _config.ThemeMode = _themeMode.SelectedIndex switch { 1 => "Light", 2 => "Dark", _ => "System" };
+            _config.LanguageMode = _languageMode.SelectedIndex == 1 ? "en-US" : "zh-CN";
             _config.HoldToTopHotkey = (_hotkey.Tag is Keys holdKey ? holdKey : WindowHoldController.ParseKey(_config.HoldToTopHotkey)).ToString();
             _config.HoldToTopOnlyWhenLeagueFocused = _onlyLeagueFocused.Checked;
 
             CloudAiSettings ai = _config.Ai;
             ai.RecommendationEnabled = _recommendationEnabled.Checked;
             _config.OpggBuildAssistantEnabled = _opggBuildAssistantEnabled.Checked;
+            _config.AutoApplyRuneBuild = _autoApplyRuneBuild.Checked;
+            _config.MayhemOverlayEnabled = _mayhemOverlayEnabled.Checked;
+            _config.ChampSelectCompanionEnabled = _champSelectCompanionEnabled.Checked;
             _config.ChampSelectKdaAnnouncementEnabled = _champSelectKdaAnnouncementEnabled.Checked;
             _config.GameKdaAnnouncementEnabled = _gameKdaAnnouncementEnabled.Checked;
             _config.GameKdaOnePlayerPerLine = _gameKdaOnePlayerPerLine.Checked;
             _config.ChampSelectKdaAnnouncementTemplate = _champSelectKdaAnnouncementTemplate.Text;
-            ai.Provider = _provider.SelectedItem is LOL_GameAssistant.Domain.Settings.AiProvider provider
+            ai.Provider = _provider.SelectedValue is LOL_GameAssistant.Domain.Settings.AiProvider provider
                 ? provider
                 : LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
             ai.Model = _model.Text.Trim();
             ai.BaseUrl = _baseUrl.Text.Trim().TrimEnd('/');
             if (!ai.TryGetSafeBaseUri(out Uri? aiUri, out string addressError))
             {
-                AntdUI.Message.error(Program.GameMain, addressError);
+                LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, addressError);
                 return;
             }
             ai.DynamicRefreshEnabled = _dynamicRefresh.Checked;
@@ -692,11 +814,11 @@ namespace LOL_GameAssistant.BaseViewForm
 
             try
             {
-                _settingsStore.Save(_config);
+                SaveConfigPreservingSelections();
             }
             catch (Exception ex)
             {
-                AntdUI.Message.error(Program.GameMain, $"设置保存失败：{ex.Message}");
+                LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, $"设置保存失败：{ex.Message}");
                 return;
             }
             ApplySideEffects(_config);
@@ -704,7 +826,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _apiKey.Clear();
             _clearAiKey = false;
             _apiKeyStatus.Text = string.IsNullOrWhiteSpace(ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
-            AntdUI.Message.success(Program.GameMain,
+            LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain,
                 aiUri!.Scheme == Uri.UriSchemeHttp
                     ? "设置已保存。本机 HTTP 连接未加密，请只连接可信服务。"
                     : "设置已保存");
@@ -754,9 +876,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 _settingsStore.Save(latest);
             }
 
-            if (result.IsReady) AntdUI.Message.success(Program.GameMain, result.Message);
-            else if (result.Started) AntdUI.Message.info(Program.GameMain, result.Message);
-            else AntdUI.Message.error(Program.GameMain, result.Message);
+            if (result.IsReady) LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain, result.Message);
+            else if (result.Started) LOL_GameAssistant.Helper.UiMessage.info(Program.GameMain, result.Message);
+            else LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, result.Message);
         }
 
         private void CaptureHoldToTopHotkey(object? sender, KeyEventArgs e)
@@ -788,7 +910,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void ApplyProviderDefaults()
         {
-            if (_isLoading || _provider.SelectedItem is not LOL_GameAssistant.Domain.Settings.AiProvider provider) return;
+            if (_isLoading || _provider.SelectedValue is not LOL_GameAssistant.Domain.Settings.AiProvider provider) return;
             _baseUrl.Text = new CloudAiSettings { Provider = provider }.GetBaseUrl();
             // 下拉里的模型是上一个服务商读回来的，换服务商后不再适用；
             // 已填的模型名保留，用户按“获取可用模型”重新读一次即可。
@@ -874,7 +996,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>按界面上当前填写的值组装一份设置，供“测试连接”和“获取可用模型”共用。</summary>
         private CloudAiSettings BuildAiSettingsFromUi() => new()
         {
-            Provider = _provider.SelectedItem is LOL_GameAssistant.Domain.Settings.AiProvider provider
+            Provider = _provider.SelectedValue is LOL_GameAssistant.Domain.Settings.AiProvider provider
                 ? provider
                 : LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI,
             Model = _model.Text.Trim(),
@@ -889,7 +1011,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void OpenKeyPortal()
         {
-            if (_provider.SelectedItem is not LOL_GameAssistant.Domain.Settings.AiProvider provider) return;
+            if (_provider.SelectedValue is not LOL_GameAssistant.Domain.Settings.AiProvider provider) return;
             string url = new CloudAiSettings { Provider = provider }.GetKeyPortalUrl();
             if (string.IsNullOrWhiteSpace(url))
             {
@@ -917,14 +1039,14 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 _config.GameClientPath = resolvedDirectory;
                 _clientPath.Text = _config.GameClientPath;
-                _settingsStore.Save(_config);
+                SaveConfigPreservingSelections();
             }
 
             Program.GameMain.infoMsg.AddMsg(result.Message);
             if (showMessage)
             {
-                if (result.Started) AntdUI.Message.success(Program.GameMain, result.Message);
-                else AntdUI.Message.error(Program.GameMain, result.Message);
+                if (result.Started) LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain, result.Message);
+                else LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, result.Message);
             }
         }
 
@@ -1171,6 +1293,7 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 this.setting_select_jyx.Items.Add(champion.DisplayName);
                 this.setting_select_xyx.Items.Add(champion.DisplayName);
+                _aramBenchPriority.Items.Add(champion.DisplayName);
             }
             RestoreSelectedChampions();
         }
@@ -1186,6 +1309,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             SetSelectedTexts(setting_select_jyx, _config.BanChampions);
             SetSelectedTexts(setting_select_xyx, _config.PickChampions);
+            SetSelectedTexts(_aramBenchPriority, _config.AramBenchPriorityChampions);
         }
     }
 }

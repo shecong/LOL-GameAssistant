@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant.BaseViewForm
+namespace LOL_GameAssistant.BaseViewForm
 {
     partial class MatchDetailForm
     {
@@ -21,20 +21,20 @@
 
         private void InitializeComponent()
         {
-            lblTitle = new Label();
-            btnClose = new Button();
+            lblTitle = new AntdUI.Label();
+            btnClose = new AntdUI.Button();
             playersGrid = new TableLayoutPanel();
-            allyPanel = new Panel();
-            lblAllyHeader = new Label();
+            allyPanel = new AntdUI.Panel();
+            lblAllyHeader = new AntdUI.Label();
             flowAlly = new FlowLayoutPanel();
-            enemyPanel = new Panel();
-            lblEnemyHeader = new Label();
+            enemyPanel = new AntdUI.Panel();
+            lblEnemyHeader = new AntdUI.Label();
             flowEnemy = new FlowLayoutPanel();
-            bottomPanel = new Panel();
-            lblItems = new Label();
-            lblStats = new Label();
-            lblKda = new Label();
-            lblChampion = new Label();
+            bottomPanel = new AntdUI.Panel();
+            lblItems = new AntdUI.Label();
+            lblStats = new AntdUI.Label();
+            lblKda = new AntdUI.Label();
+            lblChampion = new AntdUI.Label();
             playersGrid.SuspendLayout();
             allyPanel.SuspendLayout();
             enemyPanel.SuspendLayout();
@@ -182,19 +182,19 @@
             ResumeLayout(false);
         }
 
-        private Label lblTitle;
-        private Button btnClose;
+        private AntdUI.Label lblTitle;
+        private AntdUI.Button btnClose;
         private TableLayoutPanel playersGrid;
-        private Panel allyPanel;
-        private Label lblAllyHeader;
+        private AntdUI.Panel allyPanel;
+        private AntdUI.Label lblAllyHeader;
         private FlowLayoutPanel flowAlly;
-        private Panel enemyPanel;
-        private Label lblEnemyHeader;
+        private AntdUI.Panel enemyPanel;
+        private AntdUI.Label lblEnemyHeader;
         private FlowLayoutPanel flowEnemy;
-        private Panel bottomPanel;
-        private Label lblItems;
-        private Label lblStats;
-        private Label lblKda;
-        private Label lblChampion;
+        private AntdUI.Panel bottomPanel;
+        private AntdUI.Label lblItems;
+        private AntdUI.Label lblStats;
+        private AntdUI.Label lblKda;
+        private AntdUI.Label lblChampion;
     }
 }

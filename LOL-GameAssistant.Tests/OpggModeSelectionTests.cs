@@ -12,6 +12,7 @@ public sealed class OpggModeSelectionTests
     [InlineData("KIWI_JADE", 0, "aram_mayhem")]
     [InlineData("KIWI", 450, "aram_mayhem")]
     [InlineData("ARAM", 2400, "aram_mayhem")]
+    [InlineData("", 3270, "aram_mayhem")]
     [InlineData("ARAM", 420, "ranked")]
     [InlineData("CHERRY", 1700, "arena")]
     [InlineData("URF", 900, "urf")]

@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant.BaseViewForm
+namespace LOL_GameAssistant.BaseViewForm
 {
     partial class BattleQueryForm
     {
@@ -24,7 +24,7 @@
             btnExport = new AntdUI.Button();
             btnViewRecord = new AntdUI.Button();
             btnViewStats = new AntdUI.Button();
-            lblPageSize = new Label();
+            lblPageSize = new AntdUI.Label();
             cboPageSize = new ComboBox();
             panelPlayer = new Panel();
             avatarPlayer = new AntdUI.Avatar();
@@ -365,7 +365,7 @@
         private AntdUI.Button btnExport;
         private AntdUI.Button btnViewRecord;
         private AntdUI.Button btnViewStats;
-        private Label lblPageSize;
+        private AntdUI.Label lblPageSize;
         private ComboBox cboPageSize;
         private Panel panelPlayer;
         private AntdUI.Avatar avatarPlayer;

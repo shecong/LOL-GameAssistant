@@ -12,6 +12,7 @@ internal static class LegacySettingsMapper
         var settings = new AssistantSettings
         {
             ThemeMode = source.ThemeMode,
+            LanguageMode = source.LanguageMode,
             AutoLaunchGameClient = source.AutoLaunchGameClient,
             GameClientPath = source.GameClientPath,
             WindowOpacityPercent = source.WindowOpacityPercent,
@@ -40,6 +41,8 @@ internal static class LegacySettingsMapper
             AutoBan = source.AutoBan,
             AutoPick = source.AutoPick,
             AutoPickPreselectOnly = source.AutoPickPreselectOnly,
+            AutoSwapAramBench = source.AutoSwapAramBench,
+            AramBenchPriorityChampions = source.AramBenchPriorityChampions.ToList(),
             SkipAutoPickOnFill = source.SkipAutoPickOnFill,
             BanChampions = source.BanChampions.ToList(),
             PickChampions = source.PickChampions.ToList(),
@@ -54,6 +57,10 @@ internal static class LegacySettingsMapper
             AutoHonor = source.AutoHonor,
             QuickLobbyQueueId = source.QuickLobbyQueueId,
             OpggManualBuildSelections = new Dictionary<string, int>(source.OpggManualBuildSelections),
+            PersonalRunePresets = source.PersonalRunePresets.ToList(),
+            AutoApplyRuneBuild = source.AutoApplyRuneBuild,
+            MayhemOverlayEnabled = source.MayhemOverlayEnabled,
+            ChampSelectCompanionEnabled = source.ChampSelectCompanionEnabled,
             LaunchOnStartup = source.LaunchOnStartup,
             Ai = ToDomain(source.Ai)
         };
@@ -67,6 +74,7 @@ internal static class LegacySettingsMapper
         var settings = new SettingConfig
         {
             ThemeMode = source.ThemeMode,
+            LanguageMode = source.LanguageMode,
             AutoLaunchGameClient = source.AutoLaunchGameClient,
             GameClientPath = source.GameClientPath,
             WindowOpacityPercent = source.WindowOpacityPercent,
@@ -95,6 +103,8 @@ internal static class LegacySettingsMapper
             AutoBan = source.AutoBan,
             AutoPick = source.AutoPick,
             AutoPickPreselectOnly = source.AutoPickPreselectOnly,
+            AutoSwapAramBench = source.AutoSwapAramBench,
+            AramBenchPriorityChampions = source.AramBenchPriorityChampions.ToList(),
             SkipAutoPickOnFill = source.SkipAutoPickOnFill,
             BanChampions = source.BanChampions.ToList(),
             PickChampions = source.PickChampions.ToList(),
@@ -109,6 +119,10 @@ internal static class LegacySettingsMapper
             AutoHonor = source.AutoHonor,
             QuickLobbyQueueId = source.QuickLobbyQueueId,
             OpggManualBuildSelections = new Dictionary<string, int>(source.OpggManualBuildSelections),
+            PersonalRunePresets = source.PersonalRunePresets.ToList(),
+            AutoApplyRuneBuild = source.AutoApplyRuneBuild,
+            MayhemOverlayEnabled = source.MayhemOverlayEnabled,
+            ChampSelectCompanionEnabled = source.ChampSelectCompanionEnabled,
             LaunchOnStartup = source.LaunchOnStartup,
             Ai = ToLegacy(source.Ai)
         };

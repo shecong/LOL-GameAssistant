@@ -17,7 +17,9 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly IProfileIconService _profileIcons;
     private readonly List<AntdUI.Panel> _cards = [];
-    private readonly ToolTip _featureTip = new() { AutoPopDelay = 16000, InitialDelay = 320, ReshowDelay = 120, ShowAlways = true };
+    private readonly ToolTip _featureTip = new() { AutoPopDelay = 16000, InitialDelay = 320, ReshowDelay = 120, ShowAlways = false };
+    private readonly HashSet<Control> _tipTargets = [];
+    private Control? _activeTipControl;
     private readonly AntdUI.Switch _autoAccept = new();
     private readonly AntdUI.InputNumber _acceptMin = Number(0, 15000);
     private readonly AntdUI.InputNumber _acceptMax = Number(0, 15000);
@@ -75,13 +77,16 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         _settingsStore = settingsStore;
         _profileIcons = profileIcons;
         Dock = DockStyle.Fill;
+        _featureTip.Popup += (_, e) => _activeTipControl = e.AssociatedControl;
+        VisibleChanged += (_, _) => { if (!Visible) HideTip(); };
+        MouseLeave += (_, _) => HideTip();
 
         AddSelectItems(_availability, "在线", "离开", "请勿打扰", "离线", "手机在线");
         _availability.SelectedIndex = 0;
         AddSelectItems(_insightMode, "峡谷 / 排位", "极地大乱斗", "斗魂竞技场", "无限火力", "极限闪击");
         _insightMode.SelectedIndex = 0;
 
-        var viewport = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0, 0, 8, 0) };
+        var viewport = new AntdUI.Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0, 0, 8, 0), Radius = 0 };
         var content = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -128,6 +133,9 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         }
         _friendRows.BackColor = palette.SurfaceMuted;
         _friendRows.ForeColor = palette.TextPrimary;
+        foreach (Control row in _friendRows.Controls)
+            if (row.Tag is string gameStatus)
+                ApplyFriendStatusColor(row, gameStatus, palette);
         _insightRows.BackColor = palette.SurfaceMuted;
         _insightRows.ForeColor = palette.TextPrimary;
     }
@@ -517,7 +525,24 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         }
     }
 
-    private void Tip(Control control, string text) => _featureTip.SetToolTip(control, text.Trim());
+    private void Tip(Control control, string text)
+    {
+        _featureTip.SetToolTip(control, text.Trim());
+        if (_tipTargets.Add(control))
+            control.MouseLeave += (_, _) =>
+            {
+                if (IsDisposed || control.IsDisposed) return;
+                _featureTip.Hide(control);
+                if (ReferenceEquals(_activeTipControl, control)) _activeTipControl = null;
+            };
+    }
+
+    private void HideTip()
+    {
+        if (_activeTipControl is { IsDisposed: false } control)
+            _featureTip.Hide(control);
+        _activeTipControl = null;
+    }
 
     private static IEnumerable<Control> EnumerateControls(Control root)
     {
@@ -559,9 +584,8 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             foreach (FriendActivity friend in entries.OrderByDescending(item => item.StartedAt))
             {
                 string elapsed = friend.Elapsed is { } value && value >= TimeSpan.Zero ? $"{(int)value.TotalHours:00}:{value.Minutes:00}:{value.Seconds:00}" : "-";
-                var row = new AntdUI.Label { Dock = DockStyle.Top, Height = 28, Padding = new Padding(8, 5, 8, 0), Text = $"{friend.DisplayName}  ·  {ToChineseAvailability(friend.Availability)}  ·  {ToChineseGameStatus(friend.GameStatus)}  ·  {ToChineseQueue(friend.QueueId, friend.QueueName)}  ·  {elapsed}" };
-                if (friend.GameStatus.Contains("inProgress", StringComparison.OrdinalIgnoreCase)) row.BackColor = Color.FromArgb(222, 241, 230);
-                else if (friend.GameStatus.Contains("champ", StringComparison.OrdinalIgnoreCase)) row.BackColor = Color.FromArgb(255, 242, 204);
+                var row = new AntdUI.Label { Dock = DockStyle.Top, Height = 28, Padding = new Padding(8, 5, 8, 0), Text = $"{friend.DisplayName}  ·  {ToChineseAvailability(friend.Availability)}  ·  {ToChineseGameStatus(friend.GameStatus)}  ·  {ToChineseQueue(friend.QueueId, friend.QueueName)}  ·  {elapsed}", Tag = friend.GameStatus };
+                ApplyFriendStatusColor(row, friend.GameStatus, UiTheme.Palette);
                 _friendRows.Controls.Add(row);
             }
             if (entries.Count == 0) AddEmptyRow(_friendRows, "当前没有可展示的好友活动。");
@@ -569,6 +593,16 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         }
         catch (Exception ex) { SetStatus($"刷新好友活动失败：{ex.Message}", false); }
         finally { _friendRows.ResumeLayout(); }
+    }
+
+    private static void ApplyFriendStatusColor(Control row, string gameStatus, ThemePalette palette)
+    {
+        row.BackColor = gameStatus.Contains("inProgress", StringComparison.OrdinalIgnoreCase)
+            ? palette.IsDark ? Color.FromArgb(38, 75, 58) : Color.FromArgb(222, 241, 230)
+            : gameStatus.Contains("champ", StringComparison.OrdinalIgnoreCase)
+                ? palette.IsDark ? Color.FromArgb(82, 67, 35) : Color.FromArgb(255, 242, 204)
+                : palette.SurfaceMuted;
+        row.ForeColor = palette.TextPrimary;
     }
 
     private async Task RefreshBackupsAsync()

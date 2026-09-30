@@ -22,6 +22,8 @@ namespace LOL_GameAssistant
         public readonly LiveGameForm liveGameForm = new LiveGameForm();
         public readonly BattleQueryForm battleQueryForm = new BattleQueryForm();
         public readonly CoachForm coachForm = new CoachForm();
+        private readonly MayhemOverlayForm _mayhemOverlay = new();
+        private readonly ChampSelectCompanionForm _champSelectCompanion = new();
         public readonly DiagnosticsForm diagnosticsForm = new DiagnosticsForm();
 
         // SettingForm may load while controls are attached; its side effects need these pages.
@@ -36,11 +38,15 @@ namespace LOL_GameAssistant
         private readonly IRecommendationCoordinator _recommendationCoordinator;
         private CancellationTokenSource? _lcuRetryCts;
         private NotifyIcon? _trayIcon;
+        private ContextMenuStrip? _trayMenu;
         private Image? _headerIconImage;
         private CancellationTokenSource? _autoActionCts;
         private bool _autoActionStartedForChampSelect;
         private CancellationTokenSource? _autoAcceptCts;
         private CancellationTokenSource? _opggPromptCts;
+        private DateTimeOffset _lastAramBenchPoll;
+        private DateTimeOffset _lastAramBenchSwapAttempt;
+        private string _lastAramBenchSwapKey = "";
         private CancellationTokenSource? _phaseDataLoadCts;
         private GameFlowPhase? _lastNotifiedEndPhase;
         private bool _readyCheckDeclinedByUser;
@@ -158,6 +164,7 @@ namespace LOL_GameAssistant
             _windowHoldController = new WindowHoldController(this);
             _quickMessageController = new QuickMessageSenderController(this);
             UiTheme.Changed += UiThemeChanged;
+            UiLanguage.Changed += UiLanguageChanged;
             _eventStream.EventReceived += LeagueClientEventReceived;
             _eventStream.ErrorOccurred += WebSocketError;
             _eventStream.ConnectionChanged += WebSocketChange;
@@ -170,6 +177,8 @@ namespace LOL_GameAssistant
             _windowHoldController.Apply(config);
             ConfigureQuickShoutHotkeys(config);
             UiTheme.SetMode(config.ThemeMode);
+            UiLanguage.SetMode(config.LanguageMode);
+            settingForm.ApplyLanguage();
             ApplyTheme();
         }
 
@@ -178,6 +187,16 @@ namespace LOL_GameAssistant
             if (IsDisposed || !IsHandleCreated) return;
             if (InvokeRequired) BeginInvoke(ApplyTheme);
             else ApplyTheme();
+        }
+
+        private void UiLanguageChanged(object? sender, EventArgs e)
+        {
+            if (_trayIcon != null) _trayIcon.Text = UiLanguage.T("LOL GameAssistant 运行中");
+            if (_trayMenu is { Items.Count: >= 3 })
+            {
+                _trayMenu.Items[0].Text = UiLanguage.T("显示窗口");
+                _trayMenu.Items[2].Text = UiLanguage.T("退出");
+            }
         }
 
         /// <summary>Reapply the semantic palette to all pages already attached to the main window.</summary>
@@ -239,6 +258,7 @@ namespace LOL_GameAssistant
             TryAutoLaunchLeagueClient(startupSettings);
             //初始化模块
             LoadAllForm();
+            UiLanguage.Refresh();
             liveGameForm.ConfigureAutoRefresh(startupSettings.AutoRefresh,
                 Math.Max(10, startupSettings.AutoRefreshIntervalSeconds));
             ApplyTheme();
@@ -325,6 +345,8 @@ namespace LOL_GameAssistant
 
                 // 先写回全局阶段，否则 AddView 读到的是默认值，会什么都不做
                 ApplyGameFlowPhase(phase);
+                RefreshMayhemOverlaySetting();
+                RefreshChampSelectCompanionSetting();
                 _recommendationCoordinator.NotifyGamePhaseChanged(phase);
 
                 if (Enum.TryParse(phase, true, out GameFlowPhase parsed) &&
@@ -357,6 +379,7 @@ namespace LOL_GameAssistant
             ConnectWebSocket();
             //加载首页
             tab0_grid1.Controls.Clear();
+            home.Dock = DockStyle.Fill;
             tab0_grid1.Controls.Add(home);
 
             //加载好友
@@ -408,7 +431,7 @@ namespace LOL_GameAssistant
             _settingsStore.Save(settings);
             UiTheme.SetMode(settings.ThemeMode);
             ApplyTheme();
-            AntdUI.Message.success(this, settings.ThemeMode == "Dark" ? "已切换为深色主题" : "已切换为浅色主题");
+            LOL_GameAssistant.Helper.UiMessage.success(this, settings.ThemeMode == "Dark" ? "已切换为深色主题" : "已切换为浅色主题");
         }
 
         /// <summary>
@@ -666,6 +689,8 @@ namespace LOL_GameAssistant
                 this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
             }
             _recommendationCoordinator.NotifyGamePhaseChanged(statustype);
+            RefreshMayhemOverlaySetting();
+            RefreshChampSelectCompanionSetting();
             if (!string.Equals(phase, "champselect", StringComparison.OrdinalIgnoreCase))
             {
                 _autoActionCts?.Cancel();
@@ -717,7 +742,7 @@ namespace LOL_GameAssistant
                 case "endofgame":
                     StopPhaseDataLoad();
                     //结束对局：通知 + 刷新战绩
-                    // 该局已经结束，释放对局页的开黑检测结果；下一局必须重新检测。
+                    // 该局已经结束，清除对局页阵容和房间标识；下一局重新读取会话。
                     liveGameForm.ResetRosterCache();
                     await NotifyGameEndedAsync();
                     TriggerPostGameAutomations();
@@ -979,6 +1004,8 @@ namespace LOL_GameAssistant
         {
             StopOpggChampSelectMonitor();
             coachForm.ResetOpggChampSelectPrompt();
+            _lastAramBenchPoll = DateTimeOffset.MinValue;
+            _lastAramBenchSwapKey = "";
             _opggPromptCts = new CancellationTokenSource();
             _ = MonitorOpggChampSelectAsync(_opggPromptCts.Token);
             RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测中", "已进入选人阶段，开始检测已选英雄");
@@ -1000,8 +1027,15 @@ namespace LOL_GameAssistant
                 // 再也不提示 OP.GG，而界面上没有任何反馈。
                 try
                 {
-                    if (_settingsStore.Load().OpggBuildAssistantEnabled)
+                    AssistantSettings buildSettings = _settingsStore.Load();
+                    if (buildSettings.OpggBuildAssistantEnabled || buildSettings.AutoApplyRuneBuild)
                         await coachForm.PromptOpggBuildIfNeededAsync(cancellationToken);
+                    if (buildSettings.AutoSwapAramBench &&
+                        DateTimeOffset.UtcNow - _lastAramBenchPoll >= TimeSpan.FromSeconds(1))
+                    {
+                        _lastAramBenchPoll = DateTimeOffset.UtcNow;
+                        await TryAutoSwapAramBenchAsync(buildSettings, cancellationToken);
+                    }
 
                     await Task.Delay(TimeSpan.FromMilliseconds(550), cancellationToken);
                 }
@@ -1025,6 +1059,35 @@ namespace LOL_GameAssistant
             }
         }
 
+        private async Task TryAutoSwapAramBenchAsync(AssistantSettings settings, CancellationToken cancellationToken)
+        {
+            int[] priority = ResolveChampionIds(settings.AramBenchPriorityChampions).Distinct().ToArray();
+            if (priority.Length == 0) return;
+            LobbySnapshot? lobby = await _lobbyService.GetLobbyAsync(cancellationToken);
+            ActiveGameSnapshot? game = lobby == null || (lobby.QueueId == 0 && string.IsNullOrWhiteSpace(lobby.GameMode))
+                ? await _lobbyService.GetCurrentSessionAsync(cancellationToken) : null;
+            string mode = lobby?.GameMode ?? game?.GameMode ?? "";
+            int queueId = lobby?.QueueId ?? game?.QueueId ?? 0;
+            if (queueId is not (450 or 2400 or 3270) &&
+                !string.Equals(mode, "ARAM", StringComparison.OrdinalIgnoreCase) &&
+                !mode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase)) return;
+            ChampionSelectionSnapshot? selection = await _championSelectService.GetSessionAsync(cancellationToken);
+            if (selection == null || selection.BenchChampionIds.Count == 0) return;
+            int current = selection.MyTeam.FirstOrDefault(member =>
+                member.CellId == selection.LocalPlayerCellId)?.ChampionId ?? 0;
+            if (current <= 0) return;
+            int? target = AramBenchPriorityResolver.Choose(current, selection.BenchChampionIds, priority);
+            if (!target.HasValue) return;
+            string attemptKey = $"{current}:{target.Value}";
+            if (attemptKey == _lastAramBenchSwapKey &&
+                DateTimeOffset.UtcNow - _lastAramBenchSwapAttempt < TimeSpan.FromSeconds(3)) return;
+            _lastAramBenchSwapKey = attemptKey;
+            _lastAramBenchSwapAttempt = DateTimeOffset.UtcNow;
+            ClientFeatureResult result = await _clientFeatureService.SwapAramBenchAsync(target.Value, cancellationToken);
+            if (result.Succeeded) AddInfoMessage($"大乱斗优先英雄：已从 {current} 交换为 {target.Value}");
+            else RuntimeDiagnostics.Report("大乱斗自动交换", "失败", result.Message);
+        }
+
         /// <summary>
         /// 对局结束提醒（托盘气泡 + 日志）。
         /// </summary>
@@ -1043,7 +1106,7 @@ namespace LOL_GameAssistant
                     // 气泡提示要求托盘图标可见；提示显示期间先保持图标，
                     // 6 秒后再交回"窗口隐藏才显示图标"的规则，避免把最后的入口关掉。
                     _trayIcon.Visible = true;
-                    _trayIcon.ShowBalloonTip(5000, "LOL GameAssistant", "对局已结束，可查看战绩详情。", ToolTipIcon.Info);
+                    _trayIcon.ShowBalloonTip(5000, "LOL GameAssistant", UiLanguage.T("对局已结束，可查看战绩详情。"), ToolTipIcon.Info);
                     _ = Task.Delay(6000).ContinueWith(_ => RunOnUiThread(UpdateTrayVisibility));
                 }
             }
@@ -1058,15 +1121,16 @@ namespace LOL_GameAssistant
         {
             _trayIcon = new NotifyIcon
             {
-                Text = "LOL GameAssistant 运行中",
+                Text = UiLanguage.T("LOL GameAssistant 运行中"),
                 Icon = AppIcon.Shared,
                 Visible = false
             };
 
             var menu = new ContextMenuStrip();
-            menu.Items.Add("显示窗口", null, (_, _) => ShowWindow());
+            _trayMenu = menu;
+            menu.Items.Add(UiLanguage.T("显示窗口"), null, (_, _) => ShowWindow());
             menu.Items.Add("-");
-            menu.Items.Add("退出", null, (_, _) => ExitApp());
+            menu.Items.Add(UiLanguage.T("退出"), null, (_, _) => ExitApp());
             _trayIcon.ContextMenuStrip = menu;
             // 单击也要能唤回窗口：只挂双击时，习惯单击托盘图标的人会以为程序打不开了。
             _trayIcon.MouseClick += (_, e) =>
@@ -1124,10 +1188,19 @@ namespace LOL_GameAssistant
         /// </summary>
         private void ExitApp()
         {
-            if (_trayIcon != null)
+            NotifyIcon? trayIcon = _trayIcon;
+            _trayIcon = null;
+            try
             {
-                _trayIcon.Visible = false;
-                _trayIcon.Dispose();
+                if (trayIcon != null)
+                {
+                    trayIcon.Visible = false;
+                    trayIcon.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.WriteException(ex);
             }
             System.Windows.Forms.Application.Exit();
         }
@@ -1149,19 +1222,56 @@ namespace LOL_GameAssistant
             }
             else
             {
-                _autoActionCts?.Cancel();
-                CancelAutoAccept();
-                StopOpggChampSelectMonitor();
-                StopPhaseDataLoad();
-                _lcuRetryCts?.Cancel();
-                _trayIcon?.Dispose();
-                _headerIconImage?.Dispose();
-                _eventStream.Dispose();
-                _windowHoldController.Dispose();
-                _quickMessageController.Dispose();
-                UiTheme.Changed -= UiThemeChanged;
-                _recommendationCoordinator.Dispose();
+                // 退出时仍要释放其余资源，不能让单个清理异常中断整个关闭流程。
+                static void Cleanup(Action action)
+                {
+                    try { action(); }
+                    catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
+                }
+
+                Cleanup(() => _autoActionCts?.Cancel());
+                Cleanup(CancelAutoAccept);
+                Cleanup(StopOpggChampSelectMonitor);
+                Cleanup(() => _mayhemOverlay.Dispose());
+                Cleanup(() => _champSelectCompanion.Dispose());
+                Cleanup(StopPhaseDataLoad);
+                Cleanup(() => _lcuRetryCts?.Cancel());
+                NotifyIcon? trayIcon = _trayIcon;
+                _trayIcon = null;
+                Cleanup(() => trayIcon?.Dispose());
+                Cleanup(() => _headerIconImage?.Dispose());
+                Cleanup(() => UiTheme.Changed -= UiThemeChanged);
+                Cleanup(() => UiLanguage.Changed -= UiLanguageChanged);
+                Cleanup(() =>
+                {
+                    _eventStream.EventReceived -= LeagueClientEventReceived;
+                    _eventStream.ErrorOccurred -= WebSocketError;
+                    _eventStream.ConnectionChanged -= WebSocketChange;
+                    _eventStream.Reconnecting -= WebSocketReconnecting;
+                });
+                Cleanup(() => _eventStream.Dispose());
+                Cleanup(() => _windowHoldController.Dispose());
+                Cleanup(() => _quickMessageController.Dispose());
+                Cleanup(() => _recommendationCoordinator.Dispose());
             }
+        }
+
+        public void RefreshMayhemOverlaySetting()
+        {
+            if (IsDisposed || _mayhemOverlay.IsDisposed) return;
+            if (gameFlowPhase == GameFlowPhase.InProgress && _settingsStore.Load().MayhemOverlayEnabled)
+                _mayhemOverlay.StartTracking();
+            else
+                _mayhemOverlay.StopTracking();
+        }
+
+        public void RefreshChampSelectCompanionSetting()
+        {
+            if (IsDisposed || _champSelectCompanion.IsDisposed) return;
+            if (gameFlowPhase == GameFlowPhase.ChampSelect && _settingsStore.Load().ChampSelectCompanionEnabled)
+                _champSelectCompanion.StartTracking();
+            else
+                _champSelectCompanion.StopTracking();
         }
 
         /// <summary>

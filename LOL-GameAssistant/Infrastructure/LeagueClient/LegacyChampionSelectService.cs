@@ -16,6 +16,8 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
         return legacy == null ? null : new ChampionSelectionSnapshot
         {
             LocalPlayerCellId = legacy.LocalPlayerCellId,
+            BenchChampionIds = (legacy.BenchChampions ?? new List<BenchChampion>())
+                .Select(champion => champion.ChampionId).Where(id => id > 0).Distinct().ToArray(),
             Actions = (legacy.Actions ?? new List<List<ChampSelectAction>>())
                 .Select(round => (IReadOnlyList<ChampionSelectionAction>)(round ?? new List<ChampSelectAction>())
                     .Select(action => new ChampionSelectionAction

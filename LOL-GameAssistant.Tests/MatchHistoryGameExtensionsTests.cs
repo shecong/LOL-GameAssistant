@@ -83,8 +83,19 @@ public sealed class MatchHistoryGameExtensionsTests
             new MatchHistoryGame { GameMode = "KIWI", QueueId = 0 }));
         Assert.True(MatchModeComparer.IsSameMode(0, "KIWI",
             new MatchHistoryGame { GameMode = "", QueueId = 2400 }));
+        Assert.True(MatchModeComparer.IsSameMode(3270, "",
+            new MatchHistoryGame { GameMode = "", QueueId = 2400 }));
         Assert.False(MatchModeComparer.IsSameMode(2400, "KIWI",
             new MatchHistoryGame { GameMode = "ARAM", QueueId = 450 }));
+    }
+
+    [Fact]
+    public void AramMode_MatchesHistoryByModeWhenSummaryQueueIsMissing()
+    {
+        Assert.True(MatchModeComparer.IsSameMode(450, "ARAM",
+            new MatchHistoryGame { GameMode = "ARAM", QueueId = 0 }));
+        Assert.False(MatchModeComparer.IsSameMode(450, "ARAM",
+            new MatchHistoryGame { GameMode = "CLASSIC", QueueId = 0 }));
     }
 
     [Fact]

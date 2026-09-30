@@ -52,6 +52,7 @@ public sealed class MatchDetailsMappingTests
         Assert.True(detail.IsAugmentAram());
         Assert.Equal("海克斯大乱斗", detail.GetModeText());
         Assert.Equal("海克斯大乱斗", new MatchHistoryGame { QueueId = 2400 }.GetModeText());
+        Assert.Equal("海克斯大乱斗", new MatchHistoryGame { QueueId = 3270 }.GetModeText());
     }
 
     [Fact]

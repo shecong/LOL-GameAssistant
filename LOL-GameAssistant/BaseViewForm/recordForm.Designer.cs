@@ -48,9 +48,9 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_5 = new PictureBox();
             pic_6 = new PictureBox();
             pic_7 = new PictureBox();
-            lblAlly = new Label();
+            lblAlly = new AntdUI.Label();
             flowAlly = new FlowLayoutPanel();
-            lblEnemy = new Label();
+            lblEnemy = new AntdUI.Label();
             flowEnemy = new FlowLayoutPanel();
             game_pic.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pic_D).BeginInit();
@@ -358,9 +358,9 @@ namespace LOL_GameAssistant.BaseViewForm
         private PictureBox pic_5;
         private PictureBox pic_6;
         private PictureBox pic_7;
-        private Label lblAlly;
+        private AntdUI.Label lblAlly;
         private FlowLayoutPanel flowAlly;
-        private Label lblEnemy;
+        private AntdUI.Label lblEnemy;
         private FlowLayoutPanel flowEnemy;
     }
 }

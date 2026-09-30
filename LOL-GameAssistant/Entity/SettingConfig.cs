@@ -93,6 +93,12 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("autoPickPreselectOnly")]
         public bool AutoPickPreselectOnly { get; set; } = false;
 
+        [JsonProperty("autoSwapAramBench")]
+        public bool AutoSwapAramBench { get; set; }
+
+        [JsonProperty("aramBenchPriorityChampions")]
+        public List<string> AramBenchPriorityChampions { get; set; } = new();
+
         /// <summary>被补到非主/副位置时停止自动选人。</summary>
         [JsonProperty("skipAutoPickOnFill")]
         public bool SkipAutoPickOnFill { get; set; } = true;
@@ -145,6 +151,21 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("opggManualBuildSelections")]
         public Dictionary<string, int> OpggManualBuildSelections { get; set; } = new();
 
+        [JsonProperty("personalRunePresets")]
+        public List<LOL_GameAssistant.Domain.Builds.PersonalRunePreset> PersonalRunePresets { get; set; } = new();
+
+        [JsonProperty("autoApplyRuneBuild")]
+        public bool AutoApplyRuneBuild { get; set; }
+
+        [JsonProperty("mayhemOverlayEnabled")]
+        public bool MayhemOverlayEnabled { get; set; }
+
+        [JsonProperty("champSelectCompanionEnabled")]
+        public bool ChampSelectCompanionEnabled { get; set; }
+
+        [JsonProperty("languageMode")]
+        public string LanguageMode { get; set; } = "zh-CN";
+
         /// <summary>开机自动启动</summary>
         [JsonProperty("launchOnStartup")]
         public bool LaunchOnStartup { get; set; } = false;
@@ -154,6 +175,7 @@ namespace LOL_GameAssistant.Entity
         {
             Ai ??= new AiSettings();
             ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
+            LanguageMode = LanguageMode == "en-US" ? "en-US" : "zh-CN";
             WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
             HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
             QuickMessageCustomPhrases ??= "";
@@ -172,6 +194,8 @@ namespace LOL_GameAssistant.Entity
             Ai.Normalize();
             QuickLobbyQueueId = Math.Max(1, QuickLobbyQueueId);
             OpggManualBuildSelections ??= new Dictionary<string, int>();
+            PersonalRunePresets ??= new List<LOL_GameAssistant.Domain.Builds.PersonalRunePreset>();
+            AramBenchPriorityChampions ??= new List<string>();
         }
     }
 

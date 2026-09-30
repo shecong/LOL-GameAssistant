@@ -11,7 +11,7 @@ internal static class AugmentCatalog
     private static readonly Lazy<IReadOnlyDictionary<int, AugmentDisplay>> Catalog = new(Load);
     private static readonly ConcurrentDictionary<string, Task<byte[]?>> IconCache = new(StringComparer.Ordinal);
 
-    internal sealed record AugmentDisplay(int Id, string Name, string? IconUrl);
+    internal sealed record AugmentDisplay(int Id, string Name, string? IconUrl, string? EnglishName = null);
 
     public static Task<IReadOnlyList<AugmentDisplay>> ResolveAsync(IEnumerable<int> ids)
     {
@@ -23,6 +23,8 @@ internal static class AugmentCatalog
             .ToArray();
         return Task.FromResult(result);
     }
+
+    public static IReadOnlyList<AugmentDisplay> GetAll() => Catalog.Value.Values.ToArray();
 
     public static Task<byte[]?> GetIconAsync(string? url) =>
         string.IsNullOrWhiteSpace(url)
@@ -43,7 +45,9 @@ internal static class AugmentCatalog
             if (string.IsNullOrWhiteSpace(name)) continue;
             string? iconUrl = entry.Value.TryGetProperty("iconUrl", out JsonElement iconValue)
                 ? iconValue.GetString() : null;
-            result[id] = new AugmentDisplay(id, name, iconUrl);
+            string? englishName = entry.Value.TryGetProperty("englishName", out JsonElement englishValue)
+                ? englishValue.GetString() : null;
+            result[id] = new AugmentDisplay(id, name, iconUrl, englishName);
         }
         return result;
     }

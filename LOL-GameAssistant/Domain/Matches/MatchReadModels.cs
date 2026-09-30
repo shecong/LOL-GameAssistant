@@ -68,13 +68,13 @@ public static class MatchModeComparer
 {
     public static bool IsSameMode(int currentQueueId, string? currentMode, MatchHistoryGame history)
     {
-        bool currentKiwi = currentQueueId == 2400 || IsKiwi(currentMode);
-        bool historyKiwi = history.QueueId == 2400 || IsKiwi(history.GameMode);
+        bool currentKiwi = currentQueueId is 2400 or 3270 || IsKiwi(currentMode);
+        bool historyKiwi = history.QueueId is 2400 or 3270 || IsKiwi(history.GameMode);
         if (currentKiwi || historyKiwi) return currentKiwi && historyKiwi;
 
         if (currentQueueId > 0 && history.QueueId > 0)
             return currentQueueId == history.QueueId;
-        if (currentQueueId > 0 || string.IsNullOrWhiteSpace(currentMode) ||
+        if (string.IsNullOrWhiteSpace(currentMode) ||
             string.IsNullOrWhiteSpace(history.GameMode)) return false;
         return string.Equals(currentMode, history.GameMode, StringComparison.OrdinalIgnoreCase);
     }
@@ -181,7 +181,7 @@ public static class MatchDetailExtensions
         game.participants.Any(p => p.stats?.AugmentIds.Count > 0);
 
     public static bool IsAugmentAram(this MatchDetail game) =>
-        (game.queueId == "2400" || game._queueId == "2400") ||
+        (game.queueId is "2400" or "3270" || game._queueId is "2400" or "3270") ||
         (game.HasAugments() &&
         (string.Equals(game.gameMode, "ARAM", StringComparison.OrdinalIgnoreCase) ||
          game.gameMode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase) ||
@@ -252,7 +252,7 @@ public static class LolGameModeNames
                 4 or 6 or 41 or 42 or 410 or 420 => "峡谷单双排",
                 7 or 31 or 32 or 33 or 52 or 53 or 61 or 68 or 83 or 830 or 840 or 850 => "人机对战",
                 65 or 67 or 450 => "深渊大乱斗",
-                2400 => "海克斯大乱斗",
+                2400 or 3270 => "海克斯大乱斗",
                 70 or 1020 => "克隆大作战",
                 76 or 900 or 1900 => "无限火力",
                 1300 => "极限闪击",

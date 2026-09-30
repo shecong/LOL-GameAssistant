@@ -5,29 +5,21 @@ using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
-using System.Collections.Concurrent;
 using System.Data;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
-    public partial class RecordForm : UserControl
+    public partial class RecordForm : UserControl, IThemeAware
     {
         private MatchDetail? _gameDetail;
         private string? _playerPuuid;
         private readonly IMatchHistoryService _matchHistoryService;
         private readonly IGameAssetService _gameAssetService;
-        private readonly Label _performanceTag = new();
+        private readonly AntdUI.Label _performanceTag = new();
         private readonly ToolTip _performanceTip = new();
         private readonly Dictionary<Control, Image> _ownedImages = new();
-
-        /// <summary>判定取数范围：先拉最近这些场摘要，再从中筛出同模式对局。</summary>
-        private const int HistoryFetchCount = 100;
-
-        /// <summary>最多取最新这些场同模式对局参与判定。</summary>
-        private const int RecentSampleSize = 12;
-
-        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryGame[]> Games)> RecentHistoryCache = new(StringComparer.Ordinal);
-        private static readonly TimeSpan RecentHistoryCacheTtl = TimeSpan.FromMinutes(3);
+        private bool? _isWin;
+        private RecentModePerformanceAssessment? _performanceAssessment;
 
         public RecordForm() : this(AppCompositionRoot.MatchHistoryService, AppCompositionRoot.GameAssetService)
         {
@@ -74,7 +66,8 @@ namespace LOL_GameAssistant.BaseViewForm
             if (gamer == null) return;
 
             bool win = gamer.IsWin();
-            this.BackColor = win ? System.Drawing.Color.FromArgb(250, 250, 250) : System.Drawing.Color.FromArgb(242, 242, 242);
+            _isWin = win;
+            ApplyTheme(UiTheme.Palette);
             try
             {
                 //头像
@@ -114,131 +107,56 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        /// <summary>将单局 DTO 转换为领域快照后交给纯领域服务评测。</summary>
-        private static MatchPerformanceAssessment EvaluatePostGamePerformance(MatchDetail game, string puuid)
-        {
-            var snapshots = game.participants
-                .Where(item => item.stats != null)
-                .Select(item => new MatchPerformanceSnapshot(
-                    game.participantIdentities
-                        .FirstOrDefault(identity => identity.participantId == item.participantId)?.player?.puuid
-                        ?? $"participant-{item.participantId}",
-                    item.teamId,
-                    item.IsWin(),
-                    item.stats!.kills,
-                    item.stats.deaths,
-                    item.stats.assists,
-                    item.stats.totalDamageDealtToChampions,
-                    item.stats.goldEarned,
-                    item.stats.visionScore))
-                .ToList();
-            MatchPerformanceSnapshot? player = snapshots.FirstOrDefault(item => item.PlayerId == puuid);
-            return MatchPerformanceEvaluator.Evaluate(player, snapshots);
-        }
-
-        /// <summary>
-        /// “上/中/下等马”只依据该玩家最近同一模式的已结束战绩，而非当前单局。
-        /// 先从最近 100 场摘要里筛出同模式对局，再只拉这些对局的详情参与判定；
-        /// 同一玩家的摘要与详情在短时间内共享缓存，首页同时渲染多张卡片不会重复拉取。
-        /// </summary>
+        /// <summary>最近 30 天同模式全部有效对局共用统一评分逻辑。</summary>
         private async Task ApplyRecentModePerformanceTagAsync(MatchDetail currentGame, string puuid)
         {
-            string mode = currentGame.GetModeText();
-            MatchHistoryGame[] sameMode = (await GetRecentHistoryAsync(puuid))
-                .Where(game => SameMode(game, currentGame))
-                .OrderByDescending(game => game.GameCreation)
-                .Take(RecentSampleSize)
-                .ToArray();
-
-            MatchDetail[] comparable = await LoadDetailsAsync(sameMode);
-            var assessments = new List<MatchPerformanceAssessment>();
-            var wins = new List<bool>();
-            foreach (var detail in comparable)
-            {
-                var participant = detail.GetParticipant(puuid);
-                if (participant?.stats == null) continue;
-                assessments.Add(EvaluatePostGamePerformance(detail, puuid));
-                wins.Add(participant.IsWin());
-            }
-            ApplyPostGamePerformanceTag(RecentModePerformanceEvaluator.Evaluate(mode, assessments, wins));
-        }
-
-        private async Task<MatchHistoryGame[]> GetRecentHistoryAsync(string puuid)
-        {
-            if (RecentHistoryCache.TryGetValue(puuid, out var cached) && DateTime.UtcNow - cached.CachedAt < RecentHistoryCacheTtl)
-                return await cached.Games;
-
-            Task<MatchHistoryGame[]> task = LoadRecentHistoryAsync(puuid);
-            RecentHistoryCache[puuid] = (DateTime.UtcNow, task);
-            try
-            {
-                return await task;
-            }
-            catch
-            {
-                RecentHistoryCache.TryRemove(puuid, out _);
-                throw;
-            }
-        }
-
-        private async Task<MatchHistoryGame[]> LoadRecentHistoryAsync(string puuid)
-        {
-            MatchHistoryResponse? history = await _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1);
-            return history?.Games?.Games
-                .OrderByDescending(game => game.GameCreation)
-                .Take(HistoryFetchCount)
-                .ToArray() ?? Array.Empty<MatchHistoryGame>();
-        }
-
-        private async Task<MatchDetail[]> LoadDetailsAsync(IReadOnlyList<MatchHistoryGame> heads)
-        {
-            using var gate = new SemaphoreSlim(4, 4);
-            var tasks = heads.Select(async head =>
-            {
-                await gate.WaitAsync();
-                try { return await _matchHistoryService.GetDetailAsync(head.GameId); }
-                finally { gate.Release(); }
-            }).ToList();
-            return (await Task.WhenAll(tasks)).Where(detail => detail != null).Cast<MatchDetail>().ToArray();
-        }
-
-        private static bool SameMode(MatchHistoryGame candidate, MatchDetail current)
-        {
-            string currentQueue = current.queueId ?? current._queueId ?? "";
-            if (int.TryParse(currentQueue, out int queueId) && candidate.QueueId > 0)
-                return candidate.QueueId == queueId;
-            return string.Equals(candidate.GameMode, current.gameMode, StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(candidate.GameMode, current.GetModeText(), StringComparison.OrdinalIgnoreCase);
+            string queueText = string.IsNullOrWhiteSpace(currentGame.queueId)
+                ? currentGame._queueId : currentGame.queueId;
+            int.TryParse(queueText, out int queueId);
+            var service = new RecentModePerformanceService(_matchHistoryService);
+            RecentModePerformanceAssessment assessment = await service.EvaluateAsync(
+                puuid, queueId, currentGame.gameMode, currentGame.GetModeText());
+            ApplyPostGamePerformanceTag(assessment);
         }
 
         private void ApplyPostGamePerformanceTag(RecentModePerformanceAssessment assessment)
         {
+            _performanceAssessment = assessment;
             if (!assessment.HasEnoughSample)
             {
                 _performanceTag.Text = "样本不足";
-                _performanceTag.ForeColor = UiTheme.Palette.TextSecondary;
-                _performanceTag.BackColor = UiTheme.Palette.IsDark ? UiTheme.Palette.SurfaceMuted : Color.FromArgb(245, 245, 245);
+                ApplyTheme(UiTheme.Palette);
                 _performanceTip.SetToolTip(_performanceTag, assessment.Detail);
                 return;
             }
 
             string tag = RecentPerformanceLabelFormatter.GetText(assessment);
             _performanceTag.Text = tag;
-            _performanceTag.ForeColor = assessment.Label switch
-            {
-                RecentPerformanceLabel.Upper => Color.FromArgb(27, 94, 32),
-                RecentPerformanceLabel.Human => Color.FromArgb(123, 31, 162),
-                RecentPerformanceLabel.Lower => Color.FromArgb(183, 28, 28),
-                _ => Color.FromArgb(85, 85, 85)
-            };
-            _performanceTag.BackColor = assessment.Label switch
-            {
-                RecentPerformanceLabel.Upper => Color.FromArgb(232, 245, 233),
-                RecentPerformanceLabel.Human => Color.FromArgb(243, 229, 245),
-                RecentPerformanceLabel.Lower => Color.FromArgb(255, 235, 238),
-                _ => Color.FromArgb(245, 245, 245)
-            };
+            ApplyTheme(UiTheme.Palette);
             _performanceTip.SetToolTip(_performanceTag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");
+        }
+
+        public void ApplyTheme(ThemePalette palette)
+        {
+            BackColor = palette.IsDark ? (_isWin == false ? palette.SurfaceMuted : palette.SurfaceRaised)
+                : _isWin == false ? Color.FromArgb(242, 242, 242) : Color.FromArgb(250, 250, 250);
+            if (_performanceAssessment is not { HasEnoughSample: true } assessment)
+            {
+                _performanceTag.BackColor = palette.SurfaceMuted;
+                _performanceTag.ForeColor = palette.TextSecondary;
+                return;
+            }
+
+            (_performanceTag.BackColor, _performanceTag.ForeColor) = (assessment.Label, palette.IsDark) switch
+            {
+                (RecentPerformanceLabel.Upper, true) => (Color.FromArgb(38, 75, 58), Color.FromArgb(145, 220, 164)),
+                (RecentPerformanceLabel.Human, true) => (Color.FromArgb(65, 48, 79), Color.FromArgb(205, 164, 231)),
+                (RecentPerformanceLabel.Lower, true) => (Color.FromArgb(82, 48, 52), Color.FromArgb(245, 164, 172)),
+                (RecentPerformanceLabel.Upper, false) => (Color.FromArgb(232, 245, 233), Color.FromArgb(27, 94, 32)),
+                (RecentPerformanceLabel.Human, false) => (Color.FromArgb(243, 229, 245), Color.FromArgb(123, 31, 162)),
+                (RecentPerformanceLabel.Lower, false) => (Color.FromArgb(255, 235, 238), Color.FromArgb(183, 28, 28)),
+                _ => (palette.SurfaceMuted, palette.TextSecondary)
+            };
         }
 
         /// <summary>

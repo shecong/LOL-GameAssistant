@@ -27,20 +27,19 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly Func<Task<GameShoutSendResult>> _testGameChatOpen;
     private readonly Action _saveSettings;
     private readonly ListBox _phrases = new() { Dock = DockStyle.Fill, IntegralHeight = false };
-    private readonly TextBox _selectedPhrase = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true,
-        ScrollBars = ScrollBars.Vertical };
-    private readonly TextBox _customPhrases = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
-    private readonly CheckBox _perCharacter = new() { Text = "逐字发送", AutoSize = true };
-    private readonly CheckBox _sendToAll = new() { Text = "游戏内发给所有人（/all）", AutoSize = true };
-    private readonly CheckBox _useClipboard = new() { Text = "游戏内使用粘贴输入", AutoSize = true };
-    private readonly CheckBox _hotkeysEnabled = new() { Text = "启用游戏内快捷键", AutoSize = true };
-    private readonly TextBox _builtInHotkey = new() { ReadOnly = true, Width = 48, Text = "F6" };
-    private readonly TextBox _customHotkey = new() { ReadOnly = true, Width = 48, Text = "F7" };
-    private readonly TextBox _batchHotkey = new() { ReadOnly = true, Width = 48, Text = "F8" };
+    private readonly AntdUI.Input _selectedPhrase = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true };
+    private readonly AntdUI.Input _customPhrases = new() { Dock = DockStyle.Fill, Multiline = true };
+    private readonly AntdUI.Checkbox _perCharacter = new() { Text = "逐字发送", AutoSize = true };
+    private readonly AntdUI.Checkbox _sendToAll = new() { Text = "游戏内发给所有人（/all）", AutoSize = true };
+    private readonly AntdUI.Checkbox _useClipboard = new() { Text = "游戏内使用粘贴输入", AutoSize = true };
+    private readonly AntdUI.Checkbox _hotkeysEnabled = new() { Text = "启用游戏内快捷键", AutoSize = true };
+    private readonly AntdUI.Input _builtInHotkey = new() { ReadOnly = true, Width = 48, Text = "F6" };
+    private readonly AntdUI.Input _customHotkey = new() { ReadOnly = true, Width = 48, Text = "F7" };
+    private readonly AntdUI.Input _batchHotkey = new() { ReadOnly = true, Width = 48, Text = "F8" };
     private readonly AntdUI.Button _multiSelect = new() { Text = "多选：关", AutoSize = true };
-    private readonly Label _previewLabel = new() { Text = "待发送内容预览", Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) };
-    private readonly NumericUpDown _minimumInterval = new() { Minimum = 2, Maximum = 30, Value = 3, Width = 56 };
-    private readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(12, 9, 0, 0) };
+    private readonly AntdUI.Label _previewLabel = new() { Text = "待发送内容预览", Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) };
+    private readonly AntdUI.InputNumber _minimumInterval = new() { Minimum = 2, Maximum = 30, Value = 3, Width = 56 };
+    private readonly AntdUI.Label _status = new() { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(12, 9, 0, 0) };
     private readonly AntdUI.Button _clientSend = new() { Text = "发送到客户端群聊", AutoSize = true };
     private readonly AntdUI.Button _gameSend = new() { Text = "一键发送到游戏", AutoSize = true };
     private readonly AntdUI.Button _testGameEnter = new() { Text = "测试游戏回车", AutoSize = true };
@@ -58,7 +57,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _saveSettings = saveSettings;
         Dock = DockStyle.Fill;
 
-        var header = new Label
+        var header = new AntdUI.Label
         {
             Dock = DockStyle.Top,
             Height = 49,
@@ -99,17 +98,17 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         options.Controls.Add(_perCharacter);
         options.Controls.Add(_sendToAll);
         options.Controls.Add(_useClipboard);
-        options.Controls.Add(new Label { Text = "触发冷却", AutoSize = true, Padding = new Padding(10, 3, 0, 0) });
+        options.Controls.Add(new AntdUI.Label { Text = "触发冷却", AutoSize = true, Padding = new Padding(10, 3, 0, 0) });
         options.Controls.Add(_minimumInterval);
-        options.Controls.Add(new Label { Text = "秒", AutoSize = true, Padding = new Padding(0, 3, 0, 0) });
+        options.Controls.Add(new AntdUI.Label { Text = "秒", AutoSize = true, Padding = new Padding(0, 3, 0, 0) });
         left.Controls.Add(options, 0, 4);
         var hotkeys = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, Padding = new Padding(0, 6, 0, 0) };
         hotkeys.Controls.Add(_hotkeysEnabled);
-        hotkeys.Controls.Add(new Label { Text = "默认词库", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
+        hotkeys.Controls.Add(new AntdUI.Label { Text = "默认词库", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
         hotkeys.Controls.Add(_builtInHotkey);
-        hotkeys.Controls.Add(new Label { Text = "自定义词库", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
+        hotkeys.Controls.Add(new AntdUI.Label { Text = "自定义词库", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
         hotkeys.Controls.Add(_customHotkey);
-        hotkeys.Controls.Add(new Label { Text = "多选发送", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
+        hotkeys.Controls.Add(new AntdUI.Label { Text = "多选发送", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
         hotkeys.Controls.Add(_batchHotkey);
         left.Controls.Add(hotkeys, 0, 5);
         var sendButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
@@ -123,12 +122,12 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         right.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        right.Controls.Add(new Label { Text = "自定义词库（一行一句）", Dock = DockStyle.Fill, Padding = new Padding(0, 10, 0, 0) }, 0, 0);
+        right.Controls.Add(new AntdUI.Label { Text = "自定义词库（一行一句）", Dock = DockStyle.Fill, Padding = new Padding(0, 10, 0, 0) }, 0, 0);
         right.Controls.Add(_customPhrases, 0, 1);
         var save = new AntdUI.Button { Text = "保存词库与发送选项", AutoSize = true };
         save.Click += (_, _) => SaveOptions();
         right.Controls.Add(save, 0, 2);
-        right.Controls.Add(new Label
+        right.Controls.Add(new AntdUI.Label
         {
             Dock = DockStyle.Fill,
             Text = "多选最多 10 句，句间快速发送；触发冷却只限制两组喊话。逐字批量最多 40 字。快捷键只在游戏前台触发。保存后会记住多选内容。"
@@ -210,7 +209,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         catch (Exception ex) { _status.Text = $"保存失败：{ex.Message}"; }
     }
 
-    private void CaptureHotkey(TextBox target, KeyEventArgs e)
+    private void CaptureHotkey(AntdUI.Input target, KeyEventArgs e)
     {
         if (e.KeyCode is >= Keys.F2 and <= Keys.F12) target.Text = e.KeyCode.ToString();
         else _status.Text = "喊话快捷键请选择 F2–F12。";

@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.Files;
+using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Profiles;
@@ -42,8 +42,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private CancellationTokenSource? _pageLoadCts;
         private bool _suppressPaginationEvents;
         private readonly ToolTip _playerIdentityTip = new();
-        private readonly Label _historyTitle = new();
-        private readonly Label _historyHint = new();
+        private readonly AntdUI.Label _historyTitle = new();
+        private readonly AntdUI.Label _historyHint = new();
         private readonly AntdUI.Panel _searchSurface = new() { Radius = 10, BorderWidth = 1, Padding = new Padding(12) };
         private readonly AntdUI.Panel _profileSurface = new() { Radius = 10, BorderWidth = 1, Padding = new Padding(8) };
         private readonly AntdUI.Segmented _viewSwitch = new() { Width = 250, Height = 37 };
@@ -251,7 +251,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblStatus.Text = $"已复制{label}：{value}";
                 if (ParentForm != null)
                 {
-                    AntdUI.Message.success(ParentForm, $"已复制{label}");
+                    LOL_GameAssistant.Helper.UiMessage.success(ParentForm, $"已复制{label}");
                 }
             }
             catch
@@ -259,7 +259,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblStatus.Text = $"复制{label}失败";
                 if (ParentForm != null)
                 {
-                    AntdUI.Message.error(ParentForm, $"复制{label}失败，请重试");
+                    LOL_GameAssistant.Helper.UiMessage.error(ParentForm, $"复制{label}失败，请重试");
                 }
             }
         }
@@ -423,7 +423,7 @@ namespace LOL_GameAssistant.BaseViewForm
             input = (input ?? inpSearch.Text).Trim();
             if (string.IsNullOrEmpty(input))
             {
-                AntdUI.Message.warn(ParentForm!, "请输入 puuid 或 名称#TAG");
+                LOL_GameAssistant.Helper.UiMessage.warn(ParentForm!, "请输入 puuid 或 名称#TAG");
                 return;
             }
             inpSearch.Text = input;
@@ -437,7 +437,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (string.IsNullOrEmpty(puuid))
                 {
                     lblStatus.Text = "未找到该玩家";
-                    AntdUI.Message.error(ParentForm!, "未找到该玩家");
+                    LOL_GameAssistant.Helper.UiMessage.error(ParentForm!, "未找到该玩家");
                     return;
                 }
 
@@ -915,7 +915,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_matchHistory?.Games?.Games == null || _matchHistory.Games.Games.Count == 0)
             {
                 ControlLifetime.ClearAndDispose(panelStats);
-                panelStats.Controls.Add(new Label()
+                panelStats.Controls.Add(new AntdUI.Label()
                 {
                     Text = "无比赛数据可供统计",
                     Dock = DockStyle.Fill,
@@ -934,7 +934,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (recentGames.Count == 0)
             {
                 lblStatus.Text = "无法读取近期战绩，统计未更新";
-                panelStats.Controls.Add(new Label { Text = "近期战绩暂时不可用", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
+                panelStats.Controls.Add(new AntdUI.Label { Text = "近期战绩暂时不可用", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
                 return;
             }
             _rawGameStats = new List<RawGameStat>();
@@ -994,7 +994,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (filtered.Count == 0)
             {
                 ControlLifetime.ClearAndDispose(panelStats);
-                panelStats.Controls.Add(new Label { Text = "该模式暂无数据", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
+                panelStats.Controls.Add(new AntdUI.Label { Text = "该模式暂无数据", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
                 return;
             }
 
@@ -1120,7 +1120,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (_currentPlayer == null || string.IsNullOrEmpty(_currentPlayer.Puuid))
             {
-                AntdUI.Message.warn(ParentForm!, "请先查询一名玩家再收藏");
+                LOL_GameAssistant.Helper.UiMessage.warn(ParentForm!, "请先查询一名玩家再收藏");
                 return;
             }
 
@@ -1145,11 +1145,11 @@ namespace LOL_GameAssistant.BaseViewForm
             try { _favoritePlayerStore.Save(updated); }
             catch (Exception ex)
             {
-                AntdUI.Message.error(ParentForm!, $"收藏保存失败：{ex.Message}");
+                LOL_GameAssistant.Helper.UiMessage.error(ParentForm!, $"收藏保存失败：{ex.Message}");
                 return;
             }
             _favorites = updated;
-            AntdUI.Message.success(ParentForm!, existing != null
+            LOL_GameAssistant.Helper.UiMessage.success(ParentForm!, existing != null
                 ? $"已取消收藏 {_currentPlayer.GameName}"
                 : $"已收藏 {_currentPlayer.GameName}");
             RefreshFavoriteState();
@@ -1172,7 +1172,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (string.IsNullOrWhiteSpace(input))
             {
                 lblStatus.Text = "请从收藏列表选择玩家，或在左侧输入 Riot ID 后加载";
-                AntdUI.Message.warn(ParentForm!, "请选择收藏玩家或输入 Riot ID");
+                LOL_GameAssistant.Helper.UiMessage.warn(ParentForm!, "请选择收藏玩家或输入 Riot ID");
                 return;
             }
 
@@ -1210,7 +1210,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (_currentPlayer == null || _matchHistory?.Games?.Games == null || _matchHistory.Games.Games.Count == 0)
             {
-                AntdUI.Message.warn(ParentForm!, "没有可导出的战绩数据");
+                LOL_GameAssistant.Helper.UiMessage.warn(ParentForm!, "没有可导出的战绩数据");
                 return;
             }
 
@@ -1229,12 +1229,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblStatus.Text = "正在导出战绩...";
                 int exported = await ExportMatchHistoryAsync(dialog.FileName);
                 lblStatus.Text = $"已导出 {exported} 场战绩";
-                AntdUI.Message.success(ParentForm!, "导出完成");
+                LOL_GameAssistant.Helper.UiMessage.success(ParentForm!, "导出完成");
             }
             catch (Exception ex)
             {
                 lblStatus.Text = "导出失败";
-                AntdUI.Message.error(ParentForm!, $"导出失败: {ex.Message}");
+                LOL_GameAssistant.Helper.UiMessage.error(ParentForm!, $"导出失败: {ex.Message}");
             }
             finally
             {

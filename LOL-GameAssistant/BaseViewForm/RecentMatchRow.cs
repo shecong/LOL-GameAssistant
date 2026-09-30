@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
@@ -21,9 +21,9 @@ namespace LOL_GameAssistant.BaseViewForm
         private string? _puuid;
         private readonly IGameAssetService _gameAssetService;
         private readonly IPremadeDetectionService _premadeDetectionService;
-        private readonly Panel _teamInfoPanel;
-        private readonly Label _teamTitle;
-        private readonly Label _teamQueueTag;
+        private readonly AntdUI.Panel _teamInfoPanel;
+        private readonly AntdUI.Label _teamTitle;
+        private readonly AntdUI.Label _teamQueueTag;
         private readonly FlowLayoutPanel _teammatesPanel;
         private ToolTip? _teamQueueTip;
         private readonly ToolTip _championTip = new();
@@ -72,12 +72,12 @@ namespace LOL_GameAssistant.BaseViewForm
             _premadeDetectionService = premadeDetectionService;
             InitializeComponent();
 
-            _teamInfoPanel = new Panel
+            _teamInfoPanel = new AntdUI.Panel
             {
                 BackColor = Color.Transparent,
                 Visible = false
             };
-            _teamTitle = new Label
+            _teamTitle = new AntdUI.Label
             {
                 AutoSize = false,
                 BackColor = Color.Transparent,
@@ -86,7 +86,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Text = "队友信息",
                 TextAlign = ContentAlignment.MiddleLeft
             };
-            _teamQueueTag = new Label
+            _teamQueueTag = new AntdUI.Label
             {
                 AutoSize = false,
                 BackColor = Color.FromArgb(238, 238, 238),
@@ -327,7 +327,7 @@ namespace LOL_GameAssistant.BaseViewForm
                         Array.Empty<TeamMemberIdentity>());
                     if (IsDisposed || !ReferenceEquals(detail, _detail)) return;
 
-                    SetTeamQueueStatus(result.GetTeamQueueStatus(0), result.GetTeamQueueDetail(0));
+                    SetTeamQueueStatus(result.GetInferredTeamStatus(0), result.GetTeamQueueDetail(0));
                 }
                 finally
                 {
@@ -348,7 +348,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _teamQueueTag.Text = status;
             (_teamQueueTag.BackColor, _teamQueueTag.ForeColor) = status switch
             {
-                "单排" => (Color.FromArgb(238, 238, 238), Color.FromArgb(100, 100, 100)),
+                "未发现" => (Color.FromArgb(238, 238, 238), Color.FromArgb(100, 100, 100)),
                 "检测中" => (Color.FromArgb(227, 242, 253), Color.FromArgb(25, 118, 210)),
                 "未知" => (Color.FromArgb(255, 243, 224), Color.FromArgb(230, 126, 34)),
                 _ => (Color.FromArgb(255, 236, 179), Color.FromArgb(191, 104, 0))
@@ -377,7 +377,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _teamTitle.Text = teammates.Count > 0 ? $"队友（{teammates.Count}）" : "队友信息";
             if (teammates.Count == 0)
             {
-                _teammatesPanel.Controls.Add(new Label
+                _teammatesPanel.Controls.Add(new AntdUI.Label
                 {
                     AutoSize = false,
                     BackColor = Color.Transparent,
@@ -408,7 +408,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void ResizeTeammateCards()
         {
-            var cards = _teammatesPanel.Controls.OfType<Panel>().ToList();
+            var cards = _teammatesPanel.Controls.OfType<AntdUI.Panel>().ToList();
             if (cards.Count == 0) return;
 
             int cardWidth = CalculateTeammateCardWidth(cards.Count);
@@ -423,7 +423,7 @@ namespace LOL_GameAssistant.BaseViewForm
             MatchPlayer? identity,
             int cardWidth)
         {
-            var card = new Panel
+            var card = new AntdUI.Panel
             {
                 BackColor = Color.FromArgb(42, 255, 255, 255),
                 Margin = new Padding(0, 0, 6, 0),
@@ -443,7 +443,7 @@ namespace LOL_GameAssistant.BaseViewForm
             string name = identity?.gameName ?? identity?.summonerName ?? $"玩家{participant.participantId}";
             string champion = GetChampionDisplayName(participant.championId);
             bool win = participant.IsWin();
-            var nameLabel = new Label
+            var nameLabel = new AntdUI.Label
             {
                 AutoEllipsis = true,
                 BackColor = Color.Transparent,
@@ -452,7 +452,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Size = new Size(Math.Max(0, cardWidth - 48), 20),
                 Text = name
             };
-            var detailLabel = new Label
+            var detailLabel = new AntdUI.Label
             {
                 AutoEllipsis = true,
                 BackColor = Color.Transparent,
@@ -480,13 +480,13 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 队友信息不足以展示文字时保留英雄头像与完整悬停提示，避免小面板中的标签越界。
         /// </summary>
-        private static void LayoutTeammateCard(Panel card, int cardWidth)
+        private static void LayoutTeammateCard(AntdUI.Panel card, int cardWidth)
         {
             const int compactThreshold = 118;
             card.Size = new Size(cardWidth, 56);
 
             var avatar = card.Controls.OfType<RoundPictureBox>().FirstOrDefault();
-            var labels = card.Controls.OfType<Label>().ToList();
+            var labels = card.Controls.OfType<AntdUI.Label>().ToList();
             bool compact = cardWidth < compactThreshold;
             if (avatar != null)
             {

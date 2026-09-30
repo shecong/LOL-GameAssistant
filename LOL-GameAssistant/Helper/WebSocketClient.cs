@@ -97,7 +97,8 @@ namespace LOL_GameAssistant.Helper
         public void StopReconnect()
         {
             _reconnectEnabled = false;
-            _reconnectCts?.Cancel();
+            try { _reconnectCts?.Cancel(); }
+            catch (ObjectDisposedException) { }
         }
 
         /// <summary>
@@ -160,34 +161,40 @@ namespace LOL_GameAssistant.Helper
             _isRunning = false;
 
             // 停止重连
-            if (_reconnectCts != null)
+            CancellationTokenSource? reconnectCts = _reconnectCts;
+            if (reconnectCts != null)
             {
-                _reconnectCts?.Cancel();
+                try { reconnectCts.Cancel(); }
+                catch (ObjectDisposedException) { }
             }
 
             // 停止心跳任务
-            if (_heartbeatCts != null)
+            CancellationTokenSource? heartbeatCts = Interlocked.Exchange(ref _heartbeatCts, null);
+            if (heartbeatCts != null)
             {
-                await _heartbeatCts.CancelAsync().ConfigureAwait(false);
-                _heartbeatCts.Dispose();
-                _heartbeatCts = null;
+                try { await heartbeatCts.CancelAsync().ConfigureAwait(false); }
+                catch (ObjectDisposedException) { }
+                finally { heartbeatCts.Dispose(); }
             }
 
-            // 关闭WebSocket
-            if (_socket != null)
+            // 断线回调和窗口退出可能同时清理连接。先取走实例，确保每个资源只释放一次。
+            ClientWebSocket? socket = Interlocked.Exchange(ref _socket, null);
+            if (socket != null)
             {
-                if (_socket.State == WebSocketState.Open)
+                try
                 {
-                    try
+                    if (socket.State == WebSocketState.Open)
                     {
                         using var closeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-                        await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "清理连接", closeTimeout.Token)
+                        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "清理连接", closeTimeout.Token)
                             .ConfigureAwait(false);
                     }
-                    catch { }
                 }
-                _socket.Dispose();
-                _socket = null;
+                catch (Exception)
+                {
+                    // 远端断开或其他清理方先行释放时无需阻止窗口退出。
+                }
+                finally { socket.Dispose(); }
             }
 
             // 等待任务完成，但设置超时
@@ -394,11 +401,8 @@ namespace LOL_GameAssistant.Helper
                     try
                     {
                         // 清理旧 socket
-                        if (_socket != null)
-                        {
-                            try { _socket.Dispose(); } catch { }
-                            _socket = null;
-                        }
+                        ClientWebSocket? previousSocket = Interlocked.Exchange(ref _socket, null);
+                        previousSocket?.Dispose();
 
                         _socket = new ClientWebSocket();
                         if (!string.IsNullOrEmpty(_token))

@@ -1,8 +1,15 @@
+using LOL_GameAssistant.Domain.Builds;
+
 namespace LOL_GameAssistant.Application.Builds;
 
 /// <summary>从 OP.GG 公共英雄数据获取推荐，并写入本机 League Client 的符文页和物品集。</summary>
 public interface IOpggBuildApplyService
 {
+    Task<PersonalRunePreset?> CaptureCurrentRunePresetAsync(
+        int championId, string mode, string position, CancellationToken cancellationToken = default);
+
+    Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(
+        PersonalRunePreset preset, CancellationToken cancellationToken = default);
     /// <summary>读取当前英雄、分路下可供用户选择的 OP.GG 出装路线，不会写入客户端。</summary>
     Task<OpggBuildChoices> GetBuildChoicesAsync(
         int championId,
@@ -42,9 +49,11 @@ public sealed record OpggBuildOption(
     int Matches,
     int Wins,
     IReadOnlyList<int>? SummonerSpellIds = null,
-    string Mode = "ranked")
+    string Mode = "ranked",
+    double? ReportedWinRate = null,
+    double? PickRate = null)
 {
-    public double WinRate => Matches <= 0 ? 0 : Math.Round(Wins * 100D / Matches, 1);
+    public double WinRate => ReportedWinRate ?? (Matches <= 0 ? 0 : Math.Round(Wins * 100D / Matches, 1));
 }
 
 /// <summary>弹窗展示所需的 OP.GG 路线集合；失败时 Options 为空且 Message 可直接展示。</summary>

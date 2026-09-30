@@ -13,6 +13,24 @@ namespace LOL_GameAssistant
         [STAThread]
         private static void Main()
         {
+            int replaceRequested = 0;
+            using var singleInstance = SingleInstanceCoordinator.StartOrReplace(() =>
+            {
+                Interlocked.Exchange(ref replaceRequested, 1);
+                if (GameMain is { IsHandleCreated: true, IsDisposed: false } main)
+                {
+                    try { main.BeginInvoke(new Action(System.Windows.Forms.Application.Exit)); }
+                    catch (InvalidOperationException) { }
+                }
+            });
+            if (singleInstance == null)
+            {
+                MessageBox.Show("前一个实例未能在 15 秒内退出，请手动关闭后重试。",
+                    "LOL GameAssistant", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (Volatile.Read(ref replaceRequested) != 0) return;
+
             // Set DPI awareness before any controls are created.  shcore is unavailable on
             // some Windows 7 builds, so retain a safe system-DPI fallback.
             try
@@ -35,6 +53,18 @@ namespace LOL_GameAssistant
 
             ApplicationConfiguration.Initialize();
             GameMain = new GameMain();
+            // A replacement request may arrive while the main window is being created.
+            GameMain.Shown += (_, _) =>
+            {
+                if (Volatile.Read(ref replaceRequested) != 0)
+                    System.Windows.Forms.Application.Exit();
+            };
+            if (Volatile.Read(ref replaceRequested) != 0)
+            {
+                GameMain.Dispose();
+                return;
+            }
+            UiLanguage.Start();
 
             // 说明：读取 LCU lockfile / WMI 命令行并不需要管理员权限，
             // 因此不再强制 UAC 提权，避免每次启动都弹窗。
@@ -87,7 +117,7 @@ namespace LOL_GameAssistant
             try
             {
                 if (GameMain is { IsDisposed: false } main)
-                    AntdUI.Message.error(main, $"程序发生错误: {ex.Message}\n请查看日志文件获取详细信息。");
+                    LOL_GameAssistant.Helper.UiMessage.error(main, $"程序发生错误: {ex.Message}\n请查看日志文件获取详细信息。");
             }
             catch
             {

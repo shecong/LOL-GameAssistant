@@ -5,16 +5,13 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// <summary>Read-only diagnostics view for LCU, client start, hotkeys and local automation.</summary>
 public sealed class DiagnosticsForm : UserControl, IThemeAware
 {
-    private readonly ListView _list = new()
+    private readonly AntdUI.Table _list = new()
     {
         Dock = DockStyle.Fill,
-        FullRowSelect = true,
-        GridLines = true,
-        View = View.Details,
-        HideSelection = false
+        Bordered = true
     };
 
-    private readonly Label _hint = new()
+    private readonly AntdUI.Label _hint = new()
     {
         Dock = DockStyle.Top,
         Height = 34,
@@ -28,10 +25,10 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
 
     public DiagnosticsForm()
     {
-        _list.Columns.Add("组件", 150);
-        _list.Columns.Add("状态", 110);
-        _list.Columns.Add("详情", 620);
-        _list.Columns.Add("更新时间", 155);
+        _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Component), "组件") { Width = "150" });
+        _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Status), "状态") { Width = "110" });
+        _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Detail), "详情") { Width = "620" });
+        _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.UpdatedAt), "更新时间") { Width = "155" });
         Controls.Add(_list);
         Controls.Add(_hint);
         _logTip.SetToolTip(_hint, RuntimeDiagnostics.GetLogPath());
@@ -66,25 +63,11 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
     private void RefreshSnapshot()
     {
         if (IsDisposed) return;
-        var entries = RuntimeDiagnostics.Snapshot();
-        _list.BeginUpdate();
-        try
-        {
-            _list.Items.Clear();
-            foreach (DiagnosticEntry entry in entries)
-            {
-                _list.Items.Add(new ListViewItem(new[]
-                {
-                    entry.Component,
-                    entry.Status,
-                    entry.Detail,
-                    entry.UpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
-                }));
-            }
-        }
-        finally
-        {
-            _list.EndUpdate();
-        }
+        _list.DataSource = RuntimeDiagnostics.Snapshot()
+            .Select(entry => new DiagnosticRow(entry.Component, entry.Status, entry.Detail,
+                entry.UpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")))
+            .ToArray();
     }
+
+    private sealed record DiagnosticRow(string Component, string Status, string Detail, string UpdatedAt);
 }

@@ -92,13 +92,13 @@ public sealed class GameKdaAnnouncementBuilderTests
     public void InsufficientSamplesAreNotAnnouncedAsLowerTier()
     {
         var assessment = new RecentModePerformanceAssessment(
-            MatchPerformanceTier.Medium, 75, 7, 50, "", 3.2, false,
+            MatchPerformanceTier.Medium, 75, 4, 50, "", 3.2, false,
             RecentPerformanceLabel.InsufficientData);
         var player = new GameKdaPlayerSummary("蓝方", "玩家", assessment);
 
-        Assert.Contains("样本不足7/8 K3.2", Assert.Single(
+        Assert.Contains("样本不足4/5 K3.2", Assert.Single(
             GameKdaAnnouncementBuilder.Build([player], onePlayerPerLine: true)));
-        Assert.Contains("样本不足7/8 KDA3.20", Assert.Single(
+        Assert.Contains("样本不足4/5 KDA3.20", Assert.Single(
             GameKdaAnnouncementBuilder.Build([player])));
     }
 

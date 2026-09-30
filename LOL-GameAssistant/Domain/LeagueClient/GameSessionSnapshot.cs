@@ -9,6 +9,10 @@ public sealed class GameTeamMember
     public string Position { get; init; } = "";
     public string SecondaryPosition { get; init; } = "";
     public bool IsBot { get; init; }
+    /// <summary>成员所属房间；部分 LCU 会话阶段不会返回。</summary>
+    public string PartyId { get; init; } = "";
+    /// <summary>对局会话提供的组队标识；只在同一队伍内比较。</summary>
+    public int TeamParticipantId { get; init; }
 }
 
 /// <summary>大厅阶段的队列和分队快照。</summary>
@@ -16,9 +20,11 @@ public sealed class LobbySnapshot
 {
     public string GameMode { get; init; } = "";
     public int QueueId { get; init; }
+    public string PartyId { get; init; } = "";
     public string LocalPlayerPuuid { get; init; } = "";
     public string LocalPrimaryPosition { get; init; } = "";
     public string LocalSecondaryPosition { get; init; } = "";
+    public IReadOnlyList<GameTeamMember> PartyMembers { get; init; } = Array.Empty<GameTeamMember>();
     public IReadOnlyList<GameTeamMember> Team100 { get; init; } = Array.Empty<GameTeamMember>();
     public IReadOnlyList<GameTeamMember> Team200 { get; init; } = Array.Empty<GameTeamMember>();
 }

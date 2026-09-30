@@ -2,6 +2,7 @@ using LOL_GameAssistant.Application.Friends;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.Friends;
+using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
@@ -10,10 +11,10 @@ namespace LOL_GameAssistant.BaseViewForm
     /// </summary>
     public sealed class FriendsForm : UserControl
     {
-        private readonly Label _statusLabel;
-        private readonly Label _emptyLabel;
+        private readonly AntdUI.Label _statusLabel;
+        private readonly AntdUI.Label _emptyLabel;
         private readonly FlowLayoutPanel _friendList;
-        private readonly Button _refreshButton;
+        private readonly AntdUI.Button _refreshButton;
         private readonly IFriendDirectoryService _friendDirectoryService;
         private readonly IFriendSpectateService _friendSpectateService;
         private readonly IProfileIconService _profileIconService;
@@ -40,7 +41,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Dock = DockStyle.Fill;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
 
-            var header = new Panel
+            var header = new AntdUI.Panel
             {
                 Dock = DockStyle.Top,
                 Height = 72,
@@ -48,7 +49,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 BackColor = Color.White
             };
 
-            var titleLabel = new Label
+            var titleLabel = new AntdUI.Label
             {
                 AutoSize = false,
                 Dock = DockStyle.Top,
@@ -57,7 +58,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Text = "好友",
                 ForeColor = Color.FromArgb(38, 50, 56)
             };
-            _statusLabel = new Label
+            _statusLabel = new AntdUI.Label
             {
                 AutoSize = false,
                 Dock = DockStyle.Fill,
@@ -65,19 +66,17 @@ namespace LOL_GameAssistant.BaseViewForm
                 ForeColor = SystemColors.GrayText,
                 Text = "正在准备好友列表..."
             };
-            _refreshButton = new Button
+            _refreshButton = new AntdUI.Button
             {
                 Dock = DockStyle.Right,
                 Width = 86,
                 Height = 32,
                 Text = "刷新",
-                FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(30, 136, 229),
                 ForeColor = Color.White,
                 Margin = new Padding(0, 8, 0, 0),
                 Cursor = Cursors.Hand
             };
-            _refreshButton.FlatAppearance.BorderSize = 0;
             _refreshButton.Click += async (_, _) => await RefreshAsync();
 
             header.Controls.Add(_statusLabel);
@@ -93,7 +92,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Padding = new Padding(14),
                 BackColor = Color.FromArgb(245, 247, 250)
             };
-            _emptyLabel = new Label
+            _emptyLabel = new AntdUI.Label
             {
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -202,13 +201,14 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        private sealed class FriendCard : Panel
+        private sealed class FriendCard : Panel, IThemeAware
         {
             private readonly FriendProfile _friend;
             private readonly IFriendSpectateService _spectateService;
             private readonly IProfileIconService _profileIconService;
             private bool _querying;
             private bool _spectating;
+            private bool _hovered;
 
             public FriendCard(
                 FriendProfile friend,
@@ -238,7 +238,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _ = LoadAvatarAsync(avatar, friend.ProfileIconId, _profileIconService);
 
                 string displayName = friend.DisplayName;
-                var nameLabel = new Label
+                var nameLabel = new AntdUI.Label
                 {
                     AutoEllipsis = true,
                     Location = new Point(74, 9),
@@ -250,7 +250,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
                 Controls.Add(nameLabel);
 
-                var statusLabel = new Label
+                var statusLabel = new AntdUI.Label
                 {
                     AutoEllipsis = true,
                     Location = new Point(74, 36),
@@ -266,7 +266,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 bool canQuery = !string.IsNullOrWhiteSpace(friend.Puuid);
                 bool canSpectate = friend.CanSpectate;
                 long gameId = friend.ActiveGameId ?? 0;
-                var actionLabel = new Label
+                var actionLabel = new AntdUI.Label
                 {
                     AutoSize = false,
                     Anchor = AnchorStyles.Top | AnchorStyles.Right,
@@ -297,14 +297,22 @@ namespace LOL_GameAssistant.BaseViewForm
                 toolTip.SetToolTip(statusLabel, BuildToolTip(displayName, note));
 
                 AttachDoubleClick(avatar);
-                MouseEnter += (_, _) => BackColor = Color.FromArgb(235, 242, 252);
-                MouseLeave += (_, _) => BackColor = Color.White;
+                MouseEnter += (_, _) => { _hovered = true; ApplyTheme(UiTheme.Palette); };
+                MouseLeave += (_, _) => { _hovered = false; ApplyTheme(UiTheme.Palette); };
+            }
+
+            public void ApplyTheme(ThemePalette palette)
+            {
+                BackColor = _hovered
+                    ? palette.IsDark ? palette.SurfaceMuted : Color.FromArgb(235, 242, 252)
+                    : palette.SurfaceRaised;
+                Invalidate();
             }
 
             protected override void OnPaint(PaintEventArgs e)
             {
                 base.OnPaint(e);
-                using var pen = new Pen(Color.FromArgb(225, 229, 234));
+                using var pen = new Pen(UiTheme.Palette.Border);
                 e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
             }
 
@@ -326,13 +334,13 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             /// <summary>用户点击观战按钮后才调用 LCU，不会自动观战任何好友。</summary>
-            private async Task StartSpectateAsync(long gameId, Button button, Label actionLabel)
+            private async Task StartSpectateAsync(long gameId, AntdUI.Button button, AntdUI.Label actionLabel)
             {
                 if (_spectating || string.IsNullOrWhiteSpace(_friend.Puuid)) return;
                 if (gameId <= 0 || !_friend.CanSpectate)
                 {
                     actionLabel.Text = "好友当前没有可观战对局";
-                    AntdUI.Message.info(FindForm() ?? Program.GameMain, "好友当前没有正在进行的可观战对局。");
+                    LOL_GameAssistant.Helper.UiMessage.info(FindForm() ?? Program.GameMain, "好友当前没有正在进行的可观战对局。");
                     return;
                 }
                 _spectating = true;
@@ -342,8 +350,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     SpectateResult result = await _spectateService.LaunchAsync(new SpectateRequest(_friend.Puuid, gameId));
                     actionLabel.Text = result.Message;
-                    if (result.Succeeded) AntdUI.Message.success(Program.GameMain, result.Message);
-                    else AntdUI.Message.error(Program.GameMain, result.Message);
+                    if (result.Succeeded) LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain, result.Message);
+                    else LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, result.Message);
                 }
                 finally
                 {
@@ -352,20 +360,17 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
             }
 
-            private static Button CreateActionButton(string text, Color color)
+            private static AntdUI.Button CreateActionButton(string text, Color color)
             {
-                var button = new Button
+                var button = new AntdUI.Button
                 {
                     AutoSize = false,
                     BackColor = color,
                     Cursor = Cursors.Hand,
-                    FlatStyle = FlatStyle.Flat,
                     ForeColor = Color.White,
                     Size = new Size(70, 28),
-                    Text = text,
-                    UseVisualStyleBackColor = false
+                    Text = text
                 };
-                button.FlatAppearance.BorderSize = 0;
                 return button;
             }
 

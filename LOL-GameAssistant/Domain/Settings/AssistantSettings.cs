@@ -1,3 +1,5 @@
+using LOL_GameAssistant.Domain.Builds;
+
 namespace LOL_GameAssistant.Domain.Settings;
 
 /// <summary>
@@ -8,6 +10,7 @@ public sealed class AssistantSettings
 {
     /// <summary>界面配色：跟随系统、浅色或深色。</summary>
     public string ThemeMode { get; set; } = "System";
+    public string LanguageMode { get; set; } = "zh-CN";
 
     public bool AutoLaunchGameClient { get; set; }
     public string GameClientPath { get; set; } = "";
@@ -49,6 +52,8 @@ public sealed class AssistantSettings
     public bool AutoBan { get; set; }
     public bool AutoPick { get; set; }
     public bool AutoPickPreselectOnly { get; set; }
+    public bool AutoSwapAramBench { get; set; }
+    public List<string> AramBenchPriorityChampions { get; set; } = new();
     public bool SkipAutoPickOnFill { get; set; } = true;
     public List<string> BanChampions { get; set; } = new();
     public List<string> PickChampions { get; set; } = new();
@@ -63,6 +68,10 @@ public sealed class AssistantSettings
     public bool AutoHonor { get; set; }
     public int QuickLobbyQueueId { get; set; } = 430;
     public Dictionary<string, int> OpggManualBuildSelections { get; set; } = new();
+    public List<PersonalRunePreset> PersonalRunePresets { get; set; } = new();
+    public bool AutoApplyRuneBuild { get; set; }
+    public bool MayhemOverlayEnabled { get; set; }
+    public bool ChampSelectCompanionEnabled { get; set; }
     public bool LaunchOnStartup { get; set; }
 
     /// <summary>统一修正旧配置缺失或异常时的安全默认值。</summary>
@@ -70,6 +79,7 @@ public sealed class AssistantSettings
     {
         Ai ??= new CloudAiSettings();
         ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
+        LanguageMode = LanguageMode == "en-US" ? "en-US" : "zh-CN";
         GameClientPath ??= "";
         WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
         HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
@@ -90,9 +100,12 @@ public sealed class AssistantSettings
         AutoRefreshIntervalSeconds = Math.Max(10, AutoRefreshIntervalSeconds);
         BanChampions ??= new List<string>();
         PickChampions ??= new List<string>();
+        AramBenchPriorityChampions ??= new List<string>();
         Resolution = string.IsNullOrWhiteSpace(Resolution) ? "1920x1080" : Resolution;
         QuickLobbyQueueId = Math.Max(1, QuickLobbyQueueId);
         OpggManualBuildSelections ??= new Dictionary<string, int>();
+        PersonalRunePresets ??= new List<PersonalRunePreset>();
+        PersonalRunePresets = PersonalRunePresets.Where(preset => preset != null && preset.IsValid).ToList();
         Ai.Normalize();
     }
 }

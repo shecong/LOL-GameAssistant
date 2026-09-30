@@ -79,5 +79,8 @@
 
         [Newtonsoft.Json.JsonProperty("teamParticipantId")]
         public int TeamParticipantId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("partyId")]
+        public string PartyId { get; set; } = "";
     }
 }

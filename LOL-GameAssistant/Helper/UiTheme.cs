@@ -35,8 +35,8 @@ public static class UiMetrics
 public static class UiTheme
 {
     private sealed record OriginalColors(Color BackColor, Color ForeColor, bool CapturedDark);
-    private sealed record OriginalGradient(Color StartColor, Color EndColor, Color BorderColor);
-    private sealed record OriginalButtonColors(Color? Back, Color? Border);
+    private sealed record OriginalGradient(Color StartColor, Color EndColor, Color BorderColor, bool CapturedDark);
+    private sealed record OriginalButtonColors(Color? Back, Color? Border, bool CapturedDark);
 
     private static readonly ConditionalWeakTable<Control, OriginalColors> Originals = new();
     private static readonly ConditionalWeakTable<GradientPanel, OriginalGradient> OriginalGradients = new();
@@ -91,9 +91,14 @@ public static class UiTheme
         }
         else
         {
+            // 每次从原始值重新计算。初次在深色模式创建的控件，其原始背景
+            // 可能是 SurfaceRaised（亮度高于 IsVeryDarkNeutral 的阈值）；
+            // 浅色切回深色时若不先恢复，就会保留上一次的浅色背景。
+            control.BackColor = original.BackColor;
+            control.ForeColor = original.ForeColor;
             if (IsLightNeutral(original.BackColor))
                 control.BackColor = IsNearlyWhite(original.BackColor) ? palette.SurfaceRaised : palette.Surface;
-            else if (IsVeryDarkNeutral(original.BackColor))
+            else if (!original.CapturedDark && IsVeryDarkNeutral(original.BackColor))
                 control.BackColor = palette.SurfaceMuted;
 
             if (IsDarkNeutral(original.ForeColor))
@@ -110,12 +115,15 @@ public static class UiTheme
         {
             OriginalGradient originalGradient = OriginalGradients.GetValue(
                 gradient,
-                panel => new OriginalGradient(panel.StartColor, panel.EndColor, panel.BorderColor));
+                panel => new OriginalGradient(panel.StartColor, panel.EndColor, panel.BorderColor, palette.IsDark));
             if (!palette.IsDark)
             {
-                gradient.StartColor = originalGradient.StartColor;
-                gradient.EndColor = originalGradient.EndColor;
-                gradient.BorderColor = originalGradient.BorderColor;
+                bool fromDark = originalGradient.CapturedDark &&
+                    (IsDarkNeutral(originalGradient.StartColor) || IsDarkNeutral(originalGradient.EndColor));
+                gradient.StartColor = fromDark ? palette.SurfaceRaised : originalGradient.StartColor;
+                gradient.EndColor = fromDark ? palette.SurfaceMuted : originalGradient.EndColor;
+                gradient.BorderColor = fromDark && originalGradient.BorderColor.A > 0
+                    ? palette.Border : originalGradient.BorderColor;
             }
             else if (IsLightSurface(originalGradient.StartColor) || IsLightSurface(originalGradient.EndColor))
             {
@@ -123,14 +131,24 @@ public static class UiTheme
                 gradient.EndColor = palette.SurfaceMuted;
                 if (originalGradient.BorderColor.A > 0) gradient.BorderColor = palette.Border;
             }
+            else
+            {
+                gradient.StartColor = originalGradient.StartColor;
+                gradient.EndColor = originalGradient.EndColor;
+                gradient.BorderColor = originalGradient.BorderColor;
+            }
         }
 
         if (control is AntdUI.Button button && button.Type.ToString() != "Primary")
         {
             OriginalButtonColors colors = OriginalButtons.GetValue(button,
-                key => new OriginalButtonColors(key.DefaultBack, key.DefaultBorderColor));
-            button.DefaultBack = palette.IsDark ? palette.SurfaceMuted : colors.Back;
-            button.DefaultBorderColor = palette.IsDark ? palette.Border : colors.Border;
+                key => new OriginalButtonColors(key.DefaultBack, key.DefaultBorderColor, palette.IsDark));
+            button.DefaultBack = palette.IsDark ? palette.SurfaceMuted
+                : colors.CapturedDark && colors.Back is Color back && IsDarkNeutral(back)
+                    ? palette.SurfaceRaised : colors.Back;
+            button.DefaultBorderColor = palette.IsDark ? palette.Border
+                : colors.CapturedDark && colors.Border is Color border && IsDarkNeutral(border)
+                    ? palette.Border : colors.Border;
             button.ForeColor = palette.TextPrimary;
             if (palette.IsDark)
             {

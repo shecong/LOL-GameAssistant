@@ -3,6 +3,7 @@ using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.Coaching;
+using LOL_GameAssistant.Domain.Builds;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
 
@@ -14,11 +15,12 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// </summary>
 public sealed class CoachForm : UserControl
 {
-    private readonly Label _status = new() { AutoSize = true, ForeColor = Color.DimGray };
-    private readonly Button _refresh = new() { Text = "立即更新建议", AutoSize = true };
-    private readonly Button _applyOpgg = new() { Text = "OP.GG 一键配置当前英雄", AutoSize = true };
-    private readonly RichTextBox _validation = new() { Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.FixedSingle, BackColor = Color.WhiteSmoke };
-    private readonly RichTextBox _recommendation = new() { Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
+    private readonly AntdUI.Label _status = new() { AutoSize = true, ForeColor = Color.DimGray };
+    private readonly AntdUI.Button _refresh = new() { Text = "立即更新建议", AutoSize = true };
+    private readonly AntdUI.Button _applyOpgg = new() { Text = "OP.GG 一键配置当前英雄", AutoSize = true };
+    private readonly AntdUI.Button _myRunes = new() { Text = "我的符文方案", AutoSize = true };
+    private readonly AntdUI.Input _validation = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true, BackColor = Color.WhiteSmoke };
+    private readonly AntdUI.Input _recommendation = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true, BackColor = Color.White };
     private readonly IAiCoachingService _aiCoachingService;
     private readonly IRecommendationCoordinator _recommendationCoordinator;
     private readonly IApplicationSettingsStore _settingsStore;
@@ -27,6 +29,8 @@ public sealed class CoachForm : UserControl
     private bool _applyingOpgg;
     private bool _opggPickerOpen;
     private string _opggPromptedContext = "";
+    private string _opggFailedContext = "";
+    private DateTimeOffset _opggRetryAfter;
     private string _lastOverlaySignature = "";
 
     public CoachForm() : this(
@@ -52,6 +56,11 @@ public sealed class CoachForm : UserControl
         RefreshOpggAvailability();
         _refresh.Click += async (_, _) => await RefreshRecommendationAsync(manual: true);
         _applyOpgg.Click += async (_, _) => await ApplyOpggBuildAsync();
+        _myRunes.Click += (_, _) =>
+        {
+            using var manager = new RunePresetManagerForm(_settingsStore, _opggBuildApplyService, _aiCoachingService);
+            manager.ShowDialog(FindForm() ?? Program.GameMain);
+        };
         _recommendationCoordinator.StateChanged += OnRecommendationStateChanged;
         HandleCreated += (_, _) => RenderState(_recommendationCoordinator.Current);
         Disposed += (_, _) =>
@@ -153,23 +162,49 @@ public sealed class CoachForm : UserControl
     public void ResetOpggChampSelectPrompt()
     {
         _opggPromptedContext = "";
+        _opggFailedContext = "";
+        _opggRetryAfter = DateTimeOffset.MinValue;
     }
 
     private async Task PromptOpggBuildIfNeededCoreAsync(CancellationToken cancellationToken)
     {
-        if (_opggPickerOpen || !_settingsStore.Load().OpggBuildAssistantEnabled) return;
+        AssistantSettings settings = _settingsStore.Load();
+        if (_opggPickerOpen || (!settings.OpggBuildAssistantEnabled && !settings.AutoApplyRuneBuild)) return;
 
         AiGameContext context = await _aiCoachingService.CollectContextAsync(cancellationToken);
         if (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0)
             return;
-        string promptKey = $"{context.MyChampionId}:{context.QueueId}:{context.GameMode}";
-        if (_opggPromptedContext == promptKey) return;
+        string modeKey = Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(context.GameMode, context.QueueId);
+          string promptKey = $"{context.MyChampionId}:{context.QueueId}:{context.GameMode}:{context.MyRole}";
+          if (_opggPromptedContext == promptKey) return;
+          if (_opggFailedContext == promptKey && DateTimeOffset.UtcNow < _opggRetryAfter) return;
 
         // 在请求 OP.GG 前先标记本英雄，避免 LCU 的连续选人事件重复打开同一模态框。
         _opggPromptedContext = promptKey;
+        if (settings.AutoApplyRuneBuild && modeKey != "aram_mayhem")
+        {
+            PersonalRunePreset? personal = PersonalRunePresetResolver.Find(
+                settings.PersonalRunePresets, context.MyChampionId, modeKey, context.MyRole);
+            if (personal != null)
+            {
+                OpggBuildApplyResult applied = await _opggBuildApplyService.ApplyPersonalRunePresetAsync(personal, cancellationToken);
+                _status.Text = applied.Message;
+                  RuntimeDiagnostics.Report("个人符文方案", applied.Succeeded ? "已应用" : "失败", applied.Message);
+                  if (!applied.Succeeded) ScheduleOpggRetry(promptKey);
+                return;
+            }
+        }
+        if (modeKey == "ranked" && PersonalRunePresetResolver.NormalizePosition(context.MyRole) == "unknown") return;
         RuntimeDiagnostics.Report("OP.GG 选人推荐", "检测到英雄", $"英雄 {context.MyChampionId} · 位置 {context.MyRole}");
-        await ApplyOpggBuildAsync(context, automatic: true, cancellationToken);
-    }
+          await ApplyOpggBuildAsync(context, automatic: true, cancellationToken, autoApply: settings.AutoApplyRuneBuild);
+      }
+
+      private void ScheduleOpggRetry(string context)
+      {
+          _opggPromptedContext = "";
+          _opggFailedContext = context;
+          _opggRetryAfter = DateTimeOffset.UtcNow.AddSeconds(10);
+      }
 
     private void ShowOverlayIfNeeded(RecommendationState state)
     {
@@ -219,7 +254,8 @@ public sealed class CoachForm : UserControl
     private async Task ApplyOpggBuildAsync(
         AiGameContext context,
         bool automatic,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool autoApply = false)
     {
         if (_applyingOpgg || IsDisposed) return;
         _applyingOpgg = true;
@@ -244,6 +280,7 @@ public sealed class CoachForm : UserControl
                     cancellationToken);
             if (!choices.Succeeded)
             {
+                if (automatic) ScheduleOpggRetry(_opggPromptedContext);
                 _status.ForeColor = Color.Firebrick;
                 _status.Text = choices.Message;
                 // 取数失败时不会弹窗，只写状态栏容易被忽略；同时写进消息区，让“没弹窗”总有原因可查。
@@ -258,6 +295,9 @@ public sealed class CoachForm : UserControl
             OpggBuildOption? selectedOption = automatic
                 ? choices.Options.FirstOrDefault(option => option.Order == savedOrder)
                 : null;
+
+            if (autoApply && selectedOption == null)
+                selectedOption = choices.Options.FirstOrDefault();
 
             if (selectedOption == null)
             {
@@ -285,6 +325,7 @@ public sealed class CoachForm : UserControl
                 .ApplyBuildAsync(context.MyChampionId, context.MyRole, selectedOption, cancellationToken);
             _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
             _status.Text = result.Message;
+            if (automatic && !result.Succeeded) ScheduleOpggRetry(_opggPromptedContext);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -293,6 +334,7 @@ public sealed class CoachForm : UserControl
         }
         catch (Exception ex)
         {
+            if (automatic) ScheduleOpggRetry(_opggPromptedContext);
             _status.ForeColor = Color.Firebrick;
             _status.Text = "OP.GG 一键配置失败：" + ex.Message;
             Program.GameMain.infoMsg.AddMsg("OP.GG 一键配置失败：" + ex.Message);
@@ -324,15 +366,18 @@ public sealed class CoachForm : UserControl
         };
         header.Controls.Add(_refresh);
         header.Controls.Add(_applyOpgg);
+        header.Controls.Add(_myRunes);
         header.Controls.Add(_status);
         _status.Padding = new Padding(8, 6, 0, 0);
 
-        var left = new GroupBox { Text = "数据状态与当前局势", Dock = DockStyle.Fill, Padding = new Padding(10) };
+        var left = new AntdUI.Panel { Dock = DockStyle.Fill, Padding = new Padding(10), Radius = 8, BorderWidth = 1 };
         left.Controls.Add(_validation);
-        var right = new GroupBox { Text = "AI 时间线建议", Dock = DockStyle.Fill, Padding = new Padding(10) };
+        left.Controls.Add(new AntdUI.Label { Text = "数据状态与当前局势", Dock = DockStyle.Top, Height = 28 });
+        var right = new AntdUI.Panel { Dock = DockStyle.Fill, Padding = new Padding(10), Radius = 8, BorderWidth = 1 };
         right.Controls.Add(_recommendation);
+        right.Controls.Add(new AntdUI.Label { Text = "AI 时间线建议", Dock = DockStyle.Top, Height = 28 });
 
-        var split = new SplitContainer { Dock = DockStyle.Fill };
+        var split = new AntdUI.Splitter { Dock = DockStyle.Fill };
         split.Panel1.Controls.Add(left);
         split.Panel2.Controls.Add(right);
         split.SizeChanged += (_, _) => FitSplitter(split);

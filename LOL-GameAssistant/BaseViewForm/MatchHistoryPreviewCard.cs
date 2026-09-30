@@ -7,10 +7,10 @@ namespace LOL_GameAssistant.BaseViewForm;
 public sealed class MatchHistoryPreviewCard : UserControl
 {
     private readonly AntdUI.Panel _surface = new() { Dock = DockStyle.Fill, Radius = 10, BorderWidth = 1 };
-    private readonly Label _result;
-    private readonly Label _mode;
-    private readonly Label _summary;
-    private readonly Label _detailState;
+    private readonly AntdUI.Label _result;
+    private readonly AntdUI.Label _mode;
+    private readonly AntdUI.Label _summary;
+    private readonly AntdUI.Label _detailState;
 
     public MatchHistoryPreviewCard(MatchHistoryGame game, string viewerPuuid)
     {
@@ -60,7 +60,7 @@ public sealed class MatchHistoryPreviewCard : UserControl
         _detailState.SetBounds(76, 62, Math.Max(100, width - 90), 22);
     }
 
-    private static Label MakeLabel(string text, bool bold, Color color) => new()
+    private static AntdUI.Label MakeLabel(string text, bool bold, Color color) => new()
     {
         Text = text,
         ForeColor = color,

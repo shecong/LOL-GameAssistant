@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant.BaseViewForm
+namespace LOL_GameAssistant.BaseViewForm
 {
     partial class LiveGameForm
     {
@@ -31,15 +31,15 @@
             rootGrid = new TableLayoutPanel();
             infoBar = new GradientPanel();
             pulseDot = new PulseDot();
-            lblGameInfo = new Label();
-            column1 = new Panel();
+            lblGameInfo = new AntdUI.Label();
+            column1 = new AntdUI.Panel();
             panelTeam1 = new FlowLayoutPanel();
             headerTeam1 = new GradientPanel();
-            lblTeamTitle1 = new Label();
-            column2 = new Panel();
+            lblTeamTitle1 = new AntdUI.Label();
+            column2 = new AntdUI.Panel();
             panelTeam2 = new FlowLayoutPanel();
             headerTeam2 = new GradientPanel();
-            lblTeamTitle2 = new Label();
+            lblTeamTitle2 = new AntdUI.Label();
             rootGrid.SuspendLayout();
             infoBar.SuspendLayout();
             column1.SuspendLayout();
@@ -218,14 +218,14 @@
         private TableLayoutPanel rootGrid;
         private GradientPanel infoBar;
         private PulseDot pulseDot;
-        private Label lblGameInfo;
-        private Panel column1;
+        private AntdUI.Label lblGameInfo;
+        private AntdUI.Panel column1;
         private GradientPanel headerTeam1;
-        private Label lblTeamTitle1;
+        private AntdUI.Label lblTeamTitle1;
         private FlowLayoutPanel panelTeam1;
-        private Panel column2;
+        private AntdUI.Panel column2;
         private GradientPanel headerTeam2;
-        private Label lblTeamTitle2;
+        private AntdUI.Label lblTeamTitle2;
         private FlowLayoutPanel panelTeam2;
     }
 }

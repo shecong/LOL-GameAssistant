@@ -48,8 +48,8 @@ public static class GameKdaAnnouncementBuilder
             return compact ? $"{name} 无数据" : $"{name} 近期KDA暂无可查";
         if (!assessment.HasEnoughSample)
             return compact
-                ? $"{name} 样本不足{assessment.SampleSize}/8 K{FormatKda(assessment.Kda, 1)}"
-                : $"{name} 样本不足{assessment.SampleSize}/8 KDA{FormatKda(assessment.Kda, 2)}";
+                ? $"{name} 样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}"
+                : $"{name} 样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} KDA{FormatKda(assessment.Kda, 2)}";
         string label = RecentPerformanceLabelFormatter.GetText(assessment);
         return compact
             ? $"{name} {label}{assessment.Score} KDA{FormatKda(assessment.Kda, 1)}"
@@ -65,7 +65,7 @@ public static class GameKdaAnnouncementBuilder
         {
             not { SampleSize: > 0 } => "无近期数据",
             { HasEnoughSample: false } assessment =>
-                $"样本不足{assessment.SampleSize}/8 K{FormatKda(assessment.Kda, 1)}",
+                $"样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}",
             { } assessment =>
                 $"{RecentPerformanceLabelFormatter.GetText(assessment)}{assessment.Score} K{FormatKda(assessment.Kda, 1)}"
         };

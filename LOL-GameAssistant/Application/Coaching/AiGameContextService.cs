@@ -131,7 +131,7 @@ public sealed class AiGameContextService : IAiGameContextService
         bool mineIsTeamOne = me != null && teamOne.Any(member => member.Puuid == me.Puuid);
         var allies = (mineIsTeamOne ? teamOne : teamTwo).Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         var enemies = (mineIsTeamOne ? teamTwo : teamOne).Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
-        string mode = NormalizeLiveMode(liveSnapshot?.GameMode);
+        var (gameMode, queueId, mode) = LiveModeContextResolver.Resolve(session, liveSnapshot?.GameMode);
         string champion = _championCatalog.GetDisplayName(me?.ChampionId ?? 0);
         string role = NormalizeRole(me?.Position);
         string matchup = enemies.FirstOrDefault() ?? "";
@@ -140,7 +140,8 @@ public sealed class AiGameContextService : IAiGameContextService
         {
             Phase = phase,
             Mode = mode,
-            GameMode = liveSnapshot?.GameMode ?? "CLASSIC",
+            GameMode = gameMode,
+            QueueId = queueId,
             MyChampion = champion,
             MyChampionId = me?.ChampionId ?? 0,
             MyRole = role,

@@ -15,12 +15,12 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
     private readonly OpggBuildChoices _choices;
     private readonly IGameAssetService _gameAssetService;
     private readonly FlowLayoutPanel _routeCards = new();
-    private readonly Button _apply = new() { Text = "应用选中方案", AutoSize = true, Enabled = false };
-    private readonly Label _title = new();
-    private readonly Label _note = new();
-    private readonly Label _modeBadge = new();
-    private readonly Label _sourceHint = new();
-    private readonly Panel _heroHeader = new();
+    private readonly AntdUI.Button _apply = new() { Text = "应用选中方案", AutoSize = true, Enabled = false };
+    private readonly AntdUI.Label _title = new();
+    private readonly AntdUI.Label _note = new();
+    private readonly AntdUI.Label _modeBadge = new();
+    private readonly AntdUI.Label _sourceHint = new();
+    private readonly AntdUI.Panel _heroHeader = new();
     private readonly PictureBox _championIcon = new();
     private readonly List<RouteCard> _cards = new();
     private readonly List<Image> _ownedImages = new();
@@ -89,7 +89,9 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         _sourceHint.AutoSize = true;
         _sourceHint.TextAlign = ContentAlignment.MiddleLeft;
         _sourceHint.Padding = new Padding(12, 0, 0, 0);
-        _sourceHint.Text = $"OP.GG 公开数据 · {_choices.Options.Count} 套方案 · 选择后点击应用";
+        _sourceHint.Text = _choices.Mode == "aram_mayhem"
+            ? $"aramgg / ARAMKit · {_choices.Options.Count} 套专属出装 · 选择后点击应用"
+            : $"OP.GG 公开数据 · {_choices.Options.Count} 套方案 · 选择后点击应用";
         var contextRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
         contextRow.Controls.Add(_modeBadge);
         contextRow.Controls.Add(_sourceHint);
@@ -123,7 +125,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
             Padding = new Padding(0, 13, 0, 0),
             WrapContents = false
         };
-        var cancel = new Button { Text = "暂不应用", AutoSize = true, DialogResult = DialogResult.Cancel };
+        var cancel = new AntdUI.Button { Text = "暂不应用", AutoSize = true, DialogResult = DialogResult.Cancel };
         _apply.Click += (_, _) => ConfirmSelection();
         footer.Controls.Add(cancel);
         footer.Controls.Add(_apply);
@@ -137,6 +139,8 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
     private string BuildRecommendationNote()
     {
+        if (_choices.Mode == "aram_mayhem")
+            return "海克斯大乱斗没有常规符文页；本方案提供专属出装、召唤师技能和增幅推荐。";
         int spellCount = _choices.Options.FirstOrDefault()?.SummonerSpellIds?.Count ?? 0;
         string spells = spellCount >= 2 ? "含推荐召唤师技能" : "该模式未提供可写入的召唤师技能";
         string augments = _choices.Augments?.Count > 0 ? "正在整理海克斯推荐" : "暂无海克斯数据";
@@ -148,6 +152,11 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
     private async Task UpdateRecommendationNoteAsync()
     {
+        if (_choices.Mode == "aram_mayhem")
+        {
+            if (!IsDisposed) _note.Text = _choices.Message;
+            return;
+        }
         int spellCount = _choices.Options.FirstOrDefault()?.SummonerSpellIds?.Count ?? 0;
         string spells = spellCount >= 2 ? "含推荐召唤师技能" : "当前模式无可写入技能";
         var augments = _choices.Augments?.Take(3).ToArray() ?? [];
@@ -164,7 +173,8 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
     private RouteCard CreateRouteCard(OpggBuildOption option)
     {
-        var root = new Panel
+        bool mayhem = _choices.Mode == "aram_mayhem";
+        var root = new AntdUI.Panel
         {
             Height = 244,
             Width = 1000,
@@ -172,24 +182,24 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
             Padding = new Padding(16),
             Cursor = Cursors.Hand
         };
-        var indicator = new Panel { Dock = DockStyle.Left, Width = 5, Margin = new Padding(0, 0, 10, 0) };
-        var content = new Panel { Dock = DockStyle.Fill };
+        var indicator = new AntdUI.Panel { Dock = DockStyle.Left, Width = 5, Margin = new Padding(0, 0, 10, 0) };
+        var content = new AntdUI.Panel { Dock = DockStyle.Fill };
 
-        var cardHeader = new Panel { Dock = DockStyle.Top, Height = 42 };
-        var label = new Label
+        var cardHeader = new AntdUI.Panel { Dock = DockStyle.Top, Height = 42 };
+        var label = new AntdUI.Label
         {
             AutoSize = true,
             Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
             Text = option.Order == 1 ? "方案 1 · 热门路线" : $"方案 {option.Order} · 备选路线"
         };
-        var sample = new Label
+        var sample = new AntdUI.Label
         {
             AutoSize = true,
             Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Text = $"{option.Matches:N0} 场样本",
+            Text = mayhem ? $"选择率 {option.PickRate:0.0}%" : $"{option.Matches:N0} 场样本",
             Padding = new Padding(12, 4, 0, 0)
         };
-        var winRate = new Label
+        var winRate = new AntdUI.Label
         {
             AutoSize = true,
             Anchor = AnchorStyles.Top | AnchorStyles.Right,
@@ -210,8 +220,8 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 59));
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 41));
 
-        var itemPanel = new Panel { Dock = DockStyle.Fill };
-        var itemTitle = new Label { Dock = DockStyle.Top, Height = 24, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold), Text = "装备路线   起始 / 核心 / 可选" };
+        var itemPanel = new AntdUI.Panel { Dock = DockStyle.Fill };
+        var itemTitle = new AntdUI.Label { Dock = DockStyle.Top, Height = 24, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold), Text = "装备路线   起始 / 核心 / 可选" };
         var itemSlots = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true, Padding = new Padding(0, 2, 0, 0) };
         var itemTileList = new List<AssetTile>();
         AddItemSection(itemSlots, "起始", option.StarterItemIds, itemTileList);
@@ -220,17 +230,42 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         itemPanel.Controls.Add(itemSlots);
         itemPanel.Controls.Add(itemTitle);
 
-        var runePanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 0, 0, 0) };
-        var runeTitle = new Label
+        var runePanel = new AntdUI.Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 0, 0, 0) };
+        var runeTitle = new AntdUI.Label
         {
             Dock = DockStyle.Top,
             Height = 24,
             Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
-            Text = "符文配置   主系 / 副系 / 属性"
+            Text = mayhem ? "海克斯增幅推荐（无常规符文）" : "符文配置   主系 / 副系 / 属性"
         };
-        var runeSlots = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true, Padding = new Padding(0, 2, 0, 0) };
+        var runeSlots = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill, WrapContents = !mayhem, AutoScroll = true,
+            FlowDirection = mayhem ? FlowDirection.TopDown : FlowDirection.LeftToRight,
+            Padding = new Padding(0, 2, 0, 0)
+        };
         var runeTileList = new List<AssetTile>();
-        foreach (int runeId in option.RunePerkIds)
+        if (mayhem)
+        {
+            var names = AugmentCatalog.GetAll().ToDictionary(item => item.Id);
+            var augments = _choices.Augments?.Take(5).ToArray() ?? [];
+            foreach (var augment in augments)
+            {
+                names.TryGetValue(augment.Id, out var info);
+                string name = info == null ? $"#{augment.Id}" :
+                    UiLanguage.IsEnglish && !string.IsNullOrWhiteSpace(info.EnglishName)
+                        ? info.EnglishName : info.Name;
+                runeSlots.Controls.Add(new AntdUI.Label
+                {
+                    AutoSize = false, Width = 300, Height = 25, AutoEllipsis = true,
+                    Text = $"{name}  {augment.WinRate:0.0}% · {augment.Matches:N0} {(UiLanguage.IsEnglish ? "matches" : "场")}",
+                    ForeColor = UiTheme.Palette.TextSecondary
+                });
+            }
+            if (augments.Length == 0)
+                runeSlots.Controls.Add(new AntdUI.Label { AutoSize = true, Text = "当前英雄暂无可用增幅样本" });
+        }
+        foreach (int runeId in mayhem ? Array.Empty<int>() : option.RunePerkIds)
         {
             AssetTile tile = CreateAssetTile(runeId, size: 31, labelHeight: 0);
             tile.Root.Width = 38;
@@ -263,7 +298,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         int[] ids = itemIds.Where(id => id > 0).ToArray();
         if (ids.Length == 0) return;
 
-        host.Controls.Add(new Label
+        host.Controls.Add(new AntdUI.Label
         {
             AutoSize = true,
             Text = title,
@@ -280,7 +315,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
     private AssetTile CreateAssetTile(int id, int size, int labelHeight)
     {
-        var root = new Panel { Width = Math.Max(size + 12, 76), Height = size + labelHeight + 4, Margin = new Padding(0, 0, 8, 0), Cursor = Cursors.Hand };
+        var root = new AntdUI.Panel { Width = Math.Max(size + 12, 76), Height = size + labelHeight + 4, Margin = new Padding(0, 0, 8, 0), Cursor = Cursors.Hand };
         var icon = new PictureBox
         {
             Size = new Size(size, size),
@@ -288,7 +323,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
             SizeMode = PictureBoxSizeMode.Zoom,
             BackColor = Color.Transparent
         };
-        var name = new Label
+        var name = new AntdUI.Label
         {
             AutoEllipsis = true,
             AutoSize = false,
@@ -482,17 +517,17 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         _ownedImages.Clear();
     }
 
-    private sealed record AssetTile(int Id, Panel Root, PictureBox Icon, Label Name);
+    private sealed record AssetTile(int Id, AntdUI.Panel Root, PictureBox Icon, AntdUI.Label Name);
 
     private sealed record RouteCard(
         OpggBuildOption Option,
-        Panel Root,
-        Panel Indicator,
-        Label Label,
-        Label WinRate,
-        Label Sample,
-        Label ItemTitle,
-        Label RuneTitle,
+        AntdUI.Panel Root,
+        AntdUI.Panel Indicator,
+        AntdUI.Label Label,
+        AntdUI.Label WinRate,
+        AntdUI.Label Sample,
+        AntdUI.Label ItemTitle,
+        AntdUI.Label RuneTitle,
         IReadOnlyList<AssetTile> ItemTiles,
         IReadOnlyList<AssetTile> RuneTiles);
 }

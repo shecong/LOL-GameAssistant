@@ -33,15 +33,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly Color _teamColor;
         private const int RecentGamesCount = 10;
 
-        /// <summary>评分取数范围：先拉 100 场摘要，再按同队列筛出评分样本。</summary>
+        /// <summary>近期战绩列表的首次请求大小；表现评分会继续读取最近 30 天。</summary>
         private const int HistoryFetchCount = 100;
-
-        private const int MaximumPerformanceHistoryPages = 3;
-
-        /// <summary>最多统计最近 20 场同队列战绩；满 8 场即可按 KDA 分档。</summary>
-        private const int MaximumPerformanceSampleSize = 20;
-
-        private const int MinimumPerformanceSampleSize = RecentModePerformanceEvaluator.RequiredSampleSize;
         private static readonly TimeSpan MaximumLoadDuration = TimeSpan.FromMinutes(1);
         private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
@@ -55,14 +48,12 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ToolTip _performanceTip = new();
         private readonly CancellationTokenSource _lifetimeCancellation = new();
 
-        private readonly Button _historyButton = new()
+        private readonly AntdUI.Button _historyButton = new()
         {
             Text = "查战绩",
             Size = new Size(60, 26),
-            FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(25, 118, 210),
-            ForeColor = Color.White,
-            UseVisualStyleBackColor = false
+            ForeColor = Color.White
         };
 
         private readonly bool _showCopyButton;
@@ -162,7 +153,6 @@ namespace LOL_GameAssistant.BaseViewForm
             // 因此构造期只设成安全默认值（设 false 不会建句柄），真实状态等句柄建立后再应用。
             btnCopy.Visible = false;
             _showCopyButton = !_isBot && !string.IsNullOrEmpty(_playerPuuid);
-            _historyButton.FlatAppearance.BorderSize = 0;
             _historyButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _historyButton.Visible = false;
             _historyButton.Click += (_, _) => OpenMatchHistory();
@@ -398,8 +388,8 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _premadeTip ??= new ToolTip();
             string tooltip = memberNames is { Count: > 0 }
-                ? $"开黑小组：{string.Join("、", memberNames)}（近期多次同队）"
-                : "开黑小组（近期多次同队）";
+                ? $"本局同组：{string.Join("、", memberNames)}（房间标识相同）"
+                : "本局房间标识相同";
             _premadeTip.SetToolTip(lblPremadeTag, tooltip);
 
             lblPremadeTag.Visible = true;
@@ -504,9 +494,8 @@ namespace LOL_GameAssistant.BaseViewForm
             int wins = results.Count(r => r.gamer.IsWin());
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
-            IReadOnlyList<MatchHistoryGame> performanceHistory = await GetPerformanceHistoryAsync(matchlists, cancellationToken);
             RecentModePerformanceAssessment assessment = await ApplyLivePerformanceTagAsync(
-                performanceHistory, results, wins, losses, rate, cancellationToken);
+                matchlists, results, wins, losses, rate, cancellationToken);
             if (IsDisposed) return;
             PublishRecentPerformance(assessment);
 
@@ -547,38 +536,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 () => _matchHistoryService.GetDetailAsync(gameId, cancellationToken: cancellationToken))
                 .WaitAsync(cancellationToken);
 
-        private async Task<IReadOnlyList<MatchHistoryGame>> GetPerformanceHistoryAsync(
-            MatchHistoryResponse firstPage, CancellationToken cancellationToken)
-        {
-            var games = (firstPage.Games?.Games ?? []).ToList();
-            if (string.IsNullOrWhiteSpace(_playerPuuid)) return games;
-            var seen = games.Select(game => game.GameId).ToHashSet();
-            int offset = games.Count;
-            for (int pageNumber = 1; pageNumber < MaximumPerformanceHistoryPages &&
-                 games.Count(game => IsComparableMode(game) && game.IsCompletedGame()) < MaximumPerformanceSampleSize;
-                 pageNumber++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (firstPage.Games?.GameCount is > 0 && offset >= firstPage.Games.GameCount) break;
-                MatchHistoryResponse? page;
-                try
-                {
-                    page = await _matchHistoryService.GetPageAsync(_playerPuuid,
-                        offset, offset + HistoryFetchCount - 1, cancellationToken);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-                catch { break; }
-                var next = page?.Games?.Games;
-                if (next == null || next.Count == 0) break;
-                offset += next.Count;
-                int added = 0;
-                foreach (MatchHistoryGame game in next)
-                    if (seen.Add(game.GameId)) { games.Add(game); added++; }
-                if (added == 0) break;
-            }
-            return games;
-        }
-
         private static Task<T?> GetCachedAsync<TKey, T>(
             ConcurrentDictionary<TKey, (DateTime CachedAt, Task<T?> Value)> cache,
             TKey key,
@@ -597,72 +554,24 @@ namespace LOL_GameAssistant.BaseViewForm
             return task;
         }
 
-        /// <summary>
-        /// 评分只统计与当前队列相同的近期已结束对局，并排除重开局；
-        /// 优先使用战绩摘要；摘要中的 KDA 全为零时，用单局详情核实，避免把缺失字段当成绩。
-        /// 少于 <see cref="MinimumPerformanceSampleSize"/> 场时标注样本不足，不推断玩家表现。
-        /// </summary>
+        /// <summary>评分读取最近 30 天全部同模式有效对局。</summary>
         private async Task<RecentModePerformanceAssessment> ApplyLivePerformanceTagAsync(
-            IReadOnlyList<MatchHistoryGame> history,
+            MatchHistoryResponse firstPage,
             IReadOnlyList<(MatchDetail detail, MatchParticipant gamer)> results,
             int allWins,
             int allLosses,
             double allRate,
             CancellationToken cancellationToken)
         {
-            var comparable = history
-                .Where(IsComparableMode)
-                .Where(game => game.IsCompletedGame())
-                .OrderByDescending(game => game.GameCreation)
-                .Take(HistoryFetchCount)
-                .ToList();
-
-            var validSamples = new List<MatchParticipantStats>();
-            foreach (MatchHistoryGame[] batch in comparable.Chunk(MaximumPerformanceSampleSize))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var samples = await Task.WhenAll(batch.Select(async game =>
-                {
-                    MatchParticipant? summary = game.GetParticipant(_playerPuuid);
-                    MatchParticipantStats? stats = summary?.stats;
-                    if (RecentKdaStatsResolver.NeedsDetail(stats))
-                    {
-                        await GlobalMatchDetailLoadGate.WaitAsync(cancellationToken);
-                        try
-                        {
-                            MatchDetail? detail = await GetMatchDetailAsync(game.GameId, cancellationToken);
-                            stats = RecentKdaStatsResolver.Resolve(stats,
-                                detail?.GetParticipant(_playerPuuid)?.stats);
-                        }
-                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-                        catch
-                        {
-                            stats = null;
-                        }
-                        finally
-                        {
-                            GlobalMatchDetailLoadGate.Release();
-                        }
-                    }
-                    return stats;
-                })).WaitAsync(cancellationToken);
-
-                validSamples.AddRange(samples.Where(stats => stats != null).Select(stats => stats!));
-                if (validSamples.Count >= MaximumPerformanceSampleSize) break;
-            }
-            validSamples = validSamples.Take(MaximumPerformanceSampleSize).ToList();
-            var assessments = validSamples.Select(stats => new MatchPerformanceAssessment(
-                MatchPerformanceTier.Medium, 0, "", stats.kills, stats.deaths, stats.assists)).ToList();
-            var wins = validSamples.Select(stats => stats.Win).ToList();
-
-            RecentModePerformanceAssessment assessment = comparable.Count == 0
-                ? CreateInsufficientPerformanceAssessment()
-                : RecentModePerformanceEvaluator.Evaluate(
-                    comparable[0].GetModeText(), assessments, wins,
-                    MinimumPerformanceSampleSize, MaximumPerformanceSampleSize);
+            var service = new RecentModePerformanceService(_matchHistoryService);
+            RecentModePerformanceAssessment assessment = await service.EvaluateAsync(
+                _playerPuuid!, _currentQueueId, _currentGameMode,
+                LolGameModeNames.GetModeText(
+                    _currentQueueId > 0 ? _currentQueueId.ToString() : "", _currentGameMode),
+                firstPage, cancellationToken);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);
-            lblSummary.Text = assessment.SampleSize == 0 ? label : $"{label} · KDA {assessment.Kda:F2}";
+            lblSummary.Text = assessment.SampleSize == 0 ? label : $"{label} · KDA {assessment.Kda:F2} · {assessment.SampleSize}场";
             lblSummary.ForeColor = assessment.Label switch
             {
                 RecentPerformanceLabel.Upper => Color.FromArgb(27, 94, 32),
@@ -674,7 +583,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
                 : "暂无战绩";
             _performanceTip.SetToolTip(lblSummary,
-                $"同模式已结束 {comparable.Count} 场，可读取 KDA {assessment.SampleSize} 场。" +
+                $"最近 30 天同模式有效对局 {assessment.SampleSize} 场。" +
                 (assessment.SampleSize == 0 ? $"暂不分档。{recentRecord}" : assessment.Detail));
             return assessment;
         }
@@ -685,8 +594,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     ? "当前队列"
                     : LolGameModeNames.GetModeText(_currentQueueId > 0 ? _currentQueueId.ToString() : "", _currentGameMode),
                 Array.Empty<MatchPerformanceAssessment>(),
-                Array.Empty<bool>(),
-                MinimumPerformanceSampleSize, MaximumPerformanceSampleSize);
+                Array.Empty<bool>());
 
         private void PublishRecentPerformance(RecentModePerformanceAssessment assessment)
         {
@@ -697,11 +605,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 lblName.Text,
                 _isAlly,
                 assessment));
-        }
-
-        private bool IsComparableMode(MatchHistoryGame game)
-        {
-            return MatchModeComparer.IsSameMode(_currentQueueId, _currentGameMode, game);
         }
 
         private void ShowShimmer()
@@ -889,7 +792,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 string preview = _playerPuuid.Length > 16
                     ? _playerPuuid[..16] + "..."
                     : _playerPuuid;
-                AntdUI.Message.success(
+                LOL_GameAssistant.Helper.UiMessage.success(
                     ParentForm ?? FindForm() ?? Program.GameMain,
                     $"已复制玩家 ID（{preview}）");
             }

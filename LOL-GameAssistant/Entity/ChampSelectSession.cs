@@ -29,6 +29,15 @@ namespace LOL_GameAssistant.Entity
         /// <summary>本地玩家细胞ID，用于判断轮到谁</summary>
         [JsonProperty("localPlayerCellId")]
         public int LocalPlayerCellId { get; set; }
+
+        [JsonProperty("benchChampions")]
+        public List<BenchChampion> BenchChampions { get; set; } = new();
+    }
+
+    public sealed class BenchChampion
+    {
+        [JsonProperty("championId")]
+        public int ChampionId { get; set; }
     }
 
     /// <summary>

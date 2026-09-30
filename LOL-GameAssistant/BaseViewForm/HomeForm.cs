@@ -8,12 +8,13 @@ using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Players;
 using LOL_GameAssistant.Domain.Ranked;
+using LOL_GameAssistant.Helper;
 using System.Data;
 using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
-    public partial class HomeForm : UserControl
+    public partial class HomeForm : UserControl, IThemeAware
     {
         public PlayerProfile? userinfo;
 
@@ -76,7 +77,96 @@ namespace LOL_GameAssistant.BaseViewForm
             _matchHistoryService = matchHistoryService;
             _rankedStatsService = rankedStatsService;
             _gameDataVersionService = gameDataVersionService;
+            rootGrid.RowStyles[1].Height = 244;
+            bottomStats.Height = 48;
+            bottomStats.WrapContents = true;
+            foreach (AntdUI.Label value in new[]
+                { game_dws, game_jjs, game_jjscount, game_dqsd, game_ycf, game_sjend })
+                value.AutoSize = true;
+            rankedCard.Padding = new Padding(14, 36, 14, 8);
+            stackPanel1.SizeChanged += (_, _) => LayoutRecordCards();
+            ApplyTheme(UiTheme.Palette);
             Disposed += (_, _) => _ownedProfileImage?.Dispose();
+        }
+
+        public void ApplyTheme(ThemePalette palette)
+        {
+            BackColor = rootGrid.BackColor = palette.Surface;
+            Color cardStart = palette.IsDark ? palette.SurfaceRaised : Color.FromArgb(252, 253, 255);
+            Color cardEnd = palette.IsDark ? palette.SurfaceRaised : Color.White;
+            SetCardColors(searchCard,
+                palette.IsDark ? palette.SurfaceRaised : Color.FromArgb(245, 250, 255), cardEnd, palette.Border);
+            SetCardColors(playerCard, cardStart, cardEnd, palette.Border);
+            SetCardColors(rankedCard, cardStart, cardEnd, palette.Border);
+            SetCardColors(historyCard, cardStart, cardEnd, palette.Border);
+            SetCardColors(soloPanel,
+                palette.IsDark ? Color.FromArgb(42, 62, 82) : Color.White,
+                palette.IsDark ? Color.FromArgb(38, 55, 74) : Color.FromArgb(245, 250, 255), palette.Border);
+            SetCardColors(flexPanel,
+                palette.IsDark ? Color.FromArgb(72, 52, 63) : Color.White,
+                palette.IsDark ? Color.FromArgb(59, 47, 58) : Color.FromArgb(255, 247, 245), palette.Border);
+
+            flowSearch.BackColor = cardStart;
+            rankGrid.BackColor = cardStart;
+            bottomStats.BackColor = cardStart;
+            historyHeader.BackColor = cardStart;
+            stackPanel1.BackColor = cardStart;
+            game_pagin.BackColor = cardStart;
+            play_jd.BackColor = cardStart;
+            play_jd.ForeColor = palette.TextSecondary;
+
+            // AntdUI.Label 默认的不透明底色会在渐变卡片上形成一条条矩形色块。
+            foreach (AntdUI.Label label in new AntdUI.Label[]
+                { lblPlayerCardTitle, lblLevelCap, lblXpCap, lblRankedCardTitle, lblQueueHint,
+                  lblDwsCap, lblJjsCap, lblJjsCountCap, lblDqsdCap, lblYcfCap, lblSjendCap,
+                  lblHistoryTitle, lblPageSizeCap, play_name, play_number, play_dj, play_next, play_QF,
+                  game_dws, game_jjs, game_jjscount, game_dqsd, game_ycf, game_sjend,
+                  game_dspT, game_dsp_sl, game_dsp_win, game_dsp_loss, game_dsp_lp, game_dsp_highest,
+                  game_lhpT, game_lhp_sl, game_lhp_win, game_lhp_loss, game_lhp_lp, game_lhp_highest })
+                label.BackColor = Color.Transparent;
+
+            lblPlayerCardTitle.ForeColor = lblRankedCardTitle.ForeColor = lblHistoryTitle.ForeColor = palette.TextPrimary;
+            play_name.ForeColor = palette.TextPrimary;
+            play_number.ForeColor = palette.TextSecondary;
+            lblLevelCap.ForeColor = lblXpCap.ForeColor = palette.TextSecondary;
+            play_dj.ForeColor = palette.Accent;
+            play_next.ForeColor = palette.IsDark ? Color.FromArgb(243, 200, 121) : Color.FromArgb(120, 80, 20);
+            play_QF.ForeColor = palette.TextSecondary;
+
+            game_dspT.ForeColor = palette.Accent;
+            game_lhpT.ForeColor = palette.IsDark ? Color.FromArgb(245, 158, 162) : Color.FromArgb(211, 47, 47);
+            game_dsp_sl.ForeColor = game_lhp_sl.ForeColor = palette.TextSecondary;
+            game_dsp_win.ForeColor = game_lhp_win.ForeColor = palette.IsDark
+                ? Color.FromArgb(145, 220, 164) : Color.FromArgb(46, 125, 50);
+            game_dsp_loss.ForeColor = game_lhp_loss.ForeColor = palette.IsDark
+                ? Color.FromArgb(245, 158, 162) : Color.FromArgb(198, 40, 40);
+            game_dsp_lp.ForeColor = game_lhp_lp.ForeColor = palette.IsDark
+                ? Color.FromArgb(243, 200, 121) : Color.FromArgb(185, 104, 0);
+            game_dsp_highest.ForeColor = game_lhp_highest.ForeColor = palette.TextSecondary;
+
+            lblQueueHint.ForeColor = palette.Accent;
+            foreach (Control caption in new Control[]
+                { lblDwsCap, lblJjsCap, lblJjsCountCap, lblDqsdCap, lblYcfCap, lblSjendCap, lblPageSizeCap })
+                caption.ForeColor = palette.TextSecondary;
+            foreach (Control value in new Control[]
+                { game_dws, game_jjs, game_jjscount, game_dqsd, game_ycf, game_sjend })
+                value.ForeColor = palette.TextPrimary;
+            inp_playname.BackColor = palette.IsDark ? palette.SurfaceMuted : Color.White;
+            inp_playname.ForeColor = palette.TextPrimary;
+            inp_playname.PlaceholderColor = palette.TextSecondary;
+            game_count.BackColor = palette.IsDark ? palette.SurfaceMuted : Color.White;
+            game_count.ForeColor = palette.TextPrimary;
+            game_pagin.ForeColor = palette.TextPrimary;
+            Invalidate(true);
+        }
+
+        private static void SetCardColors(GradientPanel card, Color start, Color end, Color border)
+        {
+            card.BackColor = start;
+            card.StartColor = start;
+            card.EndColor = end;
+            card.BorderColor = border;
+            card.Invalidate();
         }
 
         /// <summary>
@@ -166,7 +256,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (!_leagueClientConnection.TryConnect())
             {
-                AntdUI.Message.error(Program.GameMain, "未找到正在  运行的LOL客户端，请确保客户端已启动并登录。");
+                LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, "未找到正在  运行的LOL客户端，请确保客户端已启动并登录。");
                 _infoMsgForm.AddMsg("未找到正在运行的LOL客户端，请确保客户端已启动并登录。");
                 return;
             }
@@ -241,13 +331,6 @@ namespace LOL_GameAssistant.BaseViewForm
             if (skip >= total) return;
             var pageList = sortedList.Skip(skip).Take(pageSize).ToList();
 
-            // 保持近期战绩卡片的紧凑宽度，避免随首页宽度被无限拉伸；宽屏仍自动多列展示
-            const int RecordCardWidth = 600;
-            const int CardGap = 12;
-            int clientWidth = Math.Max(RecordCardWidth, this.stackPanel1.ClientSize.Width - 20);
-            int columns = Math.Max(1, (clientWidth + CardGap) / (RecordCardWidth + CardGap));
-            int cardWidth = RecordCardWidth;
-
             // 并行加载本页战绩（限制并发，避免瞬时大量请求），完成后按原顺序显示
             var semaphore = new SemaphoreSlim(4, 4);
             var tasks = pageList.Select(async head =>
@@ -257,8 +340,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     RecordForm record = new RecordForm
                     {
-                        Width = cardWidth,
-                        Margin = new Padding(0, 0, CardGap, 10)
+                        Width = GetRecordCardWidth(),
+                        Margin = new Padding(0, 0, 12, 10)
                     };
                     await record.setInfo(head, userinfo.Puuid);
                     return record;
@@ -283,6 +366,29 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 if (record != null) this.stackPanel1.Controls.Add(record);
             }
+            LayoutRecordCards();
+        }
+
+        private int GetRecordCardWidth()
+        {
+            const int gap = 12;
+            int available = Math.Max(600, stackPanel1.ClientSize.Width - stackPanel1.Padding.Horizontal - 8);
+            return available >= 1240
+                ? Math.Min(700, (available - gap * 2) / 2)
+                : Math.Min(700, Math.Max(600, available - gap));
+        }
+
+        private void LayoutRecordCards()
+        {
+            if (stackPanel1.IsDisposed) return;
+            int width = GetRecordCardWidth();
+            stackPanel1.SuspendLayout();
+            try
+            {
+                foreach (RecordForm record in stackPanel1.Controls.OfType<RecordForm>())
+                    if (record.Width != width) record.Width = width;
+            }
+            finally { stackPanel1.ResumeLayout(); }
         }
 
         /// <summary>
@@ -530,7 +636,7 @@ namespace LOL_GameAssistant.BaseViewForm
             string input = this.inp_playname.Text.Trim();
             if (string.IsNullOrEmpty(input))
             {
-                AntdUI.Message.error(ParentForm!, "请输入 puuid 或 名称#TAG 进行查询");
+                LOL_GameAssistant.Helper.UiMessage.error(ParentForm!, "请输入 puuid 或 名称#TAG 进行查询");
                 _infoMsgForm.AddMsg("请输入 puuid 或 名称#TAG 进行查询");
                 return;
             }
@@ -546,7 +652,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 if (string.IsNullOrEmpty(gameName) || string.IsNullOrEmpty(tagLine))
                 {
-                    AntdUI.Message.error(ParentForm!, "格式错误，正确格式：名称#TAG（例如 玩家名#CN1）");
+                    LOL_GameAssistant.Helper.UiMessage.error(ParentForm!, "格式错误，正确格式：名称#TAG（例如 玩家名#CN1）");
                     _infoMsgForm.AddMsg("格式错误，正确格式：名称#TAG");
                     return;
                 }
@@ -578,7 +684,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             if (string.IsNullOrEmpty(puuid))
             {
-                AntdUI.Message.error(ParentForm!, "未找到该玩家，请检查输入是否正确");
+                LOL_GameAssistant.Helper.UiMessage.error(ParentForm!, "未找到该玩家，请检查输入是否正确");
                 _infoMsgForm.AddMsg("未找到该玩家");
                 return;
             }

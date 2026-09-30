@@ -22,28 +22,28 @@ public sealed class MatchHistoryCard : UserControl
     private readonly IPremadeDetectionService _premadeService;
     private readonly ToolTip _toolTip = new();
     private readonly AntdUI.Panel _surface = new() { Dock = DockStyle.Fill, Radius = 10, BorderWidth = 1 };
-    private readonly Panel _teamHost = new() { BackColor = Color.Transparent };
+    private readonly AntdUI.Panel _teamHost = new() { BackColor = Color.Transparent, Radius = 0 };
     private readonly AntdUI.Panel _blueTeam;
     private readonly AntdUI.Panel _redTeam;
     private readonly List<PlayerRow> _blueRows = new();
     private readonly List<PlayerRow> _redRows = new();
     private readonly Dictionary<string, AntdUI.Tag> _premadeTags = new(StringComparer.Ordinal);
-    private readonly Label _teamOneTitle;
-    private readonly Label _teamTwoTitle;
-    private readonly Label _modeTitle;
-    private readonly Label _matchInfo;
-    private readonly Label _kda;
-    private readonly Label _duration;
-    private readonly Label _result;
+    private readonly AntdUI.Label _teamOneTitle;
+    private readonly AntdUI.Label _teamTwoTitle;
+    private readonly AntdUI.Label _modeTitle;
+    private readonly AntdUI.Label _matchInfo;
+    private readonly AntdUI.Label _kda;
+    private readonly AntdUI.Label _duration;
+    private readonly AntdUI.Label _result;
     private readonly AntdUI.Avatar _champion;
     private readonly AntdUI.Button _details;
     private bool _layoutBusy;
 
     private sealed record PlayerRow(
         AntdUI.Panel Panel,
-        Label Name,
-        Label Score,
-        Label Detail,
+        AntdUI.Label Name,
+        AntdUI.Label Score,
+        AntdUI.Label Detail,
         AntdUI.Tag Premade,
         IReadOnlyList<AntdUI.Tag> Augments);
 
@@ -92,7 +92,7 @@ public sealed class MatchHistoryCard : UserControl
         _ = DetectPremadesAsync(ownTeamId, otherTeamId);
     }
 
-    private static Label MakeLabel(string text, bool bold = false, Color? color = null) => new()
+    private static AntdUI.Label MakeLabel(string text, bool bold = false, Color? color = null) => new()
     {
         Text = text,
         ForeColor = color ?? UiTheme.Palette.TextPrimary,
@@ -102,7 +102,7 @@ public sealed class MatchHistoryCard : UserControl
         BackColor = Color.Transparent
     };
 
-    private (AntdUI.Panel Team, Label Title) CreateTeam(int teamId, string caption,
+    private (AntdUI.Panel Team, AntdUI.Label Title) CreateTeam(int teamId, string caption,
         bool mine, List<PlayerRow> rows)
     {
         var panel = new AntdUI.Panel
@@ -112,7 +112,7 @@ public sealed class MatchHistoryCard : UserControl
             BorderWidth = 1,
             BackColor = UiTheme.Palette.SurfaceRaised
         };
-        Label title = MakeLabel($"{caption} · {_match.participants.Count(player => player.teamId == teamId)} 人", true,
+        AntdUI.Label title = MakeLabel($"{caption} · {_match.participants.Count(player => player.teamId == teamId)} 人", true,
             mine ? UiTheme.Palette.BlueHeader : UiTheme.Palette.RedHeader);
         panel.Controls.Add(title);
         foreach (MatchParticipant player in _match.participants
@@ -139,9 +139,9 @@ public sealed class MatchHistoryCard : UserControl
         return (panel, title);
     }
 
-    private static Label MakeBanLabel()
+    private static AntdUI.Label MakeBanLabel()
     {
-        Label label = MakeLabel("禁用", false, UiTheme.Palette.TextSecondary);
+        AntdUI.Label label = MakeLabel("禁用", false, UiTheme.Palette.TextSecondary);
         label.Tag = "ban-label";
         return label;
     }
@@ -162,14 +162,14 @@ public sealed class MatchHistoryCard : UserControl
         string displayName = !string.IsNullOrWhiteSpace(identity?.GameName)
             ? identity.GameName : !string.IsNullOrWhiteSpace(identity?.SummonerName)
                 ? identity.SummonerName : $"玩家 {player.participantId}";
-        Label name = MakeLabel((isViewer ? "★ " : "") + displayName, true);
-        Label score = MakeLabel(player.GetKdaText(), true);
+        AntdUI.Label name = MakeLabel((isViewer ? "★ " : "") + displayName, true);
+        AntdUI.Label score = MakeLabel(player.GetKdaText(), true);
         score.TextAlign = ContentAlignment.MiddleRight;
-        Label detail = MakeLabel($"{GetChampionName(player.championId)} · 伤害 {player.stats?.totalDamageDealtToChampions ?? 0:N0}",
+        AntdUI.Label detail = MakeLabel($"{GetChampionName(player.championId)} · 伤害 {player.stats?.totalDamageDealtToChampions ?? 0:N0}",
             false, UiTheme.Palette.TextSecondary);
         var premade = new AntdUI.Tag
         {
-            Text = "开黑",
+            Text = "疑似",
             Size = new Size(57, 22),
             Visible = false,
             ForeColor = UiTheme.Palette.BlueHeader
@@ -252,7 +252,7 @@ public sealed class MatchHistoryCard : UserControl
         finally { _layoutBusy = false; }
     }
 
-    private static int LayoutTeam(AntdUI.Panel team, Label title, IReadOnlyList<PlayerRow> rows, int width)
+    private static int LayoutTeam(AntdUI.Panel team, AntdUI.Label title, IReadOnlyList<PlayerRow> rows, int width)
     {
         title.SetBounds(12, 6, Math.Max(100, width - 24), 27);
         int y = 34;
@@ -277,7 +277,7 @@ public sealed class MatchHistoryCard : UserControl
             .Where(tag => Equals(tag.Tag, "ban")).ToArray();
         if (bans.Length > 0)
         {
-            Label? banLabel = team.Controls.OfType<Label>()
+            AntdUI.Label? banLabel = team.Controls.OfType<AntdUI.Label>()
                 .FirstOrDefault(label => Equals(label.Tag, "ban-label"));
             banLabel?.SetBounds(12, y + 2, 34, 25);
             int columns = Math.Max(1, (width - 55) / 94);
@@ -298,8 +298,10 @@ public sealed class MatchHistoryCard : UserControl
         {
             AntdUI.Tag tag = tags[index];
             AugmentCatalog.AugmentDisplay display = names[index];
-            tag.Text = display.Name;
-            _toolTip.SetToolTip(tag, display.Name);
+            string name = UiLanguage.IsEnglish && !string.IsNullOrWhiteSpace(display.EnglishName)
+                ? display.EnglishName : display.Name;
+            tag.Text = name;
+            _toolTip.SetToolTip(tag, name);
             if (display.IconUrl != null) _ = LoadAugmentIconAsync(tag, display.IconUrl);
         }
     }
@@ -353,13 +355,13 @@ public sealed class MatchHistoryCard : UserControl
         string ownSummary = result.GetTeamSummary(0);
         string otherSummary = result.GetTeamSummary(1);
         _teamOneTitle.Text = string.IsNullOrEmpty(ownSummary)
-            ? $"我方 · {_blueRows.Count} 人" : $"我方 · {_blueRows.Count} 人 · 开黑 {ownSummary}";
+            ? $"我方 · {_blueRows.Count} 人" : $"我方 · {_blueRows.Count} 人 · 疑似开黑 {ownSummary}";
         _teamTwoTitle.Text = string.IsNullOrEmpty(otherSummary)
-            ? $"敌方 · {_redRows.Count} 人" : $"敌方 · {_redRows.Count} 人 · 开黑 {otherSummary}";
+            ? $"敌方 · {_redRows.Count} 人" : $"敌方 · {_redRows.Count} 人 · 疑似开黑 {otherSummary}";
         foreach ((string puuid, AntdUI.Tag tag) in _premadeTags)
         {
             if (!result.GroupByPuuid.TryGetValue(puuid, out PremadeGroup? group)) continue;
-            tag.Text = $"开黑{group.Index}";
+            tag.Text = $"疑似{group.Index}";
             tag.Visible = true;
             _toolTip.SetToolTip(tag, $"{string.Join("、", group.Names)}（近期多次同队推断）");
         }

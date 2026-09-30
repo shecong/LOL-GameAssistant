@@ -23,7 +23,7 @@ public enum MatchPerformanceTier
     Lower
 }
 
-/// <summary>选人/战绩页展示的近期 KDA 标签；“人机”仅表示 KDA 小于 1 的最低表现档，不表示机器人账号。</summary>
+/// <summary>选人/战绩页展示的近期 KDA 标签。</summary>
 public enum RecentPerformanceLabel
 {
     InsufficientData,
@@ -64,7 +64,7 @@ public static class RecentPerformanceLabelFormatter
         RecentPerformanceLabel.Upper => "上等马",
         RecentPerformanceLabel.Medium => "中等马",
         RecentPerformanceLabel.Lower => "下等马",
-        RecentPerformanceLabel.Human => "人机",
+        RecentPerformanceLabel.Human => "纯牛马",
         _ => "数据不足"
     };
 }
@@ -126,7 +126,7 @@ public static class MatchPerformanceEvaluator
 public static class RecentModePerformanceEvaluator
 {
     /// <summary>默认样本下限；选人公告等场景可传入更大的样本数。</summary>
-    public const int RequiredSampleSize = 8;
+    public const int RequiredSampleSize = 5;
 
     /// <summary>下等马档位的分数上限。</summary>
     public const int LowerTierMaxScore = 59;
@@ -142,9 +142,9 @@ public static class RecentModePerformanceEvaluator
         int requiredSampleSize = RequiredSampleSize,
         int? maximumSampleSize = null)
     {
-        int takeCount = Math.Max(requiredSampleSize, maximumSampleSize ?? requiredSampleSize);
-        var performanceList = performances.Take(takeCount).ToList();
-        var resultList = wins.Take(takeCount).ToList();
+        int? takeCount = maximumSampleSize is int maximum ? Math.Max(requiredSampleSize, maximum) : null;
+        var performanceList = (takeCount is int count ? performances.Take(count) : performances).ToList();
+        var resultList = (takeCount is int resultCount ? wins.Take(resultCount) : wins).ToList();
         int sampleSize = Math.Min(performanceList.Count, resultList.Count);
         if (sampleSize == 0)
         {

@@ -91,6 +91,8 @@ public static class AppCompositionRoot
 
     /// <summary>英雄、装备和技能等只读游戏资源服务。</summary>
     public static IGameAssetService GameAssetService { get; } = new LegacyGameAssetService();
+    public static IAugmentScanner AugmentScanner { get; } = new LocalAugmentScanner();
+    public static IAugmentInfoService AugmentInfoService { get; } = new AugmentInfoService();
 
     /// <summary>英雄 ID 与展示名称目录。</summary>
     public static IChampionCatalog ChampionCatalog { get; } = new LegacyChampionCatalog();

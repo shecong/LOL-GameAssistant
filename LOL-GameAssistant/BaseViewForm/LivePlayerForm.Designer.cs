@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant.BaseViewForm
+namespace LOL_GameAssistant.BaseViewForm
 {
     partial class LivePlayerForm
     {
@@ -28,12 +28,12 @@
         /// </summary>
         private void InitializeComponent()
         {
-            headerPanel = new Panel();
+            headerPanel = new AntdUI.Panel();
             picProfile = new RoundPictureBox();
-            lblName = new Label();
-            lblSub = new Label();
-            lblSummary = new Label();
-            lblChampionNow = new Label();
+            lblName = new AntdUI.Label();
+            lblSub = new AntdUI.Label();
+            lblSummary = new AntdUI.Label();
+            lblChampionNow = new AntdUI.Label();
             lblTeamTag = new AntdUI.Label();
             lblPremadeTag = new AntdUI.Label();
             btnCopy = new AntdUI.Button();
@@ -197,12 +197,12 @@
 
         #endregion
 
-        private Panel headerPanel;
+        private AntdUI.Panel headerPanel;
         private RoundPictureBox picProfile;
-        private Label lblName;
-        private Label lblSub;
-        private Label lblSummary;
-        private Label lblChampionNow;
+        private AntdUI.Label lblName;
+        private AntdUI.Label lblSub;
+        private AntdUI.Label lblSummary;
+        private AntdUI.Label lblChampionNow;
         private AntdUI.Label lblTeamTag;
         private AntdUI.Label lblPremadeTag;
         private AntdUI.Button btnCopy;

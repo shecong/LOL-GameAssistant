@@ -1,7 +1,6 @@
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Players;
-using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ChampionSelect;
 using LOL_GameAssistant.Domain.LeagueClient;
@@ -25,7 +24,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private string? _myPuuid;
         private readonly ILobbyService _lobbyService;
         private readonly IPlayerProfileService _playerProfileService;
-        private readonly IPremadeDetectionService _premadeDetectionService;
         private readonly IChampionSelectService _championSelectService;
 
         // 选人聊天只在一套确定的十人阵容全部完成近期战绩计算后发送一次，避免卡片异步完成时刷屏。
@@ -49,12 +47,6 @@ namespace LOL_GameAssistant.BaseViewForm
             AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled &&
             _gameAssessmentRoster.Count == 0;
 
-        // 缓存的是整局阵容的检测任务，而不是只记录“已经检测过”。这样强制刷新重建卡片后，
-        // 已完成的结果能立即重新应用；尚在执行的任务也会被复用，不会重复拉取十人的近期战绩。
-        private readonly Dictionary<string, Task<PremadeDetectionResult>> _premadeResultCache = new(StringComparer.Ordinal);
-
-        private string _activePremadeCacheKey = "";
-        private int _premadeCacheGeneration;
         private string _teamTitleBase1 = "蓝方";
         private string _teamTitleBase2 = "红方";
         private readonly AntdUI.Label _teamQueueTag1;
@@ -70,7 +62,6 @@ namespace LOL_GameAssistant.BaseViewForm
         public LiveGameForm() : this(
             AppCompositionRoot.LobbyService,
             AppCompositionRoot.PlayerProfileService,
-            AppCompositionRoot.PremadeDetectionService,
             AppCompositionRoot.ChampionSelectService)
         {
         }
@@ -79,12 +70,10 @@ namespace LOL_GameAssistant.BaseViewForm
         internal LiveGameForm(
             ILobbyService lobbyService,
             IPlayerProfileService playerProfileService,
-            IPremadeDetectionService premadeDetectionService,
             IChampionSelectService championSelectService)
         {
             _lobbyService = lobbyService;
             _playerProfileService = playerProfileService;
-            _premadeDetectionService = premadeDetectionService;
             _championSelectService = championSelectService;
             InitializeComponent();
             _teamQueueTag1 = CreateTeamQueueTag();
@@ -154,7 +143,7 @@ namespace LOL_GameAssistant.BaseViewForm
             LayoutTeamQueueTag(headerTeam2, lblTeamTitle2, _teamQueueTag2);
         }
 
-        private static void LayoutTeamQueueTag(GradientPanel header, Label title, AntdUI.Label tag)
+        private static void LayoutTeamQueueTag(GradientPanel header, AntdUI.Label title, AntdUI.Label tag)
         {
             if (header.ClientSize.Width <= 0) return;
 
@@ -170,7 +159,7 @@ namespace LOL_GameAssistant.BaseViewForm
             tag.Text = status;
             (tag.BackColor, tag.ForeColor) = status switch
             {
-                "单排" => (palette.IsDark ? palette.SurfaceMuted : Color.FromArgb(238, 238, 238), palette.TextPrimary),
+                "未见组队" => (palette.IsDark ? palette.SurfaceMuted : Color.FromArgb(238, 238, 238), palette.TextPrimary),
                 "检测中" => (palette.IsDark ? Color.FromArgb(25, 64, 94) : Color.FromArgb(227, 242, 253), palette.IsDark ? Color.FromArgb(144, 202, 249) : Color.FromArgb(25, 118, 210)),
                 "未知" => (palette.IsDark ? Color.FromArgb(83, 58, 22) : Color.FromArgb(255, 243, 224), palette.IsDark ? Color.FromArgb(255, 204, 128) : Color.FromArgb(191, 104, 0)),
                 _ => (palette.IsDark ? Color.FromArgb(84, 65, 17) : Color.FromArgb(255, 236, 179), palette.IsDark ? Color.FromArgb(255, 213, 79) : Color.FromArgb(148, 96, 0))
@@ -213,9 +202,6 @@ namespace LOL_GameAssistant.BaseViewForm
             ResetChampSelectAssessments();
             ResetGameAssessments();
             _lastRenderedPhase = null;
-            _activePremadeCacheKey = "";
-            _premadeResultCache.Clear();
-            unchecked { _premadeCacheGeneration++; }
             _teamQueueTag1.Visible = false;
             _teamQueueTag2.Visible = false;
         }
@@ -258,28 +244,16 @@ namespace LOL_GameAssistant.BaseViewForm
                         selectionMyPuuid ??= gameInfo?.LocalPlayerPuuid;
                         selectionMyPuuid ??= await GetMyPuuidAsync();
                         ActiveGameSnapshot? flow = null;
-                        if (string.IsNullOrWhiteSpace(gameInfo?.GameMode) || gameInfo.QueueId <= 0)
-                        {
-                            try { flow = await _lobbyService.GetCurrentSessionAsync(); }
-                            catch { /* 会话切换时仍可使用大厅信息。 */ }
-                        }
+                        // 选人阶段也尝试取得双方的组队标识；失败仍可显示选人阵容。
+                        try { flow = await _lobbyService.GetCurrentSessionAsync(); }
+                        catch { /* 会话切换时仍可使用大厅信息。 */ }
                         string mode = !string.IsNullOrWhiteSpace(gameInfo?.GameMode)
                             ? gameInfo.GameMode : flow?.GameMode ?? "选人阶段";
                         int queueId = gameInfo?.QueueId is > 0 ? gameInfo.QueueId : flow?.QueueId ?? 0;
                         SetGameInfo(mode, queueId);
-                        RenderTeamsCore(
-                            selection.MyTeam.Select(member => (
-                                member.Puuid,
-                                string.IsNullOrWhiteSpace(member.Puuid) ? $"玩家 {member.CellId}" : "加载玩家信息…",
-                                member.ChampionId,
-                                member.AssignedPosition,
-                                false)).ToList(),
-                            selection.TheirTeam.Select(member => (
-                                member.Puuid,
-                                string.IsNullOrWhiteSpace(member.Puuid) ? $"玩家 {member.CellId}" : "加载玩家信息…",
-                                member.ChampionId,
-                                member.AssignedPosition,
-                                false)).ToList(),
+                        RenderTeams(
+                            MapSelectionMembers(selection.MyTeam, flow, gameInfo),
+                            MapSelectionMembers(selection.TheirTeam, flow, gameInfo),
                             force,
                             selectionMyPuuid,
                             queueId,
@@ -372,6 +346,43 @@ namespace LOL_GameAssistant.BaseViewForm
         private static bool IsRenderablePhase(GameFlowPhase phase) =>
             phase is GameFlowPhase.Lobby or GameFlowPhase.ChampSelect or GameFlowPhase.InProgress;
 
+        private static IReadOnlyList<GameTeamMember> MapSelectionMembers(
+            IReadOnlyList<ChampionSelectionMember> members,
+            ActiveGameSnapshot? flow,
+            LobbySnapshot? lobby)
+        {
+            var flowByPuuid = (flow?.TeamOne ?? Array.Empty<GameTeamMember>())
+                .Concat(flow?.TeamTwo ?? Array.Empty<GameTeamMember>())
+                .Where(member => !string.IsNullOrWhiteSpace(member.Puuid))
+                .DistinctBy(member => member.Puuid, StringComparer.Ordinal)
+                .ToDictionary(member => member.Puuid, StringComparer.Ordinal);
+            var lobbyByPuuid = (lobby?.PartyMembers ?? Array.Empty<GameTeamMember>())
+                .Concat(lobby?.Team100 ?? Array.Empty<GameTeamMember>())
+                .Concat(lobby?.Team200 ?? Array.Empty<GameTeamMember>())
+                .Where(member => !string.IsNullOrWhiteSpace(member.Puuid))
+                .DistinctBy(member => member.Puuid, StringComparer.Ordinal)
+                .ToDictionary(member => member.Puuid, StringComparer.Ordinal);
+
+            return members.Select(member =>
+            {
+                string puuid = member.Puuid ?? "";
+                flowByPuuid.TryGetValue(puuid, out GameTeamMember? flowMember);
+                lobbyByPuuid.TryGetValue(puuid, out GameTeamMember? lobbyMember);
+                return new GameTeamMember
+                {
+                    Puuid = puuid,
+                    SummonerName = !string.IsNullOrWhiteSpace(flowMember?.SummonerName)
+                        ? flowMember.SummonerName
+                        : string.IsNullOrWhiteSpace(puuid) ? $"玩家 {member.CellId}" : "加载玩家信息…",
+                    ChampionId = member.ChampionId,
+                    Position = member.AssignedPosition,
+                    PartyId = !string.IsNullOrWhiteSpace(flowMember?.PartyId)
+                        ? flowMember.PartyId : lobbyMember?.PartyId ?? "",
+                    TeamParticipantId = flowMember?.TeamParticipantId ?? 0
+                };
+            }).ToArray();
+        }
+
         /// <summary>
         /// 获取当前登录召唤师的 puuid（带缓存，用于判断队友/对手）。
         /// </summary>
@@ -414,7 +425,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 force,
                 myPuuid,
                 queueId,
-                gameMode);
+                gameMode,
+                CurrentPartyDetector.Detect(team1, team2));
         }
 
         private void RenderTeamsCore(
@@ -423,22 +435,23 @@ namespace LOL_GameAssistant.BaseViewForm
             bool force,
             string? myPuuid,
             int queueId,
-            string? gameMode)
+            string? gameMode,
+            CurrentPartyDetectionResult partyDetection)
         {
-            // 必须保留队伍归属：同一批玩家换边时，旧的开黑小组不能直接套用。
-            // 不包含队列/模式，确保选人阶段进入游戏内时仍然沿用本局已经得到的结果。
-            string signature = BuildPremadeCacheKey(team1, team2);
+            string signature = BuildRosterSignature(team1, team2);
 
             // 阵容未变化时跳过重建，避免自动刷新反复销毁/重建控件
             if (!force && signature == _lastSignature && _lastRenderedPhase == Program.GameMain.gameFlowPhase &&
                 panelTeam1.Controls.Count > 0)
+            {
+                // 房间标识可能比阵容晚到达；同一阵容也要更新开黑标签。
+                ApplyPremadeResult(partyDetection);
                 return;
+            }
             _lastSignature = signature;
             _lastRenderedPhase = Program.GameMain.gameFlowPhase;
             PrepareChampSelectAssessments(signature, team1, team2, myPuuid);
             PrepareGameAssessments(signature, team1, team2);
-            _activePremadeCacheKey = signature;
-            int cacheGeneration = _premadeCacheGeneration;
 
             int count1 = team1.Count(m => !string.IsNullOrWhiteSpace(m.Puuid) || m.IsBot);
             int count2 = team2.Count(m => !string.IsNullOrWhiteSpace(m.Puuid) || m.IsBot);
@@ -451,8 +464,6 @@ namespace LOL_GameAssistant.BaseViewForm
             string suffix2 = team2Mine ? " · 我方" : (anyMine ? " · 敌方" : "");
             lblTeamTitle1.Text = $"蓝方 ({count1}){suffix1}";
             lblTeamTitle2.Text = $"红方 ({count2}){suffix2}";
-            SetTeamQueueTag(_teamQueueTag1, "检测中", "正在根据近期同队记录识别队伍类型");
-            SetTeamQueueTag(_teamQueueTag2, "检测中", "正在根据近期同队记录识别队伍类型");
 
             panelTeam1.SuspendLayout();
             panelTeam2.SuspendLayout();
@@ -491,13 +502,13 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _teamTitleBase1 = lblTeamTitle1.Text;
             _teamTitleBase2 = lblTeamTitle2.Text;
-            _ = ApplyPremadeDetectionAsync(team1, team2, signature, cacheGeneration);
+            ApplyPremadeResult(partyDetection);
         }
 
         /// <summary>
-        /// 生成本局开黑检测缓存键。蓝红两队分别排序，既能稳定命中缓存，又不会把换边阵容误判为同一局。
+        /// 生成阵容签名；队伍分开记录，避免换边后沿用旧卡片。
         /// </summary>
-        private static string BuildPremadeCacheKey(
+        private static string BuildRosterSignature(
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2)
         {
@@ -766,57 +777,11 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>
-        /// 异步执行开黑检测：拉取每人近期战绩，统计同队次数后更新表头与卡片标记。
-        /// 当前对局未结束时按阵容复用检测任务/结果，强制刷新只重绘界面，不重复发起检测。
+        /// 将本局房间标识的分组结果应用到表头与玩家卡片。
         /// </summary>
-        private async Task ApplyPremadeDetectionAsync(
-            List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
-            List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2,
-            string cacheKey,
-            int cacheGeneration)
+        private void ApplyPremadeResult(CurrentPartyDetectionResult detection)
         {
-            Task<PremadeDetectionResult> resultTask;
-            if (!_premadeResultCache.TryGetValue(cacheKey, out resultTask!))
-            {
-                resultTask = _premadeDetectionService.DetectAsync(
-                    team1.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray(),
-                    team2.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray());
-                _premadeResultCache[cacheKey] = resultTask;
-            }
-
-            try
-            {
-                var result = await resultTask;
-
-                // 等待期间阵容/对局已变化则丢弃本次结果。
-                // generation 防止上一局的异步任务在新一局恰好遇到相同阵容时误回填。
-                if (IsDisposed || cacheGeneration != _premadeCacheGeneration ||
-                    cacheKey != _activePremadeCacheKey) return;
-                ApplyPremadeResult(result);
-            }
-            catch
-            {
-                // 失败结果不缓存，当前局下一次刷新可以重新尝试；但不要删除已经属于新一局的任务。
-                if (_premadeResultCache.TryGetValue(cacheKey, out var cachedTask) &&
-                    ReferenceEquals(cachedTask, resultTask))
-                {
-                    _premadeResultCache.Remove(cacheKey);
-                }
-
-                if (!IsDisposed && cacheGeneration == _premadeCacheGeneration &&
-                    cacheKey == _activePremadeCacheKey)
-                {
-                    SetTeamQueueTag(_teamQueueTag1, "未知", "组队检测暂不可用");
-                    SetTeamQueueTag(_teamQueueTag2, "未知", "组队检测暂不可用");
-                }
-            }
-        }
-
-        /// <summary>
-        /// 将开黑检测结果应用到表头与玩家卡片。
-        /// </summary>
-        private void ApplyPremadeResult(PremadeDetectionResult result)
-        {
+            PremadeDetectionResult result = detection.Groups;
             string summary1 = result.GetTeamSummary(0);
             string summary2 = result.GetTeamSummary(1);
             lblTeamTitle1.Text = string.IsNullOrEmpty(summary1)
@@ -826,8 +791,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 ? _teamTitleBase2
                 : $"{_teamTitleBase2} · 开黑 {summary2}";
 
-            SetTeamQueueTag(_teamQueueTag1, result.GetTeamQueueStatus(0), result.GetTeamQueueDetail(0));
-            SetTeamQueueTag(_teamQueueTag2, result.GetTeamQueueStatus(1), result.GetTeamQueueDetail(1));
+            SetTeamQueueTag(_teamQueueTag1, detection.GetTeamStatus(0), detection.GetTeamDetail(0));
+            SetTeamQueueTag(_teamQueueTag2, detection.GetTeamStatus(1), detection.GetTeamDetail(1));
 
             ApplyPremadeToPanel(panelTeam1, result);
             ApplyPremadeToPanel(panelTeam2, result);

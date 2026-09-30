@@ -109,3 +109,47 @@ public static class RankedDisplayRules
         _ => ""
     };
 }
+
+/// <summary>选人伴随窗的排位文案；根据界面语言转换客户端的英文段位代码。</summary>
+public static class RankedDisplayFormatter
+{
+    public static string FormatSoloQueue(RankedQueue? queue, bool english)
+    {
+        if (!RankedDisplayRules.HasRank(queue))
+            return english ? "Rank unavailable" : "段位未获取";
+
+        string tier = english ? queue!.Tier.ToUpperInvariant() : ToChineseTier(queue!.Tier);
+        string division = queue.Tier.ToUpperInvariant() is "MASTER" or "GRANDMASTER" or "CHALLENGER"
+            ? ""
+            : english ? queue.Division : ToChineseDivision(queue.Division);
+        string rank = string.IsNullOrWhiteSpace(division) ? tier :
+            english ? $"{tier} {division}" : $"{tier}{division}";
+        return english
+            ? $"Solo/Duo {rank} · {queue.LeaguePoints} LP"
+            : $"单双排 {rank} · {queue.LeaguePoints} 胜点";
+    }
+
+    private static string ToChineseTier(string? tier) => tier?.Trim().ToUpperInvariant() switch
+    {
+        "IRON" => "黑铁",
+        "BRONZE" => "青铜",
+        "SILVER" => "白银",
+        "GOLD" => "黄金",
+        "PLATINUM" => "铂金",
+        "EMERALD" => "翡翠",
+        "DIAMOND" => "钻石",
+        "MASTER" => "超凡大师",
+        "GRANDMASTER" => "宗师",
+        "CHALLENGER" => "最强王者",
+        _ => tier ?? ""
+    };
+
+    private static string ToChineseDivision(string? division) => division?.Trim().ToUpperInvariant() switch
+    {
+        "I" => "一",
+        "II" => "二",
+        "III" => "三",
+        "IV" => "四",
+        _ => division ?? ""
+    };
+}

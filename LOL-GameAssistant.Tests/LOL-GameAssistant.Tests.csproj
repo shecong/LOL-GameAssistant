@@ -6,6 +6,13 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\LOL-GameAssistant\Domain\LeagueClient\GameSessionSnapshot.cs" Link="Domain\GameSessionSnapshot.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Coaching\LiveModeContextResolver.cs" Link="Domain\LiveModeContextResolver.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Builds\PersonalRunePreset.cs" Link="Domain\PersonalRunePreset.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\ChampionSelect\AramBenchPriorityResolver.cs" Link="Domain\AramBenchPriorityResolver.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\GameData\AugmentNameMatcher.cs" Link="Domain\AugmentNameMatcher.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Teams\PremadeDetectionResult.cs" Link="Domain\PremadeDetectionResult.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Teams\CurrentPartyDetector.cs" Link="Domain\CurrentPartyDetector.cs" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">
@@ -18,6 +25,9 @@
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\GameKdaAnnouncementBuilder.cs" Link="Domain\GameKdaAnnouncementBuilder.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\RecentKdaStatsResolver.cs" Link="Domain\RecentKdaStatsResolver.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Matches\MatchReadModels.cs" Link="Domain\MatchReadModels.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Ranked\RankedOverview.cs" Link="Domain\Ranked\RankedOverview.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\Matches\IMatchHistoryService.cs" Link="Application\Matches\IMatchHistoryService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\Matches\RecentModePerformanceService.cs" Link="Application\Matches\RecentModePerformanceService.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Settings\AiServiceErrorMessage.cs" Link="Domain\AiServiceErrorMessage.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Settings\CloudAiSettings.cs" Link="Domain\CloudAiSettings.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\GameData\ChampionReference.cs" Link="Domain\GameData\ChampionReference.cs" />
