@@ -86,9 +86,14 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Checkbox _autoLaunchClient = new() { Text = "启动助手时直接启动 LOL 客户端", AutoSize = true };
         private readonly AntdUI.Label _clientStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
         private readonly AntdUI.Button _launchClientButton = new() { Text = "立即启动 LOL", AutoSize = true };
-        private readonly AntdUI.InputNumber _opacity = new() { Minimum = 40, Maximum = 100, Width = 130 };
-        private readonly AntdUI.Select _themeMode = new() { ReadOnly = true, Width = 160 };
-        private readonly AntdUI.Select _languageMode = new() { ReadOnly = true, Width = 160 };
+        private readonly AntdUI.InputNumber _opacity = new()
+        {
+            Minimum = 40, Maximum = 100, Width = 130,
+            Height = UiMetrics.ControlHeight, AlwaysShowControl = true
+        };
+        // Select.ReadOnly also blocks opening the menu; List prevents typing while allowing selection.
+        private readonly AntdUI.Select _themeMode = new() { List = true, DropDownArrow = true, Width = 160, Height = UiMetrics.ControlHeight };
+        private readonly AntdUI.Select _languageMode = new() { List = true, DropDownArrow = true, Width = 160, Height = UiMetrics.ControlHeight };
         private readonly AntdUI.Input _hotkey = new() { ReadOnly = true, Width = 160, TabStop = true };
         private readonly AntdUI.Checkbox _onlyLeagueFocused = new() { Text = "仅在 LOL 位于前台时响应", AutoSize = true };
         private QuickShoutForm? _quickShoutForm;
@@ -103,7 +108,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Checkbox _gameKdaAnnouncementEnabled = new() { Text = "对局中发送双方玩家近期 KDA 评估", AutoSize = true };
         private readonly AntdUI.Checkbox _gameKdaOnePlayerPerLine = new() { Text = "每名玩家单独发送一条（单人一行）", AutoSize = true };
         private readonly AntdUI.Input _champSelectKdaAnnouncementTemplate = new() { Dock = DockStyle.Fill, Multiline = true, Height = 86 };
-        private readonly AntdUI.Select _provider = new() { ReadOnly = true, Width = 210 };
+        private readonly AntdUI.Select _provider = new() { List = true, DropDownArrow = true, Width = 210 };
 
         // 可下拉可手填：模型名写错时服务端只回一个 400，所以按服务商给出可选值。
         private readonly ComboBox _model = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 290 };
@@ -118,7 +123,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.InputNumber _dynamicSeconds = new() { Minimum = 15, Maximum = 600, Width = 100 };
         private readonly AntdUI.Checkbox _showPopup = new() { Text = "建议刷新后弹出提醒", AutoSize = true };
         private readonly AntdUI.Checkbox _overlayEnabled = new() { Text = "游戏内显示建议浮窗", AutoSize = true };
-        private readonly AntdUI.Select _overlayPosition = new() { ReadOnly = true, Width = 150 };
+        private readonly AntdUI.Select _overlayPosition = new() { List = true, DropDownArrow = true, Width = 150 };
         private readonly AntdUI.InputNumber _overlayOffsetX = new() { Minimum = -600, Maximum = 600, Width = 80 };
         private readonly AntdUI.InputNumber _overlayOffsetY = new() { Minimum = -600, Maximum = 600, Width = 80 };
         private readonly AntdUI.InputNumber _overlayDuration = new() { Minimum = 3, Maximum = 30, Width = 80 };

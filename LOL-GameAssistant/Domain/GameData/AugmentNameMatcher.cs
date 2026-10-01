@@ -9,6 +9,18 @@ public static class AugmentNameMatcher
         => Match(recognizedText, names.Select(item => (item.Key, item.Value)), limit);
 
     public static IReadOnlyList<int> Match(string recognizedText, IEnumerable<(int Id, string Name)> names, int limit = 3)
+        => RankMatches(recognizedText, names).Take(Math.Max(0, limit)).Select(item => item.Id).ToArray();
+
+    /// <summary>单张卡片只接受明确的最佳候选，避免把相似名称中的任意一个当成结果。</summary>
+    public static AugmentNameMatch? MatchCard(string recognizedText, IEnumerable<(int Id, string Name)> names)
+    {
+        var ranked = RankMatches(recognizedText, names).Take(2).ToArray();
+        if (ranked.Length == 0 || (ranked.Length > 1 && ranked[0].Score - ranked[1].Score < 0.08))
+            return null;
+        return ranked[0];
+    }
+
+    private static IEnumerable<AugmentNameMatch> RankMatches(string recognizedText, IEnumerable<(int Id, string Name)> names)
     {
         // The catalog contains both Arena IDs and Mayhem IDs for some identical names.
         // This scanner is used for Mayhem, where the 1000+ IDs match the stats feed.
@@ -19,17 +31,22 @@ public static class AugmentNameMatcher
                 .ThenByDescending(item => item.Id).First())
             .ToArray();
         string[] lines = (recognizedText ?? "").Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
-        string[] normalizedLines = lines.Select(Normalize).Where(line => line.Length >= 2).ToArray();
+        string[] normalizedLines = lines.Select(Normalize).Where(line => line.Length > 0).ToArray();
         var result = new List<(int Id, double Score)>();
-        // OCR can split a card title at punctuation, such as "升级：" and "献祭".
-        for (int index = 0; index + 1 < normalizedLines.Length; index++)
+        // Keep one-character fragments and join up to three lines, including long English titles.
+        var readings = new HashSet<string>(normalizedLines, StringComparer.Ordinal);
+        int maxNameLength = candidates.Select(item => item.Normalized.Length).DefaultIfEmpty(0).Max();
+        for (int index = 0; index < normalizedLines.Length; index++)
         {
-            string joined = normalizedLines[index] + normalizedLines[index + 1];
-            if (joined.Length > 12) continue;
-            foreach ((int id, string name) in candidates)
-                if (joined == name) result.Add((id, 1));
+            string joined = normalizedLines[index];
+            for (int next = index + 1; next < Math.Min(index + 3, normalizedLines.Length); next++)
+            {
+                joined += normalizedLines[next];
+                if (joined.Length > maxNameLength) break;
+                readings.Add(joined);
+            }
         }
-        foreach (string line in normalizedLines)
+        foreach (string line in readings.Where(line => line.Length >= 2))
         {
             foreach ((int id, string name) in candidates)
             {
@@ -41,7 +58,7 @@ public static class AugmentNameMatcher
             }
         }
         return result.OrderByDescending(item => item.Score)
-            .DistinctBy(item => item.Id).Take(Math.Max(0, limit)).Select(item => item.Id).ToArray();
+            .DistinctBy(item => item.Id).Select(item => new AugmentNameMatch(item.Id, item.Score));
     }
 
     private static string Normalize(string text)
@@ -67,3 +84,5 @@ public static class AugmentNameMatcher
         return previous[right.Length];
     }
 }
+
+public sealed record AugmentNameMatch(int Id, double Score);
