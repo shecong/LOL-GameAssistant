@@ -39,7 +39,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblFlexStats = new AntdUI.Label();
             panelContent = new Panel();
             panelHistory = new Panel();
-            stackMatches = new Panel();
+            stackMatches = new LOL_GameAssistant.Helper.MatchScrollPanel();
             pagination = new AntdUI.Pagination();
             panelStats = new Panel();
             lblStatus = new AntdUI.Label();

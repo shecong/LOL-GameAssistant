@@ -58,9 +58,11 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private readonly bool _showCopyButton;
         private bool _recentPerformancePublished;
+        private bool _layingOutMatchRows;
 
         /// <summary>当前卡片对应玩家的 puuid（供开黑检测结果回填）。</summary>
         public string? Puuid => _playerPuuid;
+        public void ScrollMatchesToTop() => panelMatches.AutoScrollPosition = Point.Empty;
 
         /// <summary>近期同队列 KDA 已完成计算；选人页据此汇总十名玩家并发送一次聊天公告。</summary>
         public event EventHandler<PlayerRecentPerformanceEventArgs>? RecentPerformanceReady;
@@ -339,11 +341,14 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void ResizeMatchRows()
         {
-            int width = Math.Max(100, panelMatches.ClientSize.Width - 18);
-            foreach (var row in panelMatches.Controls.OfType<RecentMatchRow>())
+            if (_layingOutMatchRows || IsDisposed) return;
+            _layingOutMatchRows = true;
+            try
             {
-                row.Width = width;
+                MatchListScrolling.LayoutRows(panelMatches,
+                    panelMatches.Controls.OfType<RecentMatchRow>().Cast<Control>().ToArray(), 4, 2);
             }
+            finally { _layingOutMatchRows = false; }
         }
 
         private void ShowLoadFailure(string status, string detail)
@@ -514,10 +519,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 panelMatches.Controls.Add(row);
                 UiTheme.Apply(row);
                 y += RecentMatchRow.RowHeight;
-                UiAnimation.SlideIn(row, -16, 220, i * 35);
                 _ = row.SetDataAsync(detail, gamer, _playerPuuid);
             }
-            panelMatches.AutoScrollMinSize = new Size(panelMatches.ClientSize.Width, y);
             ResizeMatchRows();
             UiTheme.Apply(this);
         }

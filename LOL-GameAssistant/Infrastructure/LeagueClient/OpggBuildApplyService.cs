@@ -158,7 +158,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         int championId,
         string? position,
         OpggBuildOption option,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool allowReplaceCurrentRunePage = false)
     {
         if (championId <= 0)
             return OpggBuildApplyResult.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
@@ -183,7 +184,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 option.SituationalItemIds.ToList());
 
             string runeResult = option.RunePerkIds.Count >= 6
-                ? await ApplyRunePageAsync(build, label, cancellationToken).ConfigureAwait(false)
+                ? await ApplyRunePageAsync(build, label, cancellationToken, allowReplaceCurrentRunePage: allowReplaceCurrentRunePage).ConfigureAwait(false)
                 : "该模式未提供可写入的符文数据，已保留客户端当前符文";
             if (option.RunePerkIds.Count >= 6) completed.Add("符文页");
             string itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
@@ -255,13 +256,12 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 augments.AddRange((detail.SelectToken("augments.all") as JArray ?? new JArray())
                     .OfType<JObject>()
                     .Select(item => new OpggAugmentRecommendation(
-                        item.Value<int?>("id") ?? 0, 0,
+                        item.Value<int?>("id") ?? 0, -1,
                         item.Value<int?>("sampleCount") ?? 0,
                         (int)Math.Round((item.Value<double?>("winRate") ?? 0) *
                             (item.Value<int?>("sampleCount") ?? 0))))
                     .Where(item => item.Id > 0 && item.Matches >= 100)
-                    .OrderByDescending(item => item.WinRate).ThenByDescending(item => item.Matches)
-                    .Take(30));
+                    .OrderByDescending(item => item.WinRate).ThenByDescending(item => item.Matches));
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -440,7 +440,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     }
 
     private async Task<string> ApplyRunePageAsync(OpggBuild build, string label, CancellationToken cancellationToken,
-        string prefix = ManagedRunePrefix)
+        string prefix = ManagedRunePrefix, bool allowReplaceCurrentRunePage = false)
     {
         if (build.PrimaryStyleId <= 0 || build.SubStyleId <= 0)
             throw new InvalidOperationException("OP.GG 符文缺少主系或副系，本次未写入客户端。");
@@ -465,6 +465,14 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         JObject? managedPage = pages.OfType<JObject>()
             .Where(page => IsManagedRunePage(page.Value<string>("name")))
             .FirstOrDefault(page => page.Value<bool?>("isEditable") != false && page.Value<long?>("id").HasValue);
+        bool replacingUserPage = false;
+        if (managedPage == null && customPageCount >= pageLimit && allowReplaceCurrentRunePage &&
+            oldCurrent?.Value<bool?>("isEditable") == true &&
+            oldCurrent.Value<bool?>("isTemporary") != true && oldCurrentId.HasValue)
+        {
+            managedPage = oldCurrent;
+            replacingUserPage = true;
+        }
         if (managedPage != null)
         {
             long id = managedPage.Value<long>("id");
@@ -472,9 +480,10 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             try
             {
                 if (!await _lcu.PutAsync($"/lol-perks/v1/pages/{id}", body, cancellationToken).ConfigureAwait(false))
-                    throw new InvalidOperationException("客户端拒绝替换助手创建的符文页。");
+                    throw new InvalidOperationException("客户端拒绝替换符文页。");
                 await SetCurrentRunePageAsync(id, cancellationToken).ConfigureAwait(false);
-                return "符文页已设为当前（已替换助手创建的旧页）";
+                return replacingUserPage ? "符文页已设为当前（已按授权覆盖原当前页）"
+                    : "符文页已设为当前（已替换助手创建的旧页）";
             }
             catch
             {
@@ -510,12 +519,12 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             return "符文页已设为当前";
         }
 
-        throw new InvalidOperationException($"自定义符文页已满（{customPageCount}/{pageLimit}），且没有可替换的助手符文页；请先在客户端释放一个符文页后重试。");
+        throw new InvalidOperationException($"自定义符文页已满（{customPageCount}/{pageLimit}），且没有可替换的助手符文页；请在方案弹窗勾选允许覆盖当前页，或先在客户端释放一个符文页后重试。");
     }
 
     private async Task SetCurrentRunePageAsync(long id, CancellationToken cancellationToken)
     {
-        if (!await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(new { id }), cancellationToken).ConfigureAwait(false))
+        if (!await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(id), cancellationToken).ConfigureAwait(false))
             throw new InvalidOperationException("符文页已写入，但客户端拒绝将其设为当前页。");
     }
 
@@ -526,7 +535,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             bool pageRestored = await _lcu.PutAsync($"/lol-perks/v1/pages/{id}", originalBody, timeout.Token).ConfigureAwait(false);
             bool currentRestored = !oldCurrentId.HasValue ||
-                await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(new { id = oldCurrentId.Value }), timeout.Token).ConfigureAwait(false);
+                await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(oldCurrentId.Value), timeout.Token).ConfigureAwait(false);
             return pageRestored && currentRestored;
         }
         catch { return false; }
@@ -539,7 +548,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             bool removed = await _lcu.DeleteAsync($"/lol-perks/v1/pages/{id}", timeout.Token).ConfigureAwait(false);
             bool currentRestored = !oldCurrentId.HasValue ||
-                await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(new { id = oldCurrentId.Value }), timeout.Token).ConfigureAwait(false);
+                await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(oldCurrentId.Value), timeout.Token).ConfigureAwait(false);
             return removed && currentRestored;
         }
         catch { return false; }

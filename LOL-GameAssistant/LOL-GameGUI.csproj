@@ -33,6 +33,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="LOL-GameAssistant.UiTests" />
     <PackageReference Include="AntdUI" Version="2.4.12" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Management" Version="10.0.12" />

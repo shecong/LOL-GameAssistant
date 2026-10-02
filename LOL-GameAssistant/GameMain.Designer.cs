@@ -282,8 +282,9 @@
             Controls.Add(HeadContent);
             HelpButton = true;
             Name = "GameMain";
+            ShowInTaskbar = true;
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "Form1";
+            Text = "LOL GameAssistant";
             Load += GameMain_Load;
             tabs1.ResumeLayout(false);
             tabPage1.ResumeLayout(false);

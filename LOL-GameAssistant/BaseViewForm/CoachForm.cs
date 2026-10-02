@@ -166,6 +166,29 @@ public sealed class CoachForm : UserControl
         _opggRetryAfter = DateTimeOffset.MinValue;
     }
 
+    /// <summary>供选人伴随窗手动打开当前模式的方案选择；无需开启自动推荐。</summary>
+    public async Task<string> OpenOpggBuildPickerAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsDisposed) return "OP.GG 方案窗口不可用。";
+        if (_applyingOpgg || _opggPickerOpen) return "OP.GG 方案正在获取或选择中。";
+        _opggPickerOpen = true;
+        try
+        {
+            AiGameContext context = await _aiCoachingService.CollectContextAsync(cancellationToken);
+            await ApplyOpggBuildAsync(context, automatic: false, cancellationToken);
+            return _status.Text ?? "";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return "已取消 OP.GG 方案选择。";
+        }
+        catch (Exception ex)
+        {
+            return $"获取当前选人信息失败：{ex.Message}";
+        }
+        finally { _opggPickerOpen = false; }
+    }
+
     private async Task PromptOpggBuildIfNeededCoreAsync(CancellationToken cancellationToken)
     {
         AssistantSettings settings = _settingsStore.Load();
@@ -259,7 +282,7 @@ public sealed class CoachForm : UserControl
     {
         if (_applyingOpgg || IsDisposed) return;
         _applyingOpgg = true;
-        _opggPickerOpen = automatic;
+        _opggPickerOpen = true;
         RefreshOpggAvailability();
         _status.ForeColor = Color.DimGray;
         _status.Text = automatic ? "检测到已选英雄，正在从 OP.GG 获取图文方案…" : "正在从 OP.GG 获取图文方案…";
@@ -295,6 +318,8 @@ public sealed class CoachForm : UserControl
             OpggBuildOption? selectedOption = automatic
                 ? choices.Options.FirstOrDefault(option => option.Order == savedOrder)
                 : null;
+            bool manuallySelected = false;
+            bool allowReplaceCurrentRunePage = false;
 
             if (autoApply && selectedOption == null)
                 selectedOption = choices.Options.FirstOrDefault();
@@ -314,17 +339,40 @@ public sealed class CoachForm : UserControl
                 }
 
                 selectedOption = picker.SelectedOption;
-                settings.OpggManualBuildSelections[selectionKey] = selectedOption.Order;
-                _settingsStore.Save(settings);
+                allowReplaceCurrentRunePage = picker.AllowReplaceCurrentRunePage;
+                manuallySelected = true;
+            }
+
+            AiGameContext latest = await _aiCoachingService.CollectContextAsync(cancellationToken);
+            if (!string.Equals(latest.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
+                latest.MyChampionId != context.MyChampionId ||
+                Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(latest.GameMode, latest.QueueId) != choices.Mode ||
+                !string.Equals(latest.MyRole, context.MyRole, StringComparison.OrdinalIgnoreCase))
+            {
+                _status.ForeColor = Color.DarkGoldenrod;
+                _status.Text = "选人英雄、模式或位置已变化，请重新获取方案。";
+                return;
             }
 
             _status.Text = automatic && savedOrder > 0
                 ? $"正在按已保存的 {choices.PositionName} 方案 {selectedOption.Order} 配置…"
                 : $"正在应用 OP.GG 方案 {selectedOption.Order}…";
             OpggBuildApplyResult result = await _opggBuildApplyService
-                .ApplyBuildAsync(context.MyChampionId, context.MyRole, selectedOption, cancellationToken);
+                .ApplyBuildAsync(context.MyChampionId, context.MyRole, selectedOption, cancellationToken, allowReplaceCurrentRunePage);
             _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
             _status.Text = result.Message;
+            RuntimeDiagnostics.Report("OP.GG 方案应用", result.Succeeded ? "成功" : "失败", result.Message);
+            Program.GameMain.infoMsg.AddMsg(result.Message);
+            if (result.Succeeded && manuallySelected)
+            {
+                // 弹窗期间设置可能变化；只在应用成功后保存选择。
+                settings = _settingsStore.Load();
+                settings.OpggManualBuildSelections[selectionKey] = selectedOption.Order;
+                _settingsStore.Save(settings);
+            }
+            if (!result.Succeeded && !automatic)
+                MessageBox.Show(FindForm() ?? Program.GameMain, result.Message, "符文装备应用失败",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
             if (automatic && !result.Succeeded) ScheduleOpggRetry(_opggPromptedContext);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

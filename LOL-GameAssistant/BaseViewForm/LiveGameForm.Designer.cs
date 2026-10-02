@@ -33,11 +33,11 @@ namespace LOL_GameAssistant.BaseViewForm
             pulseDot = new PulseDot();
             lblGameInfo = new AntdUI.Label();
             column1 = new AntdUI.Panel();
-            panelTeam1 = new FlowLayoutPanel();
+            panelTeam1 = new LOL_GameAssistant.Helper.MatchFlowPanel();
             headerTeam1 = new GradientPanel();
             lblTeamTitle1 = new AntdUI.Label();
             column2 = new AntdUI.Panel();
-            panelTeam2 = new FlowLayoutPanel();
+            panelTeam2 = new LOL_GameAssistant.Helper.MatchFlowPanel();
             headerTeam2 = new GradientPanel();
             lblTeamTitle2 = new AntdUI.Label();
             rootGrid.SuspendLayout();

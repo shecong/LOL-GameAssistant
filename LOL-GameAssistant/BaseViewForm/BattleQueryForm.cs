@@ -116,8 +116,8 @@ namespace LOL_GameAssistant.BaseViewForm
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(UiMetrics.SpaceLarge, UiMetrics.SpaceMedium, UiMetrics.SpaceLarge, 10) };
             _rootLayout = root;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 128));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 130));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
@@ -172,6 +172,9 @@ namespace LOL_GameAssistant.BaseViewForm
             pageSizeArea.Controls.Add(new AntdUI.Label { Text = "每页", Width = 42, Height = 34 });
             pageSizeArea.Controls.Add(_pageSizeSelect);
             viewBar.Controls.Add(pageSizeArea);
+            var backToTop = new AntdUI.Button { Text = "回到顶部", Dock = DockStyle.Right, Width = 96 };
+            backToTop.Click += (_, _) => stackMatches.AutoScrollPosition = Point.Empty;
+            viewBar.Controls.Add(backToTop);
 
             panelContent.Dock = DockStyle.Fill;
             panelContent.Margin = Padding.Empty;
@@ -183,17 +186,18 @@ namespace LOL_GameAssistant.BaseViewForm
             root.Controls.Add(lblStatus, 0, 4);
             Controls.Add(root);
 
-            var historyHeader = new AntdUI.Panel { Dock = DockStyle.Top, Height = 51, Radius = 0, Padding = new Padding(10, 5, 10, 0) };
+            var historyHeader = new AntdUI.Panel { Dock = DockStyle.Top, Height = 46, Radius = 0, Padding = new Padding(10, 3, 10, 0) };
             _historyTitle.Dock = DockStyle.Top;
             _historyTitle.Height = 23;
             _historyTitle.Text = "最近对局";
             _historyTitle.Font = new Font(UiMetrics.FontFamily, 10F, FontStyle.Bold);
             _historyHint.Dock = DockStyle.Fill;
-            _historyHint.Text = "每局直接展示双方玩家、KDA 与开黑标记；海克斯强化显示中文名";
+            _historyHint.Text = "滚轮浏览记录 · 点击详情查看完整对局";
             historyHeader.Controls.Add(_historyHint);
             historyHeader.Controls.Add(_historyTitle);
             panelHistory.Controls.Add(historyHeader);
             historyHeader.SendToBack();
+            pagination.BringToFront();
             stackMatches.Controls.Add(new AntdUI.Label
             {
                 Dock = DockStyle.Fill,
@@ -224,7 +228,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             _historyTitle.Text = totalGames > 0 ? $"最近对局 · {totalGames} 场" : "最近对局";
             _historyHint.Text = totalGames > 0
-                ? "对局摘要先显示，双方详情逐场补齐；详情包含玩家、禁用英雄与强化。"
+                ? "滚轮浏览记录 · 点击详情查看完整对局；双方资料自动补齐。"
                 : "输入 Riot ID（名称#TAG）或 PUUID 查询；每局直接展示双方玩家。";
         }
 
@@ -293,7 +297,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _searchActions.Height = width < 430 ? 78 : 42;
             _favoriteActions.Height = narrow ? 76 : 42;
             if (_rootLayout != null)
-                _rootLayout.RowStyles[0].Height = width < 430 ? 202 : narrow ? 166 : 128;
+                _rootLayout.RowStyles[0].Height = width < 430 ? 202 : narrow ? 166 : 120;
             int available = width - btnSearch.Width - 118;
             inpSearch.Width = Math.Clamp(available, 160, 620);
         }
@@ -304,6 +308,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private void LayoutPlayerPanel()
         {
             if (panelPlayer.ClientSize.Width <= 0) return;
+            if (_currentPlayer == null)
+            {
+                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 64;
+                return;
+            }
             panelRanked.Dock = DockStyle.None;
             panelPlayerInfo.Dock = DockStyle.None;
             avatarPlayer.Dock = DockStyle.None;
@@ -315,37 +324,29 @@ namespace LOL_GameAssistant.BaseViewForm
             lblFlexTitle.Dock = DockStyle.None;
             lblFlexStats.Dock = DockStyle.None;
             int width = panelPlayer.ClientSize.Width;
-            avatarPlayer.SetBounds(8, 8, 96, 102);
+            avatarPlayer.SetBounds(8, 4, 84, 88);
             if (width < 650)
             {
-                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 254;
-                panelPlayerInfo.SetBounds(112, 8, Math.Max(120, width - 120), 102);
-                panelRanked.SetBounds(8, 116, Math.Max(200, width - 16), 108);
+                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 226;
+                panelPlayerInfo.SetBounds(104, 4, Math.Max(120, width - 112), 88);
+                panelRanked.SetBounds(8, 100, Math.Max(200, width - 16), 88);
             }
             else
             {
-                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 130;
+                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 118;
                 int rankedWidth = Math.Clamp(width - 112 - 245, 240, 472);
-                panelPlayerInfo.SetBounds(112, 8, Math.Max(160, width - 120 - rankedWidth), 102);
-                panelRanked.SetBounds(width - rankedWidth - 8, 8, rankedWidth, 102);
+                panelPlayerInfo.SetBounds(104, 4, Math.Max(160, width - 112 - rankedWidth), 88);
+                panelRanked.SetBounds(width - rankedWidth - 8, 4, rankedWidth, 88);
             }
             int identityWidth = panelPlayerInfo.ClientSize.Width;
-            lblPlayerName.SetBounds(0, 0, identityWidth, 40);
-            lblPlayerTag.SetBounds(0, 40, identityWidth, 28);
-            lblPlayerLevel.SetBounds(0, 68, identityWidth, 28);
+            lblPlayerName.SetBounds(0, 0, identityWidth, 32);
+            lblPlayerTag.SetBounds(0, 32, identityWidth, 26);
+            lblPlayerLevel.SetBounds(0, 58, identityWidth, 26);
             int rankedTextWidth = panelRanked.ClientSize.Width;
-            lblSoloTitle.SetBounds(0, 0, rankedTextWidth, 26);
-            lblSoloStats.SetBounds(0, 26, rankedTextWidth, 24);
-            lblFlexTitle.SetBounds(0, 50, rankedTextWidth, 26);
-            lblFlexStats.SetBounds(0, 76, rankedTextWidth, 24);
-        }
-
-        private int GetMatchRowWidth(int contentHeight)
-        {
-            int scrollbarWidth = contentHeight > stackMatches.ClientSize.Height
-                ? SystemInformation.VerticalScrollBarWidth
-                : 0;
-            return Math.Max(1, stackMatches.ClientSize.Width - MatchListHorizontalInset - scrollbarWidth);
+            lblSoloTitle.SetBounds(0, 0, rankedTextWidth, 22);
+            lblSoloStats.SetBounds(0, 22, rankedTextWidth, 22);
+            lblFlexTitle.SetBounds(0, 44, rankedTextWidth, 22);
+            lblFlexStats.SetBounds(0, 66, rankedTextWidth, 22);
         }
 
         /// <summary>
@@ -362,19 +363,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _resizingMatchRows = true;
             try
             {
-                int height = 8 + rows.Sum(row => row.Height + 8) + 6;
-                int width = GetMatchRowWidth(height);
-                foreach (Control row in rows) row.Width = width;
-                height = 8 + rows.Sum(row => row.Height + 8) + 6;
-                width = GetMatchRowWidth(height);
-                foreach (Control row in rows) row.Width = width;
-                int y = 8;
-                foreach (Control row in rows)
-                {
-                    row.Location = new Point(10, y);
-                    y += row.Height + 8;
-                }
-                stackMatches.AutoScrollMinSize = new Size(0, y + 6);
+                MatchListScrolling.LayoutRows(stackMatches, rows, 10, 8);
             }
             finally { _resizingMatchRows = false; }
         }
@@ -599,6 +588,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblPlayerLevel.Visible = true;
             panelPlayer.Visible = true;
             _playerPlaceholder.Visible = false;
+            UpdateResponsiveLayout();
 
             await Task.WhenAll(rankedTask, matchTask);
 
@@ -820,6 +810,8 @@ namespace LOL_GameAssistant.BaseViewForm
                             Width = Math.Max(1, stackMatches.ClientSize.Width - MatchListHorizontalInset)
                         };
                         var preview = previews[index];
+                        // 新卡片接替摘要的屏幕位置，重排才能保留用户正在阅读的记录。
+                        card.Location = preview.Location;
                         stackMatches.Controls.Remove(preview);
                         preview.Dispose();
                         stackMatches.Controls.Add(card);

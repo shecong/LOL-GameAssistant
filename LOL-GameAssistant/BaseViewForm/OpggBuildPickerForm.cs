@@ -20,6 +20,12 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
     private readonly AntdUI.Label _note = new();
     private readonly AntdUI.Label _modeBadge = new();
     private readonly AntdUI.Label _sourceHint = new();
+    private readonly CheckBox _replaceCurrentRunePage = new()
+    {
+        Text = "符文页已满时，允许覆盖当前自定义符文页（原符文会被替换）",
+        Checked = true,
+        AutoSize = true, Margin = new Padding(8, 8, 16, 0)
+    };
     private readonly AntdUI.Panel _heroHeader = new();
     private readonly PictureBox _championIcon = new();
     private readonly List<RouteCard> _cards = new();
@@ -29,6 +35,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
     private RouteCard? _selectedCard;
 
     public OpggBuildOption? SelectedOption => _selectedCard?.Option;
+    public bool AllowReplaceCurrentRunePage => _replaceCurrentRunePage.Checked;
 
     public OpggBuildPickerForm(
         OpggBuildChoices choices,
@@ -129,6 +136,8 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         _apply.Click += (_, _) => ConfirmSelection();
         footer.Controls.Add(cancel);
         footer.Controls.Add(_apply);
+        if (_choices.Options.Any(option => option.RunePerkIds.Count >= 6))
+            footer.Controls.Add(_replaceCurrentRunePage);
 
         Controls.Add(_routeCards);
         Controls.Add(footer);

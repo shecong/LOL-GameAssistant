@@ -11,7 +11,7 @@ internal static class AugmentCatalog
     private static readonly Lazy<IReadOnlyDictionary<int, AugmentDisplay>> Catalog = new(Load);
     private static readonly ConcurrentDictionary<string, Task<byte[]?>> IconCache = new(StringComparer.Ordinal);
 
-    internal sealed record AugmentDisplay(int Id, string Name, string? IconUrl, string? EnglishName = null);
+    internal sealed record AugmentDisplay(int Id, string Name, string? IconUrl, string? EnglishName = null, int? Rarity = null);
 
     public static Task<IReadOnlyList<AugmentDisplay>> ResolveAsync(IEnumerable<int> ids)
     {
@@ -47,7 +47,9 @@ internal static class AugmentCatalog
                 ? iconValue.GetString() : null;
             string? englishName = entry.Value.TryGetProperty("englishName", out JsonElement englishValue)
                 ? englishValue.GetString() : null;
-            result[id] = new AugmentDisplay(id, name, iconUrl, englishName);
+            int? rarity = entry.Value.TryGetProperty("rarity", out JsonElement rarityValue)
+                && rarityValue.TryGetInt32(out int value) && value is >= 0 and <= 2 ? value : null;
+            result[id] = new AugmentDisplay(id, name, iconUrl, englishName, rarity);
         }
         return result;
     }

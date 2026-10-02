@@ -28,7 +28,8 @@ public interface IOpggBuildApplyService
         int championId,
         string? position,
         OpggBuildOption option,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool allowReplaceCurrentRunePage = false);
 
     /// <summary>兼容旧调用方：直接应用使用率最高的路线。</summary>
     Task<OpggBuildApplyResult> ApplyForChampionAsync(

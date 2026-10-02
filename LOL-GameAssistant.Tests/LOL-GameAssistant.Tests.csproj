@@ -6,6 +6,10 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\LOL-GameAssistant\Application\GameData\IAugmentInfoService.cs" Link="Application\IAugmentInfoService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\Builds\AugmentRecommendationGroups.cs" Link="Application\AugmentRecommendationGroups.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\ChampionSelect\ChampionSelectionSnapshot.cs" Link="Domain\ChampionSelectionSnapshot.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\ChampionSelectionSnapshotMapper.cs" Link="Infrastructure\ChampionSelectionSnapshotMapper.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\LeagueClient\GameSessionSnapshot.cs" Link="Domain\GameSessionSnapshot.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Coaching\LiveModeContextResolver.cs" Link="Domain\LiveModeContextResolver.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Builds\PersonalRunePreset.cs" Link="Domain\PersonalRunePreset.cs" />

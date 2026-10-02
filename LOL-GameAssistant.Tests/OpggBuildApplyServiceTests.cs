@@ -54,6 +54,64 @@ public sealed class OpggBuildApplyServiceTests
     }
 
     [Fact]
+    public async Task ApplyBuild_WhenFullAndReplacementAuthorized_ReplacesOnlyCurrentEditablePage()
+    {
+        var lcu = new FakeLcuRequestSender(2, 2,
+            new JObject { ["id"] = 11, ["name"] = "保留页", ["current"] = false, ["isEditable"] = true },
+            new JObject { ["id"] = 22, ["name"] = "原当前页", ["current"] = true, ["isEditable"] = true });
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption(), allowReplaceCurrentRunePage: true);
+
+        Assert.True(result.Succeeded);
+        Assert.Contains(lcu.RunePages, page => page.Value<long>("id") == 11 && page.Value<string>("name") == "保留页");
+        Assert.Contains(lcu.RunePages, page => page.Value<long>("id") == 22 && page.Value<bool>("current") &&
+            page["selectedPerkIds"]!.Values<int>().SequenceEqual(CreateOption().RunePerkIds));
+        Assert.Contains("/lol-item-sets/v1/item-sets/1/sets", lcu.PutEndpoints);
+        Assert.Empty(lcu.DeleteEndpoints);
+    }
+
+    [Fact]
+    public async Task ApplyBuild_WhenAuthorizedReplacementSwitchFails_RestoresOriginalRunes()
+    {
+        var original = new JObject
+        {
+            ["id"] = 22, ["name"] = "原当前页", ["current"] = true, ["isEditable"] = true,
+            ["primaryStyleId"] = 8100, ["subStyleId"] = 8000,
+            ["order"] = 0,
+            ["selectedPerkIds"] = new JArray(8112, 8139, 8120, 8105, 9111, 9104)
+        };
+        var lcu = new FakeLcuRequestSender(1, 1, original) { FailNextCurrentSwitch = true };
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption(), allowReplaceCurrentRunePage: true);
+
+        Assert.False(result.Succeeded);
+        Assert.True(JToken.DeepEquals(original, Assert.Single(lcu.RunePages)));
+        Assert.DoesNotContain("/lol-item-sets/v1/item-sets/1/sets", lcu.PutEndpoints);
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task ApplyBuild_WhenCurrentPageCannotBeReplaced_LeavesItUnchanged(bool editable, bool temporary)
+    {
+        var original = new JObject
+        {
+            ["id"] = 22, ["name"] = "原当前页", ["current"] = true,
+            ["isEditable"] = editable, ["isTemporary"] = temporary
+        };
+        var lcu = new FakeLcuRequestSender(1, 1, original);
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption(), allowReplaceCurrentRunePage: true);
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(lcu.PutEndpoints);
+        Assert.True(JToken.DeepEquals(original, Assert.Single(lcu.RunePages)));
+    }
+
+    [Fact]
     public async Task ApplyBuild_WhenManagedPageExists_ReplacesOnlyManagedPage()
     {
         var lcu = new FakeLcuRequestSender(2, 2,
@@ -271,6 +329,14 @@ public sealed class OpggBuildApplyServiceTests
         public Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
         {
             PutEndpoints.Add(endpoint);
+            if (endpoint == "/lol-perks/v1/currentpage")
+            {
+                // LCU requires a scalar page ID, not an object containing an ID.
+                JToken token = JToken.Parse(jsonBody);
+                Assert.Equal(JTokenType.Integer, token.Type);
+                if (!FailNextCurrentSwitch)
+                    foreach (var page in RunePages) page["current"] = page.Value<long>("id") == token.Value<long>();
+            }
             if (endpoint == "/lol-perks/v1/currentpage" && FailNextCurrentSwitch)
             {
                 FailNextCurrentSwitch = false;
@@ -282,7 +348,8 @@ public sealed class OpggBuildApplyServiceTests
                 JObject? page = RunePages.FirstOrDefault(item => item.Value<long?>("id") == id);
                 if (page != null)
                 {
-                    page["name"] = JObject.Parse(jsonBody).Value<string>("name");
+                    foreach (var property in JObject.Parse(jsonBody).Properties())
+                        page[property.Name] = property.Value.DeepClone();
                 }
             }
             return Task.FromResult(true);

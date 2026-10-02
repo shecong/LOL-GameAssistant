@@ -38,7 +38,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblPremadeTag = new AntdUI.Label();
             btnCopy = new AntdUI.Button();
             picCurrent = new RoundPictureBox();
-            panelMatches = new Panel();
+            panelMatches = new LOL_GameAssistant.Helper.MatchScrollPanel();
             headerPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)picProfile).BeginInit();
             ((System.ComponentModel.ISupportInitialize)picCurrent).BeginInit();

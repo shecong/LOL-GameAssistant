@@ -19,6 +19,12 @@ internal sealed class MayhemOverlayForm : Form
     private readonly CancellationTokenSource _lifetime = new();
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Top, Height = 54, ForeColor = Color.LightGray };
     private readonly AntdUI.Input _recommendations = TextPanel();
+    private readonly AntdUI.Segmented _raritySelector = new()
+    {
+        Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(35, 43, 62), ForeColor = Color.White
+    };
+    private IReadOnlyDictionary<int, AugmentInfo> _namedAugments = new Dictionary<int, AugmentInfo>();
+    private string _coreRecommendation = "";
     private readonly AntdUI.Input _offered = TextPanel();
     private readonly AntdUI.Button _scan = new() { Text = "扫描当前增幅", Dock = DockStyle.Top, Height = 38 };
     private readonly TableLayoutPanel _contentLayout = new() { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Padding = new Padding(9) };
@@ -76,7 +82,16 @@ internal sealed class MayhemOverlayForm : Form
 
         _contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 61));
         _contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 39));
-        _contentLayout.Controls.Add(_recommendations, 0, 0);
+        _raritySelector.Items.Add(new AntdUI.SegmentedItem { Text = "白银" });
+        _raritySelector.Items.Add(new AntdUI.SegmentedItem { Text = "黄金" });
+        _raritySelector.Items.Add(new AntdUI.SegmentedItem { Text = "棱彩" });
+        _raritySelector.SelectIndex = 0;
+        _raritySelector.SelectIndexChanged += (_, _) => RenderSelectedRarity();
+        UpdateRarityLabels();
+        var recommendationsArea = new Panel { Dock = DockStyle.Fill };
+        recommendationsArea.Controls.Add(_recommendations);
+        recommendationsArea.Controls.Add(_raritySelector);
+        _contentLayout.Controls.Add(recommendationsArea, 0, 0);
         _contentLayout.Controls.Add(_offered, 0, 1);
         Controls.Add(_contentLayout);
         Controls.Add(_scan);
@@ -98,6 +113,7 @@ internal sealed class MayhemOverlayForm : Form
     {
         if (IsDisposed) return;
         UpdateTitle();
+        UpdateRarityLabels();
         _offered.Clear();
         if (_choices != null)
             try { await RenderRecommendationsAsync(); }
@@ -253,21 +269,64 @@ internal sealed class MayhemOverlayForm : Form
         _status.Text = UiLanguage.IsEnglish
             ? $"{_choices.ChampionName} · Mayhem augments and build · scan the offers in game"
             : $"{_choices.ChampionName} · 专属增幅与出装；游戏内可点击扫描";
-        var top = (_choices.Augments ?? Array.Empty<OpggAugmentRecommendation>()).Take(12).ToArray();
-        var named = (await _augments.ResolveAsync(top.Select(item => item.Id))).ToDictionary(item => item.Id);
+        var choices = _choices;
+        var all = choices.Augments ?? Array.Empty<OpggAugmentRecommendation>();
+        var named = (await _augments.ResolveAsync(all.Select(item => item.Id))).ToDictionary(item => item.Id);
         if (IsDisposed || _lifetime.IsCancellationRequested) return;
-        var lines = new List<string> { UiLanguage.IsEnglish ? "Recommended augments · champion win rate" : "推荐增幅（英雄样本胜率）" };
-        foreach (var augment in top)
-            lines.Add($"{DisplayName(named.GetValueOrDefault(augment.Id))}  {augment.WinRate:0.0}%  · {augment.Matches:N0} " +
-                (UiLanguage.IsEnglish ? "matches" : "场"));
-        var core = _choices.Options.FirstOrDefault()?.CoreItemIds ?? Array.Empty<int>();
+        string coreRecommendation = "";
+        var core = choices.Options.FirstOrDefault()?.CoreItemIds ?? Array.Empty<int>();
         if (core.Count > 0)
         {
             var itemNames = await Task.WhenAll(core.Select(async id => await _assets.GetItemNameAsync(id) ?? $"#{id}"));
             if (IsDisposed || _lifetime.IsCancellationRequested) return;
-            lines.Add("");
-            lines.Add((UiLanguage.IsEnglish ? "Core items: " : "专属核心出装：") + string.Join(" → ", itemNames));
+            coreRecommendation = (UiLanguage.IsEnglish ? "Core items: " : "专属核心出装：") + string.Join(" → ", itemNames);
         }
+        if (!ReferenceEquals(choices, _choices)) return;
+        _namedAugments = named;
+        _coreRecommendation = coreRecommendation;
+        RenderSelectedRarity();
+    }
+
+    private void UpdateRarityLabels()
+    {
+        for (int rarity = 0; rarity < 3; rarity++) _raritySelector.Items[rarity].Text = RarityName(rarity);
+        _raritySelector.Invalidate();
+    }
+
+    private static string RarityName(int rarity) => rarity switch
+    {
+        0 => UiLanguage.IsEnglish ? "Silver" : "白银",
+        1 => UiLanguage.IsEnglish ? "Gold" : "黄金",
+        2 => UiLanguage.IsEnglish ? "Prismatic" : "棱彩",
+        _ => UiLanguage.IsEnglish ? "Unknown type" : "类型未知"
+    };
+
+    private void RenderSelectedRarity()
+    {
+        if (IsDisposed || _choices is not { Succeeded: true }) return;
+        int rarity = Math.Clamp(_raritySelector.SelectIndex, 0, 2);
+        var top = AugmentRecommendationGroups.Select(_choices.Augments ?? [], _namedAugments, rarity);
+        var lines = new List<string>
+        {
+            UiLanguage.IsEnglish ? $"{RarityName(rarity)} augments · champion win rate"
+                : $"{RarityName(rarity)}增幅推荐（英雄样本胜率）"
+        };
+        foreach (var augment in top)
+            lines.Add($"{DisplayName(_namedAugments.GetValueOrDefault(augment.Id))}  {augment.WinRate:0.0}%  · {augment.Matches:N0} " +
+                (UiLanguage.IsEnglish ? "matches" : "场"));
+        if (top.Count == 0)
+            lines.Add(UiLanguage.IsEnglish ? "No champion samples for this type yet" : "暂无该类型的英雄推荐样本");
+        if (!string.IsNullOrEmpty(_coreRecommendation))
+        {
+            lines.Add("");
+            lines.Add(_coreRecommendation);
+        }
+        _recommendations.ForeColor = rarity switch
+        {
+            0 => Color.FromArgb(216, 224, 235),
+            1 => Color.FromArgb(255, 213, 105),
+            _ => Color.FromArgb(177, 195, 255)
+        };
         _recommendations.Text = string.Join(Environment.NewLine, lines);
     }
 
@@ -339,7 +398,8 @@ internal sealed class MayhemOverlayForm : Form
                 .OrderByDescending(item => item.Stats?.WinRate ?? -1).ToArray();
             _offered.Text = (UiLanguage.IsEnglish ? "Detected offers · recommended order" : "本次识别 · 建议顺序") + Environment.NewLine +
                 string.Join(Environment.NewLine, scored.Select((item, index) =>
-                    $"{index + 1}. {DisplayName(named.GetValueOrDefault(item.Id))}  " +
+                    $"{index + 1}. [{RarityName(named.GetValueOrDefault(item.Id)?.Rarity ?? item.Stats?.Rarity ?? -1)}] " +
+                    $"{DisplayName(named.GetValueOrDefault(item.Id))}  " +
                     (item.Stats == null ? (UiLanguage.IsEnglish ? "No champion sample" : "暂无该英雄样本") :
                         $"{item.Stats.WinRate:0.0}% · {item.Stats.Matches:N0} " + (UiLanguage.IsEnglish ? "matches" : "场"))));
         }

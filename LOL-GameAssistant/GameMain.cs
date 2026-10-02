@@ -52,6 +52,7 @@ namespace LOL_GameAssistant
         private bool _readyCheckDeclinedByUser;
         private bool _postGameAutomationsTriggered;
         private bool _restoringFromTray;
+        private bool _startupCompleted;
         private readonly WindowHoldController _windowHoldController;
         private readonly QuickMessageSenderController _quickMessageController;
         private bool _autoClientLaunchAttempted;
@@ -153,6 +154,8 @@ namespace LOL_GameAssistant
             _recommendationCoordinator = recommendationCoordinator;
             InitializeComponent();
             Icon = AppIcon.Shared;
+            // ShowInTaskbar 仅设置窗口样式；无边框窗口还需在显示后可靠登记到 Shell。
+            _ = new TaskbarWindowRegistration(this);
             _headerIconImage = AppIcon.Shared.ToBitmap();
             HeadContent.Icon = _headerIconImage;
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
@@ -639,6 +642,11 @@ namespace LOL_GameAssistant
             else if (string.Equals(gameEvent.Uri, "/lol-matchmaking/v1/ready-check", StringComparison.Ordinal))
             {
                 ObserveReadyCheckResponse(gameEvent.Data);
+            }
+            else if (string.Equals(gameEvent.Uri, "/lol-champ-select/v1/session", StringComparison.Ordinal))
+            {
+                var selection = Infrastructure.LeagueClient.ChampionSelectionSnapshotMapper.ParseEvent(gameEvent.Data);
+                if (selection != null) _champSelectCompanion.ObserveChampionSelection(selection);
             }
         }
 
@@ -1150,11 +1158,34 @@ namespace LOL_GameAssistant
             if (_trayIcon != null) _trayIcon.Visible = !Visible;
         }
 
+        /// <summary>首次显示时恢复正常窗口，避免启动过程被最小化到托盘。</summary>
+        protected override void SetVisibleCore(bool value)
+        {
+            if (!value || _startupCompleted || _restoringFromTray)
+            {
+                base.SetVisibleCore(value);
+                return;
+            }
+
+            // Windows/快捷方式可能以最小化状态启动。首次显示前不应隐藏到托盘。
+            _restoringFromTray = true;
+            try
+            {
+                ShowInTaskbar = true;
+                WindowState = FormWindowState.Normal;
+                base.SetVisibleCore(value);
+                _startupCompleted = Visible;
+            }
+            finally
+            {
+                _restoringFromTray = false;
+                if (!IsDisposed) UpdateTrayVisibility();
+            }
+        }
+
         /// <summary>
         /// 从托盘恢复窗口。
-        /// 两处都要设置：Show() 之前先恢复 Normal，否则窗口会以"最小化"状态显示出来；
-        /// Show() 之后再兜一次，因为窗口处于隐藏状态时这个赋值可能被忽略，窗口会停在最小化。
-        /// 恢复过程中用 _restoringFromTray 屏蔽 GameMain_Resize 的隐藏逻辑。
+        /// Show() 前后都恢复 Normal，并在恢复过程中屏蔽自动隐藏逻辑。
         /// </summary>
         private void ShowWindow()
         {
@@ -1163,6 +1194,7 @@ namespace LOL_GameAssistant
             _restoringFromTray = true;
             try
             {
+                ShowInTaskbar = true;
                 if (WindowState != FormWindowState.Normal)
                     WindowState = FormWindowState.Normal;
 
@@ -1280,7 +1312,7 @@ namespace LOL_GameAssistant
         private void GameMain_Resize(object? sender, EventArgs e)
         {
             // 从托盘恢复时会先改 WindowState 再 Show()，这一瞬间不能把窗口又藏回去
-            if (_restoringFromTray) return;
+            if (!_startupCompleted || _restoringFromTray) return;
 
             if (WindowState == FormWindowState.Minimized && _settingsStore.Load().MinimizeToTray)
             {

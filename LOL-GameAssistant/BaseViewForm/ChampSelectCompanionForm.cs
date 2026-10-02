@@ -1,43 +1,92 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using LOL_GameAssistant.Application.ChampionSelect;
+using LOL_GameAssistant.Application.ClientFeatures;
+using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Ranked;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ChampionSelect;
+using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Ranked;
 using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-/// <summary>选人阶段的只读伴随窗，跟随 LeagueClientUx 窗口移动、缩放和最小化。</summary>
+/// <summary>选人阶段的伴随窗，跟随 LeagueClientUx 窗口移动、缩放和最小化。</summary>
 internal sealed class ChampSelectCompanionForm : Form
 {
-    private readonly IChampionSelectService _selection = AppCompositionRoot.ChampionSelectService;
-    private readonly IPlayerProfileService _players = AppCompositionRoot.PlayerProfileService;
-    private readonly IRankedStatsService _ranked = AppCompositionRoot.RankedStatsService;
-    private readonly IMatchHistoryService _matches = AppCompositionRoot.MatchHistoryService;
-    private readonly IApplicationSettingsStore _settings = AppCompositionRoot.ApplicationSettingsStore;
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 700 };
+    private readonly IChampionSelectService _selection;
+    private readonly ILobbyService _lobby;
+    private readonly IClientFeatureService _features;
+    private readonly IChampionCatalog _champions;
+    private readonly IPlayerProfileService _players;
+    private readonly IRankedStatsService _ranked;
+    private readonly IMatchHistoryService _matches;
+    private readonly IApplicationSettingsStore _settings;
+    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 150 };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly FlowLayoutPanel _cards = new()
     {
         Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
         WrapContents = false, AutoScroll = true, Padding = new Padding(9)
     };
-    private readonly AntdUI.Label _automation = new() { Dock = DockStyle.Bottom, Height = 52, ForeColor = Color.LightGray };
+    private readonly Button _chooseBuild = new()
+    {
+        Dock = DockStyle.Right, Width = 132, Text = "一键选择符文装备",
+        FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(53, 66, 90), ForeColor = Color.White
+    };
+    private readonly Label _buildStatus = new()
+    {
+        Dock = DockStyle.Bottom, Height = 36, Visible = false,
+        ForeColor = Color.LightGray, AutoEllipsis = true, Padding = new Padding(7, 3, 7, 0)
+    };
+    private readonly AntdUI.Label _automation = new() { Dock = DockStyle.Bottom, Height = 44, ForeColor = Color.LightGray };
+    private readonly Panel _mayhemBench = new() { Dock = DockStyle.Bottom, Height = 150, Visible = false, Padding = new Padding(7, 4, 7, 4) };
+    private readonly Label _benchStatus = new() { Dock = DockStyle.Top, Height = 38, ForeColor = Color.White };
+    private readonly FlowLayoutPanel _benchChoices = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };
+    private string _lastBench = "<unloaded>";
+    private string _benchMessage = "";
+    private bool _swapping;
     private bool _tracking;
     private bool _loading;
+    private bool _selectionLoading;
+    private bool _modeLoading;
+    private bool? _isMayhem;
+    private ChampionSelectionSnapshot? _lastSelection;
+    private CancellationTokenSource? _trackingCancellation;
+    private int _trackingGeneration;
+    private int _selectionRevision;
+    private DateTimeOffset _lastAllyRefresh;
+    private DateTimeOffset _nextModeRefresh;
     private string _lastRoster = "";
     private DateTimeOffset _lastRefresh;
     private DateTimeOffset _lastRosterDataAt;
     private int _languageRevision;
 
-    public ChampSelectCompanionForm()
+    public ChampSelectCompanionForm() : this(
+        AppCompositionRoot.ChampionSelectService, AppCompositionRoot.LobbyService,
+        AppCompositionRoot.ClientFeatureService, AppCompositionRoot.ChampionCatalog,
+        AppCompositionRoot.PlayerProfileService, AppCompositionRoot.RankedStatsService,
+        AppCompositionRoot.MatchHistoryService, AppCompositionRoot.ApplicationSettingsStore)
+    { }
+
+    internal ChampSelectCompanionForm(IChampionSelectService selection, ILobbyService lobby,
+        IClientFeatureService features, IChampionCatalog champions, IPlayerProfileService players,
+        IRankedStatsService ranked, IMatchHistoryService matches, IApplicationSettingsStore settings)
     {
+        _selection = selection;
+        _lobby = lobby;
+        _features = features;
+        _champions = champions;
+        _players = players;
+        _ranked = ranked;
+        _matches = matches;
+        _settings = settings;
         Text = "LOL 选人伴随窗";
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -47,20 +96,31 @@ internal sealed class ChampSelectCompanionForm : Form
         BackColor = Color.FromArgb(22, 27, 39);
         ForeColor = Color.White;
         Font = new Font("Microsoft YaHei UI", 9);
-        Size = new Size(350, 600);
+        Size = new Size(280, 440);
+        _mayhemBench.BackColor = Color.FromArgb(31, 39, 56);
+        _mayhemBench.Controls.Add(_benchChoices);
+        _mayhemBench.Controls.Add(_benchStatus);
         Controls.Add(_cards);
+        Controls.Add(_mayhemBench);
         Controls.Add(_automation);
-        Controls.Add(new AntdUI.Label
+        Controls.Add(_buildStatus);
+        var header = new Panel { Dock = DockStyle.Top, Height = 34, BackColor = Color.FromArgb(31, 39, 56) };
+        header.Controls.Add(new AntdUI.Label
         {
-            Text = "选人队友 · 最近 20 场", Dock = DockStyle.Top, Height = 36,
+            Text = "队友 · 近 20 场", Dock = DockStyle.Fill,
             ForeColor = Color.White, TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font(Font, FontStyle.Bold)
         });
+        header.Controls.Add(_chooseBuild);
+        Controls.Add(header);
+        _chooseBuild.Click += async (_, _) => await ChooseBuildAsync();
         _timer.Tick += async (_, _) => await RefreshAsync();
         UiLanguage.Changed += LanguageChanged;
         Disposed += (_, _) =>
         {
             _lifetime.Cancel();
+            _trackingCancellation?.Cancel();
+            _trackingCancellation?.Dispose();
             UiLanguage.Changed -= LanguageChanged;
             _timer.Dispose();
             _lifetime.Dispose();
@@ -80,9 +140,17 @@ internal sealed class ChampSelectCompanionForm : Form
 
     public void StartTracking()
     {
-        if (IsDisposed) return;
+        if (IsDisposed || _tracking) return;
+        _trackingGeneration++;
+        _trackingCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _loading = _selectionLoading = _modeLoading = _swapping = false;
+        _isMayhem = null;
+        _lastSelection = null;
+        _lastRefresh = _lastAllyRefresh = _nextModeRefresh = DateTimeOffset.MinValue;
         _tracking = true;
         _timer.Start();
+        _ = RefreshSelectionAsync();
+        _ = ResolveBenchModeAsync();
         _ = RefreshAsync();
     }
 
@@ -90,8 +158,18 @@ internal sealed class ChampSelectCompanionForm : Form
     {
         if (IsDisposed) return;
         _tracking = false;
+        _trackingGeneration++;
+        _trackingCancellation?.Cancel();
+        _trackingCancellation?.Dispose();
+        _trackingCancellation = null;
+        _lastSelection = null;
         _timer.Stop();
         _lastRoster = "";
+        _lastBench = "<unloaded>";
+        _benchMessage = "";
+        _mayhemBench.Visible = false;
+        ControlLifetime.ClearAndDispose(_benchChoices);
+        _buildStatus.Visible = false;
         _lastRosterDataAt = DateTimeOffset.MinValue;
         Hide();
     }
@@ -100,26 +178,74 @@ internal sealed class ChampSelectCompanionForm : Form
     {
         _languageRevision++;
         _lastRoster = "";
+        _lastBench = "<unloaded>";
+        _benchMessage = "";
+        _chooseBuild.Text = UiLanguage.IsEnglish ? "Runes & items" : "一键选择符文装备";
+        _buildStatus.Visible = false;
         _lastRefresh = DateTimeOffset.MinValue;
+        if (_lastSelection != null) RenderMayhemBench(_lastSelection);
         if (_tracking) _ = RefreshAsync();
     }
 
     private async Task RefreshAsync()
     {
-        if (!_tracking || _loading || IsDisposed) return;
+        if (!_tracking || IsDisposed) return;
         if (!TryGetClientBounds(out Rectangle client))
         { if (Visible) Hide(); return; }
         FollowClient(client);
         if (!Visible) Show();
-        if (DateTimeOffset.UtcNow - _lastRefresh < TimeSpan.FromSeconds(4)) return;
+        if (!_modeLoading && _isMayhem == null && DateTimeOffset.UtcNow >= _nextModeRefresh)
+            _ = ResolveBenchModeAsync();
+        if (_lastSelection != null) _ = RefreshAlliesAsync(_lastSelection);
+        await RefreshSelectionAsync();
+    }
+
+    private async Task RefreshSelectionAsync()
+    {
+        if (!_tracking || IsDisposed) return;
+        if (_selectionLoading) return;
+        if (DateTimeOffset.UtcNow - _lastRefresh < TimeSpan.FromMilliseconds(500)) return;
         _lastRefresh = DateTimeOffset.UtcNow;
-        _loading = true;
-        int languageRevision = _languageRevision;
+        _selectionLoading = true;
+        int generation = _trackingGeneration;
+        int revision = _selectionRevision;
+        CancellationToken token = _trackingCancellation!.Token;
         try
         {
-            ChampionSelectionSnapshot? selection = await _selection.GetSessionAsync(_lifetime.Token);
-            if (!_tracking || IsDisposed || _lifetime.IsCancellationRequested) return;
-            if (selection == null) return;
+            ChampionSelectionSnapshot? selection = await _selection.GetSessionAsync(token);
+            if (!IsCurrentTracking(generation) || token.IsCancellationRequested || revision != _selectionRevision) return;
+            if (selection != null) ObserveChampionSelection(selection);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (IsCurrentTracking(generation)) RuntimeDiagnostics.Report("备战席英雄", "读取失败", ex.Message);
+        }
+        finally { if (generation == _trackingGeneration) _selectionLoading = false; }
+    }
+
+    private bool IsCurrentTracking(int generation) => _tracking && !IsDisposed && generation == _trackingGeneration;
+
+    /// <summary>选人推送到达后先更新按钮；队友资料与模式查询都不阻塞备战席。</summary>
+    public void ObserveChampionSelection(ChampionSelectionSnapshot selection)
+    {
+        if (!_tracking || IsDisposed) return;
+        _selectionRevision++;
+        _lastSelection = selection;
+        RenderMayhemBench(selection);
+        _ = RefreshAlliesAsync(selection);
+    }
+
+    private async Task RefreshAlliesAsync(ChampionSelectionSnapshot selection)
+    {
+        if (!_tracking || IsDisposed || _loading ||
+            DateTimeOffset.UtcNow - _lastAllyRefresh < TimeSpan.FromSeconds(4)) return;
+        _lastAllyRefresh = DateTimeOffset.UtcNow;
+        _loading = true;
+        int languageRevision = _languageRevision;
+        int generation = _trackingGeneration;
+        try
+        {
             string roster = string.Join("|", selection.MyTeam.Select(member => member.Puuid));
             if (roster == _lastRoster && _cards.Controls.Count > 0 &&
                 DateTimeOffset.UtcNow - _lastRosterDataAt < TimeSpan.FromSeconds(30)) return;
@@ -134,18 +260,18 @@ internal sealed class ChampSelectCompanionForm : Form
                 .Where(member => member.CellId != selection.LocalPlayerCellId)
                 .Take(4).ToArray();
             var summaries = await Task.WhenAll(allies.Select(LoadAllyAsync));
-            if (!_tracking || IsDisposed || roster != _lastRoster || languageRevision != _languageRevision) return;
+            if (!IsCurrentTracking(generation) || roster != _lastRoster || languageRevision != _languageRevision) return;
             _lastRosterDataAt = DateTimeOffset.UtcNow;
             _cards.SuspendLayout();
             try
             {
-                _cards.Controls.Clear();
+                ControlLifetime.ClearAndDispose(_cards);
                 foreach (string summary in summaries)
                 {
                     _cards.Controls.Add(new AntdUI.Label
                     {
                         Text = summary, Width = Math.Max(200, _cards.ClientSize.Width - 20),
-                        Height = 100, Padding = new Padding(10), Margin = new Padding(0, 0, 0, 7),
+                        Height = 82, Padding = new Padding(8), Margin = new Padding(0, 0, 0, 5),
                         BackColor = Color.FromArgb(38, 47, 67), ForeColor = Color.White
                     });
                 }
@@ -153,8 +279,152 @@ internal sealed class ChampSelectCompanionForm : Form
             finally { _cards.ResumeLayout(); }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception ex) { if (!IsDisposed) _automation.Text = UiLanguage.T($"队友数据暂不可用：{ex.Message}"); }
-        finally { _loading = false; }
+        catch (Exception ex) { if (IsCurrentTracking(generation)) _automation.Text = UiLanguage.T($"队友数据暂不可用：{ex.Message}"); }
+        finally { if (generation == _trackingGeneration) _loading = false; }
+    }
+
+    private async Task ResolveBenchModeAsync()
+    {
+        _modeLoading = true;
+        int generation = _trackingGeneration;
+        CancellationToken token = _trackingCancellation!.Token;
+        try
+        {
+            // 并发读取，且每个选人阶段只在模式尚未确定时查询。
+            var lobbyTask = _lobby.GetLobbyAsync(token);
+            var gameTask = _lobby.GetCurrentSessionAsync(token);
+            await Task.WhenAll(lobbyTask, gameTask);
+            if (!IsCurrentTracking(generation) || token.IsCancellationRequested) return;
+            LobbySnapshot? lobby = await lobbyTask;
+            ActiveGameSnapshot? game = await gameTask;
+            int queueId = game?.QueueId is > 0 ? game.QueueId : lobby?.QueueId ?? 0;
+            string mode = !string.IsNullOrWhiteSpace(game?.GameMode) ? game.GameMode : lobby?.GameMode ?? "";
+            if (queueId == 0 && string.IsNullOrWhiteSpace(mode)) return;
+            _isMayhem = queueId is 2400 or 3270 || mode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase);
+            _lastBench = "<unloaded>";
+            if (_lastSelection != null) RenderMayhemBench(_lastSelection);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (IsCurrentTracking(generation)) RuntimeDiagnostics.Report("备战席模式", "等待模式信息", ex.Message);
+        }
+        finally
+        {
+            if (generation == _trackingGeneration)
+            {
+                _modeLoading = false;
+                _nextModeRefresh = DateTimeOffset.UtcNow.AddSeconds(2);
+            }
+        }
+    }
+
+    private void RenderMayhemBench(ChampionSelectionSnapshot selection)
+    {
+        int[] ids = selection.BenchChampionIds.Where(id => id > 0).Distinct().ToArray();
+        // 模式尚在读取时，只要客户端提供了备战英雄就先显示，避免额外的网络等待。
+        bool showBench = _isMayhem == true || (_isMayhem == null && ids.Length > 0);
+        _mayhemBench.Visible = showBench;
+        if (!showBench)
+        {
+            _lastBench = "<unloaded>";
+            ControlLifetime.ClearAndDispose(_benchChoices);
+            return;
+        }
+        string signature = string.Join(",", ids);
+        if (signature == _lastBench) return;
+        _lastBench = signature;
+        string title = UiLanguage.IsEnglish
+            ? $"{(_isMayhem == true ? "Hex Brawl" : "Bench")} · available champions ({ids.Length})"
+            : $"{(_isMayhem == true ? "海克斯大乱斗" : "备战席")} · 可交换英雄（{ids.Length}）";
+        _benchStatus.Text = string.IsNullOrEmpty(_benchMessage) ? title : $"{title}\n{_benchMessage}";
+        _benchChoices.SuspendLayout();
+        try
+        {
+            ControlLifetime.ClearAndDispose(_benchChoices);
+            if (ids.Length == 0)
+            {
+                _benchChoices.Controls.Add(new Label
+                {
+                    AutoSize = true, ForeColor = Color.LightGray,
+                    Text = UiLanguage.IsEnglish ? "No bench champions available" : "当前没有可交换的备战英雄"
+                });
+            }
+            foreach (int id in ids)
+            {
+                string name = _champions.GetDisplayName(id);
+                var button = new Button
+                {
+                    AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                    Text = string.IsNullOrWhiteSpace(name) ? id.ToString() : name,
+                    Tag = id, Margin = new Padding(2), FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(53, 66, 90), ForeColor = Color.White
+                };
+                button.Click += async (_, _) => await SwapBenchChampionAsync(id);
+                _benchChoices.Controls.Add(button);
+            }
+        }
+        finally { _benchChoices.ResumeLayout(); }
+    }
+
+    private async Task SwapBenchChampionAsync(int championId)
+    {
+        if (_swapping || !_tracking || IsDisposed) return;
+        _swapping = true;
+        int generation = _trackingGeneration;
+        CancellationToken token = _trackingCancellation!.Token;
+        try
+        {
+            ChampionSelectionSnapshot? current = await _selection.GetSessionAsync(token);
+            if (!IsCurrentTracking(generation) || token.IsCancellationRequested) return;
+            if (current == null || !current.BenchChampionIds.Contains(championId))
+            {
+                _benchMessage = UiLanguage.IsEnglish ? "Bench changed; refreshing…" : "备战席已变化，正在刷新…";
+                return;
+            }
+            ClientFeatureResult result = await _features.SwapAramBenchAsync(championId, token);
+            if (!IsCurrentTracking(generation)) return;
+            _benchMessage = UiLanguage.T(result.Message);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex) { if (IsCurrentTracking(generation)) _benchMessage = UiLanguage.T($"换英雄失败：{ex.Message}"); }
+        finally
+        {
+            if (IsCurrentTracking(generation))
+            {
+                _swapping = false;
+                _lastBench = "<unloaded>";
+                _lastRefresh = DateTimeOffset.MinValue;
+                if (_lastSelection != null) RenderMayhemBench(_lastSelection);
+                _ = RefreshAsync();
+            }
+        }
+    }
+
+    private async Task ChooseBuildAsync()
+    {
+        if (!_tracking || IsDisposed || !_chooseBuild.Enabled) return;
+        _chooseBuild.Enabled = false;
+        _buildStatus.Visible = true;
+        _buildStatus.Text = UiLanguage.IsEnglish ? "Loading current build options…" : "正在获取当前模式的符文装备方案…";
+        TopMost = false;
+        try
+        {
+            string result = await Program.GameMain.coachForm.OpenOpggBuildPickerAsync(_lifetime.Token);
+            if (!IsDisposed) _buildStatus.Text = UiLanguage.T(result);
+        }
+        catch (Exception ex)
+        {
+            if (!IsDisposed) _buildStatus.Text = UiLanguage.T($"OP.GG 方案选择失败：{ex.Message}");
+        }
+        finally
+        {
+            if (!IsDisposed)
+            {
+                TopMost = true;
+                _chooseBuild.Enabled = true;
+            }
+        }
     }
 
     private async Task<string> LoadAllyAsync(ChampionSelectionMember member)
@@ -200,13 +470,15 @@ internal sealed class ChampSelectCompanionForm : Form
     private void FollowClient(Rectangle client)
     {
         Rectangle work = Screen.FromRectangle(client).WorkingArea;
-        int width = Math.Clamp(client.Width / 3, 300, 420);
-        int height = Math.Clamp(client.Height, 440, work.Height);
-        int x = client.Right + width <= work.Right ? client.Right : client.Left - width;
+        int width = Math.Min(Math.Clamp(client.Width / 4, 260, 300), work.Width);
+        int height = Math.Min(Math.Clamp(client.Height * 3 / 4, 390, 490), work.Height);
+        int rightSpace = work.Right - client.Right;
+        int leftSpace = client.Left - work.Left;
+        int x = rightSpace >= width || rightSpace >= leftSpace ? client.Right : client.Left - width;
         x = Math.Clamp(x, work.Left, work.Right - width);
         int y = Math.Clamp(client.Top, work.Top, work.Bottom - height);
         if (Bounds != new Rectangle(x, y, width, height)) Bounds = new Rectangle(x, y, width, height);
-        float fontSize = Math.Clamp(width / 35f, 8f, 12f);
+        float fontSize = Math.Clamp(width / 34f, 8f, 10f);
         if (Math.Abs(Font.Size - fontSize) > 0.25f) Font = new Font("Microsoft YaHei UI", fontSize);
         foreach (Control card in _cards.Controls) card.Width = Math.Max(200, _cards.ClientSize.Width - 20);
     }

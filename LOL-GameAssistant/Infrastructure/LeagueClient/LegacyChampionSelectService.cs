@@ -13,27 +13,7 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
         cancellationToken.ThrowIfCancellationRequested();
         ChampSelectSession? legacy = await Select_Api.GetSessionAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return legacy == null ? null : new ChampionSelectionSnapshot
-        {
-            LocalPlayerCellId = legacy.LocalPlayerCellId,
-            BenchChampionIds = (legacy.BenchChampions ?? new List<BenchChampion>())
-                .Select(champion => champion.ChampionId).Where(id => id > 0).Distinct().ToArray(),
-            Actions = (legacy.Actions ?? new List<List<ChampSelectAction>>())
-                .Select(round => (IReadOnlyList<ChampionSelectionAction>)(round ?? new List<ChampSelectAction>())
-                    .Select(action => new ChampionSelectionAction
-                    {
-                        ActorCellId = action.ActorCellId,
-                        ChampionId = action.ChampionId,
-                        IsAllyAction = action.IsAllyAction,
-                        IsInProgress = action.IsInProgress,
-                        Completed = action.Completed,
-                        Type = action.Type ?? ""
-                    })
-                    .ToList())
-                .ToList(),
-            MyTeam = MapMembers(legacy.MyTeam),
-            TheirTeam = MapMembers(legacy.TheirTeam)
-        };
+        return legacy == null ? null : ChampionSelectionSnapshotMapper.Map(legacy);
     }
 
     public Task<bool> AutoBanAsync(IReadOnlyList<int> championIds, CancellationToken cancellationToken = default)
@@ -51,19 +31,4 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
         return Select_Api.AutoPickAsync(championIds.ToList(), lockIn, cancellationToken);
     }
 
-    /// <summary>选人成员 DTO 到领域快照的单向转换。</summary>
-    private static IReadOnlyList<ChampionSelectionMember> MapMembers(IEnumerable<ChampSelectTeamMember>? members)
-    {
-        return members == null
-            ? Array.Empty<ChampionSelectionMember>()
-            : members.Select(member => new ChampionSelectionMember
-            {
-                CellId = member.CellId,
-                ChampionId = member.ChampionId,
-                AssignedPosition = member.AssignedPosition ?? "",
-                IsAutofilled = member.IsAutofilled,
-                ChampionPickIntent = member.ChampionPickIntent,
-                Puuid = member.Puuid ?? ""
-            }).ToList();
-    }
 }

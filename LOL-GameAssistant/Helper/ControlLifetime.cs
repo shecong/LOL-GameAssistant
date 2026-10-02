@@ -10,5 +10,10 @@ public static class ControlLifetime
             parent.Controls.Remove(child);
             child.Dispose();
         }
+        if (parent is ScrollableControl scrollable)
+        {
+            scrollable.AutoScrollMinSize = Size.Empty;
+            scrollable.AutoScrollPosition = Point.Empty;
+        }
     }
 }

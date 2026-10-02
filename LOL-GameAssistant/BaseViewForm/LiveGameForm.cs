@@ -20,6 +20,7 @@ namespace LOL_GameAssistant.BaseViewForm
     {
         private System.Windows.Forms.Timer? _autoRefreshTimer;
         private bool _refreshing;
+        private bool _layingOutPlayerCards;
         private string _lastSignature = "";
         private string? _myPuuid;
         private readonly ILobbyService _lobbyService;
@@ -76,6 +77,21 @@ namespace LOL_GameAssistant.BaseViewForm
             _playerProfileService = playerProfileService;
             _championSelectService = championSelectService;
             InitializeComponent();
+            var backToTop = new AntdUI.Button { Text = "回到顶部", Dock = DockStyle.Right, Width = 96 };
+            backToTop.Click += (_, _) =>
+            {
+                panelTeam1.AutoScrollPosition = Point.Empty;
+                panelTeam2.AutoScrollPosition = Point.Empty;
+                foreach (LivePlayerForm card in panelTeam1.Controls.OfType<LivePlayerForm>()
+                    .Concat(panelTeam2.Controls.OfType<LivePlayerForm>())) card.ScrollMatchesToTop();
+            };
+            lblGameInfo.AutoSize = false;
+            lblGameInfo.Dock = DockStyle.Fill;
+            lblGameInfo.TextAlign = ContentAlignment.MiddleLeft;
+            infoBar.Controls.Add(backToTop);
+            backToTop.BringToFront();
+            panelTeam1.SizeChanged += (_, _) => LayoutPlayerCards();
+            panelTeam2.SizeChanged += (_, _) => LayoutPlayerCards();
             _teamQueueTag1 = CreateTeamQueueTag();
             _teamQueueTag2 = CreateTeamQueueTag();
             headerTeam1.Controls.Add(_teamQueueTag1);
@@ -819,9 +835,14 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void LayoutPlayerCards()
         {
-            if (IsDisposed) return;
-            ResizePlayerCards(panelTeam1);
-            ResizePlayerCards(panelTeam2);
+            if (IsDisposed || _layingOutPlayerCards) return;
+            _layingOutPlayerCards = true;
+            try
+            {
+                ResizePlayerCards(panelTeam1);
+                ResizePlayerCards(panelTeam2);
+            }
+            finally { _layingOutPlayerCards = false; }
         }
 
         private static void ResizePlayerCards(FlowLayoutPanel panel)
@@ -852,7 +873,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             // 优先尝试两列；若对局记录区域会产生纵向滚动条，预留其宽度。
             int twoColumnRows = (cardCount + 1) / 2;
-            int twoColumnScrollbar = NeedsVerticalScrollbar(panel, twoColumnRows)
+            int twoColumnScrollbar = !panel.VerticalScroll.Visible && NeedsVerticalScrollbar(panel, twoColumnRows)
                 ? SystemInformation.VerticalScrollBarWidth
                 : 0;
             int twoColumnWidth = (contentWidth - twoColumnScrollbar - 2 * PlayerCardHorizontalMargin) / 2;
@@ -862,11 +883,11 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             // 单列时让卡片填充所在队列，避免旧逻辑在窗口变宽后仍停留在固定 450px。
-            int singleColumnScrollbar = NeedsVerticalScrollbar(panel, cardCount)
+            int singleColumnScrollbar = !panel.VerticalScroll.Visible && NeedsVerticalScrollbar(panel, cardCount)
                 ? SystemInformation.VerticalScrollBarWidth
                 : 0;
             int singleColumnWidth = contentWidth - singleColumnScrollbar - PlayerCardHorizontalMargin;
-            return Math.Max(PlayerCardMinimumWidth, Math.Min(PlayerCardSingleColumnMaxWidth, singleColumnWidth));
+            return Math.Max(1, Math.Min(PlayerCardSingleColumnMaxWidth, singleColumnWidth));
         }
 
         private static bool NeedsVerticalScrollbar(FlowLayoutPanel panel, int rows)
