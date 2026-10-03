@@ -460,6 +460,10 @@ namespace LOL_GameAssistant.BaseViewForm
             if (!force && signature == _lastSignature && _lastRenderedPhase == Program.GameMain.gameFlowPhase &&
                 panelTeam1.Controls.Count > 0)
             {
+                // 名单相同时英雄仍可能从未知变为已选择，或在选人阶段换选。
+                // 原地更新英雄，保留已加载的战绩和一次性公告状态。
+                UpdateCurrentChampions(panelTeam1, team1);
+                UpdateCurrentChampions(panelTeam2, team2);
                 // 房间标识可能比阵容晚到达；同一阵容也要更新开黑标签。
                 ApplyPremadeResult(partyDetection);
                 return;
@@ -519,6 +523,20 @@ namespace LOL_GameAssistant.BaseViewForm
             _teamTitleBase1 = lblTeamTitle1.Text;
             _teamTitleBase2 = lblTeamTitle2.Text;
             ApplyPremadeResult(partyDetection);
+        }
+
+        internal static void UpdateCurrentChampions(
+            Control panel,
+            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members)
+        {
+            var champions = members.Where(member => !string.IsNullOrWhiteSpace(member.Puuid))
+                .DistinctBy(member => member.Puuid, StringComparer.Ordinal)
+                .ToDictionary(member => member.Puuid, member => member.ChampionId, StringComparer.Ordinal);
+            foreach (LivePlayerForm card in panel.Controls.OfType<LivePlayerForm>())
+            {
+                if (card.Puuid != null && champions.TryGetValue(card.Puuid, out int championId))
+                    _ = card.UpdateCurrentChampionAsync(championId);
+            }
         }
 
         /// <summary>

@@ -19,7 +19,7 @@ namespace LOL_GameAssistant.BaseViewForm
     public partial class LivePlayerForm : UserControl, IThemeAware
     {
         private readonly string? _playerPuuid;
-        private readonly int _championId;
+        private int _championId;
         private readonly IPlayerProfileService _playerProfileService;
         private readonly IProfileIconService _profileIconService;
         private readonly IMatchHistoryService _matchHistoryService;
@@ -148,6 +148,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             lblName.Text = string.IsNullOrEmpty(fallbackName) ? "未知玩家" : fallbackName!;
             lblSub.Text = _isBot ? "机器人" : "";
+            lblChampionNow.Text = championId > 0 ? $"当前: {GetChampionDisplayName(championId)}" : "";
 
             // AntdUI 控件的 Visible setter 会立刻 CreateControl()：构造期卡片还没有父窗口，
             // 句柄会先挂在临时 parking window 上，挂到队伍面板后还要再建一次。
@@ -268,6 +269,8 @@ namespace LOL_GameAssistant.BaseViewForm
             btnCopy.Visible = _showCopyButton;
             _historyButton.Visible = _showCopyButton;
             lblTeamTag.Visible = _teamKnown;
+            picCurrent.Visible = _championId > 0;
+            RecalcHeaderLayout();
         }
 
         /// <summary>
@@ -278,7 +281,7 @@ namespace LOL_GameAssistant.BaseViewForm
             const int textLeft = 56;
             const int copyWidth = 60;
             const int historyWidth = 60;
-            const int currentIconWidth = 28;
+            const int currentIconWidth = 24;
             const int tagWidth = 36;
             const int premadeWidth = 46;
             const int gap = 6;
@@ -289,7 +292,8 @@ namespace LOL_GameAssistant.BaseViewForm
             int currentIconLeft = Math.Max(textLeft, historyLeft - gap - currentIconWidth);
             btnCopy.Location = new Point(copyLeft, 8);
             _historyButton.Location = new Point(historyLeft, 8);
-            picCurrent.Location = new Point(currentIconLeft, 10);
+            picCurrent.Location = new Point(currentIconLeft, 8);
+            picCurrent.Size = new Size(currentIconWidth, currentIconWidth);
 
             // 顶行优先保证玩家名称；宽度不足时隐藏战绩汇总，避免文字彼此覆盖。
             int summaryRight = currentIconLeft - gap;
@@ -307,7 +311,8 @@ namespace LOL_GameAssistant.BaseViewForm
             lblName.Width = Math.Max(0, nameRight - textLeft);
 
             // 第二行将玩家信息、当前英雄和队伍标签按可用空间从左到右分配。
-            int championRight = currentIconLeft - gap;
+            // 第二行可用整个卡片宽度；顶行的查战绩/复制按钮不应挤掉英雄名称。
+            int championRight = right;
             if (_teamKnown)
             {
                 int teamTagLeft = championRight - tagWidth;
@@ -324,7 +329,8 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             int rowTwoSpace = Math.Max(0, championRight - textLeft);
-            int subWidth = Math.Min(160, Math.Max(0, rowTwoSpace / 2));
+            int subWidth = string.IsNullOrEmpty(lblChampionNow.Text)
+                ? rowTwoSpace : Math.Min(160, Math.Max(0, rowTwoSpace - 116));
             int championLeft = textLeft + subWidth + gap;
             int championWidth = Math.Max(0, championRight - championLeft);
             bool showChampion = championWidth >= 70 && !string.IsNullOrEmpty(lblChampionNow.Text);
@@ -673,15 +679,16 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private async Task LoadCurrentChampionAsync(CancellationToken cancellationToken)
         {
-            if (_championId <= 0) return;
+            int championId = _championId;
+            if (championId <= 0) return;
             try
             {
                 lblChampionNow.Text = $"当前: {GetChampionDisplayName(_championId)}";
                 lblChampionNow.Visible = true;
                 RecalcHeaderLayout();
-                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(_championId, cancellationToken)
+                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(championId, cancellationToken)
                     .WaitAsync(cancellationToken));
-                if (icon != null && !IsDisposed) ReplaceChampionImage(icon);
+                if (icon != null && !IsDisposed && _championId == championId) ReplaceChampionImage(icon);
                 else icon?.Dispose();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -689,6 +696,22 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 // 当前英雄加载失败不影响卡片
             }
+        }
+
+        /// <summary>同一玩家的英雄晚到或换选时更新卡片，不重载战绩和公告。</summary>
+        internal async Task UpdateCurrentChampionAsync(int championId)
+        {
+            if (IsDisposed || championId <= 0 || championId == _championId) return;
+            _championId = championId;
+            picCurrent.Image = null;
+            _ownedChampionImage?.Dispose();
+            _ownedChampionImage = null;
+            lblChampionNow.Text = $"当前: {GetChampionDisplayName(championId)}";
+            _performanceTip.SetToolTip(lblChampionNow, lblChampionNow.Text);
+            picCurrent.Visible = true;
+            RecalcHeaderLayout();
+            try { await LoadCurrentChampionAsync(_lifetimeCancellation.Token); }
+            catch (OperationCanceledException) { /* 卡片关闭时停止加载。 */ }
         }
 
         /// <summary>将应用服务的二进制英雄资源解码为当前 WinForms 控件所需的位图。</summary>

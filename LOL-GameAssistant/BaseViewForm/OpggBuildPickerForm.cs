@@ -7,342 +7,446 @@ using LOL_GameAssistant.Infrastructure.GameData;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-/// <summary>
-/// OP.GG 图文出装/符文选择框。只展示公开推荐；用户明确点击应用后，调用方才会写入 LCU。
-/// </summary>
-internal sealed class OpggBuildPickerForm : Form, IThemeAware
+/// <summary>当前对局的推荐列表；只有明确应用方案后才由调用方写入客户端。</summary>
+internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
 {
+    private static readonly Color Navy = Color.FromArgb(3, 23, 33);
+    private static readonly Color SelectedNavy = Color.FromArgb(7, 35, 47);
+    private static readonly Color Gold = Color.FromArgb(207, 174, 104);
+    private static readonly Color Muted = Color.FromArgb(113, 151, 164);
+    private static readonly Color Line = Color.FromArgb(51, 64, 62);
     private readonly OpggBuildChoices _choices;
+    private readonly IOpggBuildApplyService? _buildService;
+    private readonly Label _heading = new();
+    private readonly Label _source = new();
+    private readonly AntdUI.PageHeader _windowHeader = new()
+    {
+        Dock = DockStyle.Top, Height = 38, ShowButton = true, ShowIcon = true,
+        UseSystemStyleColor = false, UseForeColorDrawIcons = true, MinimizeBox = false,
+        ColorScheme = AntdUI.TAMode.Dark
+    };
+    private readonly List<Button> _laneTabs = new();
+    private readonly Dictionary<(string Mode, string Position), OpggBuildChoices> _cache = new();
+    private CancellationTokenSource? _queryCancellation;
+    private int _queryVersion;
+    private bool _loading;
+    private string _position;
+    private readonly string _initialPosition;
+    private readonly int _initialOrder;
+    private bool _hasLoadedCategory;
     private readonly IGameAssetService _gameAssetService;
     private readonly FlowLayoutPanel _routeCards = new();
-    private readonly AntdUI.Button _apply = new() { Text = "应用选中方案", AutoSize = true, Enabled = false };
-    private readonly AntdUI.Label _title = new();
-    private readonly AntdUI.Label _note = new();
-    private readonly AntdUI.Label _modeBadge = new();
-    private readonly AntdUI.Label _sourceHint = new();
+    private readonly Button _apply = CreateGoldButton("应用选中方案");
+    private readonly Label _note = new();
+    private readonly Label _empty = new();
+    private readonly PictureBox _championIcon = new();
     private readonly CheckBox _replaceCurrentRunePage = new()
     {
-        Text = "符文页已满时，允许覆盖当前自定义符文页（原符文会被替换）",
-        Checked = true,
-        AutoSize = true, Margin = new Padding(8, 8, 16, 0)
+        Text = "符文页已满时，允许覆盖当前自定义符文页", Checked = true,
+        AutoSize = true, ForeColor = Muted, BackColor = Navy
     };
-    private readonly AntdUI.Panel _heroHeader = new();
-    private readonly PictureBox _championIcon = new();
     private readonly List<RouteCard> _cards = new();
+    private readonly List<Button> _tabs = new();
     private readonly List<Image> _ownedImages = new();
     private readonly ToolTip _toolTip = new() { AutoPopDelay = 7000, InitialDelay = 250, ReshowDelay = 100 };
     private readonly SemaphoreSlim _visualLoadGate = new(6, 6);
     private RouteCard? _selectedCard;
+    private string _filter = "all";
 
     public OpggBuildOption? SelectedOption => _selectedCard?.Option;
+    public string SelectedPosition => _selectedCard?.Position ?? _position;
     public bool AllowReplaceCurrentRunePage => _replaceCurrentRunePage.Checked;
 
-    public OpggBuildPickerForm(
-        OpggBuildChoices choices,
-        IGameAssetService gameAssetService,
-        int initiallySelectedOrder = 0)
+    public OpggBuildPickerForm(OpggBuildChoices choices, IGameAssetService gameAssetService,
+        int initiallySelectedOrder = 0, IOpggBuildApplyService? buildService = null)
     {
         _choices = choices;
         _gameAssetService = gameAssetService;
-        Text = $"OP.GG 方案选择 · {choices.ChampionName} {choices.PositionName}";
-        FormBorderStyle = FormBorderStyle.Sizable;
-        StartPosition = FormStartPosition.CenterParent;
-        MaximizeBox = true;
+        _buildService = buildService;
+        _position = choices.PositionName switch
+        {
+            "上路" => "TOP", "打野" => "JUNGLE", "下路" => "BOTTOM", "辅助" => "UTILITY", _ => "MIDDLE"
+        };
+        _initialPosition = _position;
+        _initialOrder = initiallySelectedOrder;
+        _cache[(choices.Mode, _position)] = choices;
+        Text = $"一键配置 · {choices.ChampionName} · {choices.PositionName}";
+        StartPosition = FormStartPosition.CenterScreen;
+        FormBorderStyle = FormBorderStyle.None;
+        Icon = AppIcon.Shared;
+        _windowHeader.Text = Text;
+        _windowHeader.Icon = AppIcon.Shared.ToBitmap();
+        _ownedImages.Add(_windowHeader.Icon);
+        BorderColor = Gold;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        // 选人阶段英雄联盟客户端在前台，而本窗口不占任务栏：
-        // 不置顶的话它可能开在客户端后面且完全看不出来。
         TopMost = true;
-        MinimumSize = new Size(860, 600);
-        ClientSize = new Size(1080, 760);
-        Padding = new Padding(18);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        MinimumSize = new Size(800, 540);
+        ClientSize = new Size(960, 700);
+        Padding = new Padding(16, 0, 16, 0);
         Font = new Font("Microsoft YaHei UI", 9F);
-
+        BackColor = Navy;
+        ForeColor = Gold;
         BuildUi(initiallySelectedOrder);
         UiTheme.Apply(this);
         Shown += async (_, _) =>
         {
             Activate();
             BringToFront();
-            await UpdateRecommendationNoteAsync();
-            await LoadVisualsAsync();
+            if (_buildService != null && _choices.Mode == "ranked")
+                await ChangeCategoryAsync(_choices.Mode, "all");
+            else await LoadVisualsAsync();
         };
-        FormClosed += (_, _) => DisposeOwnedImages();
     }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        // 在父窗口所在屏幕的工作区居中，避开任务栏并支持多显示器。
+        Rectangle area = Screen.FromControl(Owner ?? this).WorkingArea;
+        Location = new Point(area.Left + Math.Max(0, (area.Width - Width) / 2),
+            area.Top + Math.Max(0, (area.Height - Height) / 2));
+    }
+
+    private static Label TextLabel(string text, Color color, int height = 24) => new()
+    {
+        Text = text, ForeColor = color, BackColor = Color.Transparent,
+        AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft, Height = height,
+        Dock = DockStyle.Fill, Margin = Padding.Empty
+    };
+
+    private static Button CreateGoldButton(string text) => new()
+    {
+        Text = text, FlatStyle = FlatStyle.Flat, ForeColor = Gold, BackColor = Navy,
+        Size = new Size(116, 32), Cursor = Cursors.Hand,
+        FlatAppearance = { BorderColor = Gold, BorderSize = 1,
+            MouseOverBackColor = Color.FromArgb(38, 51, 51), MouseDownBackColor = SelectedNavy }
+    };
+
+    private static FlowLayoutPanel AssetRow() => new()
+    {
+        Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
+        Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Color.Transparent
+    };
 
     private void BuildUi(int initiallySelectedOrder)
     {
-        _heroHeader.Dock = DockStyle.Top;
-        _heroHeader.Height = 126;
-        _heroHeader.Padding = new Padding(14, 12, 14, 12);
-        _championIcon.Size = new Size(72, 72);
-        _championIcon.SizeMode = PictureBoxSizeMode.Zoom;
+        var header = new Panel { Dock = DockStyle.Top, Height = 154 };
+        var tabs = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, WrapContents = false };
+        var modes = new List<(string Key, string Title)> { ("all", "全部"), ("ranked", "峡谷"), ("aram", "大乱斗") };
+        modes.Add(("aram_mayhem", "海克斯大乱斗"));
+        modes.Add(("arena", "竞技场"));
+        if (!modes.Any(mode => mode.Key == _choices.Mode)) modes.Add((_choices.Mode, _choices.PositionName));
+        foreach (var mode in modes)
+        {
+            Button tab = CreateGoldButton(mode.Title);
+            tab.Size = new Size(mode.Key == "aram_mayhem" ? 140 : 90, 40);
+            tab.Margin = new Padding(0, 4, 10, 4);
+            tab.Tag = mode.Key;
+            tab.FlatAppearance.BorderSize = 0;
+            tab.Click += async (_, _) =>
+            {
+                if (_buildService == null) FilterCards(mode.Key);
+                else await ChangeCategoryAsync(mode.Key, _position);
+            };
+            _tabs.Add(tab);
+            tabs.Controls.Add(tab);
+        }
+        var lanes = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 42, WrapContents = false };
+        foreach (var lane in new[] { ("all", "全部分路"), ("TOP", "上路"), ("JUNGLE", "打野"),
+            ("MIDDLE", "中路"), ("BOTTOM", "下路"), ("UTILITY", "辅助") })
+        {
+            var button = CreateGoldButton(lane.Item2);
+            button.Tag = lane.Item1;
+            button.Size = new Size(88, 30);
+            button.Margin = new Padding(0, 4, 10, 4);
+            button.Click += async (_, _) => await ChangeCategoryAsync(_filter, lane.Item1);
+            _laneTabs.Add(button);
+            lanes.Controls.Add(button);
+        }
+        var hero = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 8, 8, 10) };
         _championIcon.Dock = DockStyle.Left;
-
-        var headerText = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(16, 0, 0, 0) };
-        headerText.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        headerText.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        headerText.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        _title.Dock = DockStyle.Fill;
-        _title.Font = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold);
-        _title.Text = $"{_choices.ChampionName} · 当前对局推荐";
+        _championIcon.Width = 42;
+        _championIcon.SizeMode = PictureBoxSizeMode.Zoom;
+        var heroText = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 0, 0, 0) };
+        var title = _heading;
+        title.Text = $"{_choices.ChampionName}  /  {_choices.PositionName}  ·  {_choices.Options.Count} 套推荐";
+        title.ForeColor = Gold;
+        title.Height = 24;
+        title.AutoEllipsis = true;
+        title.Font = new Font(Font, FontStyle.Bold);
+        title.Dock = DockStyle.Top;
+        _note.Text = _choices.Mode == "aram_mayhem"
+            ? "海克斯大乱斗专属出装与增幅推荐 · 此模式无常规符文页"
+            : "选择一套方案，配置符文、装备与召唤师技能";
         _note.Dock = DockStyle.Fill;
-        _note.Font = new Font("Microsoft YaHei UI", 9F);
-        _note.Text = BuildRecommendationNote();
-        _modeBadge.AutoSize = true;
-        _modeBadge.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
-        _modeBadge.Padding = new Padding(8, 3, 8, 2);
-        _modeBadge.Text = $"当前模式：{_choices.PositionName}";
-        _sourceHint.AutoSize = true;
-        _sourceHint.TextAlign = ContentAlignment.MiddleLeft;
-        _sourceHint.Padding = new Padding(12, 0, 0, 0);
-        _sourceHint.Text = _choices.Mode == "aram_mayhem"
-            ? $"aramgg / ARAMKit · {_choices.Options.Count} 套专属出装 · 选择后点击应用"
-            : $"OP.GG 公开数据 · {_choices.Options.Count} 套方案 · 选择后点击应用";
-        var contextRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        contextRow.Controls.Add(_modeBadge);
-        contextRow.Controls.Add(_sourceHint);
-        headerText.Controls.Add(_title, 0, 0);
-        headerText.Controls.Add(_note, 0, 1);
-        headerText.Controls.Add(contextRow, 0, 2);
-        _heroHeader.Controls.Add(headerText);
-        _heroHeader.Controls.Add(_championIcon);
+        _note.ForeColor = Muted;
+        _note.TextAlign = ContentAlignment.MiddleLeft;
+        _note.AutoEllipsis = true;
+        heroText.Controls.Add(_note);
+        heroText.Controls.Add(title);
+        hero.Controls.Add(heroText);
+        hero.Controls.Add(_championIcon);
+        header.Controls.Add(hero);
+        header.Controls.Add(lanes);
+        header.Controls.Add(tabs);
 
         _routeCards.Dock = DockStyle.Fill;
         _routeCards.AutoScroll = true;
         _routeCards.FlowDirection = FlowDirection.TopDown;
         _routeCards.WrapContents = false;
-        _routeCards.Padding = new Padding(0, 16, 8, 4);
+        _routeCards.Padding = new Padding(0, 4, 0, 0);
         _routeCards.SizeChanged += (_, _) => ResizeRouteCards();
-
         foreach (OpggBuildOption option in _choices.Options)
         {
             RouteCard card = CreateRouteCard(option);
             _cards.Add(card);
             _routeCards.Controls.Add(card.Root);
         }
-        if (_cards.Count > 0)
-            SelectCard(_cards.FirstOrDefault(card => card.Option.Order == initiallySelectedOrder) ?? _cards[0]);
+        _empty.Height = 100;
+        _empty.TextAlign = ContentAlignment.MiddleCenter;
+        _empty.ForeColor = Muted;
+        _empty.Visible = false;
+        _routeCards.Controls.Add(_empty);
 
-        var footer = new FlowLayoutPanel
+        var footer = new TableLayoutPanel
         {
-            Dock = DockStyle.Bottom,
-            Height = 62,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(0, 13, 0, 0),
-            WrapContents = false
+            Dock = DockStyle.Bottom, Height = 72, ColumnCount = 2, RowCount = 2,
+            Padding = new Padding(8, 10, 0, 8)
         };
-        var cancel = new AntdUI.Button { Text = "暂不应用", AutoSize = true, DialogResult = DialogResult.Cancel };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        footer.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
+        footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _replaceCurrentRunePage.Visible = _choices.Options.Any(option => option.RunePerkIds.Count >= 6);
+        footer.Controls.Add(_replaceCurrentRunePage, 0, 0);
+        _source.Text = "数据来源：" + (_choices.Mode == "aram_mayhem" ? "aramgg / ARAMKit" : "OP.GG");
+        _source.Dock = DockStyle.Fill;
+        _source.ForeColor = Muted;
+        footer.Controls.Add(_source, 0, 1);
+        _apply.Anchor = AnchorStyles.Right;
+        _apply.Enabled = false;
         _apply.Click += (_, _) => ConfirmSelection();
-        footer.Controls.Add(cancel);
-        footer.Controls.Add(_apply);
-        if (_choices.Options.Any(option => option.RunePerkIds.Count >= 6))
-            footer.Controls.Add(_replaceCurrentRunePage);
-
+        footer.Controls.Add(_apply, 1, 0);
+        footer.SetRowSpan(_apply, 2);
         Controls.Add(_routeCards);
         Controls.Add(footer);
-        Controls.Add(_heroHeader);
+        Controls.Add(header);
+        Controls.Add(_windowHeader);
         AcceptButton = _apply;
+        // Esc cancels without applying the currently highlighted route.
+        var cancel = new Button { DialogResult = DialogResult.Cancel, Visible = false };
+        Controls.Add(cancel);
         CancelButton = cancel;
+        if (_cards.Count > 0)
+            SelectCard(_cards.FirstOrDefault(card => card.Option.Order == initiallySelectedOrder) ?? _cards[0]);
+        FilterCards(_choices.Mode);
     }
 
-    private string BuildRecommendationNote()
+    private RouteCard CreateRouteCard(OpggBuildOption option, OpggBuildChoices? context = null, string? position = null)
     {
-        if (_choices.Mode == "aram_mayhem")
-            return "海克斯大乱斗没有常规符文页；本方案提供专属出装、召唤师技能和增幅推荐。";
-        int spellCount = _choices.Options.FirstOrDefault()?.SummonerSpellIds?.Count ?? 0;
-        string spells = spellCount >= 2 ? "含推荐召唤师技能" : "该模式未提供可写入的召唤师技能";
-        string augments = _choices.Augments?.Count > 0 ? "正在整理海克斯推荐" : "暂无海克斯数据";
-        string matchups = _choices.Matchups?.Count > 0
-            ? "正在整理对位推荐"
-            : "暂无对位数据";
-        return $"{spells}。{augments}；{matchups}。";
-    }
+        var choices = context ?? _choices;
+        bool mayhem = option.Mode == "aram_mayhem";
+        var root = new Panel
+        {
+            Width = 900, Height = 212, Padding = new Padding(20, 14, 14, 14),
+            Margin = new Padding(0, 0, 0, 4), Cursor = Cursors.Hand
+        };
+        root.Paint += (_, e) =>
+        {
+            using var pen = new Pen(Line);
+            e.Graphics.DrawLine(pen, 0, root.Height - 1, root.Width, root.Height - 1);
+            if (_selectedCard?.Root == root)
+            {
+                using var selection = new SolidBrush(Gold);
+                e.Graphics.FillRectangle(selection, 0, 14, 2, root.Height - 28);
+            }
+        };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Margin = Padding.Empty };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var heading = TextLabel($"方案 {option.Order:00}  ·  {choices.ChampionName} · " +
+            (option.Order == 1 ? "热门出装" : "备选出装") + $"    [{choices.PositionName}]", Gold);
+        heading.Font = new Font(Font, FontStyle.Bold);
+        layout.Controls.Add(heading, 0, 0);
+        layout.Controls.Add(TextLabel(mayhem ? "aramgg / ARAMKit" : "OP.GG 推荐", Gold), 1, 0);
 
-    private async Task UpdateRecommendationNoteAsync()
-    {
-        if (_choices.Mode == "aram_mayhem")
-        {
-            if (!IsDisposed) _note.Text = _choices.Message;
-            return;
-        }
-        int spellCount = _choices.Options.FirstOrDefault()?.SummonerSpellIds?.Count ?? 0;
-        string spells = spellCount >= 2 ? "含推荐召唤师技能" : "当前模式无可写入技能";
-        var augments = _choices.Augments?.Take(3).ToArray() ?? [];
-        var names = await AugmentCatalog.ResolveAsync(augments.Select(item => item.Id));
-        string augmentText = augments.Length == 0 ? "无海克斯统计" :
-            "海克斯：" + string.Join("、", names.Select((name, index) =>
-                $"{name.Name} {augments[index].WinRate:F1}%"));
-        var matchups = _choices.Matchups?.Take(3).ToArray() ?? [];
-        string matchupText = matchups.Length == 0 ? "无对位统计" :
-            "对位：" + string.Join("、", matchups.Select(item =>
-                $"{AppCompositionRoot.ChampionCatalog.GetDisplayName(item.ChampionId)} {item.WinRate:F1}%"));
-        if (!IsDisposed) _note.Text = $"{spells}。{augmentText}；{matchupText}。";
-    }
-
-    private RouteCard CreateRouteCard(OpggBuildOption option)
-    {
-        bool mayhem = _choices.Mode == "aram_mayhem";
-        var root = new AntdUI.Panel
-        {
-            Height = 244,
-            Width = 1000,
-            Margin = new Padding(0, 0, 0, 14),
-            Padding = new Padding(16),
-            Cursor = Cursors.Hand
-        };
-        var indicator = new AntdUI.Panel { Dock = DockStyle.Left, Width = 5, Margin = new Padding(0, 0, 10, 0) };
-        var content = new AntdUI.Panel { Dock = DockStyle.Fill };
-
-        var cardHeader = new AntdUI.Panel { Dock = DockStyle.Top, Height = 42 };
-        var label = new AntdUI.Label
-        {
-            AutoSize = true,
-            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
-            Text = option.Order == 1 ? "方案 1 · 热门路线" : $"方案 {option.Order} · 备选路线"
-        };
-        var sample = new AntdUI.Label
-        {
-            AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Text = mayhem ? $"选择率 {option.PickRate:0.0}%" : $"{option.Matches:N0} 场样本",
-            Padding = new Padding(12, 4, 0, 0)
-        };
-        var winRate = new AntdUI.Label
-        {
-            AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
-            Text = $"胜率 {option.WinRate:F1}%",
-            Padding = new Padding(0, 2, 0, 0)
-        };
-        cardHeader.Resize += (_, _) =>
-        {
-            sample.Left = cardHeader.ClientSize.Width - sample.Width;
-            winRate.Left = sample.Left - winRate.Width - 14;
-        };
-        cardHeader.Controls.Add(label);
-        cardHeader.Controls.Add(winRate);
-        cardHeader.Controls.Add(sample);
-
-        var columns = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(0, 2, 0, 0) };
-        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 59));
-        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 41));
-
-        var itemPanel = new AntdUI.Panel { Dock = DockStyle.Fill };
-        var itemTitle = new AntdUI.Label { Dock = DockStyle.Top, Height = 24, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold), Text = "装备路线   起始 / 核心 / 可选" };
-        var itemSlots = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true, Padding = new Padding(0, 2, 0, 0) };
-        var itemTileList = new List<AssetTile>();
-        AddItemSection(itemSlots, "起始", option.StarterItemIds, itemTileList);
-        AddItemSection(itemSlots, "核心", option.CoreItemIds, itemTileList);
-        AddItemSection(itemSlots, "备选", option.SituationalItemIds.Take(2), itemTileList);
-        itemPanel.Controls.Add(itemSlots);
-        itemPanel.Controls.Add(itemTitle);
-
-        var runePanel = new AntdUI.Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 0, 0, 0) };
-        var runeTitle = new AntdUI.Label
-        {
-            Dock = DockStyle.Top,
-            Height = 24,
-            Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
-            Text = mayhem ? "海克斯增幅推荐（无常规符文）" : "符文配置   主系 / 副系 / 属性"
-        };
-        var runeSlots = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill, WrapContents = !mayhem, AutoScroll = true,
-            FlowDirection = mayhem ? FlowDirection.TopDown : FlowDirection.LeftToRight,
-            Padding = new Padding(0, 2, 0, 0)
-        };
-        var runeTileList = new List<AssetTile>();
+        var details = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 2, Margin = Padding.Empty };
+        details.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 28));
+        details.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        details.Controls.Add(VerticalTag(mayhem ? "增\n幅" : "符\n文"), 0, 0);
+        var runes = AssetRow();
+        var runeTiles = new List<AssetTile>();
         if (mayhem)
         {
-            var names = AugmentCatalog.GetAll().ToDictionary(item => item.Id);
-            var augments = _choices.Augments?.Take(5).ToArray() ?? [];
-            foreach (var augment in augments)
+            var catalog = AugmentCatalog.GetAll().ToDictionary(item => item.Id);
+            foreach (var augment in choices.Augments?.Take(3) ?? [])
             {
-                names.TryGetValue(augment.Id, out var info);
-                string name = info == null ? $"#{augment.Id}" :
-                    UiLanguage.IsEnglish && !string.IsNullOrWhiteSpace(info.EnglishName)
-                        ? info.EnglishName : info.Name;
-                runeSlots.Controls.Add(new AntdUI.Label
-                {
-                    AutoSize = false, Width = 300, Height = 25, AutoEllipsis = true,
-                    Text = $"{name}  {augment.WinRate:0.0}% · {augment.Matches:N0} {(UiLanguage.IsEnglish ? "matches" : "场")}",
-                    ForeColor = UiTheme.Palette.TextSecondary
-                });
+                catalog.TryGetValue(augment.Id, out var info);
+                var text = TextLabel($"{info?.Name ?? $"#{augment.Id}"}  {augment.WinRate:0.0}%", Muted);
+                text.Dock = DockStyle.None;
+                text.Size = new Size(160, 40);
+                _toolTip.SetToolTip(text, $"{text.Text} · {augment.Matches:N0} 场样本");
+                runes.Controls.Add(text);
             }
-            if (augments.Length == 0)
-                runeSlots.Controls.Add(new AntdUI.Label { AutoSize = true, Text = "当前英雄暂无可用增幅样本" });
+            if (runes.Controls.Count == 0)
+            {
+                var noAugments = TextLabel("暂无增幅样本", Muted);
+                noAugments.Dock = DockStyle.None;
+                noAugments.Width = 200;
+                runes.Controls.Add(noAugments);
+            }
         }
-        foreach (int runeId in mayhem ? Array.Empty<int>() : option.RunePerkIds)
+        else
         {
-            AssetTile tile = CreateAssetTile(runeId, size: 31, labelHeight: 0);
-            tile.Root.Width = 38;
-            tile.Root.Height = 38;
-            tile.Icon.Location = new Point(3, 2);
-            runeTileList.Add(tile);
-            runeSlots.Controls.Add(tile.Root);
+            AddRune(runes, runeTiles, option.PrimaryStyleId, 34, 0);
+            for (int i = 0; i < option.RunePerkIds.Count; i++)
+            {
+                if (i == 4) AddRune(runes, runeTiles, option.SubStyleId, 32, 14);
+                AddRune(runes, runeTiles, option.RunePerkIds[i], i == 0 ? 34 : i >= 6 ? 20 : 26,
+                    i == 6 ? 16 : 0);
+            }
         }
-        runePanel.Controls.Add(runeSlots);
-        runePanel.Controls.Add(runeTitle);
-
-        columns.Controls.Add(itemPanel, 0, 0);
-        columns.Controls.Add(runePanel, 1, 0);
-        content.Controls.Add(columns);
-        content.Controls.Add(cardHeader);
-        root.Controls.Add(content);
-        root.Controls.Add(indicator);
-
-        var card = new RouteCard(option, root, indicator, label, winRate, sample, itemTitle, runeTitle, itemTileList, runeTileList);
+        details.Controls.Add(runes, 1, 0);
+        details.Controls.Add(VerticalTag("装\n备"), 0, 1);
+        var equipment = AssetRow();
+        var itemTiles = new List<AssetTile>();
+        AddItemSection(equipment, "核心三件套", option.CoreItemIds, itemTiles);
+        AddItemSection(equipment, "更多可选装", option.SituationalItemIds, itemTiles);
+        details.Controls.Add(equipment, 1, 1);
+        var extras = AssetRow();
+        var spellTiles = new List<AssetTile>();
+        if (option.StarterItemIds.Count > 0)
+        {
+            extras.Controls.Add(InlineTag("出门装"));
+            foreach (int id in option.StarterItemIds.Where(id => id > 0))
+            {
+                var tile = CreateAssetTile(id, 24);
+                itemTiles.Add(tile);
+                extras.Controls.Add(tile.Root);
+            }
+        }
+        if (option.SummonerSpellIds?.Count > 0)
+        {
+            extras.Controls.Add(InlineTag("召唤师技能"));
+            foreach (int id in option.SummonerSpellIds.Where(id => id > 0))
+            {
+                var tile = CreateAssetTile(id, 24);
+                spellTiles.Add(tile);
+                extras.Controls.Add(tile.Root);
+            }
+        }
+        details.Controls.Add(extras, 1, 2);
+        layout.Controls.Add(details, 0, 1);
+        var stats = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(8, 24, 0, 0)
+        };
+        stats.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        stats.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
+        stats.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        stats.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var winRate = TextLabel(option.Matches > 0 || option.ReportedWinRate.HasValue
+            ? $"胜率 {option.WinRate:0.#}%" : "暂无胜率统计", Color.FromArgb(232, 231, 209));
+        winRate.TextAlign = ContentAlignment.MiddleRight;
+        stats.Controls.Add(winRate, 0, 0);
+        var sample = TextLabel(mayhem && option.PickRate.HasValue
+            ? $"选择率 {option.PickRate:0.0}%" : $"{option.Matches:N0} 场样本", Muted);
+        sample.TextAlign = ContentAlignment.MiddleRight;
+        stats.Controls.Add(sample, 0, 1);
+        var apply = CreateGoldButton("应用");
+        apply.Name = $"applyRoute{option.Order}";
+        apply.Anchor = AnchorStyles.Right;
+        stats.Controls.Add(apply, 0, 2);
+        layout.Controls.Add(stats, 1, 1);
+        root.Controls.Add(layout);
+        var card = new RouteCard(option, root, itemTiles, runeTiles, spellTiles, position ?? _position, apply);
         AttachSelectionHandler(root, card);
+        apply.Click += (_, _) => { SelectCard(card); ConfirmSelection(); };
         return card;
     }
 
-    private void AddItemSection(
-        FlowLayoutPanel host,
-        string title,
-        IEnumerable<int> itemIds,
-        ICollection<AssetTile> tiles)
+    private static Label VerticalTag(string text) => new()
     {
-        int[] ids = itemIds.Where(id => id > 0).ToArray();
-        if (ids.Length == 0) return;
+        Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
+        ForeColor = Color.FromArgb(156, 206, 220), BackColor = Color.FromArgb(9, 48, 63),
+        Margin = new Padding(0, 4, 8, 4)
+    };
 
-        host.Controls.Add(new AntdUI.Label
+    private static Label InlineTag(string text) => new()
+    {
+        Text = text, AutoSize = true, ForeColor = Muted,
+        Margin = new Padding(8, 4, 8, 0)
+    };
+
+    private void AddRune(FlowLayoutPanel row, List<AssetTile> tiles, int id, int size, int gap)
+    {
+        if (id <= 0) return;
+        var tile = CreateAssetTile(id, size);
+        tile.Root.Margin = new Padding(gap, (42 - size) / 2, 4, 0);
+        tile.Icon.Paint += (_, e) =>
         {
-            AutoSize = true,
-            Text = title,
-            Padding = new Padding(2, 18, 4, 0),
-            ForeColor = UiTheme.Palette.TextSecondary
-        });
-        foreach (int itemId in ids)
-        {
-            AssetTile tile = CreateAssetTile(itemId, size: 48, labelHeight: 30);
-            tiles.Add(tile);
-            host.Controls.Add(tile.Root);
-        }
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var pen = new Pen(id is >= 5000 and <= 5999 ? Muted : Gold);
+            e.Graphics.DrawEllipse(pen, 0, 0, tile.Icon.Width - 1, tile.Icon.Height - 1);
+        };
+        tiles.Add(tile);
+        row.Controls.Add(tile.Root);
     }
 
-    private AssetTile CreateAssetTile(int id, int size, int labelHeight)
+    private void AddItemSection(FlowLayoutPanel host, string title, IEnumerable<int> ids, List<AssetTile> tiles)
     {
-        var root = new AntdUI.Panel { Width = Math.Max(size + 12, 76), Height = size + labelHeight + 4, Margin = new Padding(0, 0, 8, 0), Cursor = Cursors.Hand };
-        var icon = new PictureBox
+        int[] items = ids.Where(id => id > 0).ToArray();
+        if (items.Length == 0) return;
+        var section = new Panel { Size = new Size(items.Length * 38, 62), Margin = new Padding(0, 0, 14, 0) };
+        var caption = TextLabel(title, Muted, 22);
+        caption.TextAlign = ContentAlignment.MiddleCenter;
+        caption.BackColor = Color.FromArgb(5, 36, 48);
+        caption.Tag = "equipmentCaption";
+        caption.Dock = DockStyle.Top;
+        var row = AssetRow();
+        foreach (int id in items)
         {
-            Size = new Size(size, size),
-            Location = new Point(Math.Max(0, (root.Width - size) / 2), 0),
-            SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.Transparent
-        };
-        var name = new AntdUI.Label
-        {
-            AutoEllipsis = true,
-            AutoSize = false,
-            TextAlign = ContentAlignment.TopCenter,
-            Location = new Point(0, size + 2),
-            Size = new Size(root.Width, labelHeight),
-            Text = labelHeight > 0 ? "加载装备…" : ""
-        };
+            var tile = CreateAssetTile(id, 34);
+            tile.Root.Margin = new Padding(0, 4, 4, 0);
+            tiles.Add(tile);
+            row.Controls.Add(tile.Root);
+        }
+        section.Controls.Add(row);
+        section.Controls.Add(caption);
+        host.Controls.Add(section);
+    }
+
+    private AssetTile CreateAssetTile(int id, int size)
+    {
+        var root = new Panel { Size = new Size(size, size), Margin = new Padding(0, 0, 4, 0), Cursor = Cursors.Hand };
+        var icon = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, BackColor = SelectedNavy };
+        var name = new Label { Text = $"#{id}", Visible = false };
         root.Controls.Add(name);
         root.Controls.Add(icon);
+        _toolTip.SetToolTip(icon, $"资源 {id} · 正在加载");
+        icon.Paint += (_, e) =>
+        {
+            if (icon.Image == null)
+                TextRenderer.DrawText(e.Graphics, id switch
+                {
+                    5001 or 5010 or 5011 => "血",
+                    5002 => "甲",
+                    5003 => "抗",
+                    5005 => "速",
+                    5007 => "急",
+                    5008 => "适",
+                    5013 => "韧",
+                    _ => "·"
+                }, Font, icon.ClientRectangle, Muted,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        };
         return new AssetTile(id, root, icon, name);
     }
 
@@ -355,27 +459,179 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
     private void SelectCard(RouteCard card)
     {
         _selectedCard = card;
-        _apply.Enabled = true;
+        _apply.Enabled = CanApply(card);
         ApplyTheme(UiTheme.Palette);
+    }
+
+    private bool CanApply(RouteCard card) => !_loading && card.Option.Mode == _choices.Mode;
+
+    private static readonly (string Key, string Name)[] Lanes =
+        [("TOP", "上路"), ("JUNGLE", "打野"), ("MIDDLE", "中路"), ("BOTTOM", "下路"), ("UTILITY", "辅助")];
+
+    internal async Task ChangeCategoryAsync(string mode, string position)
+    {
+        if (_buildService == null) return;
+        _queryCancellation?.Cancel();
+        _queryCancellation?.Dispose();
+        _queryCancellation = new CancellationTokenSource();
+        var token = _queryCancellation.Token;
+        int version = ++_queryVersion;
+        _filter = mode;
+        _position = position;
+        string queryMode = mode == "all" ? _choices.Mode : mode;
+        bool ranked = queryMode == "ranked";
+        var roles = ranked && position == "all" ? Lanes.Select(lane => lane.Key).ToArray()
+            : new[] { ranked ? position : "MIDDLE" };
+        _loading = true;
+        _selectedCard = null;
+        _apply.Enabled = false;
+        ClearRouteCards();
+        _empty.Visible = true;
+        _empty.Text = "正在加载推荐方案…";
+        _note.Text = "正在获取所选模式与分路的数据…";
+        ApplyTheme(UiTheme.Palette);
+        try
+        {
+            var pending = roles.OrderBy(role => role == _initialPosition ? 0 : 1).Select(async role =>
+            {
+                if (_cache.TryGetValue((queryMode, role), out var cached)) return (Role: role, Choices: cached);
+                var request = queryMode switch
+                {
+                    "aram" => new OpggBuildRequest("ARAM"),
+                    "aram_mayhem" => new OpggBuildRequest("KIWI"),
+                    "arena" => new OpggBuildRequest("CHERRY"),
+                    "urf" => new OpggBuildRequest("URF"),
+                    "nexus_blitz" => new OpggBuildRequest("NEXUSBLITZ"),
+                    _ => new OpggBuildRequest("CLASSIC")
+                };
+                try
+                {
+                    var choices = await _buildService.GetBuildChoicesAsync(ResolveChampionId(), role, request, token);
+                    token.ThrowIfCancellationRequested();
+                    if (choices.Succeeded) _cache[(queryMode, role)] = choices;
+                    return (Role: role, Choices: choices);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                catch { return (Role: role, Choices: OpggBuildChoices.Failure("推荐加载失败，请重试。")); }
+            }).ToList();
+            var results = new List<(string Role, OpggBuildChoices Choices)>();
+            if (_championIcon.Image == null) _ = LoadChampionVisualAsync();
+            while (pending.Count > 0)
+            {
+                var completed = await Task.WhenAny(pending).WaitAsync(token);
+                pending.Remove(completed);
+                var result = await completed;
+                if (IsDisposed || version != _queryVersion) return;
+                results.Add(result);
+                _routeCards.SuspendLayout();
+                try
+                {
+                    if (result.Choices.Succeeded)
+                    {
+                        foreach (var option in result.Choices.Options)
+                        {
+                            var card = CreateRouteCard(option, result.Choices, result.Role);
+                            _cards.Add(card);
+                            _routeCards.Controls.Add(card.Root);
+                            _ = LoadCardVisualsAsync(card);
+                        }
+                    }
+                    _empty.Visible = _cards.Count == 0;
+                    _empty.Text = pending.Count > 0 ? "正在加载推荐方案…" :
+                        string.Join("；", results.Select(item => item.Choices.Message).Distinct());
+                    _heading.Text = $"{_choices.ChampionName} / " + (ranked ? position == "all" ? "全部分路" :
+                        Lanes.First(lane => lane.Key == position).Name : result.Choices.Succeeded
+                            ? result.Choices.PositionName : queryMode) + $" · {_cards.Count} 套推荐";
+                    _note.Text = queryMode != _choices.Mode ? "当前浏览其他模式；请切回当前对局模式后应用方案。" :
+                        queryMode == "aram_mayhem" ? "海克斯大乱斗专属出装与增幅推荐 · 此模式无常规符文页" :
+                        "选择一套方案，配置符文、装备与召唤师技能";
+                    if (pending.Count > 0) _note.Text += $" · 正在补充其他分路（{results.Count}/{roles.Length}）";
+                    var missing = results.Where(item => !item.Choices.Succeeded).Select(item =>
+                        Lanes.First(lane => lane.Key == item.Role).Name).ToArray();
+                    if (ranked && missing.Length > 0 && _cards.Count > 0)
+                        _note.Text += $" · {string.Join("、", missing)}暂无可用数据";
+                    _source.Text = "数据来源：" + (queryMode == "aram_mayhem" ? "aramgg / ARAMKit" : "OP.GG");
+                    _replaceCurrentRunePage.Visible = _cards.Any(card => card.Option.RunePerkIds.Count >= 6);
+                    // 已到达的分路可立即应用，不等待最慢的网络请求。
+                    _loading = _cards.Count == 0 && pending.Count > 0;
+                    if (_selectedCard == null && _cards.Count > 0)
+                    {
+                        var preferred = !_hasLoadedCategory && queryMode == _choices.Mode
+                            ? _cards.FirstOrDefault(card => card.Position == _initialPosition && card.Option.Order == _initialOrder)
+                            : null;
+                        SelectCard(preferred ?? _cards[0]);
+                        _hasLoadedCategory = true;
+                    }
+                    ApplyTheme(UiTheme.Palette);
+                }
+                finally { _routeCards.ResumeLayout(true); }
+                ResizeRouteCards();
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (IsDisposed || version != _queryVersion) return;
+            _loading = false;
+            _empty.Text = "推荐加载失败，请重新选择分路或类型重试。";
+            _note.Text = "暂未取得所选类型的数据";
+        }
+    }
+
+    private void ClearRouteCards()
+    {
+        foreach (var card in _cards)
+        {
+            foreach (var tile in card.ItemTiles.Concat(card.RuneTiles).Concat(card.SpellTiles))
+            {
+                if (tile.Icon.Image is Image image)
+                {
+                    _ownedImages.Remove(image);
+                    tile.Icon.Image = null;
+                    image.Dispose();
+                }
+            }
+            _routeCards.Controls.Remove(card.Root);
+            card.Root.Dispose();
+        }
+        _cards.Clear();
+        _routeCards.AutoScrollPosition = Point.Empty;
+    }
+
+    private void FilterCards(string mode)
+    {
+        _filter = mode;
+        _routeCards.SuspendLayout();
+        foreach (RouteCard card in _cards) card.Root.Visible = mode == "all" || card.Option.Mode == mode;
+        var visible = _cards.Where(card => mode == "all" || card.Option.Mode == mode).ToArray();
+        _empty.Visible = visible.Length == 0;
+        _empty.Text = _cards.Count == 0 ? (_choices.Message.Length > 0 ? _choices.Message : "暂无可用推荐方案")
+            : "当前对局没有此模式的推荐方案，请切回当前模式或“全部”。";
+        if (!visible.Contains(_selectedCard)) _selectedCard = visible.FirstOrDefault();
+        _apply.Enabled = _selectedCard != null;
+        _routeCards.AutoScrollPosition = Point.Empty;
+        _routeCards.ResumeLayout(true);
+        ApplyTheme(UiTheme.Palette);
+        ResizeRouteCards();
     }
 
     private void ResizeRouteCards()
     {
-        int width = Math.Max(300, _routeCards.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 18);
+        int width = Math.Max(300, _routeCards.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 4);
         foreach (RouteCard card in _cards) card.Root.Width = width;
+        _empty.Width = width;
     }
-
     private async Task LoadVisualsAsync()
     {
-        var tasks = new List<Task> { LoadChampionVisualAsync() };
-        foreach (RouteCard card in _cards)
-        {
-            foreach (AssetTile tile in card.ItemTiles) tasks.Add(LoadItemVisualAsync(tile));
-            foreach (AssetTile tile in card.RuneTiles) tasks.Add(LoadRuneVisualAsync(tile));
-        }
+        var tasks = _cards.ToArray().Select(LoadCardVisualsAsync).ToList();
+        tasks.Add(LoadChampionVisualAsync());
         await Task.WhenAll(tasks);
     }
 
+    private Task LoadCardVisualsAsync(RouteCard card) => Task.WhenAll(
+        card.ItemTiles.Select(LoadItemVisualAsync)
+            .Concat(card.RuneTiles.Select(LoadRuneVisualAsync))
+            .Concat(card.SpellTiles.Select(LoadSpellVisualAsync)));
     private async Task LoadChampionVisualAsync()
     {
         try
@@ -404,9 +660,11 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
             await _visualLoadGate.WaitAsync();
             try
             {
+                if (IsDisposed || tile.Root.IsDisposed) return;
                 Task<GameAsset?> iconTask = _gameAssetService.GetItemIconAsync(tile.Id);
                 Task<string?> nameTask = _gameAssetService.GetItemNameAsync(tile.Id);
                 await Task.WhenAll(iconTask, nameTask);
+                if (IsDisposed || tile.Root.IsDisposed) return;
                 string name = nameTask.Result ?? $"装备 {tile.Id}";
                 tile.Name.Text = name;
                 _toolTip.SetToolTip(tile.Root, name);
@@ -420,6 +678,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         }
         catch
         {
+            if (IsDisposed || tile.Root.IsDisposed) return;
             tile.Name.Text = $"装备 {tile.Id}";
             _toolTip.SetToolTip(tile.Root, tile.Name.Text);
         }
@@ -432,8 +691,12 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
             await _visualLoadGate.WaitAsync();
             try
             {
-                AssignImage(tile.Icon, ToImage(await _gameAssetService.GetRuneIconAsync(tile.Id)));
+                if (IsDisposed || tile.Root.IsDisposed) return;
+                var asset = await _gameAssetService.GetRuneIconAsync(tile.Id);
+                if (IsDisposed || tile.Root.IsDisposed) return;
+                AssignImage(tile.Icon, ToImage(asset));
                 _toolTip.SetToolTip(tile.Root, $"符文 {tile.Id}");
+                _toolTip.SetToolTip(tile.Icon, $"符文 {tile.Id}");
             }
             finally
             {
@@ -442,6 +705,7 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         }
         catch
         {
+            if (IsDisposed || tile.Root.IsDisposed) return;
             _toolTip.SetToolTip(tile.Root, $"符文 {tile.Id}");
         }
     }
@@ -485,39 +749,80 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
 
     private void ConfirmSelection()
     {
-        if (SelectedOption == null) return;
+        if (_selectedCard == null || !CanApply(_selectedCard)) return;
         DialogResult = DialogResult.OK;
         Close();
     }
 
+    private async Task LoadSpellVisualAsync(AssetTile tile)
+    {
+        try
+        {
+            await _visualLoadGate.WaitAsync();
+            try
+            {
+                if (IsDisposed || tile.Root.IsDisposed) return;
+                var icon = await _gameAssetService.GetSummonerSpellIconAsync(tile.Id);
+                var name = await _gameAssetService.GetSummonerSpellNameAsync(tile.Id);
+                if (IsDisposed || tile.Root.IsDisposed) return;
+                _toolTip.SetToolTip(tile.Icon, name ?? $"召唤师技能 {tile.Id}");
+                AssignImage(tile.Icon, ToImage(icon));
+            }
+            finally { _visualLoadGate.Release(); }
+        }
+        catch { /* 图标不可用不会影响方案应用。 */ }
+    }
     public void ApplyTheme(ThemePalette palette)
     {
-        BackColor = palette.Surface;
-        ForeColor = palette.TextPrimary;
-        _title.ForeColor = palette.TextPrimary;
-        _note.ForeColor = palette.TextSecondary;
-        _heroHeader.BackColor = palette.SurfaceRaised;
-        _modeBadge.BackColor = palette.IsDark ? Color.FromArgb(30, 53, 78) : Color.FromArgb(232, 243, 253);
-        _modeBadge.ForeColor = palette.Accent;
-        _sourceHint.ForeColor = palette.TextSecondary;
+        // 此推荐弹窗采用独立的游戏客户端配色，保持参考图的深蓝与金色。
+        PaintControls(this);
+        _windowHeader.ForeColor = Gold;
         foreach (RouteCard card in _cards)
         {
-            bool selected = ReferenceEquals(card, _selectedCard);
-            card.Root.BackColor = selected
-                ? (palette.IsDark ? Color.FromArgb(30, 53, 78) : Color.FromArgb(232, 243, 253))
-                : palette.SurfaceRaised;
-            card.Indicator.BackColor = selected ? palette.Accent : palette.Border;
-            card.Label.ForeColor = selected ? palette.Accent : palette.TextPrimary;
-            card.WinRate.ForeColor = selected ? palette.Accent : palette.TextPrimary;
-            card.Sample.ForeColor = palette.TextSecondary;
-            card.ItemTitle.ForeColor = palette.TextSecondary;
-            card.RuneTitle.ForeColor = palette.TextSecondary;
-            foreach (AssetTile tile in card.ItemTiles.Concat(card.RuneTiles))
-            {
-                tile.Name.ForeColor = palette.TextSecondary;
-                tile.Icon.BackColor = palette.IsDark ? palette.SurfaceMuted : Color.FromArgb(244, 247, 250);
-            }
+            card.Root.BackColor = ReferenceEquals(card, _selectedCard) ? SelectedNavy : Navy;
+            card.Root.Invalidate();
+            card.Apply.Enabled = CanApply(card);
         }
+        foreach (Button tab in _tabs)
+        {
+            bool active = Equals(tab.Tag, _filter);
+            tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
+            tab.ForeColor = active ? Color.FromArgb(239, 221, 166) : Gold;
+            tab.FlatAppearance.BorderSize = active ? 1 : 0;
+        }
+        foreach (Button tab in _laneTabs)
+        {
+            tab.Enabled = (_filter == "all" ? _choices.Mode : _filter) == "ranked";
+            bool active = Equals(tab.Tag, _position);
+            tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
+            tab.FlatAppearance.BorderSize = active ? 1 : 0;
+        }
+    }
+
+    private static void PaintControls(Control control)
+    {
+        control.BackColor = control is PictureBox ? SelectedNavy :
+            control is Label label && label.Text.Contains('\n') ? Color.FromArgb(9, 48, 63) : Navy;
+        if (control is Button) control.ForeColor = Gold;
+        else if (control is CheckBox) control.ForeColor = Muted;
+        foreach (Control child in control.Controls) PaintControls(child);
+        // Let standard labels inherit the selected row background.
+        if (control is Label { Visible: true } && !control.Text.Contains('\n')) control.BackColor = Color.Transparent;
+        if (Equals(control.Tag, "equipmentCaption")) control.BackColor = Color.FromArgb(5, 36, 48);
+        if (control is TableLayoutPanel or FlowLayoutPanel) control.BackColor = Color.Transparent;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _queryCancellation?.Cancel();
+            _queryCancellation?.Dispose();
+            _queryCancellation = null;
+            DisposeOwnedImages();
+            _toolTip.Dispose();
+        }
+        base.Dispose(disposing);
     }
 
     private void DisposeOwnedImages()
@@ -526,17 +831,8 @@ internal sealed class OpggBuildPickerForm : Form, IThemeAware
         _ownedImages.Clear();
     }
 
-    private sealed record AssetTile(int Id, AntdUI.Panel Root, PictureBox Icon, AntdUI.Label Name);
-
-    private sealed record RouteCard(
-        OpggBuildOption Option,
-        AntdUI.Panel Root,
-        AntdUI.Panel Indicator,
-        AntdUI.Label Label,
-        AntdUI.Label WinRate,
-        AntdUI.Label Sample,
-        AntdUI.Label ItemTitle,
-        AntdUI.Label RuneTitle,
-        IReadOnlyList<AssetTile> ItemTiles,
-        IReadOnlyList<AssetTile> RuneTiles);
+    private sealed record AssetTile(int Id, Panel Root, PictureBox Icon, Label Name);
+    private sealed record RouteCard(OpggBuildOption Option, Panel Root,
+        IReadOnlyList<AssetTile> ItemTiles, IReadOnlyList<AssetTile> RuneTiles,
+        IReadOnlyList<AssetTile> SpellTiles, string Position, Button Apply);
 }

@@ -229,6 +229,13 @@ namespace LOL_GameAssistant.LoLApi
                 if (styles == null) return new Dictionary<int, string>();
 
                 var resolved = new Dictionary<int, string>();
+                // 推荐列表同时展示主系与副系；系别图标位于顶层，而非 slots/runes 内。
+                foreach (JObject style in styles.OfType<JObject>())
+                {
+                    int id = style.Value<int?>("id") ?? 0;
+                    string? icon = style.Value<string>("icon");
+                    if (id > 0 && !string.IsNullOrWhiteSpace(icon)) resolved[id] = icon;
+                }
                 foreach (JObject rune in styles
                     .OfType<JObject>()
                     .SelectMany(style => style["slots"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())

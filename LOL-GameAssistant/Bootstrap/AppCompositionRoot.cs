@@ -90,7 +90,8 @@ public static class AppCompositionRoot
     public static IGameDataVersionService GameDataVersionService { get; } = new LegacyGameDataVersionService();
 
     /// <summary>英雄、装备和技能等只读游戏资源服务。</summary>
-    public static IGameAssetService GameAssetService { get; } = new LegacyGameAssetService();
+    public static IGameAssetService GameAssetService { get; } = new CachedGameAssetService(
+        new LegacyGameAssetService(), () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
     public static IAugmentScanner AugmentScanner { get; } = new LocalAugmentScanner();
     public static IAugmentInfoService AugmentInfoService { get; } = new AugmentInfoService();
 
@@ -117,7 +118,8 @@ public static class AppCompositionRoot
 
     /// <summary>OP.GG 公开推荐到本机 LCU 符文页和自定义物品集的一键配置。</summary>
     public static IOpggBuildApplyService OpggBuildApplyService { get; } =
-        new OpggBuildApplyService(LcuRequestSender, ChampionCatalog);
+        new CachedOpggBuildApplyService(new OpggBuildApplyService(LcuRequestSender, ChampionCatalog),
+            () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
 
     /// <summary>仅读取本机当前玩家实时状态的服务。</summary>
     public static ILiveClientGameStateService LiveClientGameStateService { get; } = new LiveClientGameStateService();

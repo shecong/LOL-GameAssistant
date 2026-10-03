@@ -320,6 +320,7 @@ public sealed class CoachForm : UserControl
                 : null;
             bool manuallySelected = false;
             bool allowReplaceCurrentRunePage = false;
+            string selectedPosition = context.MyRole;
 
             if (autoApply && selectedOption == null)
                 selectedOption = choices.Options.FirstOrDefault();
@@ -327,7 +328,7 @@ public sealed class CoachForm : UserControl
             if (selectedOption == null)
             {
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "已获取方案", $"{choices.ChampionName} {choices.PositionName} · {choices.Options.Count} 套，正在等待选择");
-                using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService, savedOrder);
+                using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService, savedOrder, _opggBuildApplyService);
                 DialogResult dialogResult = picker.ShowDialog(FindForm() ?? Program.GameMain);
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "弹窗已关闭",
                     picker.SelectedOption == null ? "未选择方案" : $"已选方案 {picker.SelectedOption.Order}");
@@ -339,6 +340,8 @@ public sealed class CoachForm : UserControl
                 }
 
                 selectedOption = picker.SelectedOption;
+                selectedPosition = picker.SelectedPosition;
+                selectionKey = BuildOpggSelectionKey(context.MyChampionId, selectedOption.Mode, selectedPosition);
                 allowReplaceCurrentRunePage = picker.AllowReplaceCurrentRunePage;
                 manuallySelected = true;
             }
@@ -358,7 +361,7 @@ public sealed class CoachForm : UserControl
                 ? $"正在按已保存的 {choices.PositionName} 方案 {selectedOption.Order} 配置…"
                 : $"正在应用 OP.GG 方案 {selectedOption.Order}…";
             OpggBuildApplyResult result = await _opggBuildApplyService
-                .ApplyBuildAsync(context.MyChampionId, context.MyRole, selectedOption, cancellationToken, allowReplaceCurrentRunePage);
+                .ApplyBuildAsync(context.MyChampionId, selectedPosition, selectedOption, cancellationToken, allowReplaceCurrentRunePage);
             _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
             _status.Text = result.Message;
             RuntimeDiagnostics.Report("OP.GG 方案应用", result.Succeeded ? "成功" : "失败", result.Message);
