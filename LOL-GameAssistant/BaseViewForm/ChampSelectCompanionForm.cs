@@ -28,6 +28,8 @@ internal sealed class ChampSelectCompanionForm : Form
     private readonly IRankedStatsService _ranked;
     private readonly IMatchHistoryService _matches;
     private readonly IApplicationSettingsStore _settings;
+    private readonly Func<Rectangle?> _clientBounds;
+    private IntPtr _clientWindow;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 150 };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly FlowLayoutPanel _cards = new()
@@ -57,6 +59,7 @@ internal sealed class ChampSelectCompanionForm : Form
     private bool _selectionLoading;
     private bool _modeLoading;
     private bool? _isMayhem;
+    private bool _isAram;
     private ChampionSelectionSnapshot? _lastSelection;
     private CancellationTokenSource? _trackingCancellation;
     private int _trackingGeneration;
@@ -77,7 +80,8 @@ internal sealed class ChampSelectCompanionForm : Form
 
     internal ChampSelectCompanionForm(IChampionSelectService selection, ILobbyService lobby,
         IClientFeatureService features, IChampionCatalog champions, IPlayerProfileService players,
-        IRankedStatsService ranked, IMatchHistoryService matches, IApplicationSettingsStore settings)
+        IRankedStatsService ranked, IMatchHistoryService matches, IApplicationSettingsStore settings,
+        Func<Rectangle?>? clientBounds = null)
     {
         _selection = selection;
         _lobby = lobby;
@@ -87,6 +91,7 @@ internal sealed class ChampSelectCompanionForm : Form
         _ranked = ranked;
         _matches = matches;
         _settings = settings;
+        _clientBounds = clientBounds ?? (() => TryGetClientBounds(out var bounds) ? bounds : null);
         Text = "LOL 选人伴随窗";
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -145,6 +150,7 @@ internal sealed class ChampSelectCompanionForm : Form
         _trackingCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _loading = _selectionLoading = _modeLoading = _swapping = false;
         _isMayhem = null;
+        _isAram = false;
         _lastSelection = null;
         _lastRefresh = _lastAllyRefresh = _nextModeRefresh = DateTimeOffset.MinValue;
         _tracking = true;
@@ -189,11 +195,7 @@ internal sealed class ChampSelectCompanionForm : Form
 
     private async Task RefreshAsync()
     {
-        if (!_tracking || IsDisposed) return;
-        if (!TryGetClientBounds(out Rectangle client))
-        { if (Visible) Hide(); return; }
-        FollowClient(client);
-        if (!Visible) Show();
+        if (!SyncClientVisibility()) return;
         if (!_modeLoading && _isMayhem == null && DateTimeOffset.UtcNow >= _nextModeRefresh)
             _ = ResolveBenchModeAsync();
         if (_lastSelection != null) _ = RefreshAlliesAsync(_lastSelection);
@@ -301,6 +303,7 @@ internal sealed class ChampSelectCompanionForm : Form
             string mode = !string.IsNullOrWhiteSpace(game?.GameMode) ? game.GameMode : lobby?.GameMode ?? "";
             if (queueId == 0 && string.IsNullOrWhiteSpace(mode)) return;
             _isMayhem = queueId is 2400 or 3270 || mode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase);
+            _isAram = queueId == 450 || string.Equals(mode, "ARAM", StringComparison.OrdinalIgnoreCase);
             _lastBench = "<unloaded>";
             if (_lastSelection != null) RenderMayhemBench(_lastSelection);
         }
@@ -323,7 +326,7 @@ internal sealed class ChampSelectCompanionForm : Form
     {
         int[] ids = selection.BenchChampionIds.Where(id => id > 0).Distinct().ToArray();
         // 模式尚在读取时，只要客户端提供了备战英雄就先显示，避免额外的网络等待。
-        bool showBench = _isMayhem == true || (_isMayhem == null && ids.Length > 0);
+        bool showBench = _isMayhem == true || _isAram || (_isMayhem == null && ids.Length > 0);
         _mayhemBench.Visible = showBench;
         if (!showBench)
         {
@@ -335,8 +338,8 @@ internal sealed class ChampSelectCompanionForm : Form
         if (signature == _lastBench) return;
         _lastBench = signature;
         string title = UiLanguage.IsEnglish
-            ? $"{(_isMayhem == true ? "Hex Brawl" : "Bench")} · available champions ({ids.Length})"
-            : $"{(_isMayhem == true ? "海克斯大乱斗" : "备战席")} · 可交换英雄（{ids.Length}）";
+            ? $"{(_isMayhem == true ? "Hex Brawl" : _isAram ? "ARAM" : "Bench")} · available champions ({ids.Length})"
+            : $"{(_isMayhem == true ? "海克斯大乱斗" : _isAram ? "极地大乱斗" : "备战席")} · 可交换英雄（{ids.Length}）";
         _benchStatus.Text = string.IsNullOrEmpty(_benchMessage) ? title : $"{title}\n{_benchMessage}";
         _benchChoices.SuspendLayout();
         try
@@ -483,9 +486,27 @@ internal sealed class ChampSelectCompanionForm : Form
         foreach (Control card in _cards.Controls) card.Width = Math.Max(200, _cards.ClientSize.Width - 20);
     }
 
-    private static bool TryGetClientBounds(out Rectangle bounds)
+    internal bool SyncClientVisibility()
+    {
+        if (!_tracking || IsDisposed) return false;
+        Rectangle? client = _clientBounds();
+        if (client == null)
+        {
+            if (Visible) Hide();
+            return false;
+        }
+        FollowClient(client.Value);
+        if (!Visible) Show();
+        return true;
+    }
+
+    private bool TryGetClientBounds(out Rectangle bounds)
     {
         bounds = Rectangle.Empty;
+        // 固定跟随已找到的客户端窗口；最小化时不改找其他辅助窗口。
+        if (_clientWindow != IntPtr.Zero && IsWindow(_clientWindow))
+            return TryGetVisibleClientBounds(_clientWindow, out bounds);
+        _clientWindow = IntPtr.Zero;
         try
         {
             foreach (Process process in Process.GetProcessesByName("LeagueClientUx"))
@@ -493,15 +514,34 @@ internal sealed class ChampSelectCompanionForm : Form
                 using (process)
                 {
                     IntPtr handle = process.MainWindowHandle;
-                    if (handle == IntPtr.Zero || IsIconic(handle) || !IsWindowVisible(handle) ||
-                        !GetWindowRect(handle, out Rect rect)) continue;
-                    bounds = Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom);
-                    if (bounds.Width > 500 && bounds.Height > 400) return true;
+                    if (handle == IntPtr.Zero) continue;
+                    if (IsIconic(handle)) { _clientWindow = handle; return false; }
+                    if (!TryGetVisibleClientBounds(handle, out bounds)) continue;
+                    if (bounds.Width > 500 && bounds.Height > 400)
+                    {
+                        _clientWindow = handle;
+                        return true;
+                    }
                 }
             }
         }
         catch (InvalidOperationException) { /* The client exited during enumeration. */ }
         return false;
+    }
+
+    internal static bool TryGetVisibleClientBounds(IntPtr handle, out Rectangle bounds)
+    {
+        bounds = Rectangle.Empty;
+        if (handle == IntPtr.Zero || !IsWindow(handle) || IsIconic(handle) || !IsWindowVisible(handle)) return false;
+        // 切换虚拟桌面/客户端隐藏时窗口可能仍被 Win32 标记为可见。
+        if (DwmGetWindowAttribute(handle, 14 /* DWMWA_CLOAKED */, out int cloaked, sizeof(int)) == 0 && cloaked != 0)
+            return false;
+        if (!GetWindowRect(handle, out var rect)) return false;
+        var rectangle = Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom);
+        if (rectangle.Width <= 0 || rectangle.Height <= 0 ||
+            !Screen.AllScreens.Any(screen => screen.Bounds.IntersectsWith(rectangle))) return false;
+        bounds = rectangle;
+        return true;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -514,4 +554,9 @@ internal sealed class ChampSelectCompanionForm : Form
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindow(IntPtr window);
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
 }

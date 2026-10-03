@@ -18,6 +18,45 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class ChampSelectCompanionTests
 {
+    [Theory]
+    [InlineData(450, "")]
+    [InlineData(0, "ARAM")]
+    [InlineData(2400, "KIWI")]
+    public void AramBenchRemainsAvailableAfterModeResolvesAndSupportsSwap(int queueId, string mode) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int swappedChampion = 0;
+        using var fixture = new Fixture(featureHandler: (_, args) =>
+        {
+            swappedChampion = (int)args[0]!;
+            return Task.FromResult(new ClientFeatureResult(true, "已交换"));
+        });
+        fixture.Lobby.SetResult(new LobbySnapshot { QueueId = queueId, GameMode = mode });
+        fixture.Game.SetResult(null);
+        fixture.Selection.SetResult(Snapshot(22, 99));
+        fixture.Form.StartTracking();
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Equal([22, 99], BenchIds(fixture.Form));
+        var button = Children(fixture.Form).OfType<Button>().Single(button => button.Tag is 22);
+        // PerformClick requires a visible form; invoke the same click event without needing the game client.
+        typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(button, [EventArgs.Empty]);
+        Assert.Equal(22, swappedChampion);
+        fixture.Form.ObserveChampionSelection(Snapshot(99));
+        Assert.Equal([99], BenchIds(fixture.Form));
+    });
+
+    [Fact]
+    public void ClassicModeDoesNotShowBenchChoices() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var fixture = new Fixture();
+        fixture.Lobby.SetResult(new LobbySnapshot { QueueId = 430, GameMode = "CLASSIC" });
+        fixture.Game.SetResult(null);
+        fixture.Form.StartTracking();
+        fixture.Form.ObserveChampionSelection(Snapshot(22, 99));
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Empty(BenchIds(fixture.Form));
+    });
+
     [Fact]
     public void BenchEventsRenderWhileModeAndPlayerRequestsRemainPending() => MatchListScrollingTests.OnUiThread(() =>
     {
@@ -32,6 +71,44 @@ public sealed class ChampSelectCompanionTests
         Assert.Equal([22, 99], BenchIds(fixture.Form));
         fixture.Form.ObserveChampionSelection(Snapshot());
         Assert.Empty(BenchIds(fixture.Form));
+    });
+
+    [Fact]
+    public void CompanionHidesOnClientMinimizeAndReturnsOnRestoreWhileDataPending() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var client = new Form { Size = new Size(900, 600), Opacity = 0, ShowInTaskbar = false };
+        client.Show();
+        using var fixture = new Fixture(() => ChampSelectCompanionForm.TryGetVisibleClientBounds(client.Handle, out var bounds)
+            ? bounds : null);
+        fixture.Form.StartTracking();
+        Assert.True(fixture.Form.SyncClientVisibility());
+        Assert.True(fixture.Form.Visible);
+        client.WindowState = FormWindowState.Minimized;
+        Assert.False(fixture.Form.SyncClientVisibility());
+        Assert.False(fixture.Form.Visible);
+        client.WindowState = FormWindowState.Normal;
+        Assert.True(fixture.Form.SyncClientVisibility());
+        Assert.True(fixture.Form.Visible);
+        Assert.False(fixture.Lobby.Task.IsCompleted);
+        Assert.False(fixture.Player.Task.IsCompleted);
+    });
+
+    [Fact]
+    public void HiddenClientHidesCompanionAndStoppedTrackingDoesNotReshowIt() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var client = new Form { Size = new Size(900, 600), Opacity = 0, ShowInTaskbar = false };
+        client.Show();
+        using var fixture = new Fixture(() => ChampSelectCompanionForm.TryGetVisibleClientBounds(client.Handle, out var bounds)
+            ? bounds : null);
+        fixture.Form.StartTracking();
+        Assert.True(fixture.Form.Visible);
+        client.Hide();
+        Assert.False(fixture.Form.SyncClientVisibility());
+        Assert.False(fixture.Form.Visible);
+        fixture.Form.StopTracking();
+        client.Show();
+        Assert.False(fixture.Form.SyncClientVisibility());
+        Assert.False(fixture.Form.Visible);
     });
 
     [Fact]
@@ -69,18 +146,18 @@ public sealed class ChampSelectCompanionTests
         public TaskCompletionSource<PlayerProfile?> Player { get; } = new();
         public ChampSelectCompanionForm Form { get; }
 
-        public Fixture()
+        public Fixture(Func<Rectangle?>? clientBounds = null, Func<MethodInfo, object?[], object?>? featureHandler = null)
         {
             Form = new ChampSelectCompanionForm(
                 Service<IChampionSelectService>((_, args) => Selection.Task.WaitAsync(Token(args))),
                 Service<ILobbyService>((method, args) => method.Name == "GetLobbyAsync"
                     ? Lobby.Task.WaitAsync(Token(args)) : Game.Task.WaitAsync(Token(args))),
-                Service<IClientFeatureService>((_, _) => null),
+                Service<IClientFeatureService>(featureHandler ?? ((_, _) => null)),
                 Service<IChampionCatalog>((_, args) => $"英雄 {args[0]}"),
                 Service<IPlayerProfileService>((_, _) => Player.Task),
                 Service<IRankedStatsService>((_, _) => null),
                 Service<IMatchHistoryService>((_, _) => null),
-                Service<IApplicationSettingsStore>((_, _) => new AssistantSettings()));
+                Service<IApplicationSettingsStore>((_, _) => new AssistantSettings()), clientBounds);
         }
 
         public void Dispose()
