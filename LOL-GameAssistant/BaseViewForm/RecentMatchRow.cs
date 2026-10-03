@@ -29,6 +29,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ToolTip _championTip = new();
         private Image? _ownedChampionImage;
         private bool _showTeammateInfo;
+        private bool _championAndModeOnly;
+        private PlayerIdentityActions? _identityActions;
         private bool _teamQueueDetectionStarted;
         private static readonly SemaphoreSlim TeamQueueDetectionGate = new(2, 2);
         private Color _baseBack = Color.FromArgb(250, 250, 250);
@@ -119,14 +121,18 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => _hoverTimer.Dispose();
 
             _championTip.SetToolTip(picChampion, "双击查看对局详情");
-            Disposed += (_, _) => { _championTip.Dispose(); _teamQueueTip?.Dispose(); _ownedChampionImage?.Dispose(); };
+            Disposed += (_, _) => { _identityActions?.Dispose(); _championTip.Dispose(); _teamQueueTip?.Dispose(); _ownedChampionImage?.Dispose(); };
 
             this.DoubleClick += (_, _) => OpenDetail();
             this.MouseEnter += (_, _) => StartHover(true);
             this.MouseLeave += (_, _) => StartHover(false);
             foreach (Control child in Controls)
             {
-                child.DoubleClick += (_, _) => OpenDetail();
+                child.DoubleClick += (_, _) =>
+                {
+                    if (_championAndModeOnly && (child == picChampion || child == lblChampion)) return;
+                    OpenDetail();
+                };
                 child.MouseEnter += (_, _) => StartHover(true);
                 child.MouseLeave += (_, _) => StartHover(false);
             }
@@ -144,30 +150,39 @@ namespace LOL_GameAssistant.BaseViewForm
             int labelY = _showTeammateInfo ? 10 : Math.Max(6, (Height - 20) / 2);
 
             picChampion.Location = new Point(x, iconY);
-            x += 34 + 8;
+            x += 34 + (_championAndModeOnly ? 6 : 8);
 
             lblResult.Location = new Point(x, labelY);
-            lblResult.Width = 44;
-            x += 48;
+            lblResult.Width = _championAndModeOnly
+                ? Math.Max(30, TextRenderer.MeasureText(lblResult.Text, lblResult.Font,
+                    Size.Empty, TextFormatFlags.NoPadding).Width + 2) : 44;
+            x += lblResult.Width + 4;
 
-            int right = Math.Max(x, w - 12);
-            int durationWidth = w >= 520 ? 82 : 62;
-            int kdaWidth = w >= 520 ? 90 : 82;
+            int right = Math.Max(x, w - (_championAndModeOnly ? 8 : 12));
+            // 按实际文字保留必要宽度，长 KDA/时长仍能完整显示。
+            int durationWidth = _championAndModeOnly
+                ? Math.Max(42, TextRenderer.MeasureText(lblDuration.Text, lblDuration.Font,
+                    Size.Empty, TextFormatFlags.NoPadding).Width + 4) : w >= 520 ? 82 : 62;
+            int kdaWidth = _championAndModeOnly
+                ? Math.Max(64, TextRenderer.MeasureText(lblKda.Text, lblKda.Font,
+                    Size.Empty, TextFormatFlags.NoPadding).Width + 4) : w >= 520 ? 90 : 82;
+            int columnGap = _championAndModeOnly ? 4 : 6;
             int durationLeft = right - durationWidth;
-            int kdaLeft = durationLeft - 6 - kdaWidth;
-            bool showDate = w >= 440;
+            int kdaLeft = durationLeft - columnGap - kdaWidth;
+            bool showDate = !_championAndModeOnly && w >= 440;
             int dateWidth = showDate ? 78 : 0;
             int dateLeft = kdaLeft - 6 - dateWidth;
-            int detailsRight = showDate ? dateLeft - 6 : kdaLeft - 6;
+            int detailsRight = showDate ? dateLeft - 6 : kdaLeft - columnGap;
             int detailsWidth = Math.Max(0, detailsRight - x);
 
-            // 宽卡片展示模式和日期；窄卡片只保留胜负、玩家/英雄、KDA 和时长，避免列互相遮挡。
-            bool showMode = detailsWidth >= 200;
+            // 对局玩家卡片在同一列分两行展示英雄、模式，窄卡片也保留模式。
+            bool showMode = !_championAndModeOnly && detailsWidth >= 200;
             int championWidth = showMode
                 ? Math.Min(150, Math.Max(92, detailsWidth / 2 - 3))
                 : detailsWidth;
-            lblChampion.Location = new Point(x, labelY);
+            lblChampion.Location = new Point(x, _championAndModeOnly ? Math.Max(2, (Height - 34) / 2) : labelY);
             lblChampion.Width = championWidth;
+            lblChampion.Height = _championAndModeOnly ? 34 : 20;
 
             lblMode.Visible = showMode;
             if (showMode)
@@ -219,12 +234,14 @@ namespace LOL_GameAssistant.BaseViewForm
             LayoutRow();
         }
 
-        public async Task SetDataAsync(MatchDetail detail, MatchParticipant gamer, string? puuid)
+        public async Task SetDataAsync(MatchDetail detail, MatchParticipant gamer, string? puuid,
+            bool championAndModeOnly = false)
         {
             try
             {
                 _detail = detail;
                 _puuid = puuid;
+                _championAndModeOnly = championAndModeOnly;
 
                 bool win = gamer.IsWin();
                 bool dark = UiTheme.Palette.IsDark;
@@ -248,15 +265,29 @@ namespace LOL_GameAssistant.BaseViewForm
                     : !string.IsNullOrWhiteSpace(playerIdentity?.summonerName)
                         ? playerIdentity.summonerName
                         : "本人";
-                lblChampion.Text = $"{playerName} · {championName}";
                 string modeText = detail.GetModeText();
+                lblChampion.Text = championAndModeOnly ? $"{championName}\n{modeText}" : $"{playerName} · {championName}";
                 lblMode.Text = modeText;
                 lblDate.Text = detail.gameCreationDate?.Length >= 10 ? detail.gameCreationDate.Substring(0, 10) : "未知";
                 lblKda.Text = gamer.GetKdaText();
                 lblDuration.Text = detail.GetDurationText();
 
                 string champName = GetChampionDisplayName(gamer.championId);
-                _championTip.SetToolTip(picChampion, $"{playerName} · {champName} · {modeText} · {detail.GetDurationText()}\n{gamer.GetKdaText()} · {(win ? "胜利" : "失败")}");
+                string caption = championAndModeOnly ? $"{champName} · {modeText}" : $"{playerName} · {champName} · {modeText}";
+                _championTip.SetToolTip(picChampion, $"{caption} · {detail.GetDurationText()}\n{gamer.GetKdaText()} · {(win ? "胜利" : "失败")}");
+                _championTip.SetToolTip(lblChampion, caption);
+                if (championAndModeOnly && _identityActions == null)
+                {
+                    _identityActions = new PlayerIdentityActions(() => _puuid, () => FindForm());
+                    _identityActions.Attach(picChampion);
+                    _identityActions.Attach(lblChampion);
+                }
+                if (championAndModeOnly)
+                {
+                    _championTip.SetToolTip(picChampion, caption + "\n单击复制玩家 ID；双击查询该玩家战绩");
+                    _championTip.SetToolTip(lblChampion, caption + "\n单击复制玩家 ID；双击查询该玩家战绩");
+                }
+                LayoutRow();
 
                 if (_showTeammateInfo)
                 {

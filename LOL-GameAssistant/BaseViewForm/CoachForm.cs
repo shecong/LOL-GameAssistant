@@ -167,15 +167,15 @@ public sealed class CoachForm : UserControl
     }
 
     /// <summary>供选人伴随窗手动打开当前模式的方案选择；无需开启自动推荐。</summary>
-    public async Task<string> OpenOpggBuildPickerAsync(CancellationToken cancellationToken = default)
+    public async Task<string> OpenOpggBuildPickerAsync(CancellationToken cancellationToken = default, Form? owner = null)
     {
         if (IsDisposed) return "OP.GG 方案窗口不可用。";
         if (_applyingOpgg || _opggPickerOpen) return "OP.GG 方案正在获取或选择中。";
         _opggPickerOpen = true;
         try
         {
-            AiGameContext context = await _aiCoachingService.CollectContextAsync(cancellationToken);
-            await ApplyOpggBuildAsync(context, automatic: false, cancellationToken);
+            AiGameContext context = await GetManualBuildContextAsync(cancellationToken);
+            await ApplyOpggBuildAsync(context, automatic: false, cancellationToken, dialogOwner: owner);
             return _status.Text ?? "";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -270,15 +270,41 @@ public sealed class CoachForm : UserControl
             return;
         }
 
-        var context = await _aiCoachingService.CollectContextAsync();
+        var context = await GetManualBuildContextAsync(CancellationToken.None);
         await ApplyOpggBuildAsync(context, automatic: false, CancellationToken.None);
+    }
+
+    private async Task<AiGameContext> GetManualBuildContextAsync(CancellationToken token)
+    {
+        try { return await _aiCoachingService.CollectContextAsync(token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch { return new AiGameContext(); }
+    }
+
+    internal static (AiGameContext Context, bool PreviewOnly) ResolveManualBuildContext(AiGameContext context)
+    {
+        string mode = Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(context.GameMode, context.QueueId);
+        bool preview = !string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
+            context.MyChampionId <= 0 || mode == "unknown";
+        if (!preview) return (context, false);
+        // 无对局时也能浏览；保留已知英雄，否则默认亚索、峡谷、中路。
+        return (new AiGameContext
+        {
+            Phase = context.Phase,
+            MyChampionId = context.MyChampionId > 0 ? context.MyChampionId : 157,
+            MyRole = PersonalRunePresetResolver.NormalizePosition(context.MyRole) == "unknown" ? "MIDDLE" : context.MyRole,
+            GameMode = mode == "unknown" ? "CLASSIC" : context.GameMode,
+            QueueId = mode == "unknown" ? 0 : context.QueueId,
+            EnemyChampionIds = context.EnemyChampionIds
+        }, true);
     }
 
     private async Task ApplyOpggBuildAsync(
         AiGameContext context,
         bool automatic,
         CancellationToken cancellationToken,
-        bool autoApply = false)
+        bool autoApply = false,
+        Form? dialogOwner = null)
     {
         if (_applyingOpgg || IsDisposed) return;
         _applyingOpgg = true;
@@ -288,7 +314,10 @@ public sealed class CoachForm : UserControl
         _status.Text = automatic ? "检测到已选英雄，正在从 OP.GG 获取图文方案…" : "正在从 OP.GG 获取图文方案…";
         try
         {
-            if (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0)
+            bool previewOnly = false;
+            if (!automatic)
+                (context, previewOnly) = ResolveManualBuildContext(context);
+            if (automatic && (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0))
             {
                 _status.ForeColor = Color.DarkGoldenrod;
                 _status.Text = "请在英雄选择阶段选定英雄后使用 OP.GG 配置。";
@@ -328,14 +357,17 @@ public sealed class CoachForm : UserControl
             if (selectedOption == null)
             {
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "已获取方案", $"{choices.ChampionName} {choices.PositionName} · {choices.Options.Count} 套，正在等待选择");
-                using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService, savedOrder, _opggBuildApplyService);
-                DialogResult dialogResult = picker.ShowDialog(FindForm() ?? Program.GameMain);
+                using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService, savedOrder,
+                    _opggBuildApplyService, allowApply: !previewOnly);
+                // 从选人伴随窗打开时，以伴随窗为父窗口，关闭后不会激活隐藏的主窗体。
+                Form? owner = ResolveBuildDialogOwner(dialogOwner, FindForm() ?? Program.GameMain);
+                DialogResult dialogResult = picker.ShowDialog(owner);
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "弹窗已关闭",
                     picker.SelectedOption == null ? "未选择方案" : $"已选方案 {picker.SelectedOption.Order}");
                 if (dialogResult != DialogResult.OK || picker.SelectedOption == null)
                 {
                     _status.ForeColor = Color.DimGray;
-                    _status.Text = "已取消 OP.GG 出装配置。";
+                    _status.Text = previewOnly ? "默认推荐浏览已关闭，进入选人阶段后可应用。" : "已取消 OP.GG 出装配置。";
                     return;
                 }
 
@@ -374,7 +406,7 @@ public sealed class CoachForm : UserControl
                 _settingsStore.Save(settings);
             }
             if (!result.Succeeded && !automatic)
-                MessageBox.Show(FindForm() ?? Program.GameMain, result.Message, "符文装备应用失败",
+                MessageBox.Show(ResolveBuildDialogOwner(dialogOwner, FindForm() ?? Program.GameMain), result.Message, "符文装备应用失败",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
             if (automatic && !result.Succeeded) ScheduleOpggRetry(_opggPromptedContext);
         }
@@ -396,6 +428,13 @@ public sealed class CoachForm : UserControl
             _opggPickerOpen = false;
             RefreshOpggAvailability();
         }
+    }
+
+    private static Form? ResolveBuildDialogOwner(Form? requested, Form? host)
+    {
+        Form? owner = requested ?? host;
+        return owner is { IsDisposed: false, Visible: true } && owner.WindowState != FormWindowState.Minimized
+            ? owner : null;
     }
 
     private static string BuildOpggSelectionKey(int championId, string mode, string? position)

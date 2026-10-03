@@ -45,6 +45,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private Image? _ownedChampionImage;
         private ToolTip? _premadeTip;
         private ToolTip? _copyTip;
+        private readonly PlayerIdentityActions _identityActions;
         private readonly ToolTip _performanceTip = new();
         private readonly CancellationTokenSource _lifetimeCancellation = new();
 
@@ -180,6 +181,13 @@ namespace LOL_GameAssistant.BaseViewForm
             _copyTip = new ToolTip();
             _copyTip.SetToolTip(btnCopy, "复制该玩家 PUUID（可用于精确查询）");
             _copyTip.SetToolTip(_historyButton, "打开此玩家的战绩查询");
+            _identityActions = new PlayerIdentityActions(() => _isBot ? null : _playerPuuid,
+                () => ParentForm ?? FindForm());
+            foreach (Control target in new Control[] { picProfile, lblName, picCurrent, lblChampionNow })
+            {
+                _identityActions.Attach(target);
+                _copyTip.SetToolTip(target, "单击复制玩家 ID；双击查询该玩家战绩");
+            }
             if (!string.IsNullOrEmpty(_playerPuuid))
             {
                 _copyTip.SetToolTip(this, $"PUUID: {_playerPuuid}");
@@ -195,6 +203,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _ownedProfileImage?.Dispose();
                 _ownedChampionImage?.Dispose();
                 _copyTip?.Dispose();
+                _identityActions.Dispose();
                 _premadeTip?.Dispose();
                 _performanceTip.Dispose();
             };
@@ -525,7 +534,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 panelMatches.Controls.Add(row);
                 UiTheme.Apply(row);
                 y += RecentMatchRow.RowHeight;
-                _ = row.SetDataAsync(detail, gamer, _playerPuuid);
+                _ = row.SetDataAsync(detail, gamer, _playerPuuid, championAndModeOnly: true);
             }
             ResizeMatchRows();
             UiTheme.Apply(this);
@@ -707,7 +716,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _ownedChampionImage?.Dispose();
             _ownedChampionImage = null;
             lblChampionNow.Text = $"当前: {GetChampionDisplayName(championId)}";
-            _performanceTip.SetToolTip(lblChampionNow, lblChampionNow.Text);
+            _copyTip?.SetToolTip(lblChampionNow, lblChampionNow.Text + "\n单击复制玩家 ID；双击查询该玩家战绩");
             picCurrent.Visible = true;
             RecalcHeaderLayout();
             try { await LoadCurrentChampionAsync(_lifetimeCancellation.Token); }

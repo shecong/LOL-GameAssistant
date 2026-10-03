@@ -410,7 +410,7 @@ internal sealed class ChampSelectCompanionForm : Form
         TopMost = false;
         try
         {
-            string result = await Program.GameMain.coachForm.OpenOpggBuildPickerAsync(_lifetime.Token);
+            string result = await Program.GameMain.coachForm.OpenOpggBuildPickerAsync(_lifetime.Token, owner: this);
             if (!IsDisposed) _buildStatus.Text = UiLanguage.T(result);
         }
         catch (Exception ex)

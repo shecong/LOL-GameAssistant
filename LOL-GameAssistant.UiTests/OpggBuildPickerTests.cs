@@ -3,6 +3,7 @@ using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.GameData;
 using System.Reflection;
+using LOL_GameAssistant.Domain.Coaching;
 using Xunit;
 
 namespace LOL_GameAssistant.UiTests;
@@ -192,14 +193,58 @@ public sealed class OpggBuildPickerTests
         }, [new OpggBuildOption(1, [1054], [3078, 3053, 6333], [3026], 8000, 8200,
             [8010, 9111, 9104, 8299, 8234, 8236, 5008, 5008, 5001], 1000, 500, Mode: mode)], Mode: mode, ChampionId: 122);
 
-    private static OpggBuildPickerForm CreateForm(string mode = "ranked", IOpggBuildApplyService? buildService = null)
+    [Fact]
+    public void MissingMatchDefaultsToYasuoRiftMiddle()
+    {
+        var (context, preview) = CoachForm.ResolveManualBuildContext(new AiGameContext { GameMode = "", QueueId = 999 });
+        Assert.True(preview);
+        Assert.Equal(157, context.MyChampionId);
+        Assert.Equal("CLASSIC", context.GameMode);
+        Assert.Equal("MIDDLE", context.MyRole);
+        Assert.Equal(0, context.QueueId);
+    }
+
+    [Fact]
+    public void FallbackRetainsKnownHeroAndMode()
+    {
+        var (context, preview) = CoachForm.ResolveManualBuildContext(new AiGameContext
+            { MyChampionId = 22, GameMode = "ARAM", QueueId = 450 });
+        Assert.True(preview);
+        Assert.Equal(22, context.MyChampionId);
+        Assert.Equal("ARAM", context.GameMode);
+    }
+
+    [Fact]
+    public void KnownChampSelectKeepsLiveContext()
+    {
+        var original = new AiGameContext { Phase = "ChampSelect", MyChampionId = 22, MyRole = "BOTTOM" };
+        var (context, preview) = CoachForm.ResolveManualBuildContext(original);
+        Assert.False(preview);
+        Assert.Same(original, context);
+    }
+
+    [Fact]
+    public void PreviewFallbackDisablesEveryApplyEntry() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = CreateForm(allowApply: false);
+        form.Show();
+        Assert.All(Children(form).OfType<Button>().Where(button => button.Name.StartsWith("applyRoute") ||
+            button.Text == "应用选中方案"), button => Assert.False(button.Enabled));
+        Children(form).OfType<Button>().Single(button => button.Text == "全部").PerformClick();
+        Assert.False(((Button)form.AcceptButton!).Enabled);
+        Assert.NotEqual(DialogResult.OK, form.DialogResult);
+    });
+
+    private static OpggBuildPickerForm CreateForm(string mode = "ranked", IOpggBuildApplyService? buildService = null,
+        bool allowApply = true)
     {
         var options = Enumerable.Range(1, 4).Select(order => new OpggBuildOption(order,
             [1054, 2003], [3078, 3053, 6333], [3143, 3065, 3071, 3026, 3047, 3082],
             8000, 8200, mode == "aram_mayhem" ? [] : [8010, 9111, 9104, 8299, 8234, 8236, 5008, 5008, 5001],
             7200 / order, 3500 / order, [4, 12], Mode: mode)).ToArray();
         return new OpggBuildPickerForm(new OpggBuildChoices(true, "", "德莱厄斯", "上路", options,
-            Mode: mode, ChampionId: 122), new EmptyAssets(), buildService: buildService) { Opacity = 0 };
+            Mode: mode, ChampionId: 122), new EmptyAssets(), buildService: buildService,
+            allowApply: allowApply) { Opacity = 0 };
     }
 
     private static IEnumerable<Control> Children(Control parent) => parent.Controls.Cast<Control>()

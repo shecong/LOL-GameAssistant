@@ -17,6 +17,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private static readonly Color Line = Color.FromArgb(51, 64, 62);
     private readonly OpggBuildChoices _choices;
     private readonly IOpggBuildApplyService? _buildService;
+    private readonly bool _allowApply;
     private readonly Label _heading = new();
     private readonly Label _source = new();
     private readonly AntdUI.PageHeader _windowHeader = new()
@@ -58,11 +59,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     public bool AllowReplaceCurrentRunePage => _replaceCurrentRunePage.Checked;
 
     public OpggBuildPickerForm(OpggBuildChoices choices, IGameAssetService gameAssetService,
-        int initiallySelectedOrder = 0, IOpggBuildApplyService? buildService = null)
+        int initiallySelectedOrder = 0, IOpggBuildApplyService? buildService = null, bool allowApply = true)
     {
         _choices = choices;
         _gameAssetService = gameAssetService;
         _buildService = buildService;
+        _allowApply = allowApply;
         _position = choices.PositionName switch
         {
             "上路" => "TOP", "打野" => "JUNGLE", "下路" => "BOTTOM", "辅助" => "UTILITY", _ => "MIDDLE"
@@ -180,6 +182,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _note.Text = _choices.Mode == "aram_mayhem"
             ? "海克斯大乱斗专属出装与增幅推荐 · 此模式无常规符文页"
             : "选择一套方案，配置符文、装备与召唤师技能";
+        if (!_allowApply) _note.Text = "未获取当前对局，默认展示推荐；进入选人阶段后可应用。";
         _note.Dock = DockStyle.Fill;
         _note.ForeColor = Muted;
         _note.TextAlign = ContentAlignment.MiddleLeft;
@@ -463,7 +466,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         ApplyTheme(UiTheme.Palette);
     }
 
-    private bool CanApply(RouteCard card) => !_loading && card.Option.Mode == _choices.Mode;
+    private bool CanApply(RouteCard card) => _allowApply && !_loading && card.Option.Mode == _choices.Mode;
 
     private static readonly (string Key, string Name)[] Lanes =
         [("TOP", "上路"), ("JUNGLE", "打野"), ("MIDDLE", "中路"), ("BOTTOM", "下路"), ("UTILITY", "辅助")];
@@ -545,6 +548,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                     _note.Text = queryMode != _choices.Mode ? "当前浏览其他模式；请切回当前对局模式后应用方案。" :
                         queryMode == "aram_mayhem" ? "海克斯大乱斗专属出装与增幅推荐 · 此模式无常规符文页" :
                         "选择一套方案，配置符文、装备与召唤师技能";
+                    if (!_allowApply) _note.Text = "未获取当前对局，默认展示推荐；进入选人阶段后可应用。";
                     if (pending.Count > 0) _note.Text += $" · 正在补充其他分路（{results.Count}/{roles.Length}）";
                     var missing = results.Where(item => !item.Choices.Succeeded).Select(item =>
                         Lanes.First(lane => lane.Key == item.Role).Name).ToArray();
@@ -608,7 +612,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _empty.Text = _cards.Count == 0 ? (_choices.Message.Length > 0 ? _choices.Message : "暂无可用推荐方案")
             : "当前对局没有此模式的推荐方案，请切回当前模式或“全部”。";
         if (!visible.Contains(_selectedCard)) _selectedCard = visible.FirstOrDefault();
-        _apply.Enabled = _selectedCard != null;
+        _apply.Enabled = _selectedCard != null && CanApply(_selectedCard);
         _routeCards.AutoScrollPosition = Point.Empty;
         _routeCards.ResumeLayout(true);
         ApplyTheme(UiTheme.Palette);
