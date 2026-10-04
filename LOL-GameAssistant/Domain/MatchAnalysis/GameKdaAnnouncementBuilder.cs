@@ -6,7 +6,7 @@ public sealed record GameKdaPlayerSummary(
     string DisplayName,
     RecentModePerformanceAssessment? Assessment);
 
-/// <summary>每名玩家生成一条简短的游戏聊天消息，避免多人在同一条消息内自动折行。</summary>
+/// <summary>默认按队伍汇总为短消息；仅逐人模式为每名玩家发送一条。</summary>
 public static class GameKdaAnnouncementBuilder
 {
     private const int MaximumTeamMessageLength = 120;
@@ -27,35 +27,30 @@ public static class GameKdaAnnouncementBuilder
 
     private static IEnumerable<string> BuildTeamMessages(string team, IReadOnlyList<GameKdaPlayerSummary> players)
     {
-        var batch = new List<GameKdaPlayerSummary>();
-        foreach (GameKdaPlayerSummary player in players)
-        {
-            batch.Add(player);
-            if (BuildTeamMessage(team, batch).Length <= MaximumTeamMessageLength) continue;
-            batch.RemoveAt(batch.Count - 1);
-            if (batch.Count > 0) yield return BuildTeamMessage(team, batch);
-            batch.Clear();
-            batch.Add(player);
-        }
-        if (batch.Count > 0) yield return BuildTeamMessage(team, batch);
+        // 五人队伍必须一次生成完整汇总，不能按逐个加入时的长度提前拆开，
+        // 否则会出现“红方四人”之后又发送“红方最后一人”的额外消息。
+        foreach (GameKdaPlayerSummary[] batch in players.Chunk(5))
+            yield return BuildTeamMessage(team, batch);
     }
 
     private static string BuildTeamMessage(string team, IReadOnlyList<GameKdaPlayerSummary> players)
     {
         string heading = $"【本局近期KDA·{team}】 ";
-        foreach ((int nameLimit, bool compact) in new[]
-                 { (18, false), (12, false), (10, true), (8, true), (6, true) })
+        foreach ((int nameLimit, bool compact, string separator, bool terse) in new[]
+                 { (18, false, PlayerSeparator, false), (12, false, PlayerSeparator, false),
+                   (10, true, PlayerSeparator, false), (8, true, PlayerSeparator, false),
+                   (6, true, PlayerSeparator, false), (6, true, "  ", true), (4, true, "  ", true) })
         {
-            string message = heading + string.Join(PlayerSeparator,
-                players.Select(player => FormatTeamPlayer(player, nameLimit, compact)));
+            string message = heading + string.Join(separator,
+                players.Select(player => FormatTeamPlayer(player, nameLimit, compact, terse)));
             if (message.Length <= MaximumTeamMessageLength) return message;
         }
 
-        return heading + string.Join(PlayerSeparator,
-            players.Select(player => FormatTeamPlayer(player, 4, true)));
+        return heading + string.Join(" ",
+            players.Select(player => FormatTeamPlayer(player, 2, true, true)));
     }
 
-    private static string FormatTeamPlayer(GameKdaPlayerSummary player, int nameLimit, bool compact)
+    private static string FormatTeamPlayer(GameKdaPlayerSummary player, int nameLimit, bool compact, bool terse = false)
     {
         string name = NormalizeName(player.DisplayName);
         if (name.Length > nameLimit) name = name[..nameLimit] + "…";
@@ -68,7 +63,7 @@ public static class GameKdaAnnouncementBuilder
                 : $"{name} 样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} KDA{FormatKda(assessment.Kda, 2)}";
         string label = RecentPerformanceLabelFormatter.GetText(assessment);
         return compact
-            ? $"{name} {label}{assessment.Score} KDA{FormatKda(assessment.Kda, 1)}"
+            ? $"{name} {label}{assessment.Score} {(terse ? "K" : "KDA")}{FormatKda(assessment.Kda, 1)}"
             : $"{name} {label}{assessment.Score}分 KDA{FormatKda(assessment.Kda, 2)}";
     }
 

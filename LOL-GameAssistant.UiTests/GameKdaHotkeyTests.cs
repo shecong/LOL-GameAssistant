@@ -74,4 +74,34 @@ public sealed class GameKdaHotkeyTests
     private static Dictionary<Keys, QuickShoutHotkeyAction> Bindings(AssistantSettings settings) =>
         (Dictionary<Keys, QuickShoutHotkeyAction>)typeof(WindowHoldController)
             .GetMethod("CreateGameHotkeyBindings", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [settings])!;
+
+    [Theory]
+    [InlineData("Ctrl+Shift+K", Keys.Control | Keys.Shift | Keys.K)]
+    [InlineData("alt+7", Keys.Alt | Keys.D7)]
+    [InlineData("F1", Keys.F1)]
+    [InlineData("NumPad5", Keys.NumPad5)]
+    public void CustomKeysAndModifiersRoundTrip(string text, Keys expected)
+    {
+        Assert.True(WindowHoldController.TryParseGameHotkey(text, out Keys key));
+        Assert.Equal(expected, key);
+        Assert.True(WindowHoldController.TryParseGameHotkey(WindowHoldController.FormatGameHotkey(key), out Keys restored));
+        Assert.Equal(key, restored);
+    }
+
+    [Theory]
+    [InlineData("Ctrl")]
+    [InlineData("ControlKey")]
+    [InlineData("Ctrl+not-a-key")]
+    [InlineData("A+B")]
+    public void InvalidShortcutsAreRejected(string text) => Assert.False(WindowHoldController.TryParseGameHotkey(text, out _));
+
+    [Fact]
+    public void ModifiedKeyDoesNotConflictWithPlainKey()
+    {
+        var settings = new AssistantSettings { GameKdaHotkey = "Ctrl+F6" };
+        Assert.False(WindowHoldController.HasGameHotkeyConflict(settings));
+        Assert.Equal(QuickShoutHotkeyAction.GameKda, Bindings(settings)[Keys.Control | Keys.F6]);
+        settings.QuickShoutBuiltInHotkey = "Control+F6";
+        Assert.True(WindowHoldController.HasGameHotkeyConflict(settings));
+    }
 }

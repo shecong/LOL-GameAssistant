@@ -6,6 +6,23 @@ namespace LOL_GameAssistant.Tests;
 public sealed class GameKdaAnnouncementBuilderTests
 {
     [Fact]
+    public void FiveLongRedNamesDoNotProduceAnExtraSinglePlayerMessage()
+    {
+        var assessment = new RecentModePerformanceAssessment(
+            MatchPerformanceTier.Upper, 100, 20, 55, "", 123.4, true, RecentPerformanceLabel.Upper);
+        var players = Enumerable.Range(1, 10).Select(index => new GameKdaPlayerSummary(
+            index <= 5 ? "蓝方" : "红方", $"玩家{index}非常长的名字", assessment)).ToArray();
+        var messages = GameKdaAnnouncementBuilder.Build(players);
+        Assert.Equal(2, messages.Count);
+        Assert.StartsWith("【本局近期KDA·蓝方】", messages[0]);
+        Assert.StartsWith("【本局近期KDA·红方】", messages[1]);
+        Assert.All(messages, message => Assert.InRange(message.Length, 1, 120));
+        foreach (var player in players)
+            Assert.Contains($"玩家{Array.IndexOf(players, player) + 1}", messages[player.Team == "蓝方" ? 0 : 1]);
+        Assert.Equal(10, GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine: true).Count);
+    }
+
+    [Fact]
     public void MissingResultDiffersFromEmptySameModeSample()
     {
         var empty = new RecentModePerformanceAssessment(MatchPerformanceTier.Medium, 0, 0, 0, "");
@@ -98,7 +115,7 @@ public sealed class GameKdaAnnouncementBuilderTests
 
         IReadOnlyList<string> messages = GameKdaAnnouncementBuilder.Build(players);
 
-        Assert.InRange(messages.Count, 2, 10);
+        Assert.Equal(2, messages.Count);
         Assert.StartsWith("【本局近期KDA·蓝方】", messages[0]);
         Assert.Contains(messages, message => message.StartsWith("【本局近期KDA·红方】"));
         Assert.Contains(messages, message => message.Contains("玩家2"));
@@ -109,12 +126,12 @@ public sealed class GameKdaAnnouncementBuilderTests
     }
 
     [Fact]
-    public void LongNamesSplitWithoutDroppingOrRelabelingRedPlayers()
+    public void LongNamesStayInOneMessagePerTeamWithoutDroppingRedPlayers()
     {
         var players = Enumerable.Range(1, 10).Select(index => new GameKdaPlayerSummary(
             index <= 5 ? "蓝方" : "红方", $"角色{index}很长很长很长的召唤师名字", null)).ToArray();
         var messages = GameKdaAnnouncementBuilder.Build(players);
-        Assert.InRange(messages.Count, 2, 10);
+        Assert.Equal(2, messages.Count);
         Assert.All(messages, message => Assert.InRange(message.Length, 1, 120));
         foreach (var player in players)
         {

@@ -35,6 +35,7 @@ public sealed class WindowHoldController : IDisposable
     private Keys _hotkey = Keys.Oem3;
     private Dictionary<Keys, QuickShoutHotkeyAction> _gameHotkeys = new();
     private Action<QuickShoutHotkeyAction>? _shoutAction;
+    private readonly Dictionary<int, QuickShoutHotkeyAction> _pressedGameHotkeys = new();
     private bool _onlyWhenLeagueFocused = true;
     private bool _capturePaused;
     private bool _holding;
@@ -73,6 +74,7 @@ public sealed class WindowHoldController : IDisposable
     public void SetCapturePaused(bool paused)
     {
         _capturePaused = paused;
+        _pressedGameHotkeys.Clear();
         if (paused) UnregisterHoldHotkey();
         else RefreshRegistration();
     }
@@ -80,6 +82,7 @@ public sealed class WindowHoldController : IDisposable
     public void ConfigureQuickShoutHotkeys(AssistantSettings config, Action<QuickShoutHotkeyAction> action)
     {
         _shoutAction = action;
+        _pressedGameHotkeys.Clear();
         _gameHotkeys = CreateGameHotkeyBindings(config);
         if (_gameHotkeys.Count > 0) InstallShoutHook();
         else RemoveShoutHook();
@@ -93,12 +96,12 @@ public sealed class WindowHoldController : IDisposable
         var candidates = new List<(Keys Key, QuickShoutHotkeyAction Action)>();
         if (config.QuickShoutHotkeysEnabled)
         {
-            candidates.Add((ParseFunctionKey(config.QuickShoutBuiltInHotkey, Keys.F6), QuickShoutHotkeyAction.RandomBuiltIn));
-            candidates.Add((ParseFunctionKey(config.QuickShoutCustomHotkey, Keys.F7), QuickShoutHotkeyAction.RandomCustom));
-            candidates.Add((ParseFunctionKey(config.QuickShoutBatchHotkey, Keys.F8), QuickShoutHotkeyAction.SelectedBatch));
+            candidates.Add((ParseGameHotkey(config.QuickShoutBuiltInHotkey, Keys.F6), QuickShoutHotkeyAction.RandomBuiltIn));
+            candidates.Add((ParseGameHotkey(config.QuickShoutCustomHotkey, Keys.F7), QuickShoutHotkeyAction.RandomCustom));
+            candidates.Add((ParseGameHotkey(config.QuickShoutBatchHotkey, Keys.F8), QuickShoutHotkeyAction.SelectedBatch));
         }
         if (config.GameKdaHotkeyEnabled)
-            candidates.Add((ParseFunctionKey(config.GameKdaHotkey, Keys.F9), QuickShoutHotkeyAction.GameKda));
+            candidates.Add((ParseGameHotkey(config.GameKdaHotkey, Keys.F9), QuickShoutHotkeyAction.GameKda));
         // 禁用冲突键，防止旧配置误触另一个动作；其它有效快捷键继续可用。
         return candidates.GroupBy(candidate => candidate.Key)
             .Where(group => group.Count() == 1 && group.Key != ParseKey(config.HoldToTopHotkey))
@@ -109,9 +112,47 @@ public sealed class WindowHoldController : IDisposable
         CreateGameHotkeyBindings(config).Count !=
         (config.QuickShoutHotkeysEnabled ? 3 : 0) + (config.GameKdaHotkeyEnabled ? 1 : 0);
 
-    private static Keys ParseFunctionKey(string? value, Keys fallback) =>
-        Enum.TryParse(value, true, out Keys key) && key is >= Keys.F2 and <= Keys.F12
-            ? key : fallback;
+    private static Keys ParseGameHotkey(string? value, Keys fallback) =>
+        TryParseGameHotkey(value, out Keys key) ? key : fallback;
+
+    public static bool TryParseGameHotkey(string? value, out Keys key)
+    {
+        key = Keys.None;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        foreach (string part in value.Split('+', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) || part.Equals("Control", StringComparison.OrdinalIgnoreCase)) key |= Keys.Control;
+            else if (part.Equals("Alt", StringComparison.OrdinalIgnoreCase)) key |= Keys.Alt;
+            else if (part.Equals("Shift", StringComparison.OrdinalIgnoreCase)) key |= Keys.Shift;
+            else
+            {
+                string token = part.Length == 1 && char.IsAsciiDigit(part[0]) ? $"D{part}" : part;
+                if (!Enum.TryParse(token, true, out Keys parsed) || (key & Keys.KeyCode) != Keys.None ||
+                    !IsGameHotkeyMainKey(parsed)) return false;
+                key |= parsed;
+            }
+        }
+        return IsGameHotkeyMainKey(key & Keys.KeyCode);
+    }
+
+    private static bool IsGameHotkeyMainKey(Keys key) => key is > Keys.None and <= (Keys)254 &&
+        key is not (Keys.ShiftKey or Keys.ControlKey or Keys.Menu or Keys.LShiftKey or Keys.RShiftKey or
+                    Keys.LControlKey or Keys.RControlKey or Keys.LMenu or Keys.RMenu or Keys.LWin or Keys.RWin or
+                    Keys.LButton or Keys.RButton or Keys.MButton or Keys.XButton1 or Keys.XButton2);
+
+    public static string FormatGameHotkey(Keys key)
+    {
+        string modifiers = ((key & Keys.Control) != 0 ? "Ctrl+" : "") +
+            ((key & Keys.Alt) != 0 ? "Alt+" : "") + ((key & Keys.Shift) != 0 ? "Shift+" : "");
+        Keys main = key & Keys.KeyCode;
+        string name = main is >= Keys.D0 and <= Keys.D9 ? ((int)main - (int)Keys.D0).ToString() : main.ToString();
+        return modifiers + name;
+    }
+
+    private static Keys CurrentGameModifiers() =>
+        ((GetAsyncKeyState((int)Keys.ControlKey) & 0x8000) != 0 ? Keys.Control : Keys.None) |
+        ((GetAsyncKeyState((int)Keys.Menu) & 0x8000) != 0 ? Keys.Alt : Keys.None) |
+        ((GetAsyncKeyState((int)Keys.ShiftKey) & 0x8000) != 0 ? Keys.Shift : Keys.None);
 
     public static Keys ParseKey(string? value) =>
         Enum.TryParse(value, true, out Keys parsed) && parsed != Keys.None
@@ -223,14 +264,35 @@ public sealed class WindowHoldController : IDisposable
         bool keyDown = wParam == (IntPtr)WmKeyDown || wParam == (IntPtr)WmSysKeyDown;
         // 忽略注入事件，避免发送文字时递归触发；录入快捷键期间不拦截。
         bool injected = (Marshal.ReadInt32(lParam, 8) & 0x10) != 0;
-        if (!_capturePaused && !injected && (keyDown || keyUp) &&
-            _gameHotkeys.TryGetValue((Keys)virtualKey, out QuickShoutHotkeyAction action) &&
-            IsLeagueGameForeground())
+        if (!_capturePaused && !injected)
         {
-            if (keyUp) RunOnWindowThread(() => _shoutAction?.Invoke(action));
-            return (IntPtr)1;
+            if (keyDown && _pressedGameHotkeys.ContainsKey(virtualKey)) return (IntPtr)1;
+            // 在主键按下时确定动作，松开 Ctrl / Alt / Shift 的先后顺序不影响触发。
+            if (keyUp && _pressedGameHotkeys.Remove(virtualKey, out QuickShoutHotkeyAction pending))
+            {
+                if (IsLeagueGameForeground()) _ = DispatchGameHotkeyAsync(pending);
+                return (IntPtr)1;
+            }
+            if (keyDown && _gameHotkeys.TryGetValue((Keys)virtualKey | CurrentGameModifiers(), out QuickShoutHotkeyAction action) &&
+                IsLeagueGameForeground())
+            {
+                _pressedGameHotkeys[virtualKey] = action;
+                return (IntPtr)1;
+            }
         }
         return CallNextHookEx(_hook, code, wParam, lParam);
+    }
+
+    private async Task DispatchGameHotkeyAsync(QuickShoutHotkeyAction action)
+    {
+        // 等待组合键松开，避免仍按住 Ctrl / Alt 时把聊天回车变成另一条游戏命令。
+        for (int attempt = 0; attempt < 50 && CurrentGameModifiers() != Keys.None; attempt++)
+        {
+            if (_disposed || _capturePaused || !IsLeagueGameForeground()) return;
+            await Task.Delay(40);
+        }
+        if (!_disposed && !_capturePaused && CurrentGameModifiers() == Keys.None && IsLeagueGameForeground())
+            RunOnWindowThread(() => _shoutAction?.Invoke(action));
     }
 
     private void RunOnWindowThread(Action action)
