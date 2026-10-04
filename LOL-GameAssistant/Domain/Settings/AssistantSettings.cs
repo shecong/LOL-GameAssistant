@@ -38,6 +38,10 @@ public sealed class AssistantSettings
     /// <summary>对局中双方近期 KDA 评估齐备后，通过游戏内喊话发送一次。</summary>
     public bool GameKdaAnnouncementEnabled { get; set; }
 
+    /// <summary>游戏前台手动发送双方 KDA，独立于自动发送开关。</summary>
+    public bool GameKdaHotkeyEnabled { get; set; } = true;
+    public string GameKdaHotkey { get; set; } = "F9";
+
     /// <summary>对局 KDA 喊话中每名玩家单独发送一条；默认按蓝红双方各汇总一条。</summary>
     public bool GameKdaOnePlayerPerLine { get; set; }
 
@@ -87,6 +91,7 @@ public sealed class AssistantSettings
         QuickShoutBuiltInHotkey = string.IsNullOrWhiteSpace(QuickShoutBuiltInHotkey) ? "F6" : QuickShoutBuiltInHotkey;
         QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
         QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
+        GameKdaHotkey = string.IsNullOrWhiteSpace(GameKdaHotkey) ? "F9" : GameKdaHotkey;
         QuickShoutSelectedPhrases ??= new List<string>();
         QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
         AutoAcceptDelayMinMilliseconds = Math.Clamp(AutoAcceptDelayMinMilliseconds, 0, 15000);

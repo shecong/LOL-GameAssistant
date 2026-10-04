@@ -37,7 +37,8 @@ public sealed class SettingsToolsTests
         Assert.True(settings.GameKdaOnePlayerPerLine);
         Field<AntdUI.Checkbox>(form, "_gameKdaAnnouncementEnabled").Checked = false;
         Assert.False(settings.GameKdaAnnouncementEnabled);
-        Assert.False(Field<AntdUI.Checkbox>(form, "_gameKdaOnePlayerPerLine").Enabled);
+        // 手动 KDA 同样使用逐人格式，关闭自动发送后仍可配置。
+        Assert.True(Field<AntdUI.Checkbox>(form, "_gameKdaOnePlayerPerLine").Enabled);
         Assert.True(settings.ChampSelectKdaAnnouncementEnabled);
         Assert.Equal(450, settings.QuickLobbyQueueId);
         Assert.Equal(3, saves);

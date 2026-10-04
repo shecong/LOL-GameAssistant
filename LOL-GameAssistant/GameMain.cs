@@ -97,9 +97,12 @@ namespace LOL_GameAssistant
 
         public void ConfigureQuickShoutHotkeys(AssistantSettings config) =>
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
-                action => _ = action == QuickShoutHotkeyAction.SelectedBatch
-                    ? settingForm.SendSelectedQuickShoutToGameAsync()
-                    : settingForm.SendRandomQuickShoutToGameAsync(action == QuickShoutHotkeyAction.RandomCustom));
+                action => _ = action switch
+                {
+                    QuickShoutHotkeyAction.GameKda => liveGameForm.SendGameKdaManuallyAsync(),
+                    QuickShoutHotkeyAction.SelectedBatch => settingForm.SendSelectedQuickShoutToGameAsync(),
+                    _ => settingForm.SendRandomQuickShoutToGameAsync(action == QuickShoutHotkeyAction.RandomCustom)
+                });
 
         public void SetWindowHotkeyCapturePaused(bool paused) =>
             _windowHoldController.SetCapturePaused(paused);

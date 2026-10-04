@@ -23,16 +23,17 @@ public sealed class CurrentPartyDetectorTests
     }
 
     [Fact]
-    public void FallsBackToTeamParticipantIdAndIgnoresZero()
+    public void RepeatedParticipantIdsDoNotEstablishAParty()
     {
         var result = CurrentPartyDetector.Detect(
             [Member("a", "甲", teamParticipantId: 2), Member("b", "乙", teamParticipantId: 2),
-             Member("c", "丙", teamParticipantId: 0)],
+             Member("c", "丙", teamParticipantId: 2), Member("d", "丁", teamParticipantId: 2),
+             Member("e", "戊", teamParticipantId: 0)],
             []);
 
-        Assert.Single(result.Groups.Groups);
-        Assert.Equal("双排", result.GetTeamStatus(0));
-        Assert.Contains("其他玩家标识尚不完整", result.GetTeamDetail(0));
+        Assert.Empty(result.Groups.Groups);
+        Assert.Equal("未知", result.GetTeamStatus(0));
+        Assert.Contains("暂无法判断", result.GetTeamDetail(0));
         Assert.Equal("未知", result.GetTeamStatus(1));
     }
 
@@ -44,8 +45,32 @@ public sealed class CurrentPartyDetectorTests
             [Member("c", "丙", teamParticipantId: 1), Member("d", "丁", teamParticipantId: 2)]);
 
         Assert.Equal("未知", result.GetTeamStatus(0));
-        Assert.Equal("未见组队", result.GetTeamStatus(1));
+        Assert.Equal("未知", result.GetTeamStatus(1));
         Assert.Empty(result.Groups.Groups);
+    }
+
+    [Fact]
+    public void ConfirmedPartyDoesNotAbsorbPlayersWithMatchingParticipantIds()
+    {
+        var result = CurrentPartyDetector.Detect([], [
+            Member("a", "甲", "room-a", 2), Member("b", "乙", "room-a", 2),
+            Member("c", "丙", teamParticipantId: 2), Member("d", "丁", teamParticipantId: 2),
+            Member("e", "戊", "room-b", 2)]);
+        var group = Assert.Single(result.Groups.Groups);
+        Assert.Equal(new[] { "a", "b" }, group.Puuids);
+        Assert.Equal("双排", result.GetTeamStatus(1));
+        Assert.Contains("其他玩家标识尚不完整", result.GetTeamDetail(1));
+        Assert.False(result.Groups.GroupByPuuid.ContainsKey("c"));
+        Assert.False(result.Groups.GroupByPuuid.ContainsKey("d"));
+    }
+
+    [Fact]
+    public void DistinctConfirmedPartyIdsMeanNoSharedParty()
+    {
+        var result = CurrentPartyDetector.Detect([
+            Member("a", "甲", "room-a", 2), Member("b", "乙", "room-b", 2)], []);
+        Assert.Empty(result.Groups.Groups);
+        Assert.Equal("未见组队", result.GetTeamStatus(0));
     }
 
     [Fact]

@@ -535,11 +535,8 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_isLoading || _quickShoutForm is null) return;
             AssistantSettings latest = _settingsStore.Load();
             _quickShoutForm.WriteSettings(latest);
-            if (latest.QuickShoutHotkeysEnabled &&
-                (latest.QuickShoutBuiltInHotkey.Equals(latest.HoldToTopHotkey, StringComparison.OrdinalIgnoreCase) ||
-                 latest.QuickShoutCustomHotkey.Equals(latest.HoldToTopHotkey, StringComparison.OrdinalIgnoreCase) ||
-                 latest.QuickShoutBatchHotkey.Equals(latest.HoldToTopHotkey, StringComparison.OrdinalIgnoreCase)))
-                throw new InvalidOperationException("喊话快捷键不能与按住置顶键相同。 ");
+            if (WindowHoldController.HasGameHotkeyConflict(latest))
+                throw new InvalidOperationException("已启用的喊话、KDA 快捷键不能重复或与按住置顶键相同。");
             _settingsStore.Save(latest);
             _config = latest;
             Program.GameMain.ConfigureQuickShoutHotkeys(latest);
@@ -553,7 +550,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _gameKdaAnnouncementEnabled.CheckedChanged += (_, _) =>
             {
-                _gameKdaOnePlayerPerLine.Enabled = _gameKdaAnnouncementEnabled.Checked;
+                _gameKdaOnePlayerPerLine.Enabled = true;
                 SaveKdaAnnouncementSettings();
             };
             _gameKdaOnePlayerPerLine.CheckedChanged += (_, _) => SaveKdaAnnouncementSettings();
@@ -616,9 +613,9 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 4, "发送文案：", _champSelectKdaAnnouncementTemplate,
                 "发送用的模板，支持 {players} 与 {allies}（两者内容相同，都是我方名单）。");
             AddSegmentRow(layout, 5, "对局 KDA 发送：", _gameKdaAnnouncementEnabled,
-                "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。");
+                "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。也可在“一键喊话”设置中配置手动 KDA 快捷键（默认 F9），关闭自动发送后仍能手动发送。");
             AddSegmentRow(layout, 6, "对局发送排版：", _gameKdaOnePlayerPerLine,
-                "勾选后每名玩家各发一条，游戏聊天中每人占一行；不勾选时蓝方、红方各发一条。仅在“对局 KDA 发送”开启时生效。");
+                "勾选后每名玩家各发一条，游戏聊天中每人占一行；不勾选时蓝方、红方各发一条。同时用于自动发送和快捷键手动发送。");
             AddSegmentRow(layout, 7, "KDA 说明：", kdaAnnouncementNote);
             AddSegmentRow(layout, 8, "服务商：", providerPanel,
                 "这一行有三个按钮：“获取 API Key”打开服务商密钥页；“获取可用模型”用当前密钥读取服务端支持的模型名；“测试连接”用当前填写的服务商、模型与密钥发一次最小请求。");
@@ -797,7 +794,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _champSelectKdaAnnouncementEnabled.Checked = _config.ChampSelectKdaAnnouncementEnabled;
             _gameKdaAnnouncementEnabled.Checked = _config.GameKdaAnnouncementEnabled;
             _gameKdaOnePlayerPerLine.Checked = _config.GameKdaOnePlayerPerLine;
-            _gameKdaOnePlayerPerLine.Enabled = _config.GameKdaAnnouncementEnabled;
+            _gameKdaOnePlayerPerLine.Enabled = true;
             _champSelectKdaAnnouncementTemplate.Text = _config.ChampSelectKdaAnnouncementTemplate;
             _provider.SelectedValue = ai.Provider;
             if (_provider.SelectedIndex < 0) _provider.SelectedValue = LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;

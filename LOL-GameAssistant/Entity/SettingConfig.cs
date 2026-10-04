@@ -57,6 +57,12 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("gameKdaAnnouncementEnabled")]
         public bool GameKdaAnnouncementEnabled { get; set; } = false;
 
+        [JsonProperty("gameKdaHotkeyEnabled")]
+        public bool GameKdaHotkeyEnabled { get; set; } = true;
+
+        [JsonProperty("gameKdaHotkey")]
+        public string GameKdaHotkey { get; set; } = "F9";
+
         [JsonProperty("gameKdaOnePlayerPerLine")]
         public bool GameKdaOnePlayerPerLine { get; set; } = false;
 
@@ -182,6 +188,7 @@ namespace LOL_GameAssistant.Entity
             QuickShoutBuiltInHotkey = string.IsNullOrWhiteSpace(QuickShoutBuiltInHotkey) ? "F6" : QuickShoutBuiltInHotkey;
             QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
             QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
+            GameKdaHotkey = string.IsNullOrWhiteSpace(GameKdaHotkey) ? "F9" : GameKdaHotkey;
             QuickShoutSelectedPhrases ??= new List<string>();
             QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
             AutoAcceptDelayMinMilliseconds = Math.Clamp(AutoAcceptDelayMinMilliseconds, 0, 15000);

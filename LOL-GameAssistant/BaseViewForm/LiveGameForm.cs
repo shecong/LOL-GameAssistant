@@ -45,7 +45,6 @@ namespace LOL_GameAssistant.BaseViewForm
 
         public bool NeedsGameAssessmentRoster =>
             !IsDisposed && Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
-            AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled &&
             _gameAssessmentRoster.Count == 0;
 
         private string _teamTitleBase1 = "蓝方";
@@ -609,8 +608,7 @@ namespace LOL_GameAssistant.BaseViewForm
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2)
         {
-            bool enabled = Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
-                AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled;
+            bool enabled = Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress;
             if (!enabled)
             {
                 ResetGameAssessments();
@@ -624,7 +622,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 AddGameAssessmentPlayer(member.Puuid, member.Name, member.IsBot, "蓝方");
             foreach (var member in team2)
                 AddGameAssessmentPlayer(member.Puuid, member.Name, member.IsBot, "红方");
-            if (_gameAssessmentRoster.Count > 0)
+            if (_gameAssessmentRoster.Count > 0 &&
+                AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled)
                 _ = SendGameAssessmentsAfterTimeoutAsync(signature);
         }
 
@@ -668,7 +667,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (IsDisposed) return;
             if (Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress)
             {
-                if (_gameAssessmentSent || !_expectedGameAssessmentPuuids.Contains(result.Puuid)) return;
+                if (!_expectedGameAssessmentPuuids.Contains(result.Puuid)) return;
                 _gameAssessments[result.Puuid] = result;
                 if (_expectedGameAssessmentPuuids.All(puuid => _gameAssessments.ContainsKey(puuid)))
                     SendGameKdaAnnouncement();
@@ -704,6 +703,51 @@ namespace LOL_GameAssistant.BaseViewForm
             _gameAssessmentSending = true;
             _ = SendGameKdaAnnouncementAsync(_gameAssessmentSignature,
                 _gameAssessmentGeneration, messages, settings);
+        }
+
+        /// <summary>快捷键主动发送当前双方评估；不受自动公告开关或已发送标记限制。</summary>
+        public async Task SendGameKdaManuallyAsync()
+        {
+            if (IsDisposed || Program.GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
+            if (_gameAssessmentSending)
+            {
+                Program.GameMain.infoMsg.AddMsg("对局 KDA 正在发送，请稍后再试。");
+                return;
+            }
+            if (_gameAssessmentRoster.Count == 0)
+            {
+                _ = AddView();
+                Program.GameMain.infoMsg.AddMsg("正在获取对局阵容，请加载完成后再次按 KDA 快捷键。");
+                return;
+            }
+            _gameAssessmentSending = true;
+            int generation = _gameAssessmentGeneration;
+            try
+            {
+                int? gameTime = await LocalLiveClientDataReader.GetGameTimeSecondsAsync();
+                if (IsDisposed || generation != _gameAssessmentGeneration ||
+                    Program.GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
+                if (gameTime is null or < 5)
+                {
+                    Program.GameMain.infoMsg.AddMsg("游戏尚未就绪，请进入对局后再按 KDA 快捷键。");
+                    return;
+                }
+                var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
+                var messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
+                var result = await Program.GameMain.SendGameKdaAnnouncementAsync(messages, settings, requireForeground: true);
+                if (IsDisposed || generation != _gameAssessmentGeneration) return;
+                if (result.SentCount == messages.Count && messages.Count > 0) _gameAssessmentSent = true;
+                Program.GameMain.infoMsg.AddMsg($"手动对局 KDA：{result.Message}（{result.SentCount}/{messages.Count} 条）");
+                RuntimeDiagnostics.Report("对局 KDA 快捷键", "手动发送", result.Message);
+            }
+            catch (Exception ex)
+            {
+                if (!IsDisposed) Program.GameMain.infoMsg.AddMsg($"手动对局 KDA 未发送：{ex.Message}");
+            }
+            finally
+            {
+                if (!IsDisposed && generation == _gameAssessmentGeneration) _gameAssessmentSending = false;
+            }
         }
 
         private IReadOnlyList<string> BuildCurrentGameKdaMessages(bool onePlayerPerLine)

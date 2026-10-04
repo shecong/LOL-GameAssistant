@@ -47,7 +47,9 @@ public static class CurrentPartyDetector
         if (partyId.Length > 0 && partyId != "0" &&
             !string.Equals(partyId, Guid.Empty.ToString(), StringComparison.OrdinalIgnoreCase))
             return $"party:{partyId}";
-        return member.TeamParticipantId > 0 ? $"team-participant:{member.TeamParticipantId}" : null;
+        // teamParticipantId is participant metadata, not a confirmed party identifier.
+        // Repeated values must never establish a current premade group.
+        return null;
     }
 }
 

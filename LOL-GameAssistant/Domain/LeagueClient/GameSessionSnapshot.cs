@@ -11,7 +11,7 @@ public sealed class GameTeamMember
     public bool IsBot { get; init; }
     /// <summary>成员所属房间；部分 LCU 会话阶段不会返回。</summary>
     public string PartyId { get; init; } = "";
-    /// <summary>对局会话提供的组队标识；只在同一队伍内比较。</summary>
+    /// <summary>对局会话提供的参与者标识，不能单独作为本局组队依据。</summary>
     public int TeamParticipantId { get; init; }
 }
 

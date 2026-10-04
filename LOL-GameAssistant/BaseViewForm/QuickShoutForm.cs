@@ -32,10 +32,12 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly AntdUI.Checkbox _perCharacter = new() { Text = "逐字发送", AutoSize = true };
     private readonly AntdUI.Checkbox _sendToAll = new() { Text = "游戏内发给所有人（/all）", AutoSize = true };
     private readonly AntdUI.Checkbox _useClipboard = new() { Text = "游戏内使用粘贴输入", AutoSize = true };
-    private readonly AntdUI.Checkbox _hotkeysEnabled = new() { Text = "启用游戏内快捷键", AutoSize = true };
+    private readonly AntdUI.Checkbox _hotkeysEnabled = new() { Text = "启用词库快捷键", AutoSize = true };
     private readonly AntdUI.Input _builtInHotkey = new() { ReadOnly = true, Width = 48, Text = "F6" };
     private readonly AntdUI.Input _customHotkey = new() { ReadOnly = true, Width = 48, Text = "F7" };
     private readonly AntdUI.Input _batchHotkey = new() { ReadOnly = true, Width = 48, Text = "F8" };
+    private readonly AntdUI.Checkbox _kdaHotkeyEnabled = new() { Text = "手动发送对局 KDA", AutoSize = true };
+    private readonly AntdUI.Input _kdaHotkey = new() { ReadOnly = true, Width = 48, Text = "F9" };
     private readonly AntdUI.Button _multiSelect = new() { Text = "多选：关", AutoSize = true };
     private readonly AntdUI.Label _previewLabel = new() { Text = "待发送内容预览", Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) };
     private readonly AntdUI.InputNumber _minimumInterval = new() { Minimum = 2, Maximum = 30, Value = 3, Width = 56 };
@@ -80,7 +82,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 128));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         var randomButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
         var randomBuiltIn = new AntdUI.Button { Text = "默认词库随机", AutoSize = true };
@@ -110,6 +112,10 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         hotkeys.Controls.Add(_customHotkey);
         hotkeys.Controls.Add(new AntdUI.Label { Text = "多选发送", AutoSize = true, Padding = new Padding(9, 3, 0, 0) });
         hotkeys.Controls.Add(_batchHotkey);
+        hotkeys.SetFlowBreak(_batchHotkey, true);
+        hotkeys.Controls.Add(_kdaHotkeyEnabled);
+        hotkeys.Controls.Add(_kdaHotkey);
+        hotkeys.Controls.Add(new AntdUI.Label { Text = "可重复发送双方 KDA", AutoSize = true });
         left.Controls.Add(hotkeys, 0, 5);
         var sendButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
         sendButtons.Controls.Add(_clientSend);
@@ -147,6 +153,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _builtInHotkey.KeyDown += (_, e) => CaptureHotkey(_builtInHotkey, e);
         _customHotkey.KeyDown += (_, e) => CaptureHotkey(_customHotkey, e);
         _batchHotkey.KeyDown += (_, e) => CaptureHotkey(_batchHotkey, e);
+        _kdaHotkey.KeyDown += (_, e) => CaptureHotkey(_kdaHotkey, e);
         _status.Text = "从词库选句；多选发送会逐条发送到客户端群聊或游戏内。";
         RefreshPhrases();
     }
@@ -161,6 +168,8 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _builtInHotkey.Text = settings.QuickShoutBuiltInHotkey;
         _customHotkey.Text = settings.QuickShoutCustomHotkey;
         _batchHotkey.Text = settings.QuickShoutBatchHotkey;
+        _kdaHotkeyEnabled.Checked = settings.GameKdaHotkeyEnabled;
+        _kdaHotkey.Text = settings.GameKdaHotkey;
         _minimumInterval.Value = Math.Clamp(settings.QuickMessageSendIntervalSeconds, 2, 30);
         SetMultiSelect(settings.QuickShoutMultiSelectEnabled);
         RefreshPhrases();
@@ -177,6 +186,8 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         settings.QuickShoutBuiltInHotkey = _builtInHotkey.Text;
         settings.QuickShoutCustomHotkey = _customHotkey.Text;
         settings.QuickShoutBatchHotkey = _batchHotkey.Text;
+        settings.GameKdaHotkeyEnabled = _kdaHotkeyEnabled.Checked;
+        settings.GameKdaHotkey = _kdaHotkey.Text;
         settings.QuickShoutMultiSelectEnabled = _phrases.SelectionMode == SelectionMode.MultiSimple;
         settings.QuickShoutSelectedPhrases = SelectedItems().Select(PhraseKey).ToList();
         settings.QuickMessageSendIntervalSeconds = (int)_minimumInterval.Value;

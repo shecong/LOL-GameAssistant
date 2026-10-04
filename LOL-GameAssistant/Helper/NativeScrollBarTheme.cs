@@ -15,19 +15,34 @@ internal static class NativeScrollBarTheme
     {
         private readonly ScrollableControl _control;
         private ThemePalette _palette = UiTheme.Palette;
+        private readonly System.Windows.Forms.Timer _interactionTimer = new() { Interval = 40 };
+        private int _hoveredBar;
 
         public ThemeWindow(ScrollableControl control)
         {
             _control = control;
+            _interactionTimer.Tick += (_, _) =>
+            {
+                if (Handle == IntPtr.Zero || control.IsDisposed || !control.Visible)
+                {
+                    _interactionTimer.Stop();
+                    return;
+                }
+                _hoveredBar = GetHoveredBar();
+                if (_hoveredBar == 0 && GetCapture() != Handle) _interactionTimer.Stop();
+                PaintScrollbars();
+            };
             control.HandleCreated += (_, _) => Attach();
-            control.HandleDestroyed += (_, _) => ReleaseHandle();
-            control.Disposed += (_, _) => ReleaseHandle();
+            control.HandleDestroyed += (_, _) => { _interactionTimer.Stop(); ReleaseHandle(); };
+            control.Disposed += (_, _) => { _interactionTimer.Dispose(); ReleaseHandle(); };
             if (control.IsHandleCreated) Attach();
         }
 
         private void Attach()
         {
             if (Handle == IntPtr.Zero) AssignHandle(_control.Handle);
+            // Prevent the visual-style hover animation from painting a light frame after our paint.
+            SetWindowTheme(Handle, "", "");
             RefreshFrame();
         }
 
@@ -45,10 +60,29 @@ internal static class NativeScrollBarTheme
 
         protected override void WndProc(ref Message message)
         {
+            if (message.Msg is 0xA0 or 0xA1 && message.WParam.ToInt64() is 6 or 7)
+                _interactionTimer.Start();
             base.WndProc(ref message);
             if (!_control.IsDisposed && Handle != IntPtr.Zero &&
-                message.Msg is 0x85 or 0x86 or 0xF or 0x114 or 0x115 or 0xA0)
+                message.Msg is 0x85 or 0x86 or 0xF or 0x114 or 0x115 or 0xA0 or 0xA1 or 0xA2
+                    or 0x2A2 or 0x200 or 0x202 or 0x215 or 0x31A)
+            {
+                _hoveredBar = GetHoveredBar();
                 PaintScrollbars();
+            }
+        }
+
+        private int GetHoveredBar()
+        {
+            Point cursor = Cursor.Position;
+            foreach (int objectId in new[] { -5, -6 })
+            {
+                var info = new ScrollBarInfo { Size = Marshal.SizeOf<ScrollBarInfo>(), State = new uint[6] };
+                if (GetScrollBarInfo(Handle, objectId, ref info) && (info.State[0] & (0x8000 | 0x10000)) == 0 &&
+                    Rectangle.FromLTRB(info.Bounds.Left, info.Bounds.Top, info.Bounds.Right, info.Bounds.Bottom).Contains(cursor))
+                    return objectId;
+            }
+            return 0;
         }
 
         private void PaintScrollbars()
@@ -81,7 +115,8 @@ internal static class NativeScrollBarTheme
                 info.Bounds.Right - window.Left, info.Bounds.Bottom - window.Top);
             if (bounds.Width <= 0 || bounds.Height <= 0) return Rectangle.Empty;
             using var track = new SolidBrush(_palette.SurfaceMuted);
-            using var thumb = new SolidBrush(_palette.Border);
+            using var thumb = new SolidBrush(_hoveredBar == (vertical ? -5 : -6)
+                ? _palette.TextSecondary : _palette.Border);
             using var arrow = new SolidBrush(_palette.TextSecondary);
             graphics.FillRectangle(track, bounds);
             Rectangle thumbBounds = vertical
@@ -118,4 +153,7 @@ internal static class NativeScrollBarTheme
     [DllImport("user32.dll")] private static extern IntPtr GetWindowDC(IntPtr window);
     [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr dc);
     [DllImport("user32.dll")] private static extern bool RedrawWindow(IntPtr window, IntPtr rect, IntPtr region, uint flags);
+    [DllImport("user32.dll")] private static extern IntPtr GetCapture();
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+    private static extern int SetWindowTheme(IntPtr window, string subAppName, string subIdList);
 }
