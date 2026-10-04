@@ -30,7 +30,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private Image? _ownedChampionImage;
         private bool _showTeammateInfo;
         private bool _championAndModeOnly;
-        private PlayerIdentityActions? _identityActions;
         private bool _teamQueueDetectionStarted;
         private static readonly SemaphoreSlim TeamQueueDetectionGate = new(2, 2);
         private Color _baseBack = Color.FromArgb(250, 250, 250);
@@ -121,18 +120,14 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => _hoverTimer.Dispose();
 
             _championTip.SetToolTip(picChampion, "双击查看对局详情");
-            Disposed += (_, _) => { _identityActions?.Dispose(); _championTip.Dispose(); _teamQueueTip?.Dispose(); _ownedChampionImage?.Dispose(); };
+            Disposed += (_, _) => { _championTip.Dispose(); _teamQueueTip?.Dispose(); _ownedChampionImage?.Dispose(); };
 
             this.DoubleClick += (_, _) => OpenDetail();
             this.MouseEnter += (_, _) => StartHover(true);
             this.MouseLeave += (_, _) => StartHover(false);
             foreach (Control child in Controls)
             {
-                child.DoubleClick += (_, _) =>
-                {
-                    if (_championAndModeOnly && (child == picChampion || child == lblChampion)) return;
-                    OpenDetail();
-                };
+                child.DoubleClick += (_, _) => OpenDetail();
                 child.MouseEnter += (_, _) => StartHover(true);
                 child.MouseLeave += (_, _) => StartHover(false);
             }
@@ -274,19 +269,8 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 string champName = GetChampionDisplayName(gamer.championId);
                 string caption = championAndModeOnly ? $"{champName} · {modeText}" : $"{playerName} · {champName} · {modeText}";
-                _championTip.SetToolTip(picChampion, $"{caption} · {detail.GetDurationText()}\n{gamer.GetKdaText()} · {(win ? "胜利" : "失败")}");
-                _championTip.SetToolTip(lblChampion, caption);
-                if (championAndModeOnly && _identityActions == null)
-                {
-                    _identityActions = new PlayerIdentityActions(() => _puuid, () => FindForm());
-                    _identityActions.Attach(picChampion);
-                    _identityActions.Attach(lblChampion);
-                }
-                if (championAndModeOnly)
-                {
-                    _championTip.SetToolTip(picChampion, caption + "\n单击复制玩家 ID；双击查询该玩家战绩");
-                    _championTip.SetToolTip(lblChampion, caption + "\n单击复制玩家 ID；双击查询该玩家战绩");
-                }
+                _championTip.SetToolTip(picChampion, $"{caption} · {detail.GetDurationText()}\n{gamer.GetKdaText()} · {(win ? "胜利" : "失败")}\n双击查看对局详情");
+                _championTip.SetToolTip(lblChampion, caption + "\n双击查看对局详情");
                 LayoutRow();
 
                 if (_showTeammateInfo)

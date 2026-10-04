@@ -10,6 +10,7 @@ using Xunit;
 
 namespace LOL_GameAssistant.UiTests;
 
+[Collection("Window theme")]
 public sealed class CoachThemeTests
 {
     [Fact]
