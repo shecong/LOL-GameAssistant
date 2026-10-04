@@ -39,6 +39,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (segment != null) ResizeSettingColumns(segment);
             ApplyTips(this, _featureTip);
             ApplyTips(this, toolTip1);
+            if (_settingsSegments[5] is ClientToolsForm tools) tools.ApplyLanguage();
         }
 
         private static void ResizeSettingColumns(Control root)
@@ -141,11 +142,13 @@ namespace LOL_GameAssistant.BaseViewForm
         internal SettingForm(
             IGameClientLauncher gameClientLauncher,
             IApplicationSettingsStore settingsStore,
-            ISettingsSecretProtector settingsSecretProtector)
+            ISettingsSecretProtector settingsSecretProtector,
+            LOL_GameAssistant.Application.ClientFeatures.IClientFeatureService? clientFeatures = null)
         {
             _gameClientLauncher = gameClientLauncher;
             _settingsStore = settingsStore;
             _settingsSecretProtector = settingsSecretProtector;
+            _matchFeatures = clientFeatures ?? AppCompositionRoot.ClientFeatureService;
             InitializeComponent();
             _config = new AssistantSettings();
             _featureTip.Popup += (_, e) => _activeFeatureTipControl = e.AssociatedControl;
@@ -195,7 +198,6 @@ namespace LOL_GameAssistant.BaseViewForm
             _settingsSegments[5] = new ClientToolsForm(
                 AppCompositionRoot.ClientFeatureService,
                 AppCompositionRoot.ChampionInsightsService,
-                AppCompositionRoot.ApplicationSettingsStore,
                 AppCompositionRoot.ProfileIconService);
             foreach (Control segment in _settingsSegments)
             {
@@ -241,6 +243,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             swi_open.Checked = _config.AutoMatch;
             swi_gametrue.Checked = _config.AutoAccept;
+            LoadMatchToolsSettings();
             swi_jyyx.Checked = _config.AutoBan;
             swi_xyx.Checked = _config.AutoPick;
             _autoSwapAramBench.Checked = _config.AutoSwapAramBench;
@@ -283,6 +286,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _config.AutoMatch = swi_open.Checked;
             _config.AutoAccept = swi_gametrue.Checked;
+            ReadMatchToolsSettings();
             _config.AutoBan = swi_jyyx.Checked;
             _config.AutoPick = swi_xyx.Checked;
             _config.MinimizeToTray = swi_tray.Checked;
@@ -390,6 +394,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSectionHeader(layout, row++, "匹配与对局");
             AddSegmentRow(layout, row++, "自动匹配：", swi_open);
             AddSegmentRow(layout, row++, "自动接受：", swi_gametrue);
+            AddSegmentRow(layout, row++, "接受延迟（毫秒）：", CreateAcceptDelayRow(), "在最小与最大值之间随机延迟；均为 0 时立即接受。");
             AddSegmentRow(layout, row++, "对局自动刷新：", swi_auto_refresh);
             flow_auto_refresh.Height = 40;
             label_refresh_interval.Height = 32;
@@ -403,6 +408,8 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, row++, "禁用预览：", flow_ban_preview);
             layout.SetColumnSpan(flow_ban_preview, 1);
             AddSegmentRow(layout, row++, "自动选英雄：", swi_xyx);
+            AddSegmentRow(layout, row++, "仅预选，不锁定：", _preselectOnly, "开启后只预选英雄，不会自动锁定。");
+            AddSegmentRow(layout, row++, "补位跳过选人：", _skipFill, "客户端明确标记补位时，跳过自动选人。");
             AddSegmentRow(layout, row++, "选用英雄列表：", setting_select_xyx);
             flow_pick_preview.Height = 96;
             AddSegmentRow(layout, row++, "选用预览：", flow_pick_preview);
@@ -411,7 +418,15 @@ namespace LOL_GameAssistant.BaseViewForm
                 "仅在大乱斗选人阶段，备战席有更高优先级英雄时交换。");
             AddSegmentRow(layout, row++, "备战席优先级：", _aramBenchPriority,
                 "按选取顺序排列优先级；先选的英雄优先。取消选择后可重新排序。");
-            AddSegmentRow(layout, row++, "说明：", CreateNote("本页的对局开关和英雄列表会自动保存；自动接受延迟、预选与补位策略在“客户端工具”中设置。"));
+            AddSectionHeader(layout, row++, "赛后操作");
+            AddSegmentRow(layout, row++, "自动点赞：", _autoHonor);
+            AddSegmentRow(layout, row++, "自动返回大厅：", _autoReturn);
+            AddSegmentRow(layout, row++, "返回后继续匹配：", _returnAndSearch, "需同时开启自动返回大厅，返回后尝试开始匹配。");
+            AddSectionHeader(layout, row++, "大厅与选人操作");
+            AddSegmentRow(layout, row++, "队列 ID：", _quickQueue, "快速创建大厅的队列 ID，默认 430 为匹配模式。");
+            AddSegmentRow(layout, row++, "操作：", CreateMatchActions());
+            AddSegmentRow(layout, row++, "操作结果：", _matchToolsStatus);
+            AddSegmentRow(layout, row++, "说明：", CreateNote("本页的开关、延迟、队列和英雄列表会自动保存。"));
             return panel;
         }
 

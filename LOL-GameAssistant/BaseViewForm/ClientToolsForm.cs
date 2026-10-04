@@ -1,8 +1,6 @@
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Insights;
 using LOL_GameAssistant.Application.Profiles;
-using LOL_GameAssistant.Application.Settings;
-using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
@@ -14,23 +12,14 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
 {
     private readonly IClientFeatureService _features;
     private readonly IChampionInsightsService _championInsights;
-    private readonly IApplicationSettingsStore _settingsStore;
+    private readonly AntdUI.Segmented _toolsNavigation = new() { Dock = DockStyle.Top, Height = 42, Full = true };
+    private static readonly string[] ToolCategories = ["回放与备份", "资料与外观", "好友活动", "英雄数据"];
     private readonly IProfileIconService _profileIcons;
     private readonly List<AntdUI.Panel> _cards = [];
     private readonly ToolTip _featureTip = new() { AutoPopDelay = 16000, InitialDelay = 320, ReshowDelay = 120, ShowAlways = false };
     private readonly HashSet<Control> _tipTargets = [];
     private Control? _activeTipControl;
-    private readonly AntdUI.Switch _autoAccept = new();
-    private readonly AntdUI.InputNumber _acceptMin = Number(0, 15000);
-    private readonly AntdUI.InputNumber _acceptMax = Number(0, 15000);
-    private readonly AntdUI.Switch _preselectOnly = new();
-    private readonly AntdUI.Switch _skipFill = new();
-    private readonly AntdUI.Switch _autoHonor = new();
-    private readonly AntdUI.Switch _autoReturn = new();
-    private readonly AntdUI.Switch _returnAndSearch = new();
-    private readonly AntdUI.InputNumber _quickQueue = Number(1, 3000, 430);
     private readonly AntdUI.Input _replayGameId = Input("对局 ID", 150);
-    private readonly AntdUI.Input _benchChampionId = Input("英雄 ID", 120);
     private readonly AntdUI.Input _backupName = Input("备份名称", 145, "默认配置");
     private readonly AntdUI.Select _backupList = Select(210);
     private readonly AntdUI.Select _availability = Select(128);
@@ -69,12 +58,10 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
     public ClientToolsForm(
         IClientFeatureService features,
         IChampionInsightsService championInsights,
-        IApplicationSettingsStore settingsStore,
         IProfileIconService profileIcons)
     {
         _features = features;
         _championInsights = championInsights;
-        _settingsStore = settingsStore;
         _profileIcons = profileIcons;
         Dock = DockStyle.Fill;
         _featureTip.Popup += (_, e) => _activeTipControl = e.AssociatedControl;
@@ -96,20 +83,37 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             Padding = new Padding(12)
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        AddCard(content, CreateAutomationCard());
-        AddCard(content, CreateMatchToolsCard());
-        AddCard(content, CreateReplayRewardsCard());
-        AddCard(content, CreateProfileCard());
-        AddCard(content, CreateFriendsCard());
-        AddCard(content, CreateInsightsCard());
+        var navigation = _toolsNavigation;
+        foreach (string category in ToolCategories)
+            navigation.Items.Add(new AntdUI.SegmentedItem { Text = category });
+        Control[][] groups = [[CreateReplayCard(), CreateRewardsCard(), CreateBackupsCard()],
+            [CreateProfileCard()], [CreateFriendsCard()], [CreateInsightsCard()]];
+        foreach (Control[] group in groups)
+            foreach (Control card in group) AddCard(content, card);
+        void ShowCategory(int index)
+        {
+            if (index < 0 || index >= groups.Length) return;
+            content.SuspendLayout();
+            for (int i = 0; i < groups.Length; i++)
+                foreach (Control card in groups[i])
+                {
+                    card.Visible = i == index;
+                    content.RowStyles[content.GetRow(card)].Height = i == index ? card.Height + 12 : 0;
+                }
+            content.ResumeLayout(true);
+        }
+        navigation.SelectIndexChanged += (_, e) => ShowCategory(e.Value);
         viewport.Controls.Add(content);
         Controls.Add(viewport);
         Controls.Add(_status);
+        Controls.Add(navigation);
+        navigation.SelectIndex = 0;
+        ShowCategory(0);
+        ApplyLanguage();
         AttachFeatureTips();
 
         Load += async (_, _) =>
         {
-            LoadAutomationSettings();
             await RefreshBackupsAsync();
         };
         Disposed += (_, _) =>
@@ -140,47 +144,15 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         _insightRows.ForeColor = palette.TextPrimary;
     }
 
-    private Control CreateAutomationCard()
+    public void ApplyLanguage()
     {
-        AntdUI.Panel card = Card("自动化（手动操作优先）", 134, out FlowLayoutPanel body);
-        body.Controls.Add(Toggle("自动接受", _autoAccept));
-        body.Controls.Add(FieldLabel("接受延迟（毫秒）"));
-        body.Controls.Add(_acceptMin);
-        body.Controls.Add(FieldLabel("至"));
-        body.Controls.Add(_acceptMax);
-        body.Controls.Add(Toggle("仅预选，不锁定", _preselectOnly));
-        body.Controls.Add(Toggle("补位时跳过自动选人", _skipFill));
-        body.Controls.Add(Toggle("赛后自动点赞", _autoHonor));
-        body.Controls.Add(Toggle("赛后自动返回大厅", _autoReturn));
-        body.Controls.Add(Toggle("返回后继续匹配", _returnAndSearch));
-        body.Controls.Add(Button("保存自动化设置", (_, _) => SaveAutomationSettings()));
-        return card;
+        for (int index = 0; index < ToolCategories.Length; index++)
+            _toolsNavigation.Items[index].Text = UiLanguage.T(ToolCategories[index]);
     }
 
-    private Control CreateMatchToolsCard()
+    private Control CreateReplayCard()
     {
-        AntdUI.Panel card = Card("大厅与选人", 100, out FlowLayoutPanel body);
-        body.Controls.Add(FieldLabel("队列 ID"));
-        body.Controls.Add(_quickQueue);
-        body.Controls.Add(Button("快速创建大厅", async (_, _) =>
-        {
-            SaveQuickLobbyQueue();
-            await RunAsync(() => _features.CreateQuickLobbyAsync((int)_quickQueue.Value));
-        }));
-        body.Controls.Add(ActionButton("取消当前匹配", () => _features.DeclineReadyCheckAsync()));
-        body.Controls.Add(ActionButton("退出英雄选择", () => _features.DodgeChampionSelectAsync()));
-        body.Controls.Add(_benchChampionId);
-        body.Controls.Add(Button("交换极地大乱斗备战英雄", async (_, _) =>
-        {
-            if (!TryParsePositive(_benchChampionId, "英雄 ID", out long championId) || championId > int.MaxValue) return;
-            await RunAsync(() => _features.SwapAramBenchAsync((int)championId));
-        }));
-        return card;
-    }
-
-    private Control CreateReplayRewardsCard()
-    {
-        AntdUI.Panel card = Card("回放、奖励与游戏设置备份", 140, out FlowLayoutPanel body);
+        AntdUI.Panel card = Card("对局回放", 104, out FlowLayoutPanel body);
         body.Controls.Add(_replayGameId);
         body.Controls.Add(Button("下载回放", async (_, _) =>
         {
@@ -192,7 +164,19 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             if (!TryParsePositive(_replayGameId, "对局 ID", out long gameId)) return;
             await RunAsync(() => _features.WatchReplayAsync(gameId));
         }));
+        return card;
+    }
+
+    private Control CreateRewardsCard()
+    {
+        AntdUI.Panel card = Card("待领取奖励", 104, out FlowLayoutPanel body);
         body.Controls.Add(ActionButton("一键领取待选奖励", () => _features.ClaimAllPendingRewardsAsync()));
+        return card;
+    }
+
+    private Control CreateBackupsCard()
+    {
+        AntdUI.Panel card = Card("游戏设置备份", 190, out FlowLayoutPanel body);
         body.Controls.Add(_backupName);
         body.Controls.Add(Button("保存当前游戏设置", async (_, _) =>
         {
@@ -201,6 +185,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             await RunAsync(() => _features.SaveGameSettingsBackupAsync(name));
             await RefreshBackupsAsync();
         }));
+        body.SetFlowBreak(body.Controls[body.Controls.Count - 1], true);
         body.Controls.Add(_backupList);
         body.Controls.Add(Button("恢复选中备份", async (_, _) =>
         {
@@ -226,6 +211,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             _features.UpdateChatPresenceAsync(GetAvailabilityValue(), _statusMessage.Text)));
         body.Controls.Add(ActionButton("清除挑战角标", () => _features.ClearChallengeBadgesAsync()));
 
+        body.SetFlowBreak(body.Controls[body.Controls.Count - 1], true);
         body.Controls.Add(PreviewBox("生涯背景", _backgroundPreview, _backgroundPreviewCaption,
             _backgroundSkinId,
             Button("预览", async (_, _) => await PreviewBackgroundAsync()),
@@ -286,6 +272,23 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             Padding = new Padding(0, 5, 0, 0),
             WrapContents = true
         };
+        FlowLayoutPanel cardBody = body;
+        cardBody.SizeChanged += (_, _) =>
+        {
+            foreach (Control child in cardBody.Controls)
+                if (child is AntdUI.Panel) child.Width = Math.Max(280, cardBody.ClientSize.Width - 16);
+            int required = cardBody.GetPreferredSize(new Size(Math.Max(1, cardBody.ClientSize.Width), 0)).Height + 64;
+            if (card.Height != required) card.Height = required;
+        };
+        card.SizeChanged += (_, _) =>
+        {
+            if (card.Parent is TableLayoutPanel table && card.Visible)
+            {
+                int row = table.GetRow(card);
+                if (row >= 0 && row < table.RowStyles.Count)
+                    table.RowStyles[row].Height = card.Height + 12;
+            }
+        };
         card.Controls.Add(body);
         card.Controls.Add(Title(title));
         return card;
@@ -309,16 +312,6 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         Margin = new Padding(4)
     };
 
-    private static AntdUI.InputNumber Number(decimal min, decimal max, decimal value = 0) => new()
-    {
-        Minimum = min,
-        Maximum = max,
-        Value = value,
-        Width = 86,
-        Height = 32,
-        Margin = new Padding(4)
-    };
-
     private static AntdUI.Select Select(int width) => new() { Width = width, Height = 32, Margin = new Padding(4) };
 
     private static void AddSelectItems(AntdUI.Select select, params string[] items) => select.Items.AddRange(items.Cast<object>().ToArray());
@@ -338,14 +331,6 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         Text = value,
         TextAlign = ContentAlignment.MiddleLeft
     };
-
-    private static Control Toggle(string label, AntdUI.Switch toggle)
-    {
-        var group = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(4) };
-        group.Controls.Add(toggle);
-        group.Controls.Add(FieldLabel(label));
-        return group;
-    }
 
     private static AntdUI.Button Button(string text, EventHandler click)
     {
@@ -370,7 +355,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         AntdUI.Button chooseButton,
         AntdUI.Button applyButton)
     {
-        var box = new AntdUI.Panel { Width = 530, Height = 168, Padding = new Padding(8), Radius = 8, BorderWidth = 1, Margin = new Padding(4) };
+        var box = new AntdUI.Panel { Width = 530, Height = 200, Padding = new Padding(8), Radius = 8, BorderWidth = 1, Margin = new Padding(4) };
         preview.Dock = DockStyle.Left;
         var detail = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(8, 0, 0, 0) };
         detail.Controls.Add(new AntdUI.Label { Text = title, AutoSize = true, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold) });
@@ -395,44 +380,6 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, card.Height + 12));
         card.Margin = new Padding(0, 0, 0, 12);
         content.Controls.Add(card, 0, row);
-    }
-
-    private void LoadAutomationSettings()
-    {
-        AssistantSettings settings = _settingsStore.Load();
-        _autoAccept.Checked = settings.AutoAccept;
-        _acceptMin.Value = Math.Clamp(settings.AutoAcceptDelayMinMilliseconds, (int)_acceptMin.Minimum!.Value, (int)_acceptMin.Maximum!.Value);
-        _acceptMax.Value = Math.Clamp(settings.AutoAcceptDelayMaxMilliseconds, (int)_acceptMax.Minimum!.Value, (int)_acceptMax.Maximum!.Value);
-        _preselectOnly.Checked = settings.AutoPickPreselectOnly;
-        _skipFill.Checked = settings.SkipAutoPickOnFill;
-        _autoHonor.Checked = settings.AutoHonor;
-        _autoReturn.Checked = settings.AutoReturnToLobby;
-        _returnAndSearch.Checked = settings.AutoReturnStartMatchmaking;
-        _quickQueue.Value = Math.Clamp(settings.QuickLobbyQueueId, (int)_quickQueue.Minimum!.Value, (int)_quickQueue.Maximum!.Value);
-    }
-
-    private void SaveAutomationSettings()
-    {
-        AssistantSettings settings = _settingsStore.Load();
-        settings.AutoAccept = _autoAccept.Checked;
-        settings.AutoAcceptDelayMinMilliseconds = (int)_acceptMin.Value;
-        settings.AutoAcceptDelayMaxMilliseconds = (int)_acceptMax.Value;
-        settings.AutoPickPreselectOnly = _preselectOnly.Checked;
-        settings.SkipAutoPickOnFill = _skipFill.Checked;
-        settings.AutoHonor = _autoHonor.Checked;
-        settings.AutoReturnToLobby = _autoReturn.Checked;
-        settings.AutoReturnStartMatchmaking = _returnAndSearch.Checked;
-        settings.QuickLobbyQueueId = (int)_quickQueue.Value;
-        settings.Normalize();
-        _settingsStore.Save(settings);
-        SetStatus("自动化设置已保存。", true);
-    }
-
-    private void SaveQuickLobbyQueue()
-    {
-        AssistantSettings settings = _settingsStore.Load();
-        settings.QuickLobbyQueueId = (int)_quickQueue.Value;
-        _settingsStore.Save(settings);
     }
 
     private async Task ChooseBackgroundAsync()
@@ -474,16 +421,6 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
 
     private void AttachFeatureTips()
     {
-        Tip(_autoAccept, "匹配确认出现后按保存的随机延迟自动接受；手动拒绝会取消这一轮自动接受。\n");
-        Tip(_acceptMin, "自动接受延迟的最小值，单位毫秒。设为 0 表示不额外等待。\n");
-        Tip(_acceptMax, "自动接受延迟的最大值。每局将在最小值与最大值之间随机取值。\n");
-        Tip(_preselectOnly, "开启后只把英雄设为预选，不会替你锁定英雄。\n");
-        Tip(_skipFill, "客户端明确标记为补位时，跳过本轮自动选人。\n");
-        Tip(_autoHonor, "结算页可点赞时，随机给可点赞队友发送荣誉。\n");
-        Tip(_autoReturn, "结算后调用客户端“再来一局”返回大厅。\n");
-        Tip(_returnAndSearch, "需同时开启“赛后自动返回大厅”；返回大厅后尝试开始匹配。\n");
-        Tip(_quickQueue, "创建大厅时使用的队列 ID。默认 430 为匹配模式。\n");
-        Tip(_benchChampionId, "输入极地大乱斗共享备战席中的英雄 ID 后，发送交换请求。\n");
         Tip(_replayGameId, "输入历史对局 ID 后下载或启动对应回放。\n");
         Tip(_backupName, "本机保存游戏设置备份的名称；仅使用文字、数字、空格、- 和 _。\n");
         Tip(_backupList, "选择一份已保存的游戏设置备份，再恢复或删除。\n");
@@ -499,11 +436,6 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         {
             string? description = button.Text switch
             {
-                "保存自动化设置" => "将本卡片的自动化开关和延迟写入本机设置；功能会在下次对应游戏阶段生效。",
-                "快速创建大厅" => "使用上方队列 ID 调用本机客户端创建大厅。",
-                "取消当前匹配" => "请求客户端取消当前匹配确认，不会影响已经开始的对局。",
-                "退出英雄选择" => "请求退出当前英雄选择；仅客户端允许退出的阶段会成功。",
-                "交换极地大乱斗备战英雄" => "用上方英雄 ID 与极地大乱斗共享备战席执行交换。",
                 "下载回放" => "请求客户端开始下载此对局的回放文件。",
                 "观看回放" => "请求客户端启动已下载完成的回放。",
                 "一键领取待选奖励" => "读取待选奖励并按客户端允许数量提交默认选择；客户端需要人工确认时会提示失败。",

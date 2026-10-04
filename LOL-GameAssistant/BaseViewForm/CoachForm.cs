@@ -13,14 +13,14 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// AI 时间线建议展示页。采集、定时和 AI 请求均由 RecommendationCoordinator 在后台管理，
 /// 因此本页未打开时，局内浮窗和建议状态仍会正常更新。
 /// </summary>
-public sealed class CoachForm : UserControl
+public sealed class CoachForm : UserControl, IThemeAware
 {
     private readonly AntdUI.Label _status = new() { AutoSize = true, ForeColor = Color.DimGray };
     private readonly AntdUI.Button _refresh = new() { Text = "立即更新建议", AutoSize = true };
     private readonly AntdUI.Button _applyOpgg = new() { Text = "OP.GG 一键配置当前英雄", AutoSize = true };
     private readonly AntdUI.Button _myRunes = new() { Text = "我的符文方案", AutoSize = true };
-    private readonly AntdUI.Input _validation = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true, BackColor = Color.WhiteSmoke };
-    private readonly AntdUI.Input _recommendation = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true, BackColor = Color.White };
+    private readonly AntdUI.Input _validation = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true };
+    private readonly AntdUI.Input _recommendation = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true };
     private readonly IAiCoachingService _aiCoachingService;
     private readonly IRecommendationCoordinator _recommendationCoordinator;
     private readonly IApplicationSettingsStore _settingsStore;
@@ -53,6 +53,7 @@ public sealed class CoachForm : UserControl
         _opggBuildApplyService = opggBuildApplyService;
         Dock = DockStyle.Fill;
         BuildUi();
+        ApplyTheme(UiTheme.Palette);
         RefreshOpggAvailability();
         _refresh.Click += async (_, _) => await RefreshRecommendationAsync(manual: true);
         _applyOpgg.Click += async (_, _) => await ApplyOpggBuildAsync();
@@ -75,6 +76,20 @@ public sealed class CoachForm : UserControl
     /// <summary>供主窗体切换到该页面时触发；实际调度不依赖该页面是否打开。</summary>
     public Task RefreshRecommendationAsync(bool manual = false) =>
         _recommendationCoordinator.RefreshAsync(force: manual);
+
+    public void ApplyTheme(ThemePalette palette)
+    {
+        // AntdUI.Input hides Control's color properties; set its drawing colors directly.
+        foreach (AntdUI.Input input in new[] { _validation, _recommendation })
+        {
+            input.ColorScheme = palette.IsDark ? AntdUI.TAMode.Dark : AntdUI.TAMode.Light;
+            input.BackColor = palette.SurfaceRaised;
+            input.ForeColor = palette.TextPrimary;
+            input.BorderColor = palette.Border;
+            input.BorderHover = palette.Border;
+            input.BorderActive = palette.Accent;
+        }
+    }
 
     private void OnRecommendationStateChanged(RecommendationState state)
     {
