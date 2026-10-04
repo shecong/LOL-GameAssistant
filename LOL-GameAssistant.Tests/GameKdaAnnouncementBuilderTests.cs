@@ -6,6 +6,24 @@ namespace LOL_GameAssistant.Tests;
 public sealed class GameKdaAnnouncementBuilderTests
 {
     [Fact]
+    public void MissingResultDiffersFromEmptySameModeSample()
+    {
+        var empty = new RecentModePerformanceAssessment(MatchPerformanceTier.Medium, 0, 0, 0, "");
+        var players = new[]
+        {
+            new GameKdaPlayerSummary("蓝方", "未返回", null),
+            new GameKdaPlayerSummary("红方", "无样本", empty)
+        };
+        foreach (bool onePerLine in new[] { false, true })
+        {
+            var messages = GameKdaAnnouncementBuilder.Build(players, onePerLine);
+            Assert.Contains(messages, message => message.Contains("战绩暂未获取"));
+            Assert.Contains(messages, message => message.Contains("同模式无样本"));
+            Assert.DoesNotContain(messages, message => message.Contains("无战绩"));
+        }
+    }
+
+    [Fact]
     public void BuildsOneCompactMessagePerPlayerInTeamOrder()
     {
         var assessment = new RecentModePerformanceAssessment(
@@ -25,7 +43,7 @@ public sealed class GameKdaAnnouncementBuilderTests
             Assert.DoesNotContain('\n', messages[index - 1]);
             Assert.True(messages[index - 1].Length <= 32);
         }
-        Assert.Equal("红 玩家10 无近期数据", messages[9]);
+        Assert.Equal("红 玩家10 战绩暂未获取", messages[9]);
     }
 
     [Fact]
@@ -51,7 +69,7 @@ public sealed class GameKdaAnnouncementBuilderTests
 
         Assert.Single(messages);
         Assert.DoesNotContain('\n', messages[0]);
-        Assert.Contains("玩家一 额外内容", messages[0]);
+        Assert.Contains("玩家一 ", messages[0]);
     }
 
     [Fact]
@@ -69,7 +87,7 @@ public sealed class GameKdaAnnouncementBuilderTests
     }
 
     [Fact]
-    public void DefaultKeepsOneSpacedMessagePerTeam()
+    public void DefaultKeepsBothTeamsWithinChatLength()
     {
         var assessment = new RecentModePerformanceAssessment(
             MatchPerformanceTier.Upper, 88, 20, 55, "", 4.9, true, RecentPerformanceLabel.Upper);
@@ -80,12 +98,30 @@ public sealed class GameKdaAnnouncementBuilderTests
 
         IReadOnlyList<string> messages = GameKdaAnnouncementBuilder.Build(players);
 
-        Assert.Equal(2, messages.Count);
+        Assert.InRange(messages.Count, 2, 10);
         Assert.StartsWith("【本局近期KDA·蓝方】", messages[0]);
-        Assert.StartsWith("【本局近期KDA·红方】", messages[1]);
-        Assert.Contains("      玩家2", messages[0]);
-        Assert.Contains("玩家10 近期KDA暂无可查", messages[1]);
-        Assert.All(messages, message => Assert.True(message.Length <= 300));
+        Assert.Contains(messages, message => message.StartsWith("【本局近期KDA·红方】"));
+        Assert.Contains(messages, message => message.Contains("玩家2"));
+        Assert.Contains(messages, message => message.Contains("玩家10"));
+        Assert.All(messages, message => Assert.True(message.Length <= 120));
+        foreach (var player in players)
+            Assert.Contains(messages, message => message.StartsWith($"【本局近期KDA·{player.Team}】") && message.Contains(player.DisplayName));
+    }
+
+    [Fact]
+    public void LongNamesSplitWithoutDroppingOrRelabelingRedPlayers()
+    {
+        var players = Enumerable.Range(1, 10).Select(index => new GameKdaPlayerSummary(
+            index <= 5 ? "蓝方" : "红方", $"角色{index}很长很长很长的召唤师名字", null)).ToArray();
+        var messages = GameKdaAnnouncementBuilder.Build(players);
+        Assert.InRange(messages.Count, 2, 10);
+        Assert.All(messages, message => Assert.InRange(message.Length, 1, 120));
+        foreach (var player in players)
+        {
+            string marker = player.DisplayName[..player.DisplayName.IndexOf("很长", StringComparison.Ordinal)];
+            Assert.Contains(messages, message => message.StartsWith($"【本局近期KDA·{player.Team}】") && message.Contains(marker));
+            Assert.DoesNotContain(messages, message => !message.StartsWith($"【本局近期KDA·{player.Team}】") && message.Contains(marker + "很"));
+        }
     }
 
     [Fact]

@@ -13,6 +13,37 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SettingsToolsTests
 {
     [Fact]
+    public void KdaSwitchesPersistImmediatelyWithoutSavingAiSettings() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new AssistantSettings { ChampSelectKdaAnnouncementEnabled = true, QuickLobbyQueueId = 450 };
+        int saves = 0;
+        var store = Service<IApplicationSettingsStore>((method, args) => method.Name switch
+        {
+            "Load" => settings,
+            "GetStoragePath" => "test-settings.json",
+            "Save" => Save((AssistantSettings)args[0]!),
+            _ => null
+        });
+        object? Save(AssistantSettings value) { settings = value; saves++; return null; }
+        using var form = new SettingForm(Service<IGameClientLauncher>((_, _) => null), store,
+            Service<ISettingsSecretProtector>((_, _) => null), Service<IClientFeatureService>((_, _) => null));
+        ((Task)Invoke(form, "LoadCachedSettings")!).GetAwaiter().GetResult();
+        Assert.Equal(0, saves);
+        typeof(SettingForm).GetField("_isLoading", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(form, false);
+        Field<AntdUI.Checkbox>(form, "_gameKdaAnnouncementEnabled").Checked = true;
+        Assert.True(settings.GameKdaAnnouncementEnabled);
+        Assert.True(Field<AntdUI.Checkbox>(form, "_gameKdaOnePlayerPerLine").Enabled);
+        Field<AntdUI.Checkbox>(form, "_gameKdaOnePlayerPerLine").Checked = true;
+        Assert.True(settings.GameKdaOnePlayerPerLine);
+        Field<AntdUI.Checkbox>(form, "_gameKdaAnnouncementEnabled").Checked = false;
+        Assert.False(settings.GameKdaAnnouncementEnabled);
+        Assert.False(Field<AntdUI.Checkbox>(form, "_gameKdaOnePlayerPerLine").Enabled);
+        Assert.True(settings.ChampSelectKdaAnnouncementEnabled);
+        Assert.Equal(450, settings.QuickLobbyQueueId);
+        Assert.Equal(3, saves);
+    });
+
+    [Fact]
     public void MovedAutomationSettingsLoadAndSaveWithoutChangingOtherSettings() => MatchListScrollingTests.OnUiThread(() =>
     {
         var settings = new AssistantSettings

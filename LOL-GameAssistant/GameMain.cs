@@ -70,7 +70,7 @@ namespace LOL_GameAssistant
 
         private const int LiveGameTabIndex = 2;
         private const int BattleQueryTabIndex = 3;
-        private const int CoachTabIndex = 7;
+        private const int CoachTabIndex = 6;
         private readonly AntdUI.TabPage _coachTab;
         private readonly AntdUI.TabPage _diagnosticsTab;
 
@@ -164,6 +164,7 @@ namespace LOL_GameAssistant
             tabs1.Pages.Add(_coachTab);
             tabs1.Controls.Add(_diagnosticsTab);
             tabs1.Pages.Add(_diagnosticsTab);
+            tabs1.Pages.Add(tabPage4);
             _windowHoldController = new WindowHoldController(this);
             _quickMessageController = new QuickMessageSenderController(this);
             UiTheme.Changed += UiThemeChanged;
@@ -182,6 +183,7 @@ namespace LOL_GameAssistant
             UiTheme.SetMode(config.ThemeMode);
             UiLanguage.SetMode(config.LanguageMode);
             settingForm.ApplyLanguage();
+            foreach (AboutForm about in tab4_grid1.Controls.OfType<AboutForm>()) about.ApplyLanguage();
             ApplyTheme();
         }
 

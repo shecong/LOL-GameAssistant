@@ -199,6 +199,7 @@ public sealed class QuickMessageSenderController : IDisposable
                 clipboardChanged = true;
                 await Simulate.Events()
                     .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
+                    .ClickChord(KeyCode.Control, KeyCode.A).Click(KeyCode.Backspace).Wait(stepDelayMilliseconds)
                     .ClickChord(KeyCode.Control, KeyCode.V).Wait(stepDelayMilliseconds)
                     .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
                     .Invoke();
@@ -208,6 +209,7 @@ public sealed class QuickMessageSenderController : IDisposable
                 // 与 ZuAnBot 的游戏内发送序列保持一致。
                 await Simulate.Events()
                     .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
+                    .ClickChord(KeyCode.Control, KeyCode.A).Click(KeyCode.Backspace).Wait(stepDelayMilliseconds)
                     .Click(text).Wait(stepDelayMilliseconds)
                     .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
                     .Invoke();

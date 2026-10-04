@@ -1,23 +1,27 @@
 ﻿using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ApplicationInfo;
+using LOL_GameAssistant.Helper;
 using System.Diagnostics;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
-    public partial class AboutForm : UserControl
+    public partial class AboutForm : UserControl, IThemeAware
     {
         private readonly IUpdateReleaseService _updateReleaseService;
+        private readonly Action<string> _openUrl;
 
         public AboutForm() : this(AppCompositionRoot.UpdateReleaseService)
         {
         }
 
         /// <summary>关于页仅通过应用端口查询发布版本。</summary>
-        internal AboutForm(IUpdateReleaseService updateReleaseService)
+        internal AboutForm(IUpdateReleaseService updateReleaseService, Action<string>? openUrl = null)
         {
             _updateReleaseService = updateReleaseService;
+            _openUrl = openUrl ?? LaunchUrl;
             InitializeComponent();
+            BuildAboutUi();
             this.Load += AboutForm_Load;
         }
 
@@ -91,7 +95,9 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        private static void OpenUrl(string url)
+        private void OpenUrl(string url) => _openUrl(url);
+
+        private static void LaunchUrl(string url)
         {
             try
             {

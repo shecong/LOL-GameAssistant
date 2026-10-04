@@ -379,7 +379,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 ForeColor = UiTheme.Palette.TextSecondary,
                 Padding = new Padding(8)
             });
-            PublishRecentPerformance(CreateInsufficientPerformanceAssessment());
+            PublishRecentPerformance(null);
             RuntimeDiagnostics.Report("对局玩家战绩", status, detail);
         }
 
@@ -467,12 +467,12 @@ namespace LOL_GameAssistant.BaseViewForm
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch
             {
-                if (!IsDisposed) PublishRecentPerformance(CreateInsufficientPerformanceAssessment());
+                if (!IsDisposed) PublishRecentPerformance(null);
                 return;
             }
             if (matchlists?.Games?.Games == null || IsDisposed)
             {
-                if (!IsDisposed) PublishRecentPerformance(CreateInsufficientPerformanceAssessment());
+                if (!IsDisposed) PublishRecentPerformance(null);
                 return;
             }
 
@@ -614,7 +614,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Array.Empty<MatchPerformanceAssessment>(),
                 Array.Empty<bool>());
 
-        private void PublishRecentPerformance(RecentModePerformanceAssessment assessment)
+        private void PublishRecentPerformance(RecentModePerformanceAssessment? assessment)
         {
             if (_recentPerformancePublished || IsDisposed || string.IsNullOrWhiteSpace(_playerPuuid)) return;
             _recentPerformancePublished = true;
@@ -852,7 +852,7 @@ namespace LOL_GameAssistant.BaseViewForm
             string puuid,
             string? displayName,
             bool isAlly,
-            RecentModePerformanceAssessment assessment)
+            RecentModePerformanceAssessment? assessment)
         {
             Puuid = puuid;
             DisplayName = displayName ?? "未知玩家";
@@ -863,6 +863,6 @@ namespace LOL_GameAssistant.BaseViewForm
         public string Puuid { get; }
         public string DisplayName { get; }
         public bool IsAlly { get; }
-        public RecentModePerformanceAssessment Assessment { get; }
+        public RecentModePerformanceAssessment? Assessment { get; }
     }
 }

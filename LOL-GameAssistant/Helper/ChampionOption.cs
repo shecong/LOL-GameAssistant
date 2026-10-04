@@ -187,7 +187,7 @@
 { 555, new ChampionOption("血港鬼影", 555, "派克", "水鬼") },
 { 711, new ChampionOption("愁云使者", 711, "薇古丝", "熬夜波比") },
 { 777, new ChampionOption("封魔剑魂", 777, "永恩", "") },
-{ 800, new ChampionOption("流光镜影", 800, "米利欧", "") },
+{ 800, new ChampionOption("流光镜影", 800, "梅尔", "") },
 { 804, new ChampionOption("不破之誓", 804, "布蕾尔", "吸血鬼2") },
 { 875, new ChampionOption("腕豪", 875, "瑟提", "劲夫") },
 { 876, new ChampionOption("含羞蓓蕾", 876, "莉莉娅", "小鹿") },
@@ -197,6 +197,7 @@
 { 895, new ChampionOption("不羁之悦", 895, "尼菈", "水刀妹") },
 { 897, new ChampionOption("纳祖芒荣耀", 897, "奎桑提", "黑哥") },
 { 901, new ChampionOption("炽炎雏龙", 901, "斯莫德", "小火龙") },
+{ 902, new ChampionOption("明烛", 902, "米利欧", "") },
 { 910, new ChampionOption("异画师", 910, "彗", "画师") },
 { 950, new ChampionOption("百裂冥犬", 950, "纳亚菲利", "狗群") }
         };

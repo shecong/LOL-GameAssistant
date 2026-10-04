@@ -552,7 +552,12 @@ namespace LOL_GameAssistant.BaseViewForm
             panel.Controls.Add(layout);
 
             _gameKdaAnnouncementEnabled.CheckedChanged += (_, _) =>
+            {
                 _gameKdaOnePlayerPerLine.Enabled = _gameKdaAnnouncementEnabled.Checked;
+                SaveKdaAnnouncementSettings();
+            };
+            _gameKdaOnePlayerPerLine.CheckedChanged += (_, _) => SaveKdaAnnouncementSettings();
+            _champSelectKdaAnnouncementEnabled.CheckedChanged += (_, _) => SaveKdaAnnouncementSettings();
 
             _provider.Items.AddRange(Enum.GetValues<LOL_GameAssistant.Domain.Settings.AiProvider>().Cast<object>().ToArray());
             _provider.SelectedIndexChanged += (_, _) => ApplyProviderDefaults();
@@ -655,6 +660,27 @@ namespace LOL_GameAssistant.BaseViewForm
             AutoScroll = true,
             Padding = new Padding(UiMetrics.SpaceMedium)
         };
+
+        private void SaveKdaAnnouncementSettings()
+        {
+            if (_isLoading) return;
+            try
+            {
+                AssistantSettings latest = _settingsStore.Load();
+                latest.GameKdaAnnouncementEnabled = _gameKdaAnnouncementEnabled.Checked;
+                latest.GameKdaOnePlayerPerLine = _gameKdaOnePlayerPerLine.Checked;
+                latest.ChampSelectKdaAnnouncementEnabled = _champSelectKdaAnnouncementEnabled.Checked;
+                _settingsStore.Save(latest);
+                _config.GameKdaAnnouncementEnabled = latest.GameKdaAnnouncementEnabled;
+                _config.GameKdaOnePlayerPerLine = latest.GameKdaOnePlayerPerLine;
+                _config.ChampSelectKdaAnnouncementEnabled = latest.ChampSelectKdaAnnouncementEnabled;
+                Program.GameMain?.liveGameForm?.RefreshKdaAnnouncements();
+            }
+            catch (Exception ex)
+            {
+                UiMessage.error(Program.GameMain, $"设置保存失败：{ex.Message}");
+            }
+        }
 
         private static TableLayoutPanel CreateSegmentLayout()
         {

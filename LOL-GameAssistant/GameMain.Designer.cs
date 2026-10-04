@@ -77,7 +77,6 @@
             tabs1.Pages.Add(tabPageFriends);
             tabs1.Pages.Add(tabPage2);
             tabs1.Pages.Add(tabPage3);
-            tabs1.Pages.Add(tabPage4);
             tabs1.Pages.Add(tabPage5);
             tabs1.Pages.Add(tabPage6);
             tabs1.Size = new Size(1510, 811);

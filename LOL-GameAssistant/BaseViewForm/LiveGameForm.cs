@@ -698,6 +698,16 @@ namespace LOL_GameAssistant.BaseViewForm
             var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
             if (!settings.GameKdaAnnouncementEnabled) return;
 
+            IReadOnlyList<string> messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
+            if (messages.Count == 0) return;
+
+            _gameAssessmentSending = true;
+            _ = SendGameKdaAnnouncementAsync(_gameAssessmentSignature,
+                _gameAssessmentGeneration, messages, settings);
+        }
+
+        private IReadOnlyList<string> BuildCurrentGameKdaMessages(bool onePlayerPerLine)
+        {
             var players = _gameAssessmentRoster.Select(member =>
             {
                 PlayerRecentPerformanceEventArgs? result = null;
@@ -706,13 +716,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 return new GameKdaPlayerSummary(member.Team,
                     result?.DisplayName ?? member.Name, result?.Assessment);
             }).ToArray();
-            IReadOnlyList<string> messages = GameKdaAnnouncementBuilder.Build(players,
-                settings.GameKdaOnePlayerPerLine);
-            if (messages.Count == 0) return;
-
-            _gameAssessmentSending = true;
-            _ = SendGameKdaAnnouncementAsync(_gameAssessmentSignature,
-                _gameAssessmentGeneration, messages, settings);
+            return GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine);
         }
 
         private async Task SendGameKdaAnnouncementAsync(string signature, int generation,
@@ -734,6 +738,9 @@ namespace LOL_GameAssistant.BaseViewForm
                         continue;
                     }
 
+                    // 等待游戏就绪或前台期间，卡片可能已经补齐战绩；首条发送前重新生成文案。
+                    // 部分发送后保持原批次，避免拆分条数变化导致重复或遗漏。
+                    if (sentCount == 0) messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
                     GameShoutSendResult result = await Program.GameMain.SendGameKdaAnnouncementAsync(
                         messages.Skip(sentCount).ToArray(), settings, requireForeground: true);
                     if (IsDisposed || generation != _gameAssessmentGeneration ||
@@ -794,8 +801,10 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private static string FormatChampSelectPerformance(PlayerRecentPerformanceEventArgs result)
         {
-            RecentModePerformanceAssessment assessment = result.Assessment;
+            RecentModePerformanceAssessment? assessment = result.Assessment;
             string name = string.IsNullOrWhiteSpace(result.DisplayName) ? "未知玩家" : result.DisplayName.Trim();
+            if (assessment == null) return $"{name}：战绩暂未获取";
+            if (assessment.SampleSize == 0) return $"{name}：近30天同模式无样本";
             return $"{name}：{RecentPerformanceLabelFormatter.GetText(assessment)} {assessment.Score}分 · KDA {assessment.Kda:F2} · 胜率 {assessment.WinRate:F0}%";
         }
 

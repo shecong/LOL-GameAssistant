@@ -9,7 +9,7 @@ public sealed record GameKdaPlayerSummary(
 /// <summary>每名玩家生成一条简短的游戏聊天消息，避免多人在同一条消息内自动折行。</summary>
 public static class GameKdaAnnouncementBuilder
 {
-    private const int MaximumTeamMessageLength = 300;
+    private const int MaximumTeamMessageLength = 120;
     private const string PlayerSeparator = "      ";
 
     // 2560×1440 默认聊天栏实测：所有人频道前缀后，正文约 30 个半角宽度仍可单行显示。
@@ -21,8 +21,23 @@ public static class GameKdaAnnouncementBuilder
         return players.GroupBy(player => player.Team)
             .SelectMany(team => onePlayerPerLine
                 ? team.Select(player => FormatPlayer(team.Key, player))
-                : new[] { BuildTeamMessage(team.Key, team.ToArray()) })
+                : BuildTeamMessages(team.Key, team.ToArray()))
             .ToArray();
+    }
+
+    private static IEnumerable<string> BuildTeamMessages(string team, IReadOnlyList<GameKdaPlayerSummary> players)
+    {
+        var batch = new List<GameKdaPlayerSummary>();
+        foreach (GameKdaPlayerSummary player in players)
+        {
+            batch.Add(player);
+            if (BuildTeamMessage(team, batch).Length <= MaximumTeamMessageLength) continue;
+            batch.RemoveAt(batch.Count - 1);
+            if (batch.Count > 0) yield return BuildTeamMessage(team, batch);
+            batch.Clear();
+            batch.Add(player);
+        }
+        if (batch.Count > 0) yield return BuildTeamMessage(team, batch);
     }
 
     private static string BuildTeamMessage(string team, IReadOnlyList<GameKdaPlayerSummary> players)
@@ -44,8 +59,9 @@ public static class GameKdaAnnouncementBuilder
     {
         string name = NormalizeName(player.DisplayName);
         if (name.Length > nameLimit) name = name[..nameLimit] + "…";
+        if (player.Assessment == null) return $"{name} 战绩暂未获取";
         if (player.Assessment is not { SampleSize: > 0 } assessment)
-            return compact ? $"{name} 无数据" : $"{name} 近期KDA暂无可查";
+            return compact ? $"{name} 同模式无样本" : $"{name} 近30天同模式无样本";
         if (!assessment.HasEnoughSample)
             return compact
                 ? $"{name} 样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}"
@@ -63,7 +79,8 @@ public static class GameKdaAnnouncementBuilder
         string teamLabel = team == "蓝方" ? "蓝" : team == "红方" ? "红" : team;
         string detail = player.Assessment switch
         {
-            not { SampleSize: > 0 } => "无近期数据",
+            null => "战绩暂未获取",
+            not { SampleSize: > 0 } => "同模式无样本",
             { HasEnoughSample: false } assessment =>
                 $"样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}",
             { } assessment =>
