@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant.Helper
+namespace LOL_GameAssistant.Helper
 {
     /// <summary>
     /// 英雄下拉选项：显示名、ID、真名与常用昵称。
@@ -20,7 +20,7 @@
     }
 
     /// <summary>
-    /// 基础英雄数据映射
+    /// 基础英雄数据映射（中文名称已与 Data Dragon 16.19.1 完整英雄表核对）
     /// </summary>
     public static class ChampionMap
     {
@@ -151,7 +151,7 @@
 { 163, new ChampionOption("岩雀", 163, "塔莉垭", "岩雀") },
 { 164, new ChampionOption("青钢影", 164, "卡蜜尔", "") },
 { 166, new ChampionOption("影哨", 166, "阿克尚", "") },
-{ 200, new ChampionOption("虚空女皇", 200, "贝尔维斯", "虚空女皇") },
+{ 200, new ChampionOption("虚空女皇", 200, "卑尔维斯", "虚空女皇") },
 { 201, new ChampionOption("弗雷尔卓德之心", 201, "布隆", "") },
 { 202, new ChampionOption("戏命师", 202, "烬", "") },
 { 203, new ChampionOption("永猎双子", 203, "千珏", "") },
@@ -188,17 +188,21 @@
 { 711, new ChampionOption("愁云使者", 711, "薇古丝", "熬夜波比") },
 { 777, new ChampionOption("封魔剑魂", 777, "永恩", "") },
 { 800, new ChampionOption("流光镜影", 800, "梅尔", "") },
-{ 804, new ChampionOption("不破之誓", 804, "布蕾尔", "吸血鬼2") },
+{ 804, new ChampionOption("不破之誓", 804, "芸阿娜", "") },
 { 875, new ChampionOption("腕豪", 875, "瑟提", "劲夫") },
 { 876, new ChampionOption("含羞蓓蕾", 876, "莉莉娅", "小鹿") },
 { 887, new ChampionOption("灵罗娃娃", 887, "格温", "剪刀妹") },
-{ 888, new ChampionOption("炼金男爵", 888, "烈娜塔", "烈娜塔") },
-{ 893, new ChampionOption("双界灵兔", 893, "薇儿", "兔子") },
+{ 888, new ChampionOption("炼金男爵", 888, "烈娜塔 · 戈拉斯克", "烈娜塔") },
+{ 893, new ChampionOption("双界灵兔", 893, "阿萝拉", "兔子") },
 { 895, new ChampionOption("不羁之悦", 895, "尼菈", "水刀妹") },
 { 897, new ChampionOption("纳祖芒荣耀", 897, "奎桑提", "黑哥") },
 { 901, new ChampionOption("炽炎雏龙", 901, "斯莫德", "小火龙") },
 { 902, new ChampionOption("明烛", 902, "米利欧", "") },
 { 910, new ChampionOption("异画师", 910, "彗", "画师") },
+{ 799, new ChampionOption("铁血狼母", 799, "安蓓萨", "") },
+{ 233, new ChampionOption("狂厄蔷薇", 233, "贝蕾亚", "") },
+{ 805, new ChampionOption("灰烬驱魔人", 805, "洛克", "") },
+{ 904, new ChampionOption("不落魔锋", 904, "亚恒", "") },
 { 950, new ChampionOption("百裂冥犬", 950, "纳亚菲利", "狗群") }
         };
         }

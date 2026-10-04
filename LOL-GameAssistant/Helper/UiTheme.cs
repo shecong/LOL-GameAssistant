@@ -164,6 +164,9 @@ public static class UiTheme
             combo.DrawItem += DrawComboItem;
         }
 
+        if (control is ScrollableControl { AutoScroll: true } scrollable)
+            NativeScrollBarTheme.Apply(scrollable, palette);
+
         foreach (Control child in control.Controls)
             ApplyCore(child, palette);
     }
