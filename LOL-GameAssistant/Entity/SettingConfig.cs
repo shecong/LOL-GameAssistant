@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 
 namespace LOL_GameAssistant.Entity
 {
@@ -62,6 +62,12 @@ namespace LOL_GameAssistant.Entity
 
         [JsonProperty("gameKdaHotkey")]
         public string GameKdaHotkey { get; set; } = "F9";
+
+        [JsonProperty("gameKdaPlayerHotkeysEnabled")]
+        public bool GameKdaPlayerHotkeysEnabled { get; set; } = true;
+
+        [JsonProperty("gameKdaCustomRemarks")]
+        public Dictionary<string, string> GameKdaCustomRemarks { get; set; } = new();
 
         [JsonProperty("gameKdaOnePlayerPerLine")]
         public bool GameKdaOnePlayerPerLine { get; set; } = false;
@@ -189,6 +195,7 @@ namespace LOL_GameAssistant.Entity
             QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
             QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
             GameKdaHotkey = string.IsNullOrWhiteSpace(GameKdaHotkey) ? "F9" : GameKdaHotkey;
+            GameKdaCustomRemarks ??= new Dictionary<string, string>();
             QuickShoutSelectedPhrases ??= new List<string>();
             QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
             AutoAcceptDelayMinMilliseconds = Math.Clamp(AutoAcceptDelayMinMilliseconds, 0, 15000);

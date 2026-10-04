@@ -11,9 +11,22 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class GameKdaHotkeyTests
 {
     [Fact]
+    public void NumpadDigitsMapToTenPlayersIndependentlyOfOtherActions()
+    {
+        var settings = new AssistantSettings { QuickShoutHotkeysEnabled = false, GameKdaHotkeyEnabled = false };
+        var bindings = Bindings(settings);
+        Assert.Equal(10, bindings.Count);
+        for (int slot = 0; slot < 10; slot++)
+            Assert.Equal((QuickShoutHotkeyAction)(100 + slot), bindings[slot == 9 ? Keys.NumPad0 : Keys.NumPad1 + slot]);
+        Assert.DoesNotContain(Keys.D1, bindings.Keys);
+        settings.GameKdaPlayerHotkeysEnabled = false;
+        Assert.Empty(Bindings(settings));
+    }
+
+    [Fact]
     public void ManualKdaWorksWithAutoAndPhraseHotkeysDisabled()
     {
-        var settings = new AssistantSettings { GameKdaAnnouncementEnabled = false, QuickShoutHotkeysEnabled = false };
+        var settings = new AssistantSettings { GameKdaAnnouncementEnabled = false, QuickShoutHotkeysEnabled = false, GameKdaPlayerHotkeysEnabled = false };
         Assert.Equal(QuickShoutHotkeyAction.GameKda, Assert.Single(Bindings(settings)).Value);
         Assert.True(Bindings(settings).ContainsKey(Keys.F9));
         settings.GameKdaHotkeyEnabled = false;
@@ -48,12 +61,13 @@ public sealed class GameKdaHotkeyTests
         Assert.True(old.GameKdaOnePlayerPerLine);
         Assert.False(old.GameKdaAnnouncementEnabled);
         var mapper = typeof(WindowHoldController).Assembly.GetType("LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper")!;
-        var domain = new AssistantSettings { GameKdaHotkeyEnabled = false, GameKdaHotkey = "F10" };
+        var domain = new AssistantSettings { GameKdaHotkeyEnabled = false, GameKdaHotkey = "F10", GameKdaCustomRemarks = new() { ["Lower"] = "句子一\n句子二 {kda}" } };
         var saved = (SettingConfig)mapper.GetMethod("ToLegacy")!.Invoke(null, [domain])!;
         var restored = JsonConvert.DeserializeObject<SettingConfig>(JsonConvert.SerializeObject(saved))!;
         var result = (AssistantSettings)mapper.GetMethod("ToDomain")!.Invoke(null, [restored])!;
         Assert.False(result.GameKdaHotkeyEnabled);
         Assert.Equal("F10", result.GameKdaHotkey);
+        Assert.Equal(domain.GameKdaCustomRemarks["Lower"], result.GameKdaCustomRemarks["Lower"]);
     }
 
     [Fact]

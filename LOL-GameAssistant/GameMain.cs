@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.ChampionSelect;
+using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.LeagueClient;
@@ -99,6 +99,7 @@ namespace LOL_GameAssistant
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
                 action => _ = action switch
                 {
+                    >= QuickShoutHotkeyAction.Player1 and <= QuickShoutHotkeyAction.Player10 => liveGameForm.SendGameKdaManuallyAsync((int)action - 100),
                     QuickShoutHotkeyAction.GameKda => liveGameForm.SendGameKdaManuallyAsync(),
                     QuickShoutHotkeyAction.SelectedBatch => settingForm.SendSelectedQuickShoutToGameAsync(),
                     _ => settingForm.SendRandomQuickShoutToGameAsync(action == QuickShoutHotkeyAction.RandomCustom)

@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant.Helper;
 
-public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda }
+public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda, Player1 = 100, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10 }
 
 /// <summary>
 /// 置顶键由 Windows 注册热键触发，按键状态负责松开；喊话保留独立的键盘钩子。
@@ -102,6 +102,9 @@ public sealed class WindowHoldController : IDisposable
         }
         if (config.GameKdaHotkeyEnabled)
             candidates.Add((ParseGameHotkey(config.GameKdaHotkey, Keys.F9), QuickShoutHotkeyAction.GameKda));
+        if (config.GameKdaPlayerHotkeysEnabled)
+            for (int slot = 0; slot < 10; slot++)
+                candidates.Add((slot == 9 ? Keys.NumPad0 : Keys.NumPad1 + slot, (QuickShoutHotkeyAction)(100 + slot)));
         // 禁用冲突键，防止旧配置误触另一个动作；其它有效快捷键继续可用。
         return candidates.GroupBy(candidate => candidate.Key)
             .Where(group => group.Count() == 1 && group.Key != ParseKey(config.HoldToTopHotkey))
@@ -110,7 +113,7 @@ public sealed class WindowHoldController : IDisposable
 
     public static bool HasGameHotkeyConflict(AssistantSettings config) =>
         CreateGameHotkeyBindings(config).Count !=
-        (config.QuickShoutHotkeysEnabled ? 3 : 0) + (config.GameKdaHotkeyEnabled ? 1 : 0);
+        (config.QuickShoutHotkeysEnabled ? 3 : 0) + (config.GameKdaHotkeyEnabled ? 1 : 0) + (config.GameKdaPlayerHotkeysEnabled ? 10 : 0);
 
     private static Keys ParseGameHotkey(string? value, Keys fallback) =>
         TryParseGameHotkey(value, out Keys key) ? key : fallback;

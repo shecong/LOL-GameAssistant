@@ -42,6 +42,12 @@ public sealed class AssistantSettings
     public bool GameKdaHotkeyEnabled { get; set; } = true;
     public string GameKdaHotkey { get; set; } = "F9";
 
+    /// <summary>小键盘 1–5 为蓝方，6–9、0 为红方，单独发送一名玩家的犀利测评。</summary>
+    public bool GameKdaPlayerHotkeysEnabled { get; set; } = true;
+
+    /// <summary>各评估档位的自定义文案，每行一条；空值使用内置词库。</summary>
+    public Dictionary<string, string> GameKdaCustomRemarks { get; set; } = new();
+
     /// <summary>对局 KDA 喊话中每名玩家单独发送一条；默认按蓝红双方各汇总一条。</summary>
     public bool GameKdaOnePlayerPerLine { get; set; }
 
@@ -92,6 +98,7 @@ public sealed class AssistantSettings
         QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
         QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
         GameKdaHotkey = string.IsNullOrWhiteSpace(GameKdaHotkey) ? "F9" : GameKdaHotkey;
+        GameKdaCustomRemarks ??= new Dictionary<string, string>();
         QuickShoutSelectedPhrases ??= new List<string>();
         QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
         AutoAcceptDelayMinMilliseconds = Math.Clamp(AutoAcceptDelayMinMilliseconds, 0, 15000);

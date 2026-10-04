@@ -11,6 +11,23 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class GameKdaSnapshotTests
 {
     [Fact]
+    public void IndividualSlotsNeverShiftRedPlayersIntoMissingBlueSlots() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = new LiveGameForm(Service<ILobbyService>(), Service<IPlayerProfileService>(), Service<IChampionSelectService>());
+        var roster = Field<List<(string Puuid, string Name, string Team)>>(form, "_gameAssessmentRoster");
+        roster.Add(("blue", "蓝方一号", "蓝方"));
+        for (int i = 1; i <= 5; i++) roster.Add(($"red{i}", $"红方{i}号", "红方"));
+        string? Message(int slot) => (string?)typeof(LiveGameForm).GetMethod("BuildPlayerKdaMessage",
+            BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, [slot]);
+        Assert.Contains("蓝方一号", Message(0));
+        Assert.Null(Message(1));
+        Assert.Contains("【红1】红方1号", Message(5));
+        Assert.Contains("【红5】红方5号", Message(9));
+        Assert.Null(Message(10));
+        Assert.DoesNotContain("红方2号", Message(5));
+    });
+
+    [Fact]
     public void LatePerformanceReplacesPendingMessageForBothTeams() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var form = new LiveGameForm(Service<ILobbyService>(), Service<IPlayerProfileService>(), Service<IChampionSelectService>());

@@ -26,6 +26,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\MatchPerformanceEvaluator.cs" Link="Domain\MatchPerformanceEvaluator.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\GameKdaRemarkLibrary.cs" Link="Domain\GameKdaRemarkLibrary.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\GameKdaAnnouncementBuilder.cs" Link="Domain\GameKdaAnnouncementBuilder.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\RecentKdaStatsResolver.cs" Link="Domain\RecentKdaStatsResolver.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Matches\MatchReadModels.cs" Link="Domain\MatchReadModels.cs" />

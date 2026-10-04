@@ -614,7 +614,15 @@ namespace LOL_GameAssistant.BaseViewForm
                 ResetGameAssessments();
                 return;
             }
-            if (string.Equals(signature, _gameAssessmentSignature, StringComparison.Ordinal)) return;
+            if (string.Equals(signature, _gameAssessmentSignature, StringComparison.Ordinal))
+            {
+                // 强制重建卡片时同步位置，保留评估与公告状态，小键盘仍对应当前卡片顺序。
+                _gameAssessmentRoster.Clear();
+                _expectedGameAssessmentPuuids.Clear();
+                foreach (var member in team1) AddGameAssessmentPlayer(member.Puuid, member.Name, member.IsBot, "蓝方");
+                foreach (var member in team2) AddGameAssessmentPlayer(member.Puuid, member.Name, member.IsBot, "红方");
+                return;
+            }
 
             ResetGameAssessments();
             _gameAssessmentSignature = signature;
@@ -706,7 +714,7 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>快捷键主动发送当前双方评估；不受自动公告开关或已发送标记限制。</summary>
-        public async Task SendGameKdaManuallyAsync()
+        public async Task SendGameKdaManuallyAsync(int? playerSlot = null)
         {
             if (IsDisposed || Program.GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
             if (_gameAssessmentSending)
@@ -733,10 +741,21 @@ namespace LOL_GameAssistant.BaseViewForm
                     return;
                 }
                 var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
-                var messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
+                IReadOnlyList<string> messages;
+                if (playerSlot is int slot)
+                {
+                    string? message = BuildPlayerKdaMessage(slot);
+                    if (message == null)
+                    {
+                        Program.GameMain.infoMsg.AddMsg("此小键盘位置没有对应玩家，未发送。");
+                        return;
+                    }
+                    messages = [message];
+                }
+                else messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
                 var result = await Program.GameMain.SendGameKdaAnnouncementAsync(messages, settings, requireForeground: true);
                 if (IsDisposed || generation != _gameAssessmentGeneration) return;
-                if (result.SentCount == messages.Count && messages.Count > 0) _gameAssessmentSent = true;
+                if (playerSlot == null && result.SentCount == messages.Count && messages.Count > 0) _gameAssessmentSent = true;
                 Program.GameMain.infoMsg.AddMsg($"手动对局 KDA：{result.Message}（{result.SentCount}/{messages.Count} 条）");
                 RuntimeDiagnostics.Report("对局 KDA 快捷键", "手动发送", result.Message);
             }
@@ -748,6 +767,20 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 if (!IsDisposed && generation == _gameAssessmentGeneration) _gameAssessmentSending = false;
             }
+        }
+
+        internal string? BuildPlayerKdaMessage(int slot)
+        {
+            if (slot is < 0 or > 9) return null;
+            string team = slot < 5 ? "蓝方" : "红方";
+            var members = _gameAssessmentRoster.Where(member => member.Team == team).ToArray();
+            int position = slot % 5;
+            if (position >= members.Length) return null;
+            var member = members[position];
+            _gameAssessments.TryGetValue(member.Puuid, out var result);
+            return GameKdaAnnouncementBuilder.BuildSharpPlayer(new GameKdaPlayerSummary(team,
+                result?.DisplayName ?? member.Name, result?.Assessment), position + 1,
+                AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaCustomRemarks);
         }
 
         private IReadOnlyList<string> BuildCurrentGameKdaMessages(bool onePlayerPerLine)

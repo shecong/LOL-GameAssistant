@@ -37,6 +37,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly AntdUI.Input _customHotkey = new() { ReadOnly = true, Width = 180, Height = 36, Anchor = AnchorStyles.Left, Text = "F7" };
     private readonly AntdUI.Input _batchHotkey = new() { ReadOnly = true, Width = 180, Height = 36, Anchor = AnchorStyles.Left, Text = "F8" };
     private readonly AntdUI.Checkbox _kdaHotkeyEnabled = new() { Text = "手动发送对局 KDA", AutoSize = true };
+    private readonly AntdUI.Checkbox _playerHotkeysEnabled = new() { Text = "小键盘逐人 KDA 测评（犀利文案）", AutoSize = true };
     private readonly AntdUI.Input _kdaHotkey = new() { ReadOnly = true, Width = 180, Height = 36, Anchor = AnchorStyles.Left, Text = "F9" };
     private readonly AntdUI.Button _multiSelect = new() { Text = "多选：关", AutoSize = true };
     private readonly AntdUI.Label _previewLabel = new() { Text = "待发送内容预览", Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) };
@@ -45,6 +46,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly AntdUI.Button _clientSend = new() { Text = "发送到客户端群聊", AutoSize = true };
     private readonly AntdUI.Button _gameSend = new() { Text = "一键发送到游戏", AutoSize = true };
     private readonly AntdUI.Button _testGameEnter = new() { Text = "测试游戏回车", AutoSize = true };
+    private Dictionary<string, string> _kdaCustomRemarks = new();
     private DateTime _lastSentAtUtc = DateTime.MinValue;
 
     public QuickShoutForm(LcuQuickShoutService clientChat,
@@ -104,6 +106,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         columns.Controls.Add(right, 1, 0);
         Controls.Add(columns);
         Controls.Add(CreateOptionsArea());
+        Controls.Add(CreatePlayerHotkeyOptions());
         Controls.Add(CreateActionBar());
         Controls.Add(_status);
         Controls.Add(header);
@@ -135,6 +138,8 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _batchHotkey.Text = settings.QuickShoutBatchHotkey;
         _kdaHotkeyEnabled.Checked = settings.GameKdaHotkeyEnabled;
         _kdaHotkey.Text = settings.GameKdaHotkey;
+        _playerHotkeysEnabled.Checked = settings.GameKdaPlayerHotkeysEnabled;
+        _kdaCustomRemarks = new Dictionary<string, string>(settings.GameKdaCustomRemarks);
         _minimumInterval.Value = Math.Clamp(settings.QuickMessageSendIntervalSeconds, 2, 30);
         SetMultiSelect(settings.QuickShoutMultiSelectEnabled);
         RefreshPhrases();
@@ -153,6 +158,8 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         settings.QuickShoutBatchHotkey = _batchHotkey.Text;
         settings.GameKdaHotkeyEnabled = _kdaHotkeyEnabled.Checked;
         settings.GameKdaHotkey = _kdaHotkey.Text;
+        settings.GameKdaPlayerHotkeysEnabled = _playerHotkeysEnabled.Checked;
+        settings.GameKdaCustomRemarks = new Dictionary<string, string>(_kdaCustomRemarks);
         settings.QuickShoutMultiSelectEnabled = _phrases.SelectionMode == SelectionMode.MultiSimple;
         settings.QuickShoutSelectedPhrases = SelectedItems().Select(PhraseKey).ToList();
         settings.QuickMessageSendIntervalSeconds = (int)_minimumInterval.Value;
@@ -249,6 +256,37 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         area.Controls.Add(sending, 0, 0);
         area.Controls.Add(shortcuts, 1, 0);
         return area;
+    }
+
+    private Control CreatePlayerHotkeyOptions()
+    {
+        var panel = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 64, ColumnCount = 1, RowCount = 2, Padding = new Padding(20, 0, 20, 0) };
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
+        var customize = new AntdUI.Button { Text = "自定义测评文案", Width = 150, Height = 28, Margin = new Padding(12, 0, 0, 0) };
+        customize.Click += (_, _) => EditKdaRemarks();
+        actions.Controls.Add(_playerHotkeysEnabled);
+        actions.Controls.Add(customize);
+        panel.Controls.Add(actions, 0, 0);
+        panel.Controls.Add(OptionLabel("NumPad 1–5：蓝方五人；NumPad 6–9、0：红方五人，按卡片从左到右、从上到下。开启 Num Lock，按一次仅发送对应玩家。"), 0, 1);
+        return panel;
+    }
+
+    private void EditKdaRemarks()
+    {
+        using var editor = new GameKdaRemarkEditor(_kdaCustomRemarks, updated =>
+        {
+            var previous = _kdaCustomRemarks;
+            _kdaCustomRemarks = updated;
+            try
+            {
+                _saveSettings();
+                _status.Text = "自定义 KDA 文案已保存，下一次小键盘发送立即使用。";
+            }
+            catch { _kdaCustomRemarks = previous; throw; }
+        });
+        editor.ShowDialog(FindForm());
     }
 
     private Control CreateActionBar()
@@ -442,7 +480,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _customPhrases.ForeColor = palette.TextPrimary;
         _selectedPhrase.BorderColor = palette.Border;
         _customPhrases.BorderColor = palette.Border;
-        foreach (var checkbox in new[] { _perCharacter, _sendToAll, _useClipboard, _hotkeysEnabled, _kdaHotkeyEnabled })
+        foreach (var checkbox in new[] { _perCharacter, _sendToAll, _useClipboard, _hotkeysEnabled, _kdaHotkeyEnabled, _playerHotkeysEnabled })
             checkbox.ForeColor = palette.TextPrimary;
         ApplyLabelColors(this, palette.TextPrimary);
         foreach (var input in new[] { _builtInHotkey, _customHotkey, _batchHotkey, _kdaHotkey })

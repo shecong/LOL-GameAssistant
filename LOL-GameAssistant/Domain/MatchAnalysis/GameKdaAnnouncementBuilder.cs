@@ -15,6 +15,30 @@ public static class GameKdaAnnouncementBuilder
     // 2560×1440 默认聊天栏实测：所有人频道前缀后，正文约 30 个半角宽度仍可单行显示。
     private const int MaximumBodyWidth = 30;
 
+    public static string BuildSharpPlayer(GameKdaPlayerSummary player, int position, IReadOnlyDictionary<string, string>? customRemarks = null)
+    {
+        string name = ShortenToDisplayWidth(NormalizeName(player.DisplayName), 20);
+        string prefix = $"【{(player.Team == "蓝方" ? "蓝" : "红")}{position}】{name}";
+        var assessment = player.Assessment;
+        if (assessment == null) return $"{prefix} 战绩暂未获取，没数据就不瞎下结论。";
+        if (assessment.SampleSize <= 0) return $"{prefix} 近30天同模式无样本，暂不测评。";
+        string stats = $"近30天同模式{assessment.SampleSize}场 KDA{FormatKda(assessment.Kda, 2)}";
+        if (!assessment.HasEnoughSample) return $"{prefix} {stats}，样本不足，先别急着封神或判刑。";
+        string remark = GameKdaRemarkLibrary.Select(assessment.Label, customRemarks);
+        var placeholders = new Dictionary<string, string>
+        {
+            ["name"] = NormalizeName(player.DisplayName), ["team"] = player.Team,
+            ["position"] = position.ToString(), ["kda"] = FormatKda(assessment.Kda, 2),
+            ["samples"] = assessment.SampleSize.ToString(), ["score"] = assessment.Score.ToString(),
+            ["label"] = RecentPerformanceLabelFormatter.GetText(assessment),
+            ["winrate"] = assessment.WinRate.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+        };
+        remark = System.Text.RegularExpressions.Regex.Replace(remark, @"\{(name|team|position|kda|samples|score|label|winrate)\}",
+            match => placeholders[match.Groups[1].Value.ToLowerInvariant()], System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        remark = ShortenToDisplayWidth(NormalizeName(remark), 300);
+        return $"{prefix} {stats}，{RecentPerformanceLabelFormatter.GetText(assessment)}：{remark}";
+    }
+
     public static IReadOnlyList<string> Build(IReadOnlyList<GameKdaPlayerSummary> players,
         bool onePlayerPerLine = false)
     {
