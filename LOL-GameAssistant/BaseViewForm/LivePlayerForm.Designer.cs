@@ -36,7 +36,6 @@ namespace LOL_GameAssistant.BaseViewForm
             lblChampionNow = new AntdUI.Label();
             lblTeamTag = new AntdUI.Label();
             lblPremadeTag = new AntdUI.Label();
-            btnCopy = new AntdUI.Button();
             picCurrent = new RoundPictureBox();
             panelMatches = new LOL_GameAssistant.Helper.MatchScrollPanel();
             headerPanel.SuspendLayout();
@@ -54,10 +53,9 @@ namespace LOL_GameAssistant.BaseViewForm
             headerPanel.Controls.Add(lblChampionNow);
             headerPanel.Controls.Add(lblTeamTag);
             headerPanel.Controls.Add(lblPremadeTag);
-            headerPanel.Controls.Add(btnCopy);
             headerPanel.Controls.Add(picCurrent);
             headerPanel.Dock = DockStyle.Top;
-            headerPanel.Height = 58;
+            headerPanel.Height = 64;
             // 
             // picProfile
             // 
@@ -147,16 +145,6 @@ namespace LOL_GameAssistant.BaseViewForm
             lblPremadeTag.TextAlign = ContentAlignment.MiddleCenter;
             lblPremadeTag.Visible = false;
             // 
-            // btnCopy
-            // 
-            btnCopy.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnCopy.Location = new Point(470, 8);
-            btnCopy.Name = "btnCopy";
-            btnCopy.Size = new Size(60, 26);
-            btnCopy.TabIndex = 5;
-            btnCopy.Text = "复制ID";
-            btnCopy.Click += BtnCopy_Click;
-            // 
             // picCurrent
             // 
             picCurrent.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -205,7 +193,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private AntdUI.Label lblChampionNow;
         private AntdUI.Label lblTeamTag;
         private AntdUI.Label lblPremadeTag;
-        private AntdUI.Button btnCopy;
         private RoundPictureBox picCurrent;
         private Panel panelMatches;
     }

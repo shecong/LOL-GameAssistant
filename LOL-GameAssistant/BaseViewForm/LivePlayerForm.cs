@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.Ranked;
+using LOL_GameAssistant.Application.Ranked;
 using LOL_GameAssistant.Domain.Ranked;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
@@ -58,15 +58,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ToolTip _performanceTip = new();
         private readonly CancellationTokenSource _lifetimeCancellation = new();
 
-        private readonly AntdUI.Button _historyButton = new()
-        {
-            Text = "查战绩",
-            Size = new Size(60, 26),
-            BackColor = Color.FromArgb(25, 118, 210),
-            ForeColor = Color.White
-        };
-
-        private readonly bool _showCopyButton;
         private bool _recentPerformancePublished;
         private bool _loadStarted;
         private RecentModePerformanceAssessment? _cachedAssessment;
@@ -168,16 +159,6 @@ namespace LOL_GameAssistant.BaseViewForm
             lblSub.Text = _isBot ? "机器人" : "";
             lblChampionNow.Text = championId > 0 ? $"当前: {GetChampionDisplayName(championId)}" : "";
 
-            // AntdUI 控件的 Visible setter 会立刻 CreateControl()：构造期卡片还没有父窗口，
-            // 句柄会先挂在临时 parking window 上，挂到队伍面板后还要再建一次。
-            // 既白白多耗一份窗口句柄，也是"创建窗口句柄时出错"的现场。
-            // 因此构造期只设成安全默认值（设 false 不会建句柄），真实状态等句柄建立后再应用。
-            btnCopy.Visible = false;
-            _showCopyButton = !_isBot && !string.IsNullOrEmpty(_playerPuuid);
-            _historyButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            _historyButton.Visible = false;
-            _historyButton.Click += (_, _) => OpenMatchHistory();
-            headerPanel.Controls.Add(_historyButton);
 
             // 队友/对手标识：同队显示“队友”（蓝色），异队显示“对手”（红色）
             lblTeamTag.Text = isAlly ? "队友" : "对手";
@@ -194,13 +175,11 @@ namespace LOL_GameAssistant.BaseViewForm
                     isAlly ? 252 : 240);
             }
 
-            // 复制按钮悬停提示：显示可复制的完整 ID
+            // 玩家身份区域统一支持单击复制和双击查询，不再占用头部按钮空间。
             _copyTip = new ToolTip();
-            _copyTip.SetToolTip(btnCopy, "复制该玩家 PUUID（可用于精确查询）");
-            _copyTip.SetToolTip(_historyButton, "打开此玩家的战绩查询");
             _identityActions = new PlayerIdentityActions(() => _isBot ? null : _playerPuuid,
                 () => ParentForm ?? FindForm());
-            foreach (Control target in new Control[] { picProfile, lblName, picCurrent, lblChampionNow })
+            foreach (Control target in new Control[] { picProfile, lblName, lblSub, picCurrent, lblChampionNow, _rankLabel })
             {
                 _identityActions.Attach(target);
                 _copyTip.SetToolTip(target, "单击复制玩家 ID；双击查询该玩家战绩");
@@ -298,8 +277,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private void ApplyDeferredVisibility()
         {
             if (IsDisposed) return;
-            btnCopy.Visible = _showCopyButton;
-            _historyButton.Visible = _showCopyButton;
             lblTeamTag.Visible = _teamKnown;
             picCurrent.Visible = _championId > 0;
             RecalcHeaderLayout();
@@ -311,25 +288,23 @@ namespace LOL_GameAssistant.BaseViewForm
         private void RecalcHeaderLayout()
         {
             const int textLeft = 56;
-            const int copyWidth = 60;
-            const int historyWidth = 60;
-            const int currentIconWidth = 24;
+            const int currentIconWidth = 36;
             const int tagWidth = 36;
             int premadeWidth = Math.Clamp(TextRenderer.MeasureText(lblPremadeTag.Text, lblPremadeTag.Font).Width + 10, 46, 104);
             const int gap = 6;
 
-            int right = Math.Max(textLeft + copyWidth + historyWidth + 2 * gap, ClientSize.Width - 12);
-            int copyLeft = Math.Max(textLeft, right - copyWidth);
-            int historyLeft = Math.Max(textLeft, copyLeft - gap - historyWidth);
-            int currentIconLeft = Math.Max(textLeft, historyLeft - gap - currentIconWidth);
-            btnCopy.Location = new Point(copyLeft, 8);
-            _historyButton.Location = new Point(historyLeft, 8);
-            picCurrent.Location = new Point(currentIconLeft, 8);
+            int right = Math.Max(textLeft, ClientSize.Width - 12);
+            int currentIconLeft = Math.Max(textLeft, right - currentIconWidth);
+            picCurrent.Location = new Point(currentIconLeft, 4);
             picCurrent.Size = new Size(currentIconWidth, currentIconWidth);
 
-            // 顶行优先保证玩家名称；宽度不足时隐藏战绩汇总，避免文字彼此覆盖。
-            int summaryRight = currentIconLeft - gap;
-            int summaryWidth = Math.Min(135, Math.Max(0, summaryRight - textLeft - 88));
+            // 顶行优先保留段位和英雄头像；战绩汇总只使用玩家名称与段位之外的剩余空间。
+            int summaryRight = picCurrent.Visible ? currentIconLeft - gap : right;
+            int availableTopWidth = Math.Max(0, summaryRight - textLeft);
+            int rankWidth = _rankLabel.Visible ? Math.Min(
+                TextRenderer.MeasureText(_rankLabel.Text, _rankLabel.Font).Width + 4,
+                Math.Max(0, availableTopWidth - 88 - gap)) : 0;
+            int summaryWidth = Math.Min(135, Math.Max(0, availableTopWidth - 88 - rankWidth - 2 * gap));
             bool showSummary = summaryWidth >= 78;
             lblSummary.Visible = showSummary;
             if (showSummary)
@@ -341,9 +316,6 @@ namespace LOL_GameAssistant.BaseViewForm
             int nameRight = showSummary ? summaryRight - summaryWidth - gap : summaryRight;
             lblName.Location = new Point(textLeft, 8);
             int availableNameWidth = Math.Max(0, nameRight - textLeft);
-            int rankWidth = _rankLabel.Visible ? Math.Min(
-                TextRenderer.MeasureText(_rankLabel.Text, _rankLabel.Font).Width + 4,
-                Math.Max(0, availableNameWidth - 60 - gap)) : 0;
             lblName.Width = Math.Max(0, availableNameWidth - (rankWidth > 0 ? rankWidth + gap : 0));
             if (rankWidth > 0)
             {
@@ -352,19 +324,19 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             // 第二行将玩家信息、当前英雄和队伍标签按可用空间从左到右分配。
-            // 第二行可用整个卡片宽度；顶行的查战绩/复制按钮不应挤掉英雄名称。
+            // 第二行位于放大的英雄头像下方，可使用完整宽度展示玩家信息和队伍标签。
             int championRight = right;
             if (_teamKnown)
             {
                 int teamTagLeft = championRight - tagWidth;
-                lblTeamTag.Location = new Point(teamTagLeft, 32);
+                lblTeamTag.Location = new Point(teamTagLeft, 40);
                 lblTeamTag.Size = new Size(tagWidth, 20);
                 championRight = teamTagLeft - gap;
             }
             if (lblPremadeTag.Visible)
             {
                 int premadeTagLeft = championRight - premadeWidth;
-                lblPremadeTag.Location = new Point(premadeTagLeft, 32);
+                lblPremadeTag.Location = new Point(premadeTagLeft, 40);
                 lblPremadeTag.Size = new Size(premadeWidth, 20);
                 championRight = premadeTagLeft - gap;
             }
@@ -376,12 +348,12 @@ namespace LOL_GameAssistant.BaseViewForm
             int championWidth = Math.Max(0, championRight - championLeft);
             bool showChampion = championWidth >= 70 && !string.IsNullOrEmpty(lblChampionNow.Text);
 
-            lblSub.Location = new Point(textLeft, 32);
+            lblSub.Location = new Point(textLeft, 40);
             lblSub.Width = showChampion ? subWidth : rowTwoSpace;
             lblChampionNow.Visible = showChampion;
             if (showChampion)
             {
-                lblChampionNow.Location = new Point(championLeft, 32);
+                lblChampionNow.Location = new Point(championLeft, 40);
                 lblChampionNow.Width = championWidth;
             }
         }
@@ -734,8 +706,6 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             lblName.Text = string.IsNullOrEmpty(lblName.Text) ? "机器人" : lblName.Text;
             lblSub.Text = "机器人";
-            btnCopy.Visible = false;
-            _historyButton.Visible = false;
             lblSummary.Text = "";
             if (_championId > 0)
             {
@@ -920,32 +890,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private double _glowAlpha;
 
-        /// <summary>响应复制按钮并复制玩家身份信息。</summary>
-        private void BtnCopy_Click(object? sender, EventArgs e)
-        {
-            if (string.IsNullOrEmpty(_playerPuuid)) return;
-            try
-            {
-                Clipboard.SetText(_playerPuuid);
-                string preview = _playerPuuid.Length > 16
-                    ? _playerPuuid[..16] + "..."
-                    : _playerPuuid;
-                LOL_GameAssistant.Helper.UiMessage.success(
-                    ParentForm ?? FindForm() ?? Program.GameMain,
-                    $"已复制玩家 ID（{preview}）");
-            }
-            catch
-            {
-                // 剪贴板被占用时忽略
-            }
-        }
 
-        /// <summary>大厅、选人与对局卡片共享的快速战绩入口。</summary>
-        private void OpenMatchHistory()
-        {
-            if (string.IsNullOrWhiteSpace(_playerPuuid)) return;
-            _ = BattleQueryForm.QueryPlayerAsync(_playerPuuid);
-        }
     }
 
     /// <summary>玩家卡片完成同队列近期 KDA 计算后，提供给对局页汇总的一项结果。</summary>

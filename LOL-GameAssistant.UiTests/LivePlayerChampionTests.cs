@@ -179,6 +179,36 @@ public sealed class LivePlayerChampionTests
         return form;
     }
 
+    [Theory]
+    [InlineData(320)]
+    [InlineData(360)]
+    [InlineData(450)]
+    public void HeaderReservesSpaceForRankAndChampionWithoutActionButtons(int width) =>
+        MatchListScrollingTests.OnUiThread(() =>
+        {
+            var overview = new RankedOverview();
+            overview.Queues[RankedQueues.Solo5x5] = new RankedQueue
+            { QueueType = RankedQueues.Solo5x5, Tier = "CHALLENGER", Division = "I" };
+            var ranked = Service<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(overview));
+            var card = CreateCard(122, new TaskCompletionSource<PlayerProfile?>().Task,
+                _ => Task.FromResult<GameAsset?>(null), true, ranked, Guid.NewGuid().ToString());
+            Child(card, "lblName").Text = "名称比较长的召唤师玩家";
+            Child(card, "lblSummary").Text = "10场 · 胜率 100%";
+            card.Width = width;
+            using var form = Mount(card);
+            card.SetPremadeGroup(2, ["玩家甲", "玩家乙"]);
+            var rank = Child(card, "lblRank");
+            var icon = Child(card, "picCurrent");
+            Assert.Empty(icon.Parent!.Controls.OfType<AntdUI.Button>());
+            Assert.Equal(new Size(36, 36), icon.Size);
+            Assert.True(rank.Width >= TextRenderer.MeasureText(rank.Text, rank.Font).Width);
+            Assert.True(rank.Right <= icon.Left);
+            Assert.False(rank.Bounds.IntersectsWith(Child(card, "lblName").Bounds));
+            Assert.False(icon.Bounds.IntersectsWith(Child(card, "lblTeamTag").Bounds));
+            Assert.False(icon.Bounds.IntersectsWith(Child(card, "lblPremadeTag").Bounds));
+            Assert.True(icon.Parent.ClientRectangle.Contains(icon.Bounds));
+        });
+
     private static Control Child(Control parent, string name) => parent.Controls.Find(name, true).Single();
 
     private static LivePlayerForm CreateCard(int id, Task<PlayerProfile?> profile,
