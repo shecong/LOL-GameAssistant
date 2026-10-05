@@ -720,6 +720,7 @@ namespace LOL_GameAssistant
 
                 case "lobby":
                     StopPhaseDataLoad();
+                    liveGameForm.ClearPartySnapshots();
                     //在大厅,如果有开启自动对局,则自动开启
                     SettingForm.OpenGame(settingForm);
                     _ = liveGameForm.AddView(force: true);
@@ -727,12 +728,13 @@ namespace LOL_GameAssistant
 
                 case "matchmaking":
                     StopPhaseDataLoad();
+                    await liveGameForm.CapturePartyLobbyAsync();
                     break;
 
                 case "readycheck":
                     StopPhaseDataLoad();
                     ScheduleAutoAccept();
-                    liveGameForm.ResetRosterCache();
+                    liveGameForm.ResetRosterCache(clearPartySnapshots: false);
                     break;
 
                 case "champselect":

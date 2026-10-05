@@ -15,7 +15,7 @@ public sealed class LegacyPremadeDetectionService : IPremadeDetectionService
         cancellationToken.ThrowIfCancellationRequested();
         var result = await PremadeDetector.DetectAsync(
             teamOne.Select(player => (player.Puuid, player.Name)).ToList(),
-            teamTwo.Select(player => (player.Puuid, player.Name)).ToList()).ConfigureAwait(false);
+            teamTwo.Select(player => (player.Puuid, player.Name)).ToList()).WaitAsync(cancellationToken).ConfigureAwait(false);
 
         var groups = result.Groups.Select(group => new PremadeGroup(
             group.Index,

@@ -5,7 +5,8 @@ public sealed record PremadeGroup(
     int Index,
     IReadOnlyList<string> Puuids,
     IReadOnlyList<string> Names,
-    int TeamIndex);
+    int TeamIndex,
+    bool IsInferred = false);
 
 /// <summary>开黑检测结果及面向界面的摘要规则。</summary>
 public sealed class PremadeDetectionResult

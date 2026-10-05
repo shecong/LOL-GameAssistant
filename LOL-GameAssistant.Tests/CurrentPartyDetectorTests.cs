@@ -7,6 +7,23 @@ namespace LOL_GameAssistant.Tests;
 public sealed class CurrentPartyDetectorTests
 {
     [Fact]
+    public void HistoricalFallbackNeverOverridesConfirmedPartyOnEitherSide()
+    {
+        var current = CurrentPartyDetector.Detect([Member("a", "甲", "party"), Member("b", "乙", "party")],
+            [Member("c", "丙"), Member("d", "丁")]);
+        Assert.False(current.NeedsHistoryFallback(0));
+        Assert.True(current.NeedsHistoryFallback(1));
+        var historical = new PremadeDetectionResult([
+            new(1, ["a", "b"], ["甲", "乙"], 0), new(2, ["c", "d"], ["丙", "丁"], 1)]);
+        var merged = current.WithHistoryFallback(historical);
+        Assert.Equal("双排", merged.GetTeamStatus(0));
+        Assert.Equal("疑似开黑·双排", merged.GetTeamStatus(1));
+        Assert.False(merged.Groups.GroupByPuuid["a"].IsInferred);
+        Assert.True(merged.Groups.GroupByPuuid["c"].IsInferred);
+        Assert.Contains("仅为历史推测", merged.GetTeamDetail(1));
+    }
+
+    [Fact]
     public void GroupsPlayersByPartyIdWithinEachSide()
     {
         var result = CurrentPartyDetector.Detect(

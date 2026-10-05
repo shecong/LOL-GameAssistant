@@ -292,7 +292,7 @@ namespace LOL_GameAssistant.BaseViewForm
             const int historyWidth = 60;
             const int currentIconWidth = 24;
             const int tagWidth = 36;
-            const int premadeWidth = 46;
+            int premadeWidth = Math.Clamp(TextRenderer.MeasureText(lblPremadeTag.Text, lblPremadeTag.Font).Width + 10, 46, 104);
             const int gap = 6;
 
             int right = Math.Max(textLeft + copyWidth + historyWidth + 2 * gap, ClientSize.Width - 12);
@@ -388,7 +388,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         /// <param name="groupIndex">开黑组号（1 起），null 表示不在任何开黑小组。</param>
         /// <param name="memberNames">同组玩家名称（用于悬停提示）。</param>
-        public void SetPremadeGroup(int? groupIndex, List<string>? memberNames)
+        public void SetPremadeGroup(int? groupIndex, List<string>? memberNames, bool isInferred = false)
         {
             if (!groupIndex.HasValue)
             {
@@ -398,7 +398,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             var color = PremadeColors[(groupIndex.Value - 1) % PremadeColors.Length];
-            lblPremadeTag.Text = $"开黑{groupIndex.Value}";
+            lblPremadeTag.Text = $"{(isInferred ? "疑似开黑" : "开黑")}{groupIndex.Value}";
             lblPremadeTag.ForeColor = color;
             lblPremadeTag.BackColor = Color.FromArgb(
                 255,
@@ -410,6 +410,7 @@ namespace LOL_GameAssistant.BaseViewForm
             string tooltip = memberNames is { Count: > 0 }
                 ? $"本局同组：{string.Join("、", memberNames)}（房间标识相同）"
                 : "本局房间标识相同";
+            if (isInferred) tooltip = $"疑似开黑：{string.Join("、", memberNames ?? [])}；近期20场至少2次同队，不能确认本局组队。";
             _premadeTip.SetToolTip(lblPremadeTag, tooltip);
 
             lblPremadeTag.Visible = true;

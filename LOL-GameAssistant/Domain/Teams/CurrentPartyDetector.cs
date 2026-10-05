@@ -44,13 +44,15 @@ public static class CurrentPartyDetector
     private static string? GetPartyKey(GameTeamMember member)
     {
         string partyId = member.PartyId?.Trim() ?? "";
-        if (partyId.Length > 0 && partyId != "0" &&
-            !string.Equals(partyId, Guid.Empty.ToString(), StringComparison.OrdinalIgnoreCase))
+        if (IsValidPartyId(partyId))
             return $"party:{partyId}";
         // teamParticipantId is participant metadata, not a confirmed party identifier.
         // Repeated values must never establish a current premade group.
         return null;
     }
+
+    internal static bool IsValidPartyId(string? value) => !string.IsNullOrWhiteSpace(value) &&
+        value.Trim() != "0" && !string.Equals(value.Trim(), Guid.Empty.ToString(), StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>保留两队标识是否完整，避免缺失数据时把“未知”显示成“单排”。</summary>
@@ -66,10 +68,21 @@ public sealed class CurrentPartyDetectionResult
 
     public PremadeDetectionResult Groups { get; }
 
+    public bool NeedsHistoryFallback(int teamIndex) => !Groups.Groups.Any(group => group.TeamIndex == teamIndex);
+
+    public CurrentPartyDetectionResult WithHistoryFallback(PremadeDetectionResult history)
+    {
+        var merged = Groups.Groups.Concat(history.Groups.Where(group => NeedsHistoryFallback(group.TeamIndex))
+                .Select(group => group with { IsInferred = true }))
+            .Select((group, index) => group with { Index = index + 1 }).ToArray();
+        return new CurrentPartyDetectionResult(new PremadeDetectionResult(merged), _complete);
+    }
+
     public string GetTeamStatus(int teamIndex)
     {
         if (Groups.Groups.Any(group => group.TeamIndex == teamIndex))
-            return Groups.GetTeamQueueStatus(teamIndex);
+            return Groups.Groups.Any(group => group.TeamIndex == teamIndex && group.IsInferred)
+                ? $"疑似开黑·{Groups.GetTeamQueueStatus(teamIndex)}" : Groups.GetTeamQueueStatus(teamIndex);
         return _complete[teamIndex] ? "未见组队" : "未知";
     }
 
@@ -82,7 +95,9 @@ public sealed class CurrentPartyDetectionResult
                 : "当前阶段的玩家或房间标识不完整，暂无法判断";
 
         string detail = string.Join("；", groups.Select(group =>
-            $"{group.Puuids.Count} 人同组：{string.Join("、", group.Names)}"));
+            $"{group.Puuids.Count} 人{(group.IsInferred ? "近期同队" : "同组")}：{string.Join("、", group.Names)}"));
+        if (groups.Any(group => group.IsInferred))
+            return $"{detail}；依据近期20场至少2次同队，仅为历史推测，不能确认本局组队。";
         return _complete[teamIndex] ? detail : $"{detail}；其他玩家标识尚不完整";
     }
 }

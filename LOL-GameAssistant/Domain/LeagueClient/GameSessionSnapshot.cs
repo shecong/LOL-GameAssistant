@@ -18,6 +18,7 @@ public sealed class GameTeamMember
 /// <summary>大厅阶段的队列和分队快照。</summary>
 public sealed class LobbySnapshot
 {
+    public bool IsCustom { get; init; }
     public string GameMode { get; init; } = "";
     public int QueueId { get; init; }
     public string PartyId { get; init; } = "";

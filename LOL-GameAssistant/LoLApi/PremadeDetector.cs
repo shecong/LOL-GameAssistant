@@ -6,7 +6,7 @@ namespace LOL_GameAssistant.LoLApi
     /// <summary>
     /// 开黑（预组队）检测器：
     /// 通过每位玩家最近 20 场对局的战绩摘要，统计“与当前对局其他玩家同队”的次数，
-    /// 同队 ≥ 2 次的两人判定为大概率开黑，再按并查集合并成开黑小组。
+    /// 整组共同同队 ≥ 2 次时标记为疑似开黑，不作本局组队断言。
     /// 算法参考社区项目（rank-analysis / Yuumi）的做法，无需拉取对局详情。
     /// </summary>
     public static class PremadeDetector
@@ -178,57 +178,32 @@ namespace LOL_GameAssistant.LoLApi
                 }
             }
 
-            // 每局合并完整后再两两统计。这样既保证一局只计一次，又能保留同队内的多个独立小组。
-            var sameTeamCounts = new Dictionary<(string A, string B), int>();
-            foreach (var playersInGame in playersByGame.Values)
+            // 选取共同同队次数达标的完整小组，不能用关系链传递合并成三排或四排。
+            var candidateGroups = new List<List<string>>();
+            foreach (int side in new[] { 0, 1 })
             {
-                var players = playersInGame.ToArray();
-                for (int i = 0; i < players.Length - 1; i++)
+                string[] members = allPlayers.Where(player => teamOf[player.Puuid] == side)
+                    .Select(player => player.Puuid).OrderBy(puuid => puuid, StringComparer.Ordinal).ToArray();
+                if (members.Length > 10) continue;
+                var remaining = members.ToHashSet(StringComparer.Ordinal);
+                while (remaining.Count >= 2)
                 {
-                    for (int j = i + 1; j < players.Length; j++)
-                    {
-                        if (players[i].Value != players[j].Value) continue;
-                        string a = players[i].Key;
-                        string b = players[j].Key;
-                        var key = string.CompareOrdinal(a, b) < 0 ? (a, b) : (b, a);
-                        sameTeamCounts[key] = sameTeamCounts.GetValueOrDefault(key) + 1;
-                    }
+                    List<string>? best = Enumerable.Range(1, (1 << members.Length) - 1)
+                        .Select(mask => members.Where((_, index) => (mask & (1 << index)) != 0).ToList())
+                        .Where(group => group.Count >= 2 && group.All(remaining.Contains))
+                        .Where(group => playersByGame.Values.Count(game =>
+                            game.TryGetValue(group[0], out int historicalTeam) &&
+                            group.All(puuid => game.TryGetValue(puuid, out int otherTeam) && otherTeam == historicalTeam)) >= SameTeamThreshold)
+                        .OrderByDescending(group => group.Count)
+                        .ThenBy(group => string.Join(",", group), StringComparer.Ordinal).FirstOrDefault();
+                    if (best == null) break;
+                    candidateGroups.Add(best);
+                    foreach (string puuid in best) remaining.Remove(puuid);
                 }
             }
 
-            // 只保留“当前同队”且“近期同队 ≥ 阈值”的两人关系
-            var union = new Dictionary<string, string>();
-            string Find(string x) => union.TryGetValue(x, out var root)
-                ? (union[x] = Find(root))
-                : x;
-            void Union(string a, string b)
-            {
-                string ra = Find(a), rb = Find(b);
-                if (ra != rb) union[ra] = rb;
-            }
-
-            foreach (var pair in sameTeamCounts)
-            {
-                if (pair.Value < SameTeamThreshold) continue;
-                if (!teamOf.TryGetValue(pair.Key.A, out int teamA) ||
-                    !teamOf.TryGetValue(pair.Key.B, out int teamB) ||
-                    teamA != teamB)
-                    continue;
-                Union(pair.Key.A, pair.Key.B);
-            }
-
-            // 按根节点汇总为小组
-            var groupsByRoot = new Dictionary<string, List<string>>();
-            foreach (var puuid in allPlayers.Select(p => p.Puuid))
-            {
-                string root = Find(puuid);
-                if (!groupsByRoot.TryGetValue(root, out var list))
-                    groupsByRoot[root] = list = new List<string>();
-                list.Add(puuid);
-            }
-
             int groupIndex = 0;
-            foreach (var list in groupsByRoot.Values
+            foreach (var list in candidateGroups
                          .Where(g => g.Count >= 2)
                          .OrderBy(g => teamOf[g[0]])
                          .ThenBy(g => g[0], StringComparer.Ordinal))

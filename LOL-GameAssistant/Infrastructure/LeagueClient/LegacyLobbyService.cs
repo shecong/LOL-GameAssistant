@@ -34,6 +34,7 @@ public sealed class LegacyLobbyService : ILobbyService
         IReadOnlyList<GameTeamMember> team200 = MapLobbyMembers(legacy.GameConfig?.CustomTeam200, partyId);
         return new LobbySnapshot
         {
+            IsCustom = legacy.GameConfig?.IsCustom != false,
             GameMode = legacy.GameConfig?.GameMode ?? "",
             QueueId = legacy.GameConfig?.QueueId ?? 0,
             PartyId = partyId,

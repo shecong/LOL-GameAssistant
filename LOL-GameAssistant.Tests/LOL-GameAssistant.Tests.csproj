@@ -17,6 +17,7 @@
     <Compile Include="..\LOL-GameAssistant\Domain\GameData\AugmentNameMatcher.cs" Link="Domain\AugmentNameMatcher.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Teams\PremadeDetectionResult.cs" Link="Domain\PremadeDetectionResult.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Teams\CurrentPartyDetector.cs" Link="Domain\CurrentPartyDetector.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Teams\CurrentPartySnapshotCache.cs" Link="Domain\CurrentPartySnapshotCache.cs" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">

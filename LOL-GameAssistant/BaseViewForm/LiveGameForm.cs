@@ -1,6 +1,7 @@
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Players;
+using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ChampionSelect;
 using LOL_GameAssistant.Domain.LeagueClient;
@@ -46,6 +47,14 @@ namespace LOL_GameAssistant.BaseViewForm
         public bool NeedsGameAssessmentRoster =>
             !IsDisposed && Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
             _gameAssessmentRoster.Count == 0;
+
+        private string _historyPartySignature = "";
+        private CancellationTokenSource? _historyPartyCancellation;
+        private CurrentPartyDetectionResult? _currentPartyDetection;
+        private PremadeDetectionResult _historyParties = new([]);
+        private readonly CurrentPartySnapshotCache _partySnapshots = new();
+        private int _partySnapshotGeneration;
+        private bool _partyRecoveryAttempted;
 
         private string _teamTitleBase1 = "蓝方";
         private string _teamTitleBase2 = "红方";
@@ -103,6 +112,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Resize += (_, _) => LayoutPlayerCards();
             this.Disposed += (_, _) =>
             {
+                ResetHistoryParties();
                 _autoRefreshTimer?.Dispose();
                 _teamQueueTip.Dispose();
             };
@@ -211,14 +221,38 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 清空阵容缓存，下一次刷新强制重建（游戏结束后调用）。
         /// </summary>
-        public void ResetRosterCache()
+        public void ResetRosterCache(bool clearPartySnapshots = true)
         {
+            if (clearPartySnapshots) ClearPartySnapshots();
             _lastSignature = "";
             ResetChampSelectAssessments();
             ResetGameAssessments();
             _lastRenderedPhase = null;
             _teamQueueTag1.Visible = false;
             _teamQueueTag2.Visible = false;
+        }
+
+        public void ClearPartySnapshots()
+        {
+            ResetHistoryParties();
+            _partySnapshots.Clear();
+            _partyRecoveryAttempted = false;
+            unchecked { _partySnapshotGeneration++; }
+        }
+
+        private async Task<LobbySnapshot?> ReadPartyLobbyAsync()
+        {
+            int generation = _partySnapshotGeneration;
+            var lobby = await _lobbyService.GetLobbyAsync();
+            if (IsDisposed || generation != _partySnapshotGeneration) return null;
+            if (lobby != null) _partySnapshots.ObserveLobby(lobby);
+            return lobby;
+        }
+
+        public async Task CapturePartyLobbyAsync()
+        {
+            try { await ReadPartyLobbyAsync(); }
+            catch { /* 大厅端点进入游戏后可能不可用，保留本轮已确认的成员。 */ }
         }
 
         /// <summary>保存 KDA 发送设置后重新读取当前阵容，让选人和对局开关立即生效。</summary>
@@ -250,7 +284,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 if (phase == GameFlowPhase.ChampSelect)
                 {
-                    LobbySnapshot? gameInfo = await _lobbyService.GetLobbyAsync();
+                    LobbySnapshot? gameInfo = await ReadPartyLobbyAsync();
                     ChampionSelectionSnapshot? selection = await _championSelectService.GetSessionAsync();
                     if (selection != null)
                     {
@@ -298,7 +332,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
                 else if (phase == GameFlowPhase.Lobby)
                 {
-                    LobbySnapshot? gameInfo = await _lobbyService.GetLobbyAsync();
+                    LobbySnapshot? gameInfo = await ReadPartyLobbyAsync();
                     if (gameInfo == null)
                     {
                         lblGameInfo.Text = "未获取到大厅信息";
@@ -326,6 +360,11 @@ namespace LOL_GameAssistant.BaseViewForm
                         return;
                     }
 
+                    if (!_partyRecoveryAttempted)
+                    {
+                        _partyRecoveryAttempted = true;
+                        await CapturePartyLobbyAsync();
+                    }
                     string liveGameMode = await AppCompositionRoot.LiveClientGameStateService.GetGameModeAsync() ?? "";
                     string currentMode = string.IsNullOrWhiteSpace(liveGameMode) ? session.GameMode : liveGameMode;
                     SetGameInfo(currentMode, session.QueueId);
@@ -434,6 +473,9 @@ namespace LOL_GameAssistant.BaseViewForm
             int queueId,
             string? gameMode)
         {
+            _partySnapshots.ObserveSession(team1.Concat(team2));
+            team1 = _partySnapshots.Restore(team1);
+            team2 = _partySnapshots.Restore(team2);
             RenderTeamsCore(
                 team1.Select(m => (m.Puuid, m.SummonerName, m.ChampionId, m.Position, m.IsBot)).ToList(),
                 team2.Select(m => (m.Puuid, m.SummonerName, m.ChampionId, m.Position, m.IsBot)).ToList(),
@@ -442,6 +484,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 queueId,
                 gameMode,
                 CurrentPartyDetector.Detect(team1, team2));
+            StartHistoryPartyFallback(team1, team2);
         }
 
         private void RenderTeamsCore(
@@ -901,21 +944,66 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void ApplyPremadeResult(CurrentPartyDetectionResult detection)
         {
+            _currentPartyDetection = detection;
+            detection = detection.WithHistoryFallback(_historyParties);
             PremadeDetectionResult result = detection.Groups;
             string summary1 = result.GetTeamSummary(0);
             string summary2 = result.GetTeamSummary(1);
             lblTeamTitle1.Text = string.IsNullOrEmpty(summary1)
                 ? _teamTitleBase1
-                : $"{_teamTitleBase1} · 开黑 {summary1}";
+                : $"{_teamTitleBase1} · {(result.Groups.Any(group => group.TeamIndex == 0 && group.IsInferred) ? "疑似开黑" : "开黑")} {summary1}";
             lblTeamTitle2.Text = string.IsNullOrEmpty(summary2)
                 ? _teamTitleBase2
-                : $"{_teamTitleBase2} · 开黑 {summary2}";
+                : $"{_teamTitleBase2} · {(result.Groups.Any(group => group.TeamIndex == 1 && group.IsInferred) ? "疑似开黑" : "开黑")} {summary2}";
 
             SetTeamQueueTag(_teamQueueTag1, detection.GetTeamStatus(0), detection.GetTeamDetail(0));
             SetTeamQueueTag(_teamQueueTag2, detection.GetTeamStatus(1), detection.GetTeamDetail(1));
 
             ApplyPremadeToPanel(panelTeam1, result);
             ApplyPremadeToPanel(panelTeam2, result);
+        }
+
+        private void ResetHistoryParties()
+        {
+            _historyPartyCancellation?.Cancel();
+            _historyPartyCancellation?.Dispose();
+            _historyPartyCancellation = null;
+            _historyPartySignature = "";
+            _historyParties = new([]);
+        }
+
+        private void StartHistoryPartyFallback(IReadOnlyList<GameTeamMember> blue, IReadOnlyList<GameTeamMember> red)
+        {
+            if (_currentPartyDetection == null) return;
+            if (Program.GameMain.gameFlowPhase is not (GameFlowPhase.ChampSelect or GameFlowPhase.InProgress)) return;
+            var teamOne = _currentPartyDetection.NeedsHistoryFallback(0)
+                ? blue.Where(member => !member.IsBot && !string.IsNullOrWhiteSpace(member.Puuid)).Select(member => new TeamMemberIdentity(member.Puuid, member.SummonerName)).ToArray() : [];
+            var teamTwo = _currentPartyDetection.NeedsHistoryFallback(1)
+                ? red.Where(member => !member.IsBot && !string.IsNullOrWhiteSpace(member.Puuid)).Select(member => new TeamMemberIdentity(member.Puuid, member.SummonerName)).ToArray() : [];
+            if (teamOne.Length < 2) teamOne = [];
+            if (teamTwo.Length < 2) teamTwo = [];
+            string signature = $"{Program.GameMain.gameFlowPhase}:blue:{string.Join(",", teamOne.Select(player => player.Puuid).Order())}|red:{string.Join(",", teamTwo.Select(player => player.Puuid).Order())}";
+            if (signature == _historyPartySignature) return;
+            ResetHistoryParties();
+            _historyPartySignature = signature;
+            ApplyPremadeResult(_currentPartyDetection);
+            if (teamOne.Length == 0 && teamTwo.Length == 0) return;
+            _historyPartyCancellation = new CancellationTokenSource();
+            _ = DetectHistoryPartiesAsync(signature, teamOne, teamTwo, _historyPartyCancellation.Token);
+        }
+
+        private async Task DetectHistoryPartiesAsync(string signature, IReadOnlyList<TeamMemberIdentity> blue,
+            IReadOnlyList<TeamMemberIdentity> red, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await AppCompositionRoot.PremadeDetectionService.DetectAsync(blue, red, cancellationToken);
+                if (IsDisposed || cancellationToken.IsCancellationRequested || signature != _historyPartySignature) return;
+                _historyParties = result;
+                if (_currentPartyDetection != null) ApplyPremadeResult(_currentPartyDetection);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { RuntimeDiagnostics.Report("疑似开黑检测", "未完成", ex.Message); }
         }
 
         /// <summary>
@@ -929,7 +1017,7 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 if (card is not LivePlayerForm player || player.Puuid == null) continue;
                 var group = result.GroupByPuuid.GetValueOrDefault(player.Puuid);
-                player.SetPremadeGroup(group?.Index, group?.Names?.ToList());
+                player.SetPremadeGroup(group?.Index, group?.Names?.ToList(), group?.IsInferred ?? false);
             }
         }
 
