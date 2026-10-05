@@ -77,6 +77,63 @@ public sealed class LivePlayerChampionTests
         Assert.Contains("德莱厄斯", Child(card, "lblChampionNow").Text);
     });
 
+    [Fact]
+    public void LoadedAllySurvivesSideChangeWithoutReloadAndReplaysAssessment() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        string puuid = Guid.NewGuid().ToString();
+        int historyRequests = 0;
+        var card = new LivePlayerForm(puuid, "队友", 22, "", false, true, true, 430, "CLASSIC",
+            Service<IPlayerProfileService>((_, _) => Task.FromResult<PlayerProfile?>(null)),
+            Service<IProfileIconService>((_, _) => Task.FromResult<byte[]?>(null)),
+            Service<IMatchHistoryService>((_, _) =>
+            {
+                historyRequests++;
+                return Task.FromResult<LOL_GameAssistant.Domain.Matches.MatchHistoryResponse?>(null);
+            }),
+            Service<IGameAssetService>((_, _) => Task.FromResult<GameAsset?>(null)));
+        var published = new List<PlayerRecentPerformanceEventArgs>();
+        card.RecentPerformanceReady += (_, result) => published.Add(result);
+        using var form = new Form { Opacity = 0, ShowInTaskbar = false };
+        var blue = new FlowLayoutPanel { Dock = DockStyle.Left, Width = 200 };
+        var red = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 200 };
+        form.Controls.Add(blue);
+        form.Controls.Add(red);
+        blue.Controls.Add(card);
+        form.Show();
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Single(published);
+        Assert.Equal(1, historyRequests);
+        Control existingContent = Child(card, "panelMatches").Controls[0];
+        var reusable = new Dictionary<string, LivePlayerForm> { [puuid] = card };
+        LiveGameForm.DetachReusablePlayerCards([(puuid, "队友", 122, "", false)],
+            true, true, 430, "", reusable);
+        Assert.Null(card.Parent);
+        Assert.False(card.IsDisposed);
+        red.Controls.Add(card);
+        card.ReplayRecentPerformance();
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Same(existingContent, Child(card, "panelMatches").Controls[0]);
+        Assert.Equal(1, historyRequests);
+        Assert.Equal(2, published.Count);
+        Assert.Equal(published[0].Puuid, published[1].Puuid);
+        Assert.Equal(published[0].Assessment, published[1].Assessment);
+        Assert.True(published[1].IsAlly);
+        Assert.False(card.CanReuseFor(450, "ARAM", true, true, false));
+        Assert.False(card.CanReuseFor(430, "CLASSIC", false, true, false));
+    });
+
+    [Fact]
+    public void IncompatibleCardRemainsAttachedForDisposal() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var card = CreateCard(22, new TaskCompletionSource<PlayerProfile?>().Task,
+            _ => Task.FromResult<GameAsset?>(null), true);
+        using var panel = new FlowLayoutPanel();
+        panel.Controls.Add(card);
+        LiveGameForm.DetachReusablePlayerCards([("enemy", "队友", 22, "", false)],
+            true, true, 450, "ARAM", new Dictionary<string, LivePlayerForm> { ["enemy"] = card });
+        Assert.Same(panel, card.Parent);
+    });
+
     private static Form Mount(Control card)
     {
         var form = new Form { ClientSize = new Size(640, 520), Opacity = 0, ShowInTaskbar = false };

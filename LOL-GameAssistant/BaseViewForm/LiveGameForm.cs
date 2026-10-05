@@ -510,6 +510,14 @@ namespace LOL_GameAssistant.BaseViewForm
                 ApplyPremadeResult(partyDetection);
                 return;
             }
+            // ResetRosterCache clears the signature at the end of a match: never reuse the previous game's cards.
+            var reusableCards = string.IsNullOrEmpty(_lastSignature)
+                ? new Dictionary<string, LivePlayerForm>(StringComparer.Ordinal)
+                : panelTeam1.Controls.OfType<LivePlayerForm>()
+                    .Concat(panelTeam2.Controls.OfType<LivePlayerForm>())
+                    .Where(card => !string.IsNullOrWhiteSpace(card.Puuid))
+                    .DistinctBy(card => card.Puuid, StringComparer.Ordinal)
+                    .ToDictionary(card => card.Puuid!, StringComparer.Ordinal);
             _lastSignature = signature;
             _lastRenderedPhase = Program.GameMain.gameFlowPhase;
             PrepareChampSelectAssessments(signature, team1, team2, myPuuid);
@@ -531,15 +539,14 @@ namespace LOL_GameAssistant.BaseViewForm
             panelTeam2.SuspendLayout();
             try
             {
-                // 必须 Dispose 而不是只 Clear：Controls.Clear() 只解除父子关系，
-                // 卡片自带的 ToolTip（每个都是一份 native 窗口）、发光定时器、头像图片
-                // 以及卡片自身的窗口句柄都会残留。自动刷新每 30 秒重建一次整组卡片，
-                // 累积到进程 USER 对象上限后，程序就再也创建不了窗口（"创建窗口句柄时出错"）。
+                // Detach compatible cards before disposing obsolete controls, including when our side changes color.
+                DetachReusablePlayerCards(team1, team1Mine, myPuuid != null, queueId, gameMode, reusableCards);
+                DetachReusablePlayerCards(team2, team2Mine, myPuuid != null, queueId, gameMode, reusableCards);
                 DisposeChildren(panelTeam1);
                 DisposeChildren(panelTeam2);
 
-                AddPlayerCards(panelTeam1, team1, myPuuid, team1Mine, queueId, gameMode);
-                AddPlayerCards(panelTeam2, team2, myPuuid, team2Mine, queueId, gameMode);
+                AddPlayerCards(panelTeam1, team1, myPuuid, team1Mine, queueId, gameMode, reusableCards);
+                AddPlayerCards(panelTeam2, team2, myPuuid, team2Mine, queueId, gameMode, reusableCards);
             }
             finally
             {
@@ -1102,13 +1109,25 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        internal static void DetachReusablePlayerCards(
+            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members,
+            bool isAlly, bool teamKnown, int queueId, string? gameMode,
+            Dictionary<string, LivePlayerForm> cards)
+        {
+            foreach (var member in members)
+                if (!string.IsNullOrWhiteSpace(member.Puuid) && cards.TryGetValue(member.Puuid, out var card) &&
+                    card.CanReuseFor(queueId, gameMode, isAlly, teamKnown, member.IsBot))
+                    card.Parent?.Controls.Remove(card);
+        }
+
         private void AddPlayerCards(
             FlowLayoutPanel panel,
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members,
             string? myPuuid,
             bool teamIsAlly,
             int currentQueueId,
-            string? currentGameMode)
+            string? currentGameMode,
+            Dictionary<string, LivePlayerForm> reusableCards)
         {
             if (members.Count == 0)
             {
@@ -1126,6 +1145,14 @@ namespace LOL_GameAssistant.BaseViewForm
                 // 同一队 = 我方；未知我方 puuid 时不显示队友/对手标识
                 bool isAlly = teamIsAlly;
                 bool teamKnown = myPuuid != null;
+                if (!string.IsNullOrWhiteSpace(member.Puuid) && reusableCards.Remove(member.Puuid, out var existing) &&
+                    existing.CanReuseFor(currentQueueId, currentGameMode, isAlly, teamKnown, member.IsBot))
+                {
+                    panel.Controls.Add(existing);
+                    _ = existing.UpdateCurrentChampionAsync(member.ChampionId);
+                    existing.ReplayRecentPerformance();
+                    continue;
+                }
                 var card = new LivePlayerForm(
                     member.Puuid,
                     member.Name,

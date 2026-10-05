@@ -59,6 +59,8 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private readonly bool _showCopyButton;
         private bool _recentPerformancePublished;
+        private bool _loadStarted;
+        private RecentModePerformanceAssessment? _cachedAssessment;
         private bool _layingOutMatchRows;
 
         /// <summary>当前卡片对应玩家的 puuid（供开黑检测结果回填）。</summary>
@@ -222,6 +224,9 @@ namespace LOL_GameAssistant.BaseViewForm
             this.Load += async (_, _) =>
             {
                 ApplyDeferredVisibility();
+                // Reparenting a loaded card can raise Load again. Keep its existing request and rows.
+                if (_loadStarted) return;
+                _loadStarted = true;
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
                 timeout.CancelAfter(MaximumLoadDuration);
                 try
@@ -619,11 +624,24 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (_recentPerformancePublished || IsDisposed || string.IsNullOrWhiteSpace(_playerPuuid)) return;
             _recentPerformancePublished = true;
+            _cachedAssessment = assessment;
             RecentPerformanceReady?.Invoke(this, new PlayerRecentPerformanceEventArgs(
                 _playerPuuid,
                 lblName.Text,
                 _isAlly,
                 assessment));
+        }
+
+        internal bool CanReuseFor(int queueId, string? gameMode, bool isAlly, bool teamKnown, bool isBot) =>
+            !IsDisposed && _isBot == isBot && _isAlly == isAlly && _teamKnown == teamKnown &&
+            _currentQueueId == queueId &&
+            (queueId > 0 || string.Equals(_currentGameMode, gameMode ?? "", StringComparison.OrdinalIgnoreCase));
+
+        internal void ReplayRecentPerformance()
+        {
+            if (!_recentPerformancePublished || IsDisposed || string.IsNullOrWhiteSpace(_playerPuuid)) return;
+            RecentPerformanceReady?.Invoke(this, new PlayerRecentPerformanceEventArgs(
+                _playerPuuid, lblName.Text, _isAlly, _cachedAssessment));
         }
 
         private void ShowShimmer()
