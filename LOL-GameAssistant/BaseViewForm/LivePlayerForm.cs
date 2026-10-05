@@ -1,4 +1,6 @@
-﻿using LOL_GameAssistant.Application.GameData;
+﻿using LOL_GameAssistant.Application.Ranked;
+using LOL_GameAssistant.Domain.Ranked;
+using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Profiles;
@@ -24,6 +26,13 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IProfileIconService _profileIconService;
         private readonly IMatchHistoryService _matchHistoryService;
         private readonly IGameAssetService _gameAssetService;
+        private readonly IRankedStatsService? _rankedStatsService;
+        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<RankedOverview?> Value)> RankedCache = new(StringComparer.Ordinal);
+        private readonly AntdUI.Label _rankLabel = new()
+        {
+            Name = "lblRank", BackColor = Color.Transparent, Visible = false,
+            Font = new Font("Microsoft YaHei UI", 8F), TextAlign = ContentAlignment.MiddleLeft
+        };
         private readonly string _position;
         private readonly bool _isBot;
         private readonly bool _isAlly;
@@ -107,7 +116,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 AppCompositionRoot.PlayerProfileService,
                 AppCompositionRoot.ProfileIconService,
                 AppCompositionRoot.MatchHistoryService,
-                AppCompositionRoot.GameAssetService)
+                AppCompositionRoot.GameAssetService,
+                AppCompositionRoot.RankedStatsService)
         {
         }
 
@@ -125,7 +135,8 @@ namespace LOL_GameAssistant.BaseViewForm
             IPlayerProfileService playerProfileService,
             IProfileIconService profileIconService,
             IMatchHistoryService matchHistoryService,
-            IGameAssetService gameAssetService)
+            IGameAssetService gameAssetService,
+            IRankedStatsService? rankedStatsService = null)
         {
             InitializeComponent();
             SetStyle(
@@ -138,6 +149,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _profileIconService = profileIconService;
             _matchHistoryService = matchHistoryService;
             _gameAssetService = gameAssetService;
+            _rankedStatsService = rankedStatsService;
+            headerPanel.Controls.Add(_rankLabel);
             _position = position ?? "";
             _isBot = isBot;
             _isAlly = isAlly;
@@ -231,7 +244,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 timeout.CancelAfter(MaximumLoadDuration);
                 try
                 {
-                    await LoadAsync(timeout.Token);
+                    await Task.WhenAll(LoadAsync(timeout.Token), LoadRankAsync(timeout.Token));
                 }
                 catch (OperationCanceledException) when (timeout.IsCancellationRequested)
                 {
@@ -252,6 +265,7 @@ namespace LOL_GameAssistant.BaseViewForm
             headerPanel.BackColor = palette.SurfaceMuted;
             panelMatches.BackColor = palette.Surface;
             lblName.ForeColor = palette.TextPrimary;
+            _rankLabel.ForeColor = palette.Accent;
             lblSub.ForeColor = palette.TextSecondary;
             lblChampionNow.ForeColor = palette.Accent;
             if (!string.IsNullOrWhiteSpace(lblSummary.Text))
@@ -322,7 +336,16 @@ namespace LOL_GameAssistant.BaseViewForm
 
             int nameRight = showSummary ? summaryRight - summaryWidth - gap : summaryRight;
             lblName.Location = new Point(textLeft, 8);
-            lblName.Width = Math.Max(0, nameRight - textLeft);
+            int availableNameWidth = Math.Max(0, nameRight - textLeft);
+            int rankWidth = _rankLabel.Visible ? Math.Min(
+                TextRenderer.MeasureText(_rankLabel.Text, _rankLabel.Font).Width + 4,
+                Math.Max(0, availableNameWidth - 60 - gap)) : 0;
+            lblName.Width = Math.Max(0, availableNameWidth - (rankWidth > 0 ? rankWidth + gap : 0));
+            if (rankWidth > 0)
+            {
+                int actualNameWidth = Math.Min(lblName.Width, TextRenderer.MeasureText(lblName.Text, lblName.Font).Width);
+                _rankLabel.Bounds = new Rectangle(textLeft + actualNameWidth + gap, 8, rankWidth, lblName.Height);
+            }
 
             // 第二行将玩家信息、当前英雄和队伍标签按可用空间从左到右分配。
             // 第二行可用整个卡片宽度；顶行的查战绩/复制按钮不应挤掉英雄名称。
@@ -422,6 +445,39 @@ namespace LOL_GameAssistant.BaseViewForm
             RecalcHeaderLayout();
         }
 
+        private async Task LoadRankAsync(CancellationToken cancellationToken)
+        {
+            if (_rankedStatsService == null || _isBot || string.IsNullOrWhiteSpace(_playerPuuid)) return;
+            string text = UiLanguage.IsEnglish ? "Rank unavailable" : "段位未知";
+            string tooltip = text;
+            try
+            {
+                if (!RankedCache.TryGetValue(_playerPuuid, out var cached) ||
+                    DateTime.UtcNow - cached.CachedAt > PlayerCacheTtl || cached.Value.IsFaulted || cached.Value.IsCanceled)
+                {
+                    cached = (DateTime.UtcNow, _rankedStatsService.GetAsync(_playerPuuid));
+                    RankedCache[_playerPuuid] = cached;
+                }
+                var overview = await cached.Value.WaitAsync(cancellationToken);
+                if (overview != null)
+                {
+                    var solo = overview.GetQueue(RankedQueues.Solo5x5);
+                    var queue = RankedDisplayRules.HasRank(solo) ? solo : overview.GetQueue(RankedQueues.Flex5x5);
+                    text = RankedDisplayFormatter.FormatCompact(queue, UiLanguage.IsEnglish);
+                    tooltip = RankedDisplayRules.HasRank(queue)
+                        ? $"{(queue?.QueueType == RankedQueues.Flex5x5 ? "灵活组排" : "单双排")} · {text} · {queue!.LeaguePoints} 胜点"
+                        : text;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
+            catch { /* 排位接口不可用时不影响资料和战绩。 */ }
+            if (IsDisposed) return;
+            _rankLabel.Text = text;
+            _rankLabel.Visible = true;
+            _performanceTip.SetToolTip(_rankLabel, tooltip);
+            RecalcHeaderLayout();
+        }
+
         private async Task LoadAsync(CancellationToken cancellationToken)
         {
             if (_isBot || string.IsNullOrEmpty(_playerPuuid))
@@ -456,6 +512,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             if (IsDisposed) return;
             lblName.Text = displayName;
+            RecalcHeaderLayout();
             string positionText = GetPositionText(_position);
             lblSub.Text = !level.HasValue
                 ? (string.IsNullOrEmpty(tagLine) ? positionText : $"#{tagLine} {positionText}")

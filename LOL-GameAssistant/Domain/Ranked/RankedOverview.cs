@@ -113,6 +113,15 @@ public static class RankedDisplayRules
 /// <summary>选人伴随窗的排位文案；根据界面语言转换客户端的英文段位代码。</summary>
 public static class RankedDisplayFormatter
 {
+    public static string FormatCompact(RankedQueue? queue, bool english)
+    {
+        if (!RankedDisplayRules.HasRank(queue)) return english ? "Unranked" : "未定级";
+        string tier = english ? queue!.Tier.ToUpperInvariant() : ToChineseTier(queue!.Tier);
+        string division = queue.Tier.ToUpperInvariant() is "MASTER" or "GRANDMASTER" or "CHALLENGER"
+            ? "" : english ? queue.Division : ToChineseDivision(queue.Division);
+        return string.IsNullOrWhiteSpace(division) ? tier : english ? $"{tier} {division}" : $"{tier}{division}";
+    }
+
     public static string FormatSoloQueue(RankedQueue? queue, bool english)
     {
         if (!RankedDisplayRules.HasRank(queue))

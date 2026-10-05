@@ -12,7 +12,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// <summary>
     /// 单场战绩行：本人战绩 + 模式 + 日期 + KDA + 胜负；查询页可展开显示队友信息。
     /// </summary>
-    public partial class RecentMatchRow : UserControl
+    public partial class RecentMatchRow : UserControl, IThemeAware
     {
         public const int RowHeight = 40;
         public const int TeamRowHeight = 126;
@@ -41,6 +41,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private Color _hoverTo;
         private bool _hoverActive;
         private double _hoverT;
+        private bool _isHovered;
+        private bool _isWin;
 
         /// <summary>
         /// 是否在本场记录下方显示本人所在队伍的队友信息。
@@ -124,12 +126,12 @@ namespace LOL_GameAssistant.BaseViewForm
 
             this.DoubleClick += (_, _) => OpenDetail();
             this.MouseEnter += (_, _) => StartHover(true);
-            this.MouseLeave += (_, _) => StartHover(false);
+            this.MouseLeave += (_, _) => UpdateHoverState(Cursor.Position);
             foreach (Control child in Controls)
             {
                 child.DoubleClick += (_, _) => OpenDetail();
                 child.MouseEnter += (_, _) => StartHover(true);
-                child.MouseLeave += (_, _) => StartHover(false);
+                child.MouseLeave += (_, _) => UpdateHoverState(Cursor.Position);
             }
         }
 
@@ -239,16 +241,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 _championAndModeOnly = championAndModeOnly;
 
                 bool win = gamer.IsWin();
+                _isWin = win;
+                ApplyTheme(UiTheme.Palette);
                 bool dark = UiTheme.Palette.IsDark;
-                _baseBack = win
-                    ? (dark ? Color.FromArgb(25, 55, 41) : Color.FromArgb(236, 247, 238))
-                    : (dark ? Color.FromArgb(67, 34, 38) : Color.FromArgb(253, 238, 238));
-                _hoverBack = win
-                    ? (dark ? Color.FromArgb(32, 70, 51) : Color.FromArgb(224, 243, 228))
-                    : (dark ? Color.FromArgb(83, 43, 48) : Color.FromArgb(251, 228, 228));
-                _accent = win ? Color.FromArgb(76, 175, 80) : Color.FromArgb(229, 57, 53);
-                BackColor = _baseBack;
-
                 lblResult.Text = win ? "胜利" : "失败";
                 lblResult.ForeColor = win
                     ? (dark ? Color.FromArgb(129, 199, 132) : Color.FromArgb(46, 125, 50))
@@ -597,8 +592,36 @@ namespace LOL_GameAssistant.BaseViewForm
             base.OnPaint(e);
         }
 
+        public void ApplyTheme(ThemePalette palette)
+        {
+            _hoverTimer.Stop();
+            _hoverActive = false;
+            _isHovered = false;
+            _baseBack = palette.IsDark ? palette.SurfaceRaised : _isWin
+                ? Color.FromArgb(236, 247, 238) : Color.FromArgb(253, 238, 238);
+            _accent = _isWin ? Color.FromArgb(76, 175, 80) : Color.FromArgb(229, 57, 53);
+            _hoverBack = UiAnimation.LerpColor(_baseBack, _accent, palette.IsDark ? .14 : .08);
+            BackColor = _baseBack;
+        }
+
+        internal void UpdateHoverState(Point screenPosition)
+        {
+            bool inside = IsHandleCreated && Visible && RectangleToScreen(ClientRectangle).Contains(screenPosition);
+            if (inside)
+            {
+                StartHover(true);
+                return;
+            }
+            _isHovered = false;
+            _hoverActive = false;
+            _hoverTimer.Stop();
+            BackColor = _baseBack;
+        }
+
         private void StartHover(bool hovering)
         {
+            if (_isHovered == hovering) return;
+            _isHovered = hovering;
             _hoverFrom = BackColor;
             _hoverTo = hovering ? _hoverBack : _baseBack;
             _hoverT = 0;
@@ -608,13 +631,15 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void HoverTick()
         {
+            // MouseLeave can be missed when scrolling or moving across child windows.
+            UpdateHoverState(Cursor.Position);
             if (!_hoverActive) return;
             _hoverT = Math.Min(1, _hoverT + 0.14);
             BackColor = UiAnimation.LerpColor(_hoverFrom, _hoverTo, UiAnimation.EaseOutCubic(_hoverT));
             if (_hoverT >= 1)
             {
                 _hoverActive = false;
-                _hoverTimer.Stop();
+                if (!_isHovered) _hoverTimer.Stop();
             }
         }
 

@@ -1,3 +1,5 @@
+using LOL_GameAssistant.Application.Ranked;
+using LOL_GameAssistant.Domain.Ranked;
 using System.Reflection;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
@@ -134,6 +136,41 @@ public sealed class LivePlayerChampionTests
         Assert.Same(panel, card.Parent);
     });
 
+    [Theory]
+    [InlineData("EMERALD", "II", "翡翠二")]
+    [InlineData("MASTER", "I", "超凡大师")]
+    [InlineData("NONE", "", "未定级")]
+    public void RankAppearsAfterNameWithoutChangingPlayerIdentityAndIsCached(string tier, string division, string expected) =>
+        MatchListScrollingTests.OnUiThread(() =>
+        {
+            string puuid = Guid.NewGuid().ToString();
+            int requests = 0;
+            var overview = new RankedOverview();
+            overview.Queues[RankedQueues.Solo5x5] = new RankedQueue
+            { QueueType = RankedQueues.Solo5x5, Tier = tier, Division = division, LeaguePoints = 25 };
+            var ranked = Service<IRankedStatsService>((_, _) =>
+            {
+                requests++;
+                return Task.FromResult<RankedOverview?>(overview);
+            });
+            var profile = new TaskCompletionSource<PlayerProfile?>().Task;
+            var card = CreateCard(22, profile, _ => Task.FromResult<GameAsset?>(null), true, ranked, puuid);
+            card.Width = 384;
+            using var form = Mount(card);
+            var rank = Child(card, "lblRank");
+            var name = Child(card, "lblName");
+            Assert.True(rank.Visible);
+            Assert.Equal(expected, rank.Text);
+            Assert.Equal("对手", name.Text);
+            Assert.True(rank.Left > name.Left);
+            Assert.True(rank.Right <= Child(card, "picCurrent").Left);
+            Assert.Equal(1, requests);
+            var another = CreateCard(22, profile, _ => Task.FromResult<GameAsset?>(null), true, ranked, puuid);
+            using var second = Mount(another);
+            Assert.Equal(expected, Child(another, "lblRank").Text);
+            Assert.Equal(1, requests);
+        });
+
     private static Form Mount(Control card)
     {
         var form = new Form { ClientSize = new Size(640, 520), Opacity = 0, ShowInTaskbar = false };
@@ -145,12 +182,12 @@ public sealed class LivePlayerChampionTests
     private static Control Child(Control parent, string name) => parent.Controls.Find(name, true).Single();
 
     private static LivePlayerForm CreateCard(int id, Task<PlayerProfile?> profile,
-        Func<int, Task<GameAsset?>> icons, bool ally = false) => new(
-        "enemy", "对手", id, "", false, ally, true, 430, "CLASSIC",
+        Func<int, Task<GameAsset?>> icons, bool ally = false, IRankedStatsService? ranked = null, string puuid = "enemy") => new(
+        puuid, "对手", id, "", false, ally, true, 430, "CLASSIC",
         Service<IPlayerProfileService>((_, _) => profile),
         Service<IProfileIconService>((_, _) => Task.FromResult<byte[]?>(null)),
         Service<IMatchHistoryService>((_, _) => throw new InvalidOperationException("Profile is still pending.")),
-        Service<IGameAssetService>((_, args) => icons((int)args[0]!)));
+        Service<IGameAssetService>((_, args) => icons((int)args[0]!)), ranked);
 
     private static GameAsset Icon(Color color)
     {
