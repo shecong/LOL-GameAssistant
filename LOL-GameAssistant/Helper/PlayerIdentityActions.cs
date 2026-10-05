@@ -11,6 +11,7 @@ internal sealed class PlayerIdentityActions : IDisposable
     private readonly System.Windows.Forms.Timer _clickTimer = new() { Interval = SystemInformation.DoubleClickTime };
     private string? _pendingIdentity;
 
+    /// <summary>初始化 PlayerIdentityActions 的实例状态，并保存传入的依赖或数据。</summary>
     public PlayerIdentityActions(Func<string?> identity, Func<Form?> owner,
         Action<string>? copy = null, Action<string>? query = null)
     {
@@ -28,12 +29,14 @@ internal sealed class PlayerIdentityActions : IDisposable
         _clickTimer.Tick += (_, _) => CompleteSingleClick();
     }
 
+    /// <summary>绑定目标控件或窗口的相关事件。</summary>
     public void Attach(Control control)
     {
         control.Cursor = Cursors.Hand;
         control.MouseDown += (_, args) => HandleMouseDown(args);
     }
 
+    /// <summary>记录玩家身份区域的鼠标操作，区分单击和双击行为。</summary>
     internal void HandleMouseDown(MouseEventArgs args)
     {
         if (args.Button != MouseButtons.Left) return;
@@ -49,6 +52,7 @@ internal sealed class PlayerIdentityActions : IDisposable
         }
     }
 
+    /// <summary>双击等待窗口结束后执行单击操作。</summary>
     internal void CompleteSingleClick()
     {
         _clickTimer.Stop();
@@ -57,6 +61,7 @@ internal sealed class PlayerIdentityActions : IDisposable
         if (id != null) _copy(id);
     }
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     public void Dispose()
     {
         _pendingIdentity = null;

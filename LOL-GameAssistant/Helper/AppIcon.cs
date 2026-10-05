@@ -9,6 +9,7 @@ internal static class AppIcon
 
     public static Icon Shared { get; } = Load();
 
+    /// <summary>读取内嵌程序图标并复制为独立对象，避免依赖已关闭的资源流。</summary>
     private static Icon Load()
     {
         using Stream stream = typeof(AppIcon).Assembly.GetManifestResourceStream(ResourceName)

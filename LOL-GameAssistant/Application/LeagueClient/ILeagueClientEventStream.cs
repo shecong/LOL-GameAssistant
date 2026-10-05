@@ -22,5 +22,6 @@ public interface ILeagueClientEventStream : IDisposable, IAsyncDisposable
     /// <summary>订阅 LCU JSON API 事件。</summary>
     Task SubscribeToJsonApiEventsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>断开客户端事件连接并停止相关接收工作。</summary>
     Task DisconnectAsync();
 }

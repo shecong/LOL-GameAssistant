@@ -45,6 +45,7 @@ public static class MatchHistoryGameExtensions
         !game.EndOfGameResult.StartsWith("Abort", StringComparison.OrdinalIgnoreCase) &&
         !(game.GameDuration is > 0 and < MinimumCountedDurationSeconds);
 
+    /// <summary>根据玩家身份找到对应的参赛者统计。</summary>
     public static MatchParticipant? GetParticipant(this MatchHistoryGame game, string? puuid)
     {
         if (string.IsNullOrWhiteSpace(puuid)) return null;
@@ -59,6 +60,7 @@ public static class MatchHistoryGameExtensions
             : game.Participants.FirstOrDefault(item => item.participantId == participantId.Value);
     }
 
+    /// <summary>将队列和游戏模式统一转换为玩法名称。</summary>
     public static string GetModeText(this MatchHistoryGame game) =>
         LolGameModeNames.GetModeText(game.QueueId.ToString(), game.GameMode);
 }
@@ -66,6 +68,7 @@ public static class MatchHistoryGameExtensions
 /// <summary>实时对局与战绩摘要的模式匹配，兼容 KIWI 队列字段在不同端点缺失的情况。</summary>
 public static class MatchModeComparer
 {
+    /// <summary>比较实时模式与历史对局模式是否一致。</summary>
     public static bool IsSameMode(int currentQueueId, string? currentMode, MatchHistoryGame history)
     {
         bool currentKiwi = currentQueueId is 2400 or 3270 || IsKiwi(currentMode);
@@ -79,6 +82,7 @@ public static class MatchModeComparer
         return string.Equals(currentMode, history.GameMode, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>识别海克斯大乱斗使用的 KIWI 模式标识。</summary>
     private static bool IsKiwi(string? mode) =>
         (mode ?? "").Trim().StartsWith("KIWI", StringComparison.OrdinalIgnoreCase);
 }
@@ -104,6 +108,7 @@ public sealed class MatchDetail
     public List<MatchTeam> teams { get; set; } = new();
 }
 
+/// <summary>领域对局详情中的队伍及禁用英雄信息。</summary>
 public sealed class MatchTeam
 {
     public int TeamId { get; set; }
@@ -129,7 +134,9 @@ public sealed class MatchPlayer
     // 避免展示层重新了解 LCU 字段差异。
     public string puuid { get => Puuid; set => Puuid = value ?? ""; }
 
+    /// <summary>兼容旧展示层的小写游戏名字段，并写入统一属性。</summary>
     public string gameName { get => GameName; set => GameName = value ?? ""; }
+    /// <summary>兼容旧展示层的小写召唤师名称字段，并写入统一属性。</summary>
     public string summonerName { get => SummonerName; set => SummonerName = value ?? ""; }
 }
 
@@ -178,9 +185,11 @@ public sealed class MatchParticipantStats
 /// <summary>战绩读模型的业务计算与模式名称规则。</summary>
 public static class MatchDetailExtensions
 {
+    /// <summary>判断对局中是否存在强化选择数据。</summary>
     public static bool HasAugments(this MatchDetail game) =>
         game.participants.Any(p => p.stats?.AugmentIds.Count > 0);
 
+    /// <summary>结合队列、模式和强化数据识别海克斯大乱斗。</summary>
     public static bool IsAugmentAram(this MatchDetail game) =>
         (game.queueId is "2400" or "3270" || game._queueId is "2400" or "3270") ||
         (game.HasAugments() &&
@@ -188,14 +197,17 @@ public static class MatchDetailExtensions
          game.gameMode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase) ||
          LolGameModeNames.GetModeText(string.IsNullOrWhiteSpace(game.queueId) ? game._queueId : game.queueId, game.gameMode).Contains("大乱斗", StringComparison.Ordinal)));
 
+    /// <summary>返回指定队伍按禁用顺序排列的英雄标识。</summary>
     public static IReadOnlyList<int> GetBannedChampionIds(this MatchDetail game, int teamId) =>
         game.teams.FirstOrDefault(team => team.TeamId == teamId)?.BannedChampionIds ?? [];
 
+    /// <summary>按 PUUID 查找对局中的玩家身份。</summary>
     public static MatchPlayer? GetPlayerIdentity(this MatchDetail game, string? puuid) =>
         string.IsNullOrWhiteSpace(puuid)
             ? null
             : game.participantIdentities.FirstOrDefault(item => item.player?.puuid == puuid)?.player;
 
+    /// <summary>根据玩家身份找到对应的参赛者统计。</summary>
     public static MatchParticipant? GetParticipant(this MatchDetail game, string? puuid)
     {
         if (string.IsNullOrWhiteSpace(puuid)) return null;
@@ -206,12 +218,15 @@ public static class MatchDetailExtensions
             : game.participants.FirstOrDefault(item => item.participantId == participantId.Value);
     }
 
+    /// <summary>判断当前参赛者是否获胜。</summary>
     public static bool IsWin(this MatchParticipant? participant) => participant?.stats?.Win == true;
 
+    /// <summary>将击杀、死亡和助攻格式化为 KDA 文本。</summary>
     public static string GetKdaText(this MatchParticipant? participant) => participant?.stats is { } stats
         ? $"{stats.kills}/{stats.deaths}/{stats.assists}"
         : "0/0/0";
 
+    /// <summary>计算玩家的 KDA 比值，并处理零死亡情况。</summary>
     public static double GetKdaRatio(this MatchParticipant? participant)
     {
         if (participant?.stats is not { } stats) return 0;
@@ -220,6 +235,7 @@ public static class MatchDetailExtensions
             : stats.kills + stats.assists;
     }
 
+    /// <summary>将对局持续秒数格式化为分钟和秒。</summary>
     public static string GetDurationText(this MatchDetail? game)
     {
         int seconds = Math.Max(0, game?.gameDuration ?? 0);
@@ -239,6 +255,7 @@ public static class MatchDetailExtensions
 /// </summary>
 public static class LolGameModeNames
 {
+    /// <summary>将队列和游戏模式统一转换为玩法名称。</summary>
     public static string GetModeText(string? queueId, string? gameMode)
     {
         string queue = (queueId ?? "").Trim();

@@ -18,7 +18,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>选人阶段的伴随窗，跟随 LeagueClientUx 窗口移动、缩放和最小化。</summary>
-internal sealed class ChampSelectCompanionForm : Form
+internal sealed class ChampSelectCompanionForm : AntdUI.Window
 {
     private readonly IChampionSelectService _selection;
     private readonly ILobbyService _lobby;
@@ -71,6 +71,7 @@ internal sealed class ChampSelectCompanionForm : Form
     private DateTimeOffset _lastRosterDataAt;
     private int _languageRevision;
 
+    /// <summary>初始化 ChampSelectCompanionForm 的实例状态。</summary>
     public ChampSelectCompanionForm() : this(
         AppCompositionRoot.ChampionSelectService, AppCompositionRoot.LobbyService,
         AppCompositionRoot.ClientFeatureService, AppCompositionRoot.ChampionCatalog,
@@ -78,6 +79,7 @@ internal sealed class ChampSelectCompanionForm : Form
         AppCompositionRoot.MatchHistoryService, AppCompositionRoot.ApplicationSettingsStore)
     { }
 
+    /// <summary>初始化 ChampSelectCompanionForm 的实例状态，并保存传入的依赖或数据。</summary>
     internal ChampSelectCompanionForm(IChampionSelectService selection, ILobbyService lobby,
         IClientFeatureService features, IChampionCatalog champions, IPlayerProfileService players,
         IRankedStatsService ranked, IMatchHistoryService matches, IApplicationSettingsStore settings,
@@ -93,7 +95,8 @@ internal sealed class ChampSelectCompanionForm : Form
         _settings = settings;
         _clientBounds = clientBounds ?? (() => TryGetClientBounds(out var bounds) ? bounds : null);
         Text = "LOL 选人伴随窗";
-        FormBorderStyle = FormBorderStyle.None;
+        AntdWindowChrome.Configure(this);
+        EnableHitTest = false;
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
@@ -132,7 +135,9 @@ internal sealed class ChampSelectCompanionForm : Form
         };
     }
 
+    /// <summary>显示浮窗时不抢占游戏或客户端的输入焦点。</summary>
     protected override bool ShowWithoutActivation => true;
+    /// <summary>保留无激活或分层透明等浮窗需要的原生窗口标志。</summary>
     protected override CreateParams CreateParams
     {
         get
@@ -143,6 +148,7 @@ internal sealed class ChampSelectCompanionForm : Form
         }
     }
 
+    /// <summary>启动当前对象的持续跟踪流程。</summary>
     public void StartTracking()
     {
         if (IsDisposed || _tracking) return;
@@ -160,6 +166,7 @@ internal sealed class ChampSelectCompanionForm : Form
         _ = RefreshAsync();
     }
 
+    /// <summary>停止持续跟踪并清理未完成的工作。</summary>
     public void StopTracking()
     {
         if (IsDisposed) return;
@@ -180,6 +187,7 @@ internal sealed class ChampSelectCompanionForm : Form
         Hide();
     }
 
+    /// <summary>语言变化后刷新依赖本地化文本的界面。</summary>
     private void LanguageChanged(object? sender, EventArgs args)
     {
         _languageRevision++;
@@ -193,6 +201,7 @@ internal sealed class ChampSelectCompanionForm : Form
         if (_tracking) _ = RefreshAsync();
     }
 
+    /// <summary>异步刷新当前服务或界面负责的数据。</summary>
     private async Task RefreshAsync()
     {
         if (!SyncClientVisibility()) return;
@@ -202,6 +211,7 @@ internal sealed class ChampSelectCompanionForm : Form
         await RefreshSelectionAsync();
     }
 
+    /// <summary>读取最新选人状态并更新选人相关内容。</summary>
     private async Task RefreshSelectionAsync()
     {
         if (!_tracking || IsDisposed) return;
@@ -226,6 +236,7 @@ internal sealed class ChampSelectCompanionForm : Form
         finally { if (generation == _trackingGeneration) _selectionLoading = false; }
     }
 
+    /// <summary>检查当前请求是否仍属于有效的跟踪周期。</summary>
     private bool IsCurrentTracking(int generation) => _tracking && !IsDisposed && generation == _trackingGeneration;
 
     /// <summary>选人推送到达后先更新按钮；队友资料与模式查询都不阻塞备战席。</summary>
@@ -238,6 +249,7 @@ internal sealed class ChampSelectCompanionForm : Form
         _ = RefreshAlliesAsync(selection);
     }
 
+    /// <summary>读取队友信息并更新队友卡片。</summary>
     private async Task RefreshAlliesAsync(ChampionSelectionSnapshot selection)
     {
         if (!_tracking || IsDisposed || _loading ||
@@ -285,6 +297,7 @@ internal sealed class ChampSelectCompanionForm : Form
         finally { if (generation == _trackingGeneration) _loading = false; }
     }
 
+    /// <summary>确认当前队列是否支持大乱斗备选英雄功能。</summary>
     private async Task ResolveBenchModeAsync()
     {
         _modeLoading = true;
@@ -322,6 +335,7 @@ internal sealed class ChampSelectCompanionForm : Form
         }
     }
 
+    /// <summary>展示海克斯大乱斗备选英雄及交换状态。</summary>
     private void RenderMayhemBench(ChampionSelectionSnapshot selection)
     {
         int[] ids = selection.BenchChampionIds.Where(id => id > 0).Distinct().ToArray();
@@ -370,6 +384,7 @@ internal sealed class ChampSelectCompanionForm : Form
         finally { _benchChoices.ResumeLayout(); }
     }
 
+    /// <summary>请求将指定备选英雄交换为当前英雄。</summary>
     private async Task SwapBenchChampionAsync(int championId)
     {
         if (_swapping || !_tracking || IsDisposed) return;
@@ -404,6 +419,7 @@ internal sealed class ChampSelectCompanionForm : Form
         }
     }
 
+    /// <summary>打开当前英雄的推荐方案选择界面。</summary>
     private async Task ChooseBuildAsync()
     {
         if (!_tracking || IsDisposed || !_chooseBuild.Enabled) return;
@@ -430,6 +446,7 @@ internal sealed class ChampSelectCompanionForm : Form
         }
     }
 
+    /// <summary>加载单名队友的资料和近期表现信息。</summary>
     private async Task<string> LoadAllyAsync(ChampionSelectionMember member)
     {
         if (string.IsNullOrWhiteSpace(member.Puuid)) return UiLanguage.IsEnglish
@@ -470,6 +487,7 @@ internal sealed class ChampSelectCompanionForm : Form
         return $"{name}\n{rank}\n{recent}";
     }
 
+    /// <summary>根据客户端窗口位置调整伴随窗的位置。</summary>
     private void FollowClient(Rectangle client)
     {
         Rectangle work = Screen.FromRectangle(client).WorkingArea;
@@ -486,6 +504,7 @@ internal sealed class ChampSelectCompanionForm : Form
         foreach (Control card in _cards.Controls) card.Width = Math.Max(200, _cards.ClientSize.Width - 20);
     }
 
+    /// <summary>根据客户端是否可见决定伴随窗的显示状态。</summary>
     internal bool SyncClientVisibility()
     {
         if (!_tracking || IsDisposed) return false;
@@ -500,6 +519,7 @@ internal sealed class ChampSelectCompanionForm : Form
         return true;
     }
 
+    /// <summary>尝试取得客户端窗口边界，未找到时返回失败。</summary>
     private bool TryGetClientBounds(out Rectangle bounds)
     {
         bounds = Rectangle.Empty;
@@ -529,6 +549,7 @@ internal sealed class ChampSelectCompanionForm : Form
         return false;
     }
 
+    /// <summary>读取可见客户端窗口的边界，排除不可用窗口。</summary>
     internal static bool TryGetVisibleClientBounds(IntPtr handle, out Rectangle bounds)
     {
         bounds = Rectangle.Empty;
@@ -544,19 +565,25 @@ internal sealed class ChampSelectCompanionForm : Form
         return true;
     }
 
+    /// <summary>与 Windows 原生矩形布局对应的坐标结构。</summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect { public int Left, Top, Right, Bottom; }
+    /// <summary>调用 Windows API 读取窗口在屏幕上的边界。</summary>
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr window, out Rect bounds);
+    /// <summary>调用 Windows API 判断窗口是否处于最小化状态。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsIconic(IntPtr window);
+    /// <summary>调用 Windows API 判断窗口当前是否可见。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr window);
+    /// <summary>调用 Windows API 验证窗口句柄是否仍然有效。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindow(IntPtr window);
+    /// <summary>读取 DWM 管理的窗口属性。</summary>
     [DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
 }

@@ -9,21 +9,25 @@ namespace LOL_GameAssistant.Application.Matches;
 /// </summary>
 public interface IMatchHistoryService
 {
+    /// <summary>读取指定玩家的一页历史战绩。</summary>
     Task<MatchHistoryResponse?> GetPageAsync(
         string puuid,
         int beginIndex,
         int endIndex,
         CancellationToken cancellationToken = default);
 
+    /// <summary>读取指定玩家的历史战绩集合。</summary>
     Task<MatchHistoryResponse?> GetAllAsync(
         string puuid,
         int maxGames = 5000,
         CancellationToken cancellationToken = default);
 
+    /// <summary>读取指定对局的完整详情。</summary>
     Task<MatchDetail?> GetDetailAsync(
         long gameId,
         bool useCache = true,
         CancellationToken cancellationToken = default);
 
+    /// <summary>清空已缓存的对局详情。</summary>
     void ClearDetailCache();
 }

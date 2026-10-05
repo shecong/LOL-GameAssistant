@@ -26,8 +26,10 @@ namespace LOL_GameAssistant.Entity
         private static readonly string LegacyFilePath =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "favorites.json");
 
+        /// <summary>取得当前数据使用的缓存文件路径。</summary>
         public static string GetCacheFilePath() => CacheFilePath;
 
+        /// <summary>依次尝试主文件、备份及旧文件，损坏或不可读时继续尝试下一份。</summary>
         public static List<FavoritePlayer> Load()
         {
             foreach (string path in new[] { CacheFilePath, CacheFilePath + ".bak", LegacyFilePath })
@@ -43,6 +45,7 @@ namespace LOL_GameAssistant.Entity
             return new List<FavoritePlayer>();
         }
 
+        /// <summary>将当前收藏玩家列表保存到本地存储。</summary>
         public static void Save(List<FavoritePlayer> favorites)
         {
             string json = JsonConvert.SerializeObject(favorites, Formatting.Indented);

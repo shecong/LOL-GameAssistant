@@ -8,12 +8,14 @@
         private readonly RequestDelegate _next;
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
+        /// <summary>初始化 ExceptionHandlingMiddleware 的实例状态，并保存传入的依赖或数据。</summary>
         public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
         {
             _next = next;
             _logger = logger;
         }
 
+        /// <summary>执行后续 HTTP 请求管线，并将未处理异常转换为统一错误响应。</summary>
         public async Task InvokeAsync(HttpContext context)
         {
             try

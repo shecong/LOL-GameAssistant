@@ -9,11 +9,13 @@ public sealed class LcuProfileIconService : IProfileIconService
 {
     private readonly ILcuRequestSender _requestSender;
 
+    /// <summary>初始化 LcuProfileIconService 的实例状态，并保存传入的依赖或数据。</summary>
     public LcuProfileIconService(ILcuRequestSender requestSender)
     {
         _requestSender = requestSender;
     }
 
+    /// <summary>读取可供选择的召唤师头像目录。</summary>
     public async Task<IReadOnlyList<ProfileIconChoice>> GetProfileIconsAsync(CancellationToken cancellationToken = default)
     {
         string? json = await _requestSender.GetStringAsync("/lol-game-data/assets/v1/profile-icons.json", cancellationToken).ConfigureAwait(false);
@@ -41,6 +43,7 @@ public sealed class LcuProfileIconService : IProfileIconService
         }
     }
 
+    /// <summary>读取指定召唤师头像的二进制资源。</summary>
     public Task<byte[]?> GetProfileIconAsync(int iconId, CancellationToken cancellationToken = default)
     {
         if (iconId <= 0) return Task.FromResult<byte[]?>(null);

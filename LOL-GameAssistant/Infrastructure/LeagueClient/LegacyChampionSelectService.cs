@@ -8,6 +8,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>选人静态 LCU API 的基础设施适配器。</summary>
 public sealed class LegacyChampionSelectService : IChampionSelectService
 {
+    /// <summary>读取当前选人会话。</summary>
     public async Task<ChampionSelectionSnapshot?> GetSessionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -16,12 +17,14 @@ public sealed class LegacyChampionSelectService : IChampionSelectService
         return legacy == null ? null : ChampionSelectionSnapshotMapper.Map(legacy);
     }
 
+    /// <summary>按配置尝试禁用英雄。</summary>
     public Task<bool> AutoBanAsync(IReadOnlyList<int> championIds, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Select_Api.AutoBanAsync(championIds.ToList(), cancellationToken);
     }
 
+    /// <summary>按配置尝试选择英雄。</summary>
     public Task<bool> AutoPickAsync(
         IReadOnlyList<int> championIds,
         bool lockIn,

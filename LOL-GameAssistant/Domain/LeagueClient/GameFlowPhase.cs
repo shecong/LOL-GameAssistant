@@ -18,6 +18,7 @@ public enum GameFlowPhase
 /// <summary>流程阶段的中文展示规则。</summary>
 public static class GameFlowPhaseExtensions
 {
+    /// <summary>将游戏阶段标识转换为中文名称。</summary>
     public static string GetChineseName(this GameFlowPhase phase) => phase switch
     {
         GameFlowPhase.Closed => "客户端未启动",

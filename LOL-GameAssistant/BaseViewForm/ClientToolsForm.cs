@@ -55,6 +55,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         SizeMode = PictureBoxSizeMode.Zoom
     };
 
+    /// <summary>初始化 ClientToolsForm 的实例状态，并保存传入的依赖或数据。</summary>
     public ClientToolsForm(
         IClientFeatureService features,
         IChampionInsightsService championInsights,
@@ -90,6 +91,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             [CreateProfileCard()], [CreateFriendsCard()], [CreateInsightsCard()]];
         foreach (Control[] group in groups)
             foreach (Control card in group) AddCard(content, card);
+        // 切换客户端工具中当前展示的功能分类。
         void ShowCategory(int index)
         {
             if (index < 0 || index >= groups.Length) return;
@@ -124,6 +126,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         };
     }
 
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
         BackColor = palette.Surface;
@@ -144,12 +147,14 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         _insightRows.ForeColor = palette.TextPrimary;
     }
 
+    /// <summary>按当前语言刷新界面文本。</summary>
     public void ApplyLanguage()
     {
         for (int index = 0; index < ToolCategories.Length; index++)
             _toolsNavigation.Items[index].Text = UiLanguage.T(ToolCategories[index]);
     }
 
+    /// <summary>构建录像下载和观看操作区域。</summary>
     private Control CreateReplayCard()
     {
         AntdUI.Panel card = Card("对局回放", 104, out FlowLayoutPanel body);
@@ -167,6 +172,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return card;
     }
 
+    /// <summary>构建奖励查询和领取操作区域。</summary>
     private Control CreateRewardsCard()
     {
         AntdUI.Panel card = Card("待领取奖励", 104, out FlowLayoutPanel body);
@@ -174,6 +180,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return card;
     }
 
+    /// <summary>构建游戏设置备份管理区域。</summary>
     private Control CreateBackupsCard()
     {
         AntdUI.Panel card = Card("游戏设置备份", 190, out FlowLayoutPanel body);
@@ -201,6 +208,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return card;
     }
 
+    /// <summary>构建召唤师头像及生涯背景配置区域。</summary>
     private Control CreateProfileCard()
     {
         AntdUI.Panel card = Card("客户端状态与生涯资料", 510, out FlowLayoutPanel body);
@@ -233,6 +241,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return card;
     }
 
+    /// <summary>构建好友状态及相关操作区域。</summary>
     private Control CreateFriendsCard()
     {
         var card = new AntdUI.Panel { Height = 270, Dock = DockStyle.Fill, Padding = new Padding(12), Radius = 10, BorderWidth = 1 };
@@ -247,6 +256,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return card;
     }
 
+    /// <summary>构建英雄梯度和大乱斗平衡信息区域。</summary>
     private Control CreateInsightsCard()
     {
         var card = new AntdUI.Panel { Height = 290, Dock = DockStyle.Fill, Padding = new Padding(12), Radius = 10, BorderWidth = 1 };
@@ -262,6 +272,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return card;
     }
 
+    /// <summary>创建统一布局的工具卡片容器。</summary>
     private static AntdUI.Panel Card(string title, int height, out FlowLayoutPanel body)
     {
         var card = new AntdUI.Panel { Height = height, Dock = DockStyle.Fill, Padding = new Padding(12), Radius = 10, BorderWidth = 1 };
@@ -294,6 +305,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return card;
     }
 
+    /// <summary>创建工具区域的标题控件。</summary>
     private static AntdUI.Label Title(string text) => new()
     {
         Dock = DockStyle.Top,
@@ -303,6 +315,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         TextAlign = ContentAlignment.MiddleLeft
     };
 
+    /// <summary>创建工具区域使用的输入控件。</summary>
     private static AntdUI.Input Input(string placeholder, int width, string text = "") => new()
     {
         Width = width,
@@ -312,10 +325,13 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         Margin = new Padding(4)
     };
 
+    /// <summary>选择当前业务流程所需的条目。</summary>
     private static AntdUI.Select Select(int width) => new() { Width = width, Height = 32, Margin = new Padding(4) };
 
+    /// <summary>向选择控件追加候选项。</summary>
     private static void AddSelectItems(AntdUI.Select select, params string[] items) => select.Items.AddRange(items.Cast<object>().ToArray());
 
+    /// <summary>创建输入字段对应的说明标签。</summary>
     private static AntdUI.Label FieldLabel(string value) => new()
     {
         AutoSize = true,
@@ -323,6 +339,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         Text = value
     };
 
+    /// <summary>创建次要说明文本控件。</summary>
     private static AntdUI.Label Caption(string value, int width) => new()
     {
         Width = width,
@@ -332,6 +349,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         TextAlign = ContentAlignment.MiddleLeft
     };
 
+    /// <summary>创建工具操作按钮并设置显示文本。</summary>
     private static AntdUI.Button Button(string text, EventHandler click)
     {
         var button = new AntdUI.Button
@@ -346,6 +364,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return button;
     }
 
+    /// <summary>创建头像或背景的预览容器。</summary>
     private static Control PreviewBox(
         string title,
         PictureBox preview,
@@ -371,8 +390,10 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return box;
     }
 
+    /// <summary>创建操作按钮并绑定其执行回调。</summary>
     private AntdUI.Button ActionButton(string text, Func<Task<ClientFeatureResult>> action) => Button(text, async (_, _) => await RunAsync(action));
 
+    /// <summary>向工具页布局追加功能卡片。</summary>
     private void AddCard(TableLayoutPanel content, Control card)
     {
         if (card is AntdUI.Panel panel && !_cards.Contains(panel)) _cards.Add(panel);
@@ -382,6 +403,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         content.Controls.Add(card, 0, row);
     }
 
+    /// <summary>打开生涯背景选择器并处理选中的背景。</summary>
     private async Task ChooseBackgroundAsync()
     {
         using var picker = new ProfileAppearancePickerForm(_features, _profileIcons, isBackgroundPicker: true);
@@ -390,6 +412,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         await PreviewBackgroundAsync();
     }
 
+    /// <summary>打开召唤师头像选择器并处理选中的头像。</summary>
     private async Task ChooseProfileIconAsync()
     {
         using var picker = new ProfileAppearancePickerForm(_features, _profileIcons, isBackgroundPicker: false);
@@ -398,6 +421,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         await PreviewProfileIconAsync();
     }
 
+    /// <summary>加载所选生涯背景的预览图。</summary>
     private async Task PreviewBackgroundAsync()
     {
         if (!TryParsePositive(_backgroundSkinId, "背景皮肤 ID", out long skinId)) return;
@@ -419,6 +443,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         }
     }
 
+    /// <summary>为客户端工具操作添加功能说明提示。</summary>
     private void AttachFeatureTips()
     {
         Tip(_replayGameId, "输入历史对局 ID 后下载或启动对应回放。\n");
@@ -457,6 +482,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         }
     }
 
+    /// <summary>显示当前控件对应的操作说明。</summary>
     private void Tip(Control control, string text)
     {
         _featureTip.SetToolTip(control, text.Trim());
@@ -469,6 +495,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             };
     }
 
+    /// <summary>隐藏当前功能提示。</summary>
     private void HideTip()
     {
         if (_activeTipControl is { IsDisposed: false } control)
@@ -476,6 +503,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         _activeTipControl = null;
     }
 
+    /// <summary>递归枚举控件及其子控件。</summary>
     private static IEnumerable<Control> EnumerateControls(Control root)
     {
         foreach (Control child in root.Controls)
@@ -485,6 +513,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         }
     }
 
+    /// <summary>加载所选召唤师头像的预览图。</summary>
     private async Task PreviewProfileIconAsync()
     {
         if (!TryParsePositive(_profileIconId, "头像 ID", out long iconId) || iconId > int.MaxValue) return;
@@ -506,6 +535,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         }
     }
 
+    /// <summary>重新读取好友活动信息并刷新列表。</summary>
     private async Task RefreshFriendsAsync()
     {
         try
@@ -527,6 +557,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         finally { _friendRows.ResumeLayout(); }
     }
 
+    /// <summary>按好友当前状态设置展示颜色。</summary>
     private static void ApplyFriendStatusColor(Control row, string gameStatus, ThemePalette palette)
     {
         row.BackColor = gameStatus.Contains("inProgress", StringComparison.OrdinalIgnoreCase)
@@ -537,6 +568,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         row.ForeColor = palette.TextPrimary;
     }
 
+    /// <summary>读取已有的游戏设置备份并更新列表。</summary>
     private async Task RefreshBackupsAsync()
     {
         try
@@ -549,6 +581,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         catch (Exception ex) { SetStatus($"读取备份失败：{ex.Message}", false); }
     }
 
+    /// <summary>查询英雄梯度信息并更新展示内容。</summary>
     private async Task RefreshTiersAsync()
     {
         string mode = GetInsightModeKey();
@@ -566,6 +599,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         finally { _insightRows.ResumeLayout(); }
     }
 
+    /// <summary>查询大乱斗平衡调整并更新展示内容。</summary>
     private async Task RefreshAramBalanceAsync()
     {
         try
@@ -585,12 +619,14 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         finally { _insightRows.ResumeLayout(); }
     }
 
+    /// <summary>执行异步工具操作并统一处理状态提示。</summary>
     private async Task RunAsync(Func<Task<ClientFeatureResult>> action)
     {
         try { ClientFeatureResult result = await action(); SetStatus(result.Message, result.Succeeded); }
         catch (Exception ex) { SetStatus($"操作失败：{ex.Message}", false); }
     }
 
+    /// <summary>尝试读取当前选择的备份，未选择时返回失败。</summary>
     private bool TryGetSelectedBackup(out string? name)
     {
         name = _backupList.SelectedValue?.ToString() ?? _backupList.Text;
@@ -599,6 +635,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return false;
     }
 
+    /// <summary>验证输入能否解析为正数标识。</summary>
     private bool TryParsePositive(AntdUI.Input input, string label, out long value)
     {
         if (long.TryParse(input.Text.Trim(), out value) && value > 0) return true;
@@ -606,32 +643,44 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return false;
     }
 
+    /// <summary>更新当前操作的状态提示。</summary>
     private void SetStatus(string text, bool success)
     {
         _status.Text = text;
         _status.ForeColor = success ? Color.FromArgb(42, 125, 74) : Color.FromArgb(190, 55, 55);
     }
 
+    /// <summary>读取所选好友在线状态对应的协议值。</summary>
     private string GetAvailabilityValue() => _availability.Text switch { "离开" => "away", "请勿打扰" => "dnd", "离线" => "offline", "手机在线" => "mobile", _ => "chat" };
 
+    /// <summary>取得英雄数据查询使用的模式标识。</summary>
     private string GetInsightModeKey() => _insightMode.Text switch { "极地大乱斗" => "aram", "斗魂竞技场" => "arena", "无限火力" => "urf", "极限闪击" => "nexus_blitz", _ => "ranked" };
 
+    /// <summary>将在线状态转换为中文说明。</summary>
     private static string ToChineseAvailability(string value) => value.ToLowerInvariant() switch { "chat" => "在线", "away" => "离开", "dnd" => "请勿打扰", "mobile" => "手机在线", "offline" => "离线", _ => "未知状态" };
 
+    /// <summary>将游戏活动状态转换为中文说明。</summary>
     private static string ToChineseGameStatus(string value) => value.ToLowerInvariant() switch { "inprogress" => "游戏中", "championselect" => "英雄选择中", "inqueue" => "匹配中", "outofgame" => "空闲", _ => string.IsNullOrWhiteSpace(value) ? "未知" : value };
 
+    /// <summary>将队列标识转换为中文名称。</summary>
     private static string ToChineseQueue(int queueId, string value) => queueId switch { 420 => "单双排", 430 => "匹配模式", 440 => "灵活排位", 450 => "极地大乱斗", 490 => "快速模式", 900 => "无限火力", 1700 => "斗魂竞技场", _ => ToChineseMode(value) };
 
+    /// <summary>将玩法模式转换为中文名称。</summary>
     private static string ToChineseMode(string? value) => (value ?? "").ToLowerInvariant() switch { "ranked" or "classic" or "summonersrift" => "峡谷 / 排位", "ranked_solo_5x5" => "单双排", "ranked_flex_sr" => "灵活排位", "normal" or "normal_draft" => "匹配模式", "practice_tool" => "训练模式", "aram" or "howlingabyss" => "极地大乱斗", "arena" or "cherry" => "斗魂竞技场", "urf" or "arurf" => "无限火力", "nexus_blitz" or "nexusblitz" => "极限闪击", "" => "-", _ => value! };
 
+    /// <summary>整理用于界面显示的文本值。</summary>
     private static string Display(int value) => value > 0 ? value.ToString() : "-";
 
+    /// <summary>将数值格式化为百分比文本。</summary>
     private static string Percent(double value) => value > 0 ? $"{value:F1}%" : "-";
 
+    /// <summary>向数据展示区域追加一行信息。</summary>
     private static void AddDataRow(AntdUI.Panel target, string text) => target.Controls.Add(new AntdUI.Label { Dock = DockStyle.Top, Height = 28, Padding = new Padding(8, 5, 8, 0), Text = text });
 
+    /// <summary>追加无数据时使用的占位行。</summary>
     private static void AddEmptyRow(AntdUI.Panel target, string text) => AddDataRow(target, text);
 
+    /// <summary>从二进制内容解码独立图像，避免持有原始流。</summary>
     private static Image? DecodeImage(byte[] bytes)
     {
         using var stream = new MemoryStream(bytes);
@@ -639,6 +688,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         return new Bitmap(source);
     }
 
+    /// <summary>替换控件图像并释放旧图像资源。</summary>
     private static void ReplaceImage(PictureBox target, Image? image)
     {
         Image? old = target.Image;

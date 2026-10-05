@@ -26,6 +26,7 @@ namespace LOL_GameAssistant.BaseViewForm
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Color BorderColor { get; set; } = Color.Transparent;
 
+        /// <summary>初始化 GradientPanel 的实例状态。</summary>
         public GradientPanel()
         {
             SetStyle(
@@ -35,6 +36,7 @@ namespace LOL_GameAssistant.BaseViewForm
             BackColor = Color.Transparent;
         }
 
+        /// <summary>根据矩形和圆角半径构建绘图路径。</summary>
         public static GraphicsPath RoundedRect(Rectangle bounds, int radius)
         {
             int d = Math.Max(1, radius * 2);
@@ -47,6 +49,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return path;
         }
 
+        /// <summary>绘制当前控件的自定义外观。</summary>
         protected override void OnPaint(PaintEventArgs e)
         {
             // 展开动画会把高度插值到 0，极端尺寸下 Width-1 / Height-1 会变成 0 或负数。
@@ -84,6 +87,7 @@ namespace LOL_GameAssistant.BaseViewForm
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Color BorderColor { get; set; } = Color.FromArgb(220, 255, 255, 255);
 
+        /// <summary>初始化 RoundPictureBox 的实例状态。</summary>
         public RoundPictureBox()
         {
             SetStyle(
@@ -92,6 +96,7 @@ namespace LOL_GameAssistant.BaseViewForm
             SizeMode = PictureBoxSizeMode.Zoom;
         }
 
+        /// <summary>绘制当前控件的自定义外观。</summary>
         protected override void OnPaint(PaintEventArgs pe)
         {
             // 尺寸过小时 Width-3 / Height-3 为负数，GDI+ 矩形不接受
@@ -137,6 +142,7 @@ namespace LOL_GameAssistant.BaseViewForm
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int MaxRadius { get; set; } = 9;
 
+        /// <summary>初始化 PulseDot 的实例状态。</summary>
         public PulseDot()
         {
             SetStyle(
@@ -153,6 +159,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => _timer.Dispose();
         }
 
+        /// <summary>绘制当前控件的自定义外观。</summary>
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
@@ -180,6 +187,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly System.Windows.Forms.Timer _timer;
         private float _offset;
 
+        /// <summary>初始化 ShimmerPanel 的实例状态。</summary>
         public ShimmerPanel()
         {
             SetStyle(
@@ -197,6 +205,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => _timer.Dispose();
         }
 
+        /// <summary>绘制当前控件的自定义外观。</summary>
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
@@ -211,6 +220,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>绘制骨架加载状态中的占位条。</summary>
         private void DrawShimmerBar(Graphics g, int y, float width, int height)
         {
             using var baseBrush = new SolidBrush(Color.FromArgb(226, 229, 234));
@@ -231,8 +241,10 @@ namespace LOL_GameAssistant.BaseViewForm
     /// </summary>
     public static class UiAnimation
     {
+        /// <summary>计算动画使用的三次缓出进度。</summary>
         public static double EaseOutCubic(double t) => 1 - Math.Pow(1 - t, 3);
 
+        /// <summary>按动画进度在两种颜色之间插值。</summary>
         public static Color LerpColor(Color from, Color to, double t)
         {
             t = Math.Clamp(t, 0, 1);
@@ -322,6 +334,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
             };
 
+            // 进入子控件时更新所属容器的悬停状态。
             void Enter(object? s, EventArgs e)
             {
                 from = root.BackColor;
@@ -331,6 +344,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 timer.Start();
             }
 
+            // 离开子控件时检查并更新容器的悬停状态。
             void Leave(object? s, EventArgs e)
             {
                 from = root.BackColor;
@@ -346,6 +360,7 @@ namespace LOL_GameAssistant.BaseViewForm
             root.Disposed += (_, _) => timer.Dispose();
         }
 
+        /// <summary>向子控件递归绑定需要共享的交互行为。</summary>
         private static void AttachToChildren(Control root, Action<Control> attach)
         {
             foreach (Control child in root.Controls)

@@ -21,8 +21,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void InitializeComponent()
         {
-            lblTitle = new AntdUI.Label();
-            btnClose = new AntdUI.Button();
+            lblTitle = new AntdUI.PageHeader();
             playersGrid = new TableLayoutPanel();
             allyPanel = new AntdUI.Panel();
             lblAllyHeader = new AntdUI.Label();
@@ -47,18 +46,12 @@ namespace LOL_GameAssistant.BaseViewForm
             lblTitle.Dock = DockStyle.Top;
             lblTitle.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold);
             lblTitle.Height = 44;
-            lblTitle.Padding = new Padding(12, 0, 90, 0);
-            lblTitle.TextAlign = ContentAlignment.MiddleLeft;
-            // 
-            // btnClose
-            // 
-            btnClose.Location = new Point(910, 8);
-            btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnClose.Name = "btnClose";
-            btnClose.Size = new Size(64, 28);
-            btnClose.TabIndex = 0;
-            btnClose.Text = "关闭";
-            btnClose.Click += btnClose_Click;
+            lblTitle.Padding = new Padding(12, 0, 0, 0);
+            lblTitle.ShowButton = true;
+            lblTitle.MinimizeBox = true;
+            lblTitle.MaximizeBox = true;
+            lblTitle.UseSystemStyleColor = false;
+            lblTitle.UseForeColorDrawIcons = true;
             // 
             // playersGrid
             // 
@@ -173,7 +166,6 @@ namespace LOL_GameAssistant.BaseViewForm
             Controls.Add(playersGrid);
             Controls.Add(bottomPanel);
             Controls.Add(lblTitle);
-            Controls.Add(btnClose);
             DoubleBuffered = true;
             Name = "MatchDetailForm";
             Text = "对局详情";
@@ -185,8 +177,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ResumeLayout(false);
         }
 
-        private AntdUI.Label lblTitle;
-        private AntdUI.Button btnClose;
+        private AntdUI.PageHeader lblTitle;
         private TableLayoutPanel playersGrid;
         private AntdUI.Panel allyPanel;
         private AntdUI.Label lblAllyHeader;

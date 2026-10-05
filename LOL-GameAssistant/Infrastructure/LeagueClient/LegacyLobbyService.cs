@@ -8,18 +8,21 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>旧大厅 LCU 实现的基础设施适配器。</summary>
 public sealed class LegacyLobbyService : ILobbyService
 {
+    /// <summary>向客户端提交开始匹配的请求。</summary>
     public Task StartMatchmakingAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Game_Api.OpenGameServer();
     }
 
+    /// <summary>向客户端提交接受匹配确认的请求。</summary>
     public Task AcceptReadyCheckAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Game_Api.GameTrueServer();
     }
 
+    /// <summary>读取当前大厅及成员信息。</summary>
     public async Task<LobbySnapshot?> GetLobbyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -49,12 +52,14 @@ public sealed class LegacyLobbyService : ILobbyService
         };
     }
 
+    /// <summary>读取客户端当前游戏流程阶段。</summary>
     public Task<string?> GetGameFlowPhaseAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Game_Api.GameFlowPhaseServer();
     }
 
+    /// <summary>读取当前游戏会话的队伍和英雄信息。</summary>
     public async Task<ActiveGameSnapshot?> GetCurrentSessionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

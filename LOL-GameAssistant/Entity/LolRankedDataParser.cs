@@ -198,6 +198,7 @@ namespace LOL_GameAssistant.Entity
 
         #region 队列类型常量
 
+        /// <summary>排位数据中各队列的统计集合。</summary>
         public static class QueueTypes
         {
             public const string RANKED_SOLO_5x5 = "RANKED_SOLO_5x5";           // 单双排/单排
@@ -207,6 +208,7 @@ namespace LOL_GameAssistant.Entity
             public const string RANKED_TFT_DOUBLE_UP = "RANKED_TFT_DOUBLE_UP"; // 云顶双人模式
         }
 
+        /// <summary>排位数据中的段位等级字段。</summary>
         public static class TierLevels
         {
             public static readonly string[] Tiers = {
@@ -267,6 +269,7 @@ namespace LOL_GameAssistant.Entity
             {
                 var root = JObject.Parse(jsonData);
 
+                // 规范化单条排位数据的缺失值和字段表示。
                 void NormalizeEntry(JObject? entry)
                 {
                     if (entry == null) return;
@@ -454,12 +457,15 @@ namespace LOL_GameAssistant.Entity
             };
         }
 
+        /// <summary>从 JSON 字段读取字符串值。</summary>
         private static string? Str(JObject obj, string key)
             => obj[key]?.Type == JTokenType.Null ? null : obj[key]?.ToString();
 
+        /// <summary>从 JSON 字段读取整数值。</summary>
         private static int Int(JObject obj, string key)
             => obj[key]?.Value<int>() ?? 0;
 
+        /// <summary>从 JSON 字段读取布尔值。</summary>
         private static bool Bool(JObject obj, string key)
             => obj[key]?.Value<bool>() ?? false;
 

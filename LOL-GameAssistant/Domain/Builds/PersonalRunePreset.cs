@@ -15,17 +15,21 @@ public sealed class PersonalRunePreset
     public List<int> RunePerkIds { get; set; } = new();
     public List<int> SummonerSpellIds { get; set; } = new();
 
+    /// <summary>检查符文方案是否包含应用所需的有效字段。</summary>
     public bool IsValid => ChampionId > 0 && PrimaryStyleId > 0 && SubStyleId > 0 &&
         RunePerkIds?.Count >= 6 && SummonerSpellIds?.Count == 2 &&
         SummonerSpellIds.All(id => id > 0);
 }
 
+/// <summary>按英雄、模式和分路解析优先使用的个人符文方案。</summary>
 public static class PersonalRunePresetResolver
 {
+    /// <summary>查找匹配当前英雄和场景的个人符文方案。</summary>
     public static PersonalRunePreset? Find(
         IEnumerable<PersonalRunePreset> presets, int championId, string mode, string? position)
     {
         string role = NormalizePosition(position);
+        // 峡谷方案精确匹配分路，其他模式只匹配英雄和模式；多个方案按用户优先级选取。
         return presets.Where(preset => preset.IsValid && preset.AutoApply &&
                 preset.ChampionId == championId &&
                 string.Equals(preset.Mode, mode, StringComparison.OrdinalIgnoreCase) &&
@@ -35,6 +39,7 @@ public static class PersonalRunePresetResolver
             .FirstOrDefault();
     }
 
+    /// <summary>将分路别名归一化，供方案选择和推荐匹配使用。</summary>
     public static string NormalizePosition(string? position) => position?.Trim().ToUpperInvariant() switch
     {
         "TOP" => "top",

@@ -34,6 +34,7 @@ namespace LOL_GameAssistant.Entity
         public List<BenchChampion> BenchChampions { get; set; } = new();
     }
 
+    /// <summary>大乱斗备选区中的英雄标识。</summary>
     public sealed class BenchChampion
     {
         [JsonProperty("championId")]

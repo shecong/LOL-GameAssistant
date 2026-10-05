@@ -8,5 +8,6 @@ namespace LOL_GameAssistant.Application.Friends;
 /// </summary>
 public interface IFriendSpectateService
 {
+    /// <summary>根据请求启动好友观战流程。</summary>
     Task<SpectateResult> LaunchAsync(SpectateRequest request, CancellationToken cancellationToken = default);
 }

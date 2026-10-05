@@ -11,6 +11,7 @@ internal static class LocalLiveClientDataReader
 {
     private static readonly HttpClient Client;
 
+    /// <summary>初始化 LocalLiveClientDataReader 使用的共享状态。</summary>
     static LocalLiveClientDataReader()
     {
         var handler = new HttpClientHandler
@@ -22,6 +23,7 @@ internal static class LocalLiveClientDataReader
         Client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(3) };
     }
 
+    /// <summary>读取当前玩家的金币、装备及游戏时间状态。</summary>
     public static async Task<LocalLiveClientOwnState?> GetOwnStateAsync(CancellationToken cancellationToken = default)
     {
         LocalLiveClientSnapshot? snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -83,6 +85,7 @@ internal static class LocalLiveClientDataReader
         }
     }
 
+    /// <summary>读取游戏客户端返回的当前玩法模式。</summary>
     public static async Task<string?> GetGameModeAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -100,6 +103,7 @@ internal static class LocalLiveClientDataReader
         }
     }
 
+    /// <summary>读取当前对局已进行的秒数。</summary>
     public static async Task<int?> GetGameTimeSecondsAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -118,5 +122,7 @@ internal static class LocalLiveClientDataReader
     }
 }
 
+/// <summary>从 Live Client API 提取的当前玩家金币、装备和游戏时间。</summary>
 internal sealed record LocalLiveClientOwnState(int CurrentGold, IReadOnlyList<string> Items, int GameTimeSeconds);
+/// <summary>一次读取得到的玩家状态、游戏时间和模式快照。</summary>
 internal sealed record LocalLiveClientSnapshot(int CurrentGold, IReadOnlyList<string> Items, int GameTimeSeconds, string? GameMode);

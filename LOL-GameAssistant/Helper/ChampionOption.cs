@@ -10,6 +10,7 @@ namespace LOL_GameAssistant.Helper
         public string RealName { get; set; }
         public string Nickname { get; set; }
 
+        /// <summary>初始化 ChampionOption 的实例状态，并保存传入的依赖或数据。</summary>
         public ChampionOption(string label, int value, string realName, string nickname)
         {
             Label = label;
@@ -26,6 +27,7 @@ namespace LOL_GameAssistant.Helper
     {
         private static readonly Dictionary<int, ChampionOption> _championMap;
 
+        /// <summary>初始化 ChampionMap 使用的共享状态。</summary>
         static ChampionMap()
         {
             _championMap = new Dictionary<int, ChampionOption>
@@ -207,11 +209,13 @@ namespace LOL_GameAssistant.Helper
         };
         }
 
+        /// <summary>读取英雄标识到名称的映射表。</summary>
         public static Dictionary<int, ChampionOption> GetChampionMap()
         {
             return _championMap;
         }
 
+        /// <summary>查询指定英雄的基础信息。</summary>
         public static ChampionOption? GetChampion(int id)
         {
             _championMap.TryGetValue(id, out var champion);
@@ -224,6 +228,7 @@ namespace LOL_GameAssistant.Helper
     /// </summary>
     public static class GetChampionHelper
     {
+        /// <summary>构建英雄选择控件使用的候选项。</summary>
         public static ChampionOption? GetChampionOption(int id)
         {
             return ChampionMap.GetChampion(id);

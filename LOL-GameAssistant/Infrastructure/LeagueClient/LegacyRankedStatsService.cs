@@ -8,6 +8,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>旧排位 LCU 调用的基础设施适配器。</summary>
 public sealed class LegacyRankedStatsService : IRankedStatsService
 {
+    /// <summary>调用旧排位接口并将结果转换为领域排位概况。</summary>
     public async Task<RankedOverview?> GetAsync(
         string puuid,
         bool isCurrentUser = false,

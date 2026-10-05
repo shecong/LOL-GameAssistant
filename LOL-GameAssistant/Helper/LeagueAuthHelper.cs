@@ -20,6 +20,7 @@ namespace LOL_GameAssistant.Helper
 
         private const int ProcessCommandLineInformation = 60;
 
+        /// <summary>与 Windows 进程快照条目布局对应的原生结构。</summary>
         [StructLayout(LayoutKind.Sequential)]
         private struct PROCESSENTRY32
         {
@@ -37,6 +38,7 @@ namespace LOL_GameAssistant.Helper
             public string szExeFile;
         }
 
+        /// <summary>与 Windows 原生 Unicode 字符串布局对应的长度和指针结构。</summary>
         [StructLayout(LayoutKind.Sequential)]
         private struct UNICODE_STRING
         {
@@ -49,22 +51,28 @@ namespace LOL_GameAssistant.Helper
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
 
+        /// <summary>读取进程快照中的第一条进程信息。</summary>
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool Process32First(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
 
+        /// <summary>继续读取进程快照中的下一条进程信息。</summary>
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
 
+        /// <summary>关闭不再使用的原生系统句柄。</summary>
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool CloseHandle(IntPtr hObject);
 
+        /// <summary>按指定访问权限打开目标进程。</summary>
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
 
+        /// <summary>读取目标进程的原生进程信息。</summary>
         [DllImport("ntdll.dll")]
         private static extern int NtQueryInformationProcess(IntPtr processHandle, int processInformationClass,
             IntPtr processInformation, int processInformationLength, out int returnLength);
 
+        /// <summary>读取目标进程指定地址的内存内容。</summary>
         [DllImport("kernel32.dll")]
         private static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, [Out] byte[] lpBuffer,
             int dwSize, out IntPtr lpNumberOfBytesRead);

@@ -135,6 +135,7 @@ namespace LOL_GameAssistant.LoLApi
             return items.FirstOrDefault(p => string.Equals(p.id, itemId.ToString(), StringComparison.Ordinal))?.name;
         }
 
+        /// <summary>根据装备标识读取作用说明。</summary>
         public static async Task<string?> GetItemDescriptionAsync(int itemId)
         {
             if (itemId <= 0) return null;
@@ -142,6 +143,7 @@ namespace LOL_GameAssistant.LoLApi
             return items.FirstOrDefault(item => item.id == itemId.ToString())?.description;
         }
 
+        /// <summary>根据符文标识读取名称及详细作用文本。</summary>
         public static async Task<string?> GetRuneDetailsAsync(int perkId)
         {
             await GetRuneIconPathsAsync().ConfigureAwait(false);
@@ -225,6 +227,7 @@ namespace LOL_GameAssistant.LoLApi
             return responseStream ?? Stream.Null;
         }
 
+        /// <summary>读取符文资源索引，并缓存标识到图标路径的映射。</summary>
         private static async Task<IReadOnlyDictionary<int, string>> GetRuneIconPathsAsync()
         {
             if (RuneIconPaths is { Count: > 0 } cached) return cached;

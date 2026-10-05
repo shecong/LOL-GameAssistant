@@ -6,6 +6,7 @@ namespace LOL_GameAssistant.Infrastructure.Players;
 /// <summary>兼容既有 favorites.json 格式的收藏列表存储适配器。</summary>
 public sealed class LegacyFavoritePlayerStore : IFavoritePlayerStore
 {
+    /// <summary>读取当前模块使用的持久化或内置数据。</summary>
     public List<FavoritePlayer> Load() => Entity.FavoriteStore.Load()
         .Select(item => new FavoritePlayer
         {
@@ -17,6 +18,7 @@ public sealed class LegacyFavoritePlayerStore : IFavoritePlayerStore
         })
         .ToList();
 
+    /// <summary>将当前模块的数据保存到持久化存储。</summary>
     public void Save(List<FavoritePlayer> favorites) => Entity.FavoriteStore.Save(favorites
         .Select(item => new Entity.FavoritePlayer
         {

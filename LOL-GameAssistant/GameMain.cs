@@ -14,6 +14,7 @@ using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
 
 namespace LOL_GameAssistant
 {
+    /// <summary>主窗口：管理页面切换、客户端阶段事件、托盘和自动操作。</summary>
     public partial class GameMain : AntdUI.Window
     {
         public readonly InfoMsgForm infoMsg = new InfoMsgForm();
@@ -74,27 +75,33 @@ namespace LOL_GameAssistant
         private readonly AntdUI.TabPage _coachTab;
         private readonly AntdUI.TabPage _diagnosticsTab;
 
+        /// <summary>判断用户当前是否停留在对局页面。</summary>
         public bool IsLiveGameTabActive => tabs1.SelectedIndex == LiveGameTabIndex;
 
+        /// <summary>按当前输入方式将一条快捷喊话发送到游戏聊天。</summary>
         public Task<GameShoutSendResult> SendQuickShoutToGameAsync(string phrase, bool sendToAll,
             bool useClipboard, bool perCharacter, int minimumIntervalSeconds) =>
             _quickMessageController.SendSelectedToGameAsync(phrase, sendToAll,
                 useClipboard, perCharacter, minimumIntervalSeconds);
 
+        /// <summary>按配置的间隔逐条发送快捷喊话，避免连续输入互相覆盖。</summary>
         public Task<GameShoutSendResult> SendQuickShoutBatchToGameAsync(IReadOnlyList<string> phrases,
             bool sendToAll, bool useClipboard, bool perCharacter, int minimumIntervalSeconds) =>
             _quickMessageController.SendSelectedBatchToGameAsync(phrases, sendToAll,
                 useClipboard, perCharacter, minimumIntervalSeconds);
 
+        /// <summary>测试游戏聊天框是否能被快捷键打开。</summary>
         public Task<GameShoutSendResult> TestGameChatOpenAsync() =>
             _quickMessageController.TestChatOpenAsync();
 
+        /// <summary>将逐人 KDA 测评消息交给游戏聊天发送器。</summary>
         public Task<GameShoutSendResult> SendGameKdaAnnouncementAsync(
             IReadOnlyList<string> messages, AssistantSettings settings, bool requireForeground = false) =>
             _quickMessageController.SendBatchToGameAsync(messages,
                 settings.QuickShoutSendToAll, settings.QuickShoutUseClipboard,
                 settings.QuickMessageSendIntervalSeconds, requireForeground);
 
+        /// <summary>注册快捷喊话热键，并将热键动作分派到对应的发送流程。</summary>
         public void ConfigureQuickShoutHotkeys(AssistantSettings config) =>
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
                 action => _ = action switch
@@ -105,9 +112,11 @@ namespace LOL_GameAssistant
                     _ => settingForm.SendRandomQuickShoutToGameAsync(action == QuickShoutHotkeyAction.RandomCustom)
                 });
 
+        /// <summary>录制新热键时暂停已有窗口热键，避免录制按键触发旧动作。</summary>
         public void SetWindowHotkeyCapturePaused(bool paused) =>
             _windowHoldController.SetCapturePaused(paused);
 
+        /// <summary>处理当前窗口关注的原生消息，其余消息继续交给基类。</summary>
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == WindowHoldController.HotkeyMessage &&
@@ -127,6 +136,7 @@ namespace LOL_GameAssistant
             }
         }
 
+        /// <summary>初始化 GameMain 的实例状态。</summary>
         public GameMain() : this(
             AppCompositionRoot.LeagueClientEventStream,
             AppCompositionRoot.LobbyService,
@@ -157,6 +167,7 @@ namespace LOL_GameAssistant
             _gameClientLauncher = gameClientLauncher;
             _recommendationCoordinator = recommendationCoordinator;
             InitializeComponent();
+            AntdWindowChrome.Configure(this);
             Icon = AppIcon.Shared;
             // ShowInTaskbar 仅设置窗口样式；无边框窗口还需在显示后可靠登记到 Shell。
             _ = new TaskbarWindowRegistration(this);
@@ -191,6 +202,7 @@ namespace LOL_GameAssistant
             ApplyTheme();
         }
 
+        /// <summary>响应主题变化，更新当前界面的颜色和绘制配置。</summary>
         private void UiThemeChanged(object? sender, EventArgs e)
         {
             if (IsDisposed || !IsHandleCreated) return;
@@ -198,6 +210,7 @@ namespace LOL_GameAssistant
             else ApplyTheme();
         }
 
+        /// <summary>响应语言切换，刷新界面文本和相关状态提示。</summary>
         private void UiLanguageChanged(object? sender, EventArgs e)
         {
             if (_trayIcon != null) _trayIcon.Text = UiLanguage.T("LOL GameAssistant 运行中");
@@ -249,6 +262,7 @@ namespace LOL_GameAssistant
         public void ApplyRecommendationSettings(AssistantSettings config) =>
             _recommendationCoordinator.UpdateSettings(config);
 
+        /// <summary>启动主界面并初始化客户端连接、托盘和后台跟踪。</summary>
         public async void GameMain_Load(object sender, EventArgs e)
         {
             // 托盘与窗口事件先挂好：它们不依赖 LCU/网络，
@@ -288,6 +302,7 @@ namespace LOL_GameAssistant
             _ = AutoLaunchLeagueClientAsync(settings.GameClientPath);
         }
 
+        /// <summary>根据配置尝试启动客户端，避免在启动流程中重复发起。</summary>
         private async Task AutoLaunchLeagueClientAsync(string configuredPath)
         {
             try
@@ -450,6 +465,7 @@ namespace LOL_GameAssistant
         /// </summary>
         public void ConnectWebSocket() => _ = Task.Run(ConnectWebSocketCoreAsync);
 
+        /// <summary>建立客户端事件连接，使游戏阶段变化能够驱动界面刷新。</summary>
         private async Task ConnectWebSocketCoreAsync()
         {
             // 认证发现、协议连接和订阅都由基础设施层完成；主窗体只处理事件结果。
@@ -528,6 +544,7 @@ namespace LOL_GameAssistant
             _ = LoadPhaseDataAsync(expectedPhase, _phaseDataLoadCts.Token);
         }
 
+        /// <summary>取消上一阶段尚未完成的数据加载。</summary>
         private void StopPhaseDataLoad()
         {
             _phaseDataLoadCts?.Cancel();
@@ -535,6 +552,7 @@ namespace LOL_GameAssistant
             _phaseDataLoadCts = null;
         }
 
+        /// <summary>根据当前游戏阶段读取展示数据，支持取消过期请求。</summary>
         private async Task LoadPhaseDataAsync(GameFlowPhase expectedPhase, CancellationToken cancellationToken)
         {
             try
@@ -615,12 +633,14 @@ namespace LOL_GameAssistant
             }
         }
 
+        /// <summary>将事件连接错误转为界面可显示的状态提示。</summary>
         private void WebSocketError(string err)
         {
             RuntimeDiagnostics.Report("LCU WebSocket", "错误", err);
             AddInfoMessage(err);
         }
 
+        /// <summary>显示事件连接正在重连的状态。</summary>
         private void WebSocketReconnecting(string message)
         {
             RuntimeDiagnostics.Report("LCU WebSocket", "重连中", message);
@@ -782,6 +802,7 @@ namespace LOL_GameAssistant
             _ = AcceptReadyCheckAfterDelayAsync(config, _autoAcceptCts);
         }
 
+        /// <summary>等待配置的延迟后接受匹配确认，并响应取消信号。</summary>
         private async Task AcceptReadyCheckAfterDelayAsync(AssistantSettings config, CancellationTokenSource source)
         {
             try
@@ -820,6 +841,7 @@ namespace LOL_GameAssistant
             }
         }
 
+        /// <summary>取消尚未执行的自动接受任务。</summary>
         private void CancelAutoAccept()
         {
             CancellationTokenSource? source = _autoAcceptCts;
@@ -836,6 +858,7 @@ namespace LOL_GameAssistant
             _ = RunPostGameAutomationsAsync(_settingsStore.Load());
         }
 
+        /// <summary>在对局结束后执行已启用的自动操作。</summary>
         private async Task RunPostGameAutomationsAsync(AssistantSettings config)
         {
             try
@@ -991,6 +1014,7 @@ namespace LOL_GameAssistant
                    !string.Equals(assigned, secondary, StringComparison.Ordinal);
         }
 
+        /// <summary>将分路别名归一化，供方案选择和推荐匹配使用。</summary>
         private static string NormalizePosition(string? position) => position?.Trim().ToUpperInvariant() switch
         {
             "TOP" => "TOP",
@@ -1027,6 +1051,7 @@ namespace LOL_GameAssistant
             RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测中", "已进入选人阶段，开始检测已选英雄");
         }
 
+        /// <summary>停止选人阶段的推荐监控并取消等待任务。</summary>
         private void StopOpggChampSelectMonitor()
         {
             _opggPromptCts?.Cancel();
@@ -1035,6 +1060,7 @@ namespace LOL_GameAssistant
             coachForm.ResetOpggChampSelectPrompt();
         }
 
+        /// <summary>跟踪选人阶段变化，在英雄或场景变化后触发推荐流程。</summary>
         private async Task MonitorOpggChampSelectAsync(CancellationToken cancellationToken)
         {
             while (gameFlowPhase == GameFlowPhase.ChampSelect && !cancellationToken.IsCancellationRequested)
@@ -1075,6 +1101,7 @@ namespace LOL_GameAssistant
             }
         }
 
+        /// <summary>按已配置的英雄优先级尝试交换大乱斗备选英雄。</summary>
         private async Task TryAutoSwapAramBenchAsync(AssistantSettings settings, CancellationToken cancellationToken)
         {
             int[] priority = ResolveChampionIds(settings.AramBenchPriorityChampions).Distinct().ToArray();
@@ -1133,6 +1160,7 @@ namespace LOL_GameAssistant
             return Task.CompletedTask;
         }
 
+        /// <summary>创建托盘图标和菜单，绑定恢复窗口与退出操作。</summary>
         private void InitializeTray()
         {
             _trayIcon = new NotifyIcon
@@ -1296,6 +1324,7 @@ namespace LOL_GameAssistant
             }
         }
 
+        /// <summary>将当前设置同步到海克斯增幅浮窗的显示与跟踪状态。</summary>
         public void RefreshMayhemOverlaySetting()
         {
             if (IsDisposed || _mayhemOverlay.IsDisposed) return;
@@ -1305,6 +1334,7 @@ namespace LOL_GameAssistant
                 _mayhemOverlay.StopTracking();
         }
 
+        /// <summary>将当前设置同步到选人伴随窗的显示与跟踪状态。</summary>
         public void RefreshChampSelectCompanionSetting()
         {
             if (IsDisposed || _champSelectCompanion.IsDisposed) return;

@@ -14,6 +14,7 @@ internal static class UiLanguage
         .Select(entry => BuildPattern(entry.Key, entry.Value)).ToArray();
     private static readonly Dictionary<Control, string> Originals = new();
     private static readonly Dictionary<ComboBox, string[]> ComboOriginals = new();
+    /// <summary>保存控件原始文本和翻译状态，支持语言往返切换。</summary>
     private sealed class TextState(string source, string applied)
     {
         public string Source = source;
@@ -63,9 +64,12 @@ internal static class UiLanguage
     private static System.Windows.Forms.Timer? _refreshTimer;
     public static event EventHandler? Changed;
 
+    /// <summary>判断当前界面语言是否为英文。</summary>
     public static bool IsEnglish => _english;
+    /// <summary>刷新当前对象展示的状态或数据。</summary>
     public static void Refresh() => ApplyOpenForms(true);
 
+    /// <summary>启动当前服务或组件的运行流程。</summary>
     public static void Start()
     {
         if (_started) return;
@@ -77,6 +81,7 @@ internal static class UiLanguage
         System.Windows.Forms.Application.ApplicationExit += (_, _) => _refreshTimer?.Dispose();
     }
 
+    /// <summary>切换当前显示模式并通知相关订阅者。</summary>
     public static void SetMode(string? mode)
     {
         bool english = string.Equals(mode, "en-US", StringComparison.OrdinalIgnoreCase);
@@ -86,6 +91,7 @@ internal static class UiLanguage
         Changed?.Invoke(null, EventArgs.Empty);
     }
 
+    /// <summary>将原始界面文本转换为当前语言的文本。</summary>
     public static string T(string? source)
     {
         if (!_english || string.IsNullOrEmpty(source)) return source ?? "";
@@ -105,6 +111,7 @@ internal static class UiLanguage
         return source;
     }
 
+    /// <summary>翻译包含动态片段的组合文本。</summary>
     private static string TranslateComposite(string source)
     {
         string exact = T(source);
@@ -121,6 +128,7 @@ internal static class UiLanguage
         return string.Join(Environment.NewLine, lines);
     }
 
+    /// <summary>将当前语言设置应用到已打开的窗口。</summary>
     private static void ApplyOpenForms(bool refresh)
     {
         if (_updating) return;
@@ -128,6 +136,7 @@ internal static class UiLanguage
             if (!form.IsDisposed && (refresh || !Originals.ContainsKey(form))) Attach(form, refresh);
     }
 
+    /// <summary>绑定目标控件或窗口的相关事件。</summary>
     private static void Attach(Control control, bool refresh = false)
     {
         if (control.IsDisposed) return;
@@ -153,6 +162,7 @@ internal static class UiLanguage
         foreach (Control child in control.Controls) Attach(child, refresh);
     }
 
+    /// <summary>控件文本变化后同步其本地化状态。</summary>
     private static void ControlTextChanged(object? sender, EventArgs args)
     {
         if (_updating || sender is not Control control || control.IsDisposed) return;
@@ -160,6 +170,7 @@ internal static class UiLanguage
         ApplyText(control);
     }
 
+    /// <summary>为控件设置当前语言对应的显示文本。</summary>
     private static void ApplyText(Control control)
     {
         if (control is TextBoxBase textBox && !textBox.ReadOnly) return;
@@ -172,6 +183,7 @@ internal static class UiLanguage
         finally { _updating = false; }
     }
 
+    /// <summary>翻译下拉选择控件中的条目。</summary>
     private static void ApplyCombo(ComboBox box)
     {
         if (!ComboOriginals.TryGetValue(box, out string[]? original))
@@ -192,6 +204,7 @@ internal static class UiLanguage
         finally { _updating = false; }
     }
 
+    /// <summary>翻译控件中除主文本外的相关文字属性。</summary>
     private static void ApplyProperties(Control control)
     {
         Dictionary<string, TextState> originals = PropertyOriginals.GetOrCreateValue(control);
@@ -212,6 +225,7 @@ internal static class UiLanguage
         }
     }
 
+    /// <summary>翻译列表控件中的显示条目。</summary>
     private static void ApplyList(ListView list)
     {
         foreach (ListViewItem item in list.Items)
@@ -235,10 +249,13 @@ internal static class UiLanguage
         }
     }
 
+    /// <summary>检查文本中是否包含中文字符。</summary>
     private static bool IsChinese(char c) => c is >= '\u3400' and <= '\u9fff';
+    /// <summary>从当前文本和已保存状态中恢复原始文案。</summary>
     private static string RecoverOriginal(string text) =>
         _english && Reverse.TryGetValue(text, out string? original) ? original : text;
 
+    /// <summary>为包含动态片段的文本构建匹配模式。</summary>
     private static (Regex Pattern, string[] Tokens, string Translation) BuildPattern(string source, string translation)
     {
         MatchCollection matches = Regex.Matches(source, @"\{[^{}]+\}");
@@ -254,6 +271,7 @@ internal static class UiLanguage
             matches.Select(match => match.Value).ToArray(), translation);
     }
 
+    /// <summary>读取内置英文翻译表。</summary>
     private static IReadOnlyDictionary<string, string> LoadEnglish()
     {
         try

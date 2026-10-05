@@ -5,6 +5,7 @@ namespace LOL_GameAssistant.Domain.Coaching;
 /// <summary>Prefer the LCU gameflow session over the optional Live Client API for mode identity.</summary>
 public static class LiveModeContextResolver
 {
+    /// <summary>结合 LCU 会话和 Live Client 模式生成模式键、队列及展示名称。</summary>
     public static (string GameMode, int QueueId, string DisplayMode) Resolve(
         ActiveGameSnapshot? session, string? liveClientMode)
     {

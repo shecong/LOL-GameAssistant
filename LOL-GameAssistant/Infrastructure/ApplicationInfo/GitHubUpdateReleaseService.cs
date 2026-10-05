@@ -9,6 +9,7 @@ public sealed class GitHubUpdateReleaseService : IUpdateReleaseService
 {
     private static readonly HttpClient Client = CreateClient();
 
+    /// <summary>查询最新发布版本信息。</summary>
     public async Task<UpdateRelease?> GetLatestAsync(CancellationToken cancellationToken = default)
     {
         string json = await Client.GetStringAsync(
@@ -28,6 +29,7 @@ public sealed class GitHubUpdateReleaseService : IUpdateReleaseService
             data["body"]?.ToString() ?? "");
     }
 
+    /// <summary>创建当前服务使用的 HTTP 客户端及请求配置。</summary>
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };

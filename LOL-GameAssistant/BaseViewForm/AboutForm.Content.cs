@@ -2,6 +2,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
+/// <summary>关于页：展示项目说明、版本更新和外部数据来源。</summary>
 public partial class AboutForm
 {
     private readonly AntdUI.Segmented _aboutNavigation = new() { Dock = DockStyle.Top, Height = 44, Full = true };
@@ -9,6 +10,7 @@ public partial class AboutForm
     private readonly List<TableLayoutPanel> _aboutCards = [];
     private static readonly string[] AboutTabs = ["功能说明", "常用网站"];
 
+    /// <summary>组织关于页的说明、项目链接和数据来源卡片。</summary>
     private void BuildAboutUi()
     {
         var header = new Panel { Dock = DockStyle.Top, Height = 90, Padding = new Padding(18, 10, 18, 8) };
@@ -77,6 +79,7 @@ public partial class AboutForm
         ApplyLanguage();
     }
 
+    /// <summary>创建关于页使用的内容容器。</summary>
     private static Panel CreateAboutPage(string name, out TableLayoutPanel list)
     {
         var page = new Panel { Name = name, Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(12, 6, 12, 6) };
@@ -86,6 +89,7 @@ public partial class AboutForm
         return page;
     }
 
+    /// <summary>向关于页追加带说明和链接的内容卡片。</summary>
     private void AddAboutCard(TableLayoutPanel list, string title, string description, string? url = null)
     {
         var card = new TableLayoutPanel
@@ -120,12 +124,14 @@ public partial class AboutForm
         list.Controls.Add(card, 0, row);
     }
 
+    /// <summary>按当前语言刷新界面文本。</summary>
     public void ApplyLanguage()
     {
         for (int index = 0; index < AboutTabs.Length; index++)
             _aboutNavigation.Items[index].Text = UiLanguage.T(AboutTabs[index]);
     }
 
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
         BackColor = palette.Surface;
@@ -133,6 +139,7 @@ public partial class AboutForm
         _aboutNavigation.ColorScheme = palette.IsDark ? AntdUI.TAMode.Dark : AntdUI.TAMode.Light;
         _aboutNavigation.BackColor = palette.SurfaceMuted;
         _aboutNavigation.ForeColor = palette.TextPrimary;
+        // 按当前语言更新关于页中的标签文本。
         void SetLabels(Control root)
         {
             foreach (Control child in root.Controls)

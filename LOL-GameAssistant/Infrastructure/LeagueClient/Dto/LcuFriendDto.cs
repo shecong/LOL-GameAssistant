@@ -17,6 +17,7 @@ internal sealed class LcuFriendDto
     [JsonProperty("lol")] public LcuFriendLolDto? Lol { get; set; }
 }
 
+/// <summary>好友协议数据中英雄联盟活动相关字段。</summary>
 internal sealed class LcuFriendLolDto
 {
     [JsonProperty("gameId")] public string? GameId { get; set; }

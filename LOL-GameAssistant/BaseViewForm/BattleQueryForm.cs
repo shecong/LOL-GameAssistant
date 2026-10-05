@@ -13,6 +13,7 @@ using System.Text;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
+    /// <summary>战绩查询页：管理玩家搜索、统计、分页和收藏操作。</summary>
     public partial class BattleQueryForm : UserControl, IThemeAware
     {
         private PlayerProfile? _currentPlayer;
@@ -61,6 +62,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly FlowLayoutPanel _favoriteActions = new() { Dock = DockStyle.Bottom, Height = 42, WrapContents = true };
         private RankedQueue? solo, flex;
 
+        /// <summary>统计计算使用的单场原始数据快照。</summary>
         private class RawGameStat
         {
             public string Mode = "";
@@ -69,6 +71,7 @@ namespace LOL_GameAssistant.BaseViewForm
             public int ChampionId;
         }
 
+        /// <summary>初始化 BattleQueryForm 的实例状态。</summary>
         public BattleQueryForm() : this(
             AppCompositionRoot.PlayerProfileService,
             AppCompositionRoot.ProfileIconService,
@@ -109,6 +112,7 @@ namespace LOL_GameAssistant.BaseViewForm
             };
         }
 
+        /// <summary>组装战绩查询界面的现代布局和操作控件。</summary>
         private void InitializeModernLayout()
         {
             Controls.Clear();
@@ -208,6 +212,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ApplyTheme(UiTheme.Palette);
         }
 
+        /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
         public void ApplyTheme(ThemePalette palette)
         {
             BackColor = palette.SurfaceMuted;
@@ -224,6 +229,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblStatus.ForeColor = palette.TextSecondary;
         }
 
+        /// <summary>更新战绩区域的标题和分页信息。</summary>
         private void UpdateHistoryHeader(int totalGames = 0)
         {
             _historyTitle.Text = totalGames > 0 ? $"最近对局 · {totalGames} 场" : "最近对局";
@@ -245,6 +251,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _playerIdentityTip.SetToolTip(lblPlayerTag, "点击复制 ID");
         }
 
+        /// <summary>复制当前玩家的 Riot ID，供搜索或分享使用。</summary>
         private void CopyPlayerIdentity(string? value, string label)
         {
             if (string.IsNullOrWhiteSpace(value)) return;
@@ -268,6 +275,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>在控件加载后完成依赖尺寸或句柄的初始化。</summary>
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
@@ -276,6 +284,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _ = InitializeDefaultSearchAsync();
         }
 
+        /// <summary>按可用宽度调整界面布局，避免内容超出容器。</summary>
         private void UpdateResponsiveLayout()
         {
             if (IsDisposed) return;
@@ -398,6 +407,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>响应查询按钮，解析输入并启动玩家查询。</summary>
         private async void BtnSearch_Click(object? sender, EventArgs e)
         {
             await PerformSearchAsync();
@@ -482,6 +492,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return await ScanMatchHistoryForPuuidAsync(input);
         }
 
+        /// <summary>扫描战绩信息以定位目标玩家的唯一标识。</summary>
         private async Task<string?> ScanMatchHistoryForPuuidAsync(string keyword)
         {
             try
@@ -520,6 +531,7 @@ namespace LOL_GameAssistant.BaseViewForm
             SetViewButtonState(true);
         }
 
+        /// <summary>响应统计查看操作，刷新目标玩家的战绩统计。</summary>
         private async void BtnViewStats_Click(object? sender, EventArgs e)
         {
             panelHistory.Visible = false;
@@ -536,6 +548,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>切换统计查看按钮的可用状态和提示文本。</summary>
         private void SetViewButtonState(bool recordSelected)
         {
             btnViewRecord.Type = recordSelected ? AntdUI.TTypeMini.Primary : AntdUI.TTypeMini.Default;
@@ -611,6 +624,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>异步读取玩家排位数据并更新显示。</summary>
         private async Task LoadRankedDataAsync(string puuid)
         {
             try
@@ -638,6 +652,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch { }
         }
 
+        /// <summary>将排位信息转换为界面使用的文本。</summary>
         private static string FormatRanked(RankedQueue entry)
         {
             string extra = "";
@@ -655,6 +670,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return "暂无排位数据";
         }
 
+        /// <summary>读取当前玩家的战绩列表并准备分页展示。</summary>
         private async Task LoadMatchHistoryAsync(string puuid)
         {
             try
@@ -694,6 +710,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>构建当前战绩页的卡片和占位状态。</summary>
         private async Task RenderMatchPageAsync(MatchHistoryResponse? preloadedPage = null)
         {
             if (_currentPlayer == null) return;
@@ -776,6 +793,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>补齐当前页的详细信息，避免首屏等待全部请求。</summary>
         private async Task EnrichMatchPageAsync(
             IReadOnlyList<MatchHistoryGame> games,
             IReadOnlyList<MatchHistoryPreviewCard> previews,
@@ -849,16 +867,19 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>检查异步结果是否仍属于当前战绩页。</summary>
         private bool IsCurrentPage(string puuid, int page, int pageSize, CancellationToken token) =>
             !IsDisposed && !token.IsCancellationRequested &&
             _currentPlayer?.Puuid == puuid && _currentPage == page && _pageSize == pageSize;
 
+        /// <summary>取消旧战绩页的后台加载，避免结果回写新页面。</summary>
         private void CancelPageLoad()
         {
             _pageLoadCts?.Cancel();
             _pageLoadCts = null;
         }
 
+        /// <summary>清空战绩卡片并释放已创建的控件资源。</summary>
         private void ClearMatchControls()
         {
             foreach (Control control in stackMatches.Controls.Cast<Control>().ToArray())
@@ -870,6 +891,7 @@ namespace LOL_GameAssistant.BaseViewForm
             stackMatches.AutoScrollPosition = Point.Empty;
         }
 
+        /// <summary>响应页码变化，加载对应的战绩页。</summary>
         private void Pagination_ValueChanged(object? sender, AntdUI.PagePageEventArgs e)
         {
             if (_suppressPaginationEvents) return;
@@ -1075,6 +1097,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblStatus.Text = "筛选: " + filter + "  " + filtered.Count + " 场 · 胜率 " + winRate + "%";
         }
 
+        /// <summary>创建一个战绩统计指标卡片。</summary>
         private static AntdUI.Panel StatTile(string title, string value, ThemePalette palette)
         {
             var card = new AntdUI.Panel
@@ -1147,6 +1170,7 @@ namespace LOL_GameAssistant.BaseViewForm
             RefreshFavoriteState();
         }
 
+        /// <summary>响应收藏玩家选择，查询所选玩家。</summary>
         private async void BtnLoadFavorite_Click(object? sender, EventArgs e)
         {
             string input;
@@ -1172,6 +1196,7 @@ namespace LOL_GameAssistant.BaseViewForm
             await PerformSearchAsync(input);
         }
 
+        /// <summary>重新读取收藏列表并更新选择控件。</summary>
         private void RefreshFavoriteList(string? selectedPuuid)
         {
             cboFavorites.Items.Clear();
@@ -1189,6 +1214,7 @@ namespace LOL_GameAssistant.BaseViewForm
             btnLoadFavorite.Enabled = true;
         }
 
+        /// <summary>同步当前玩家的收藏状态到界面。</summary>
         private void RefreshFavoriteState()
         {
             bool isFavorite = _currentPlayer != null && _favorites.Any(f => f.Puuid == _currentPlayer.Puuid);
@@ -1234,6 +1260,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>将战绩数据组织成导出文本并保存。</summary>
         private async Task<int> ExportMatchHistoryAsync(string path)
         {
             var sb = new StringBuilder();
@@ -1304,6 +1331,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return string.IsNullOrWhiteSpace(name) ? $"英雄{championId}" : name;
         }
 
+        /// <summary>转义 CSV 字段中的分隔符、引号和换行。</summary>
         private static string EscapeCsv(string value)
         {
             // CSV 可能直接在 Excel 中打开；外部文本不能被解释成公式。
@@ -1312,6 +1340,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return "\"" + value.Replace("\"", "\"\"") + "\"";
         }
 
+        /// <summary>将排位段位标识转换为中文名称。</summary>
         private static string TierToChinese(string tier) => tier switch
         {
             "IRON" => "黑铁",

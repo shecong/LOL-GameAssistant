@@ -44,6 +44,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private int _gameAssessmentGeneration;
         private GameFlowPhase? _lastRenderedPhase;
 
+        /// <summary>判断当前是否需要构建本局玩家的测评名单。</summary>
         public bool NeedsGameAssessmentRoster =>
             !IsDisposed && Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress &&
             _gameAssessmentRoster.Count == 0;
@@ -68,6 +69,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private const int PlayerCardHorizontalMargin = 10;
         private const int PlayerCardVerticalMargin = 10;
 
+        /// <summary>初始化 LiveGameForm 的实例状态。</summary>
         public LiveGameForm() : this(
             AppCompositionRoot.LobbyService,
             AppCompositionRoot.PlayerProfileService,
@@ -121,11 +123,13 @@ namespace LOL_GameAssistant.BaseViewForm
             UiTheme.Apply(this);
         }
 
+        /// <summary>加载对局页面并初始化刷新和展示逻辑。</summary>
         private void LiveGameForm_Load(object? sender, EventArgs e)
         {
             lblGameInfo.Text = "暂无对局信息，进入对局后自动展示";
         }
 
+        /// <summary>创建队伍组队情况的标签控件。</summary>
         private static AntdUI.Label CreateTeamQueueTag()
         {
             return new AntdUI.Label
@@ -163,12 +167,14 @@ namespace LOL_GameAssistant.BaseViewForm
             lblGameInfo.ForeColor = palette.TextPrimary;
         }
 
+        /// <summary>重新安排双方队伍组队标签的位置。</summary>
         private void LayoutTeamQueueTags()
         {
             LayoutTeamQueueTag(headerTeam1, lblTeamTitle1, _teamQueueTag1);
             LayoutTeamQueueTag(headerTeam2, lblTeamTitle2, _teamQueueTag2);
         }
 
+        /// <summary>按当前队伍区域尺寸设置组队标签的位置。</summary>
         private static void LayoutTeamQueueTag(GradientPanel header, AntdUI.Label title, AntdUI.Label tag)
         {
             if (header.ClientSize.Width <= 0) return;
@@ -179,6 +185,7 @@ namespace LOL_GameAssistant.BaseViewForm
             title.Padding = new Padding(0, 0, width + 16, 0);
         }
 
+        /// <summary>更新队伍组队状态文本和提示内容。</summary>
         private void SetTeamQueueTag(AntdUI.Label tag, string status, string detail)
         {
             ThemePalette palette = UiTheme.Palette;
@@ -210,6 +217,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _autoRefreshTimer.Enabled = enabled;
         }
 
+        /// <summary>定时刷新当前对局信息。</summary>
         private async void AutoRefreshTick()
         {
             // 仅在对局标签页可见时刷新，避免后台频繁请求
@@ -233,6 +241,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _teamQueueTag2.Visible = false;
         }
 
+        /// <summary>清空上一个对局的队伍关系快照。</summary>
         public void ClearPartySnapshots()
         {
             ResetHistoryParties();
@@ -241,6 +250,7 @@ namespace LOL_GameAssistant.BaseViewForm
             unchecked { _partySnapshotGeneration++; }
         }
 
+        /// <summary>读取用于识别当前组队关系的大厅信息。</summary>
         private async Task<LobbySnapshot?> ReadPartyLobbyAsync()
         {
             int generation = _partySnapshotGeneration;
@@ -250,6 +260,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return lobby;
         }
 
+        /// <summary>保存当前大厅组队信息，供后续阶段恢复使用。</summary>
         public async Task CapturePartyLobbyAsync()
         {
             try { await ReadPartyLobbyAsync(); }
@@ -401,6 +412,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private static bool IsRenderablePhase(GameFlowPhase phase) =>
             phase is GameFlowPhase.Lobby or GameFlowPhase.ChampSelect or GameFlowPhase.InProgress;
 
+        /// <summary>将选人阶段成员转换为队伍展示所需的身份信息。</summary>
         private static IReadOnlyList<GameTeamMember> MapSelectionMembers(
             IReadOnlyList<ChampionSelectionMember> members,
             ActiveGameSnapshot? flow,
@@ -455,6 +467,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return _myPuuid;
         }
 
+        /// <summary>将最新对局上下文同步到页面。</summary>
         private void SetGameInfo(string mode, int queueId)
         {
             string phase = Program.GameMain.gameFlowPhase.GetChineseName();
@@ -466,6 +479,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblGameInfo.Text = $"{phase}{modeText}{queueText}";
         }
 
+        /// <summary>根据当前对局信息构建双方队伍卡片。</summary>
         private void RenderTeams(
             IReadOnlyList<GameTeamMember> team1,
             IReadOnlyList<GameTeamMember> team2,
@@ -488,6 +502,7 @@ namespace LOL_GameAssistant.BaseViewForm
             StartHistoryPartyFallback(team1, team2);
         }
 
+        /// <summary>执行双方队伍卡片的实际构建和更新。</summary>
         private void RenderTeamsCore(
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2,
@@ -575,6 +590,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ApplyPremadeResult(partyDetection);
         }
 
+        /// <summary>同步玩家当前所选英雄，避免沿用旧阶段头像。</summary>
         internal static void UpdateCurrentChampions(
             Control panel,
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members)
@@ -596,6 +612,7 @@ namespace LOL_GameAssistant.BaseViewForm
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2)
         {
+            // 生成成员所属队伍的分组键。
             static string TeamKey(IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team) =>
                 string.Join(",", team
                     .Select(member => member.Puuid)
@@ -646,6 +663,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>重置选人阶段的玩家表现评估状态。</summary>
         private void ResetChampSelectAssessments()
         {
             _champSelectAssessments.Clear();
@@ -654,6 +672,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _champSelectAssessmentSent = false;
         }
 
+        /// <summary>准备本局玩家表现评估的数据和发送状态。</summary>
         private void PrepareGameAssessments(
             string signature,
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
@@ -686,6 +705,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _ = SendGameAssessmentsAfterTimeoutAsync(signature);
         }
 
+        /// <summary>将一名玩家加入本局评估集合。</summary>
         private void AddGameAssessmentPlayer(string puuid, string name, bool isBot, string team)
         {
             puuid ??= "";
@@ -694,6 +714,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _expectedGameAssessmentPuuids.Add(puuid);
         }
 
+        /// <summary>清空本局评估缓存及相关发送标记。</summary>
         private void ResetGameAssessments()
         {
             unchecked { _gameAssessmentGeneration++; }
@@ -705,6 +726,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _gameAssessmentSending = false;
         }
 
+        /// <summary>等待评估结果或超时后发送已有的本局测评内容。</summary>
         private async Task SendGameAssessmentsAfterTimeoutAsync(string signature)
         {
             await Task.Delay(TimeSpan.FromSeconds(45));
@@ -721,6 +743,7 @@ namespace LOL_GameAssistant.BaseViewForm
             SendGameKdaAnnouncement();
         }
 
+        /// <summary>接收玩家近期表现结果并更新本局评估状态。</summary>
         private void OnPlayerRecentPerformanceReady(object? sender, PlayerRecentPerformanceEventArgs result)
         {
             if (IsDisposed) return;
@@ -749,6 +772,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _ = SendChampSelectKdaAnnouncementAsync(signature, message);
         }
 
+        /// <summary>启动游戏内逐人 KDA 测评发送。</summary>
         private void SendGameKdaAnnouncement()
         {
             if (_gameAssessmentSent || _gameAssessmentSending || _gameAssessmentRoster.Count == 0 ||
@@ -820,6 +844,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>组织一名玩家的 KDA 测评消息。</summary>
         internal string? BuildPlayerKdaMessage(int slot)
         {
             if (slot is < 0 or > 9) return null;
@@ -834,6 +859,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaCustomRemarks);
         }
 
+        /// <summary>根据本局玩家集合组织游戏聊天测评消息。</summary>
         private IReadOnlyList<string> BuildCurrentGameKdaMessages(bool onePlayerPerLine)
         {
             var players = _gameAssessmentRoster.Select(member =>
@@ -847,6 +873,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine);
         }
 
+        /// <summary>将逐人 KDA 测评消息交给游戏聊天发送器。</summary>
         private async Task SendGameKdaAnnouncementAsync(string signature, int generation,
             IReadOnlyList<string> messages, LOL_GameAssistant.Domain.Settings.AssistantSettings settings)
         {
@@ -899,6 +926,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>组织选人阶段的近期表现测评文本。</summary>
         private string BuildChampSelectKdaAnnouncement()
         {
             var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
@@ -927,6 +955,7 @@ namespace LOL_GameAssistant.BaseViewForm
             .Replace("{enemies}\n", "", StringComparison.OrdinalIgnoreCase)
             .Replace("{enemies}", "", StringComparison.OrdinalIgnoreCase);
 
+        /// <summary>将选人阶段表现结果格式化为显示文本。</summary>
         private static string FormatChampSelectPerformance(PlayerRecentPerformanceEventArgs result)
         {
             RecentModePerformanceAssessment? assessment = result.Assessment;
@@ -936,6 +965,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return $"{name}：{RecentPerformanceLabelFormatter.GetText(assessment)} {assessment.Score}分 · KDA {assessment.Kda:F2} · 胜率 {assessment.WinRate:F0}%";
         }
 
+        /// <summary>将选人阶段测评内容发送到客户端聊天。</summary>
         private async Task SendChampSelectKdaAnnouncementAsync(string signature, string message)
         {
             var result = await AppCompositionRoot.ChampionSelectChatService.SendAsync(message);
@@ -971,6 +1001,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ApplyPremadeToPanel(panelTeam2, result);
         }
 
+        /// <summary>重置历史同队关系推断状态。</summary>
         private void ResetHistoryParties()
         {
             _historyPartyCancellation?.Cancel();
@@ -980,6 +1011,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _historyParties = new([]);
         }
 
+        /// <summary>当前组队数据不足时启动历史战绩推断。</summary>
         private void StartHistoryPartyFallback(IReadOnlyList<GameTeamMember> blue, IReadOnlyList<GameTeamMember> red)
         {
             if (_currentPartyDetection == null) return;
@@ -1000,6 +1032,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _ = DetectHistoryPartiesAsync(signature, teamOne, teamTwo, _historyPartyCancellation.Token);
         }
 
+        /// <summary>从近期战绩推断可能的同队关系。</summary>
         private async Task DetectHistoryPartiesAsync(string signature, IReadOnlyList<TeamMemberIdentity> blue,
             IReadOnlyList<TeamMemberIdentity> red, CancellationToken cancellationToken)
         {
@@ -1045,6 +1078,7 @@ namespace LOL_GameAssistant.BaseViewForm
             finally { _layingOutPlayerCards = false; }
         }
 
+        /// <summary>按队伍区域的可用空间调整玩家卡片。</summary>
         private static void ResizePlayerCards(FlowLayoutPanel panel)
         {
             var cards = panel.Controls.OfType<LivePlayerForm>().ToList();
@@ -1066,6 +1100,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>计算玩家卡片在当前容器中的目标宽度。</summary>
         private static int CalculatePlayerCardWidth(FlowLayoutPanel panel, int cardCount)
         {
             int contentWidth = panel.ClientSize.Width - panel.Padding.Horizontal;
@@ -1090,6 +1125,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return Math.Max(1, Math.Min(PlayerCardSingleColumnMaxWidth, singleColumnWidth));
         }
 
+        /// <summary>判断当前内容高度是否需要纵向滚动条。</summary>
         private static bool NeedsVerticalScrollbar(FlowLayoutPanel panel, int rows)
         {
             int contentHeight = panel.Padding.Vertical + rows * (PlayerCardHeight + PlayerCardVerticalMargin);
@@ -1110,6 +1146,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>从旧容器移出可复用玩家卡片，避免清空时被释放。</summary>
         internal static void DetachReusablePlayerCards(
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members,
             bool isAlly, bool teamKnown, int queueId, string? gameMode,
@@ -1121,6 +1158,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     card.Parent?.Controls.Remove(card);
         }
 
+        /// <summary>将玩家卡片加入对应队伍区域。</summary>
         private void AddPlayerCards(
             FlowLayoutPanel panel,
             List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members,

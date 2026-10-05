@@ -24,12 +24,14 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     private readonly ILcuRequestSender _lcu;
     private readonly IChampionCatalog _championCatalog;
 
+    /// <summary>初始化 OpggBuildApplyService 的实例状态，并保存传入的依赖或数据。</summary>
     public OpggBuildApplyService(ILcuRequestSender lcu, IChampionCatalog championCatalog)
     {
         _lcu = lcu;
         _championCatalog = championCatalog;
     }
 
+    /// <summary>读取当前符文页和召唤师技能，生成可保存的个人方案。</summary>
     public async Task<PersonalRunePreset?> CaptureCurrentRunePresetAsync(
         int championId, string mode, string position, CancellationToken cancellationToken = default)
     {
@@ -64,6 +66,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         return preset.IsValid ? preset : null;
     }
 
+    /// <summary>将保存的个人符文及技能方案写入客户端。</summary>
     public async Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(
         PersonalRunePreset preset, CancellationToken cancellationToken = default)
     {
@@ -82,6 +85,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         catch (Exception ex) { return OpggBuildApplyResult.Failure($"个人方案应用失败：{ex.Message}"); }
     }
 
+    /// <summary>读取指定英雄和场景的推荐方案集合。</summary>
     public async Task<OpggBuildChoices> GetBuildChoicesAsync(
         int championId,
         string? position,
@@ -94,6 +98,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>读取指定英雄和场景的推荐方案集合。</summary>
     public async Task<OpggBuildChoices> GetBuildChoicesAsync(
         int championId,
         string? position,
@@ -154,6 +159,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         }
     }
 
+    /// <summary>应用用户选择的符文、召唤师技能和装备方案。</summary>
     public async Task<OpggBuildApplyResult> ApplyBuildAsync(
         int championId,
         string? position,
@@ -212,6 +218,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         }
     }
 
+    /// <summary>读取指定英雄的推荐方案并执行应用流程。</summary>
     public async Task<OpggBuildApplyResult> ApplyForChampionAsync(
         int championId,
         string? position,
@@ -225,6 +232,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             : await ApplyBuildAsync(championId, position, first, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>创建外部数据服务使用的 HTTP 客户端。</summary>
     private static HttpClient CreateHttpClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
@@ -269,6 +277,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         return new OpggBuildPayload(options, augments, new List<OpggMatchup>());
     }
 
+    /// <summary>将海克斯大乱斗装备数据解析为可选择的方案。</summary>
     internal static IReadOnlyList<OpggBuildOption> ParseMayhemBuildOptions(string html)
     {
         if (!html.Contains("Core Items", StringComparison.Ordinal))
@@ -290,6 +299,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             int end = panels.Count == 0 ? html.Length :
                 panelIndex + 1 < panels.Count ? panels[panelIndex + 1].Index : Math.Min(html.Length, start + 25000);
             string panel = html[start..end];
+            // 提取指定推荐阶段中的装备标识。
             static List<int> ItemsInSection(string source, string heading, params string[] following)
             {
                 int from = source.IndexOf(heading, StringComparison.Ordinal);
@@ -425,6 +435,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         return new OpggBuildPayload(options, augments, matchups);
     }
 
+    /// <summary>写入推荐的召唤师技能，并返回客户端接受状态。</summary>
     private async Task<string> ApplySummonerSpellsAsync(
         IReadOnlyList<int>? spellIds,
         CancellationToken cancellationToken)
@@ -439,6 +450,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         return updated ? "召唤师技能已写入" : "客户端未写入召唤师技能，已保留当前技能";
     }
 
+    /// <summary>写入推荐符文页并切换为当前页；失败时尝试恢复原页面。</summary>
     private async Task<string> ApplyRunePageAsync(OpggBuild build, string label, CancellationToken cancellationToken,
         string prefix = ManagedRunePrefix, bool allowReplaceCurrentRunePage = false)
     {
@@ -466,6 +478,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             .Where(page => IsManagedRunePage(page.Value<string>("name")))
             .FirstOrDefault(page => page.Value<bool?>("isEditable") != false && page.Value<long?>("id").HasValue);
         bool replacingUserPage = false;
+        // 默认只替换助手管理的页面；容量已满时，仅在用户明确允许后才覆盖可编辑的当前页。
         if (managedPage == null && customPageCount >= pageLimit && allowReplaceCurrentRunePage &&
             oldCurrent?.Value<bool?>("isEditable") == true &&
             oldCurrent.Value<bool?>("isTemporary") != true && oldCurrentId.HasValue)
@@ -476,6 +489,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         if (managedPage != null)
         {
             long id = managedPage.Value<long>("id");
+            // 写入前保存原页面内容，切换当前页失败时使用这份数据进行回滚。
             string originalBody = BuildRunePageBody(managedPage);
             try
             {
@@ -522,12 +536,14 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         throw new InvalidOperationException($"自定义符文页已满（{customPageCount}/{pageLimit}），且没有可替换的助手符文页；请在方案弹窗勾选允许覆盖当前页，或先在客户端释放一个符文页后重试。");
     }
 
+    /// <summary>显式设置当前符文页，避免客户端忽略创建请求中的 current 标志。</summary>
     private async Task SetCurrentRunePageAsync(long id, CancellationToken cancellationToken)
     {
         if (!await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(id), cancellationToken).ConfigureAwait(false))
             throw new InvalidOperationException("符文页已写入，但客户端拒绝将其设为当前页。");
     }
 
+    /// <summary>在独立超时范围内恢复被修改的符文页和原当前页。</summary>
     private async Task<bool> TryRestoreRunePageAsync(long id, string originalBody, long? oldCurrentId)
     {
         try
@@ -541,6 +557,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         catch { return false; }
     }
 
+    /// <summary>新符文页切换失败时删除该页面，并恢复原当前页。</summary>
     private async Task<bool> TryRemoveCreatedRunePageAsync(long id, long? oldCurrentId)
     {
         try
@@ -554,6 +571,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         catch { return false; }
     }
 
+    /// <summary>保留符文页的关键字段，构建可用于恢复的请求内容。</summary>
     private static string BuildRunePageBody(JObject page) => JsonConvert.SerializeObject(new
     {
         name = page.Value<string>("name"),
@@ -568,13 +586,16 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     private static int CountCustomPages(JArray pages) =>
         pages.OfType<JObject>().Count(page => page.Value<bool?>("isTemporary") != true);
 
+    /// <summary>兼容客户端 current 和 isActive 字段来判断当前页。</summary>
     private static bool IsCurrentRunePage(JObject page) =>
         page.Value<bool?>("current") == true || page.Value<bool?>("isActive") == true;
 
+    /// <summary>根据助手命名前缀识别可由助手替换的符文页。</summary>
     private static bool IsManagedRunePage(string? name) =>
         (name ?? "").StartsWith(ManagedRunePrefix, StringComparison.Ordinal) ||
         (name ?? "").StartsWith(PersonalRunePrefix, StringComparison.Ordinal);
 
+    /// <summary>写入当前英雄的推荐物品集，并保留其他用户物品集。</summary>
     private async Task<string> ApplyItemSetAsync(
         OpggBuild build,
         int championId,
@@ -619,6 +640,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         return "出装已写入自定义物品集";
     }
 
+    /// <summary>按推荐阶段组织自定义物品集分组。</summary>
     private static JArray BuildItemBlocks(OpggBuild build)
     {
         var blocks = new JArray();
@@ -636,6 +658,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         return blocks;
     }
 
+    /// <summary>根据装备标识创建一组客户端物品集内容。</summary>
     private static JObject BuildBlock(string title, IEnumerable<int> itemIds) => new()
     {
         ["type"] = title,
@@ -644,24 +667,29 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             .Select(group => new JObject { ["id"] = group.Key.ToString(), ["count"] = group.Count() }))
     };
 
+    /// <summary>读取接口 JSON 对象，并处理空响应。</summary>
     private async Task<JObject?> ReadObjectAsync(string endpoint, CancellationToken cancellationToken)
     {
         string? content = await _lcu.GetStringAsync(endpoint, cancellationToken).ConfigureAwait(false);
         return string.IsNullOrWhiteSpace(content) ? null : JObject.Parse(content);
     }
 
+    /// <summary>读取接口 JSON 数组，并处理空响应。</summary>
     private async Task<JArray> ReadArrayAsync(string endpoint, CancellationToken cancellationToken)
     {
         string? content = await _lcu.GetStringAsync(endpoint, cancellationToken).ConfigureAwait(false);
         return string.IsNullOrWhiteSpace(content) ? new JArray() : JArray.Parse(content);
     }
 
+    /// <summary>从 JSON 数组中提取有效资源标识。</summary>
     private static List<int> ReadIds(JToken? token) => token?.Values<int>()
         .Where(id => id > 0)
         .ToList() ?? new List<int>();
 
+    /// <summary>判断装备条目是否属于推荐中的鞋子分组。</summary>
     private static bool IsLikelyBoot(int itemId) => itemId is 3005 or 3006 or 3009 or 3010 or 3020 or 3047 or 3111 or 3117 or 3158;
 
+    /// <summary>将分路别名归一化，供方案选择和推荐匹配使用。</summary>
     private static string NormalizePosition(string? position) => position?.Trim().ToUpperInvariant() switch
     {
         "TOP" => "top",
@@ -672,6 +700,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         _ => "mid"
     };
 
+    /// <summary>将分路标识转换为展示名称。</summary>
     private static string GetPositionName(string position) => position switch
     {
         "top" => "上路",
@@ -682,6 +711,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         _ => position
     };
 
+    /// <summary>将队列和玩法别名转换为推荐服务使用的模式键。</summary>
     internal static string NormalizeMode(string? gameMode, int queueId)
     {
         string mode = (gameMode ?? "").Trim().ToUpperInvariant();
@@ -705,6 +735,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         return "unknown";
     }
 
+    /// <summary>将推荐模式键转换为展示名称。</summary>
     private static string GetModeName(string mode) => mode switch
     {
         "aram" => "极地大乱斗",
@@ -715,6 +746,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         _ => "召唤师峡谷"
     };
 
+    /// <summary>可写入客户端的符文、召唤师技能和装备方案。</summary>
     private sealed record OpggBuild(
         int PrimaryStyleId,
         int SubStyleId,
@@ -723,6 +755,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         List<int> CoreItems,
         List<int> SituationalItems);
 
+    /// <summary>外部推荐数据解析后的方案、强化和对位信息集合。</summary>
     private sealed record OpggBuildPayload(
         IReadOnlyList<OpggBuildOption> Options,
         IReadOnlyList<OpggAugmentRecommendation> Augments,

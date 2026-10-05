@@ -5,9 +5,11 @@ namespace LOL_GameAssistant.Application.Builds;
 /// <summary>从 OP.GG 公共英雄数据获取推荐，并写入本机 League Client 的符文页和物品集。</summary>
 public interface IOpggBuildApplyService
 {
+    /// <summary>读取当前符文页和召唤师技能，生成可保存的个人方案。</summary>
     Task<PersonalRunePreset?> CaptureCurrentRunePresetAsync(
         int championId, string mode, string position, CancellationToken cancellationToken = default);
 
+    /// <summary>将保存的个人符文及技能方案写入客户端。</summary>
     Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(
         PersonalRunePreset preset, CancellationToken cancellationToken = default);
     /// <summary>读取当前英雄、分路下可供用户选择的 OP.GG 出装路线，不会写入客户端。</summary>
@@ -54,6 +56,7 @@ public sealed record OpggBuildOption(
     double? ReportedWinRate = null,
     double? PickRate = null)
 {
+    /// <summary>根据统计中的胜负数据或比例生成胜率值。</summary>
     public double WinRate => ReportedWinRate ?? (Matches <= 0 ? 0 : Math.Round(Wins * 100D / Matches, 1));
 }
 
@@ -69,6 +72,7 @@ public sealed record OpggBuildChoices(
     IReadOnlyList<OpggMatchup>? Matchups = null,
     int ChampionId = 0)
 {
+    /// <summary>构建失败结果，向调用方保留可展示的原因。</summary>
     public static OpggBuildChoices Failure(string message) => new(false, message, "", "", Array.Empty<OpggBuildOption>());
 }
 
@@ -81,18 +85,22 @@ public sealed record OpggBuildRequest(
 /// <summary>一个海克斯推荐条目；仅展示推荐，不自动替玩家作出局内选择。</summary>
 public sealed record OpggAugmentRecommendation(int Id, int Rarity, int Matches, int Wins)
 {
+    /// <summary>根据统计中的胜负数据或比例生成胜率值。</summary>
     public double WinRate => Matches <= 0 ? 0 : Math.Round(Wins * 100D / Matches, 1);
 }
 
 /// <summary>对位统计条目；胜率为当前英雄对该英雄的公开样本胜率。</summary>
 public sealed record OpggMatchup(int ChampionId, int Matches, int Wins)
 {
+    /// <summary>根据统计中的胜负数据或比例生成胜率值。</summary>
     public double WinRate => Matches <= 0 ? 0 : Math.Round(Wins * 100D / Matches, 1);
 }
 
 /// <summary>一次一键配置的可展示结果；不会包含 LCU 凭据或第三方请求内容。</summary>
 public sealed record OpggBuildApplyResult(bool Succeeded, string Message)
 {
+    /// <summary>构建成功结果，向调用方返回操作状态。</summary>
     public static OpggBuildApplyResult Success(string message) => new(true, message);
+    /// <summary>构建失败结果，向调用方保留可展示的原因。</summary>
     public static OpggBuildApplyResult Failure(string message) => new(false, message);
 }

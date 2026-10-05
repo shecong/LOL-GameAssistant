@@ -10,7 +10,7 @@ using LOL_GameAssistant.Infrastructure.LeagueClient;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>从客户端当前符文页与召唤师技能保存个人方案，按英雄及场景维护优先级。</summary>
-internal sealed class RunePresetManagerForm : Form
+internal sealed class RunePresetManagerForm : AntdUI.Window
 {
     private readonly IApplicationSettingsStore _settings;
     private readonly IOpggBuildApplyService _builds;
@@ -25,9 +25,12 @@ internal sealed class RunePresetManagerForm : Form
     private readonly AntdUI.Label _detail = new() { AutoSize = true, MaximumSize = new Size(400, 0) };
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Bottom, Height = 42, TextAlign = ContentAlignment.MiddleLeft };
     private List<PersonalRunePreset> _presets = new();
+    /// <summary>个人符文方案列表使用的显示行。</summary>
     private sealed record PresetRow(string Label);
+    /// <summary>设置选择项的协议键及中英文显示名称。</summary>
     private sealed record Choice(string Key, string Chinese, string English)
     {
+        /// <summary>返回当前条目用于文本控件展示的内容。</summary>
         public override string ToString() => UiLanguage.IsEnglish ? English : Chinese;
     }
     private static readonly Choice[] Modes =
@@ -43,6 +46,7 @@ internal sealed class RunePresetManagerForm : Form
         new("support", "辅助", "Support"), new("unknown", "不限", "Any")
     ];
 
+    /// <summary>初始化 RunePresetManagerForm 的实例状态，并保存传入的依赖或数据。</summary>
     public RunePresetManagerForm(IApplicationSettingsStore settings, IOpggBuildApplyService builds, IAiCoachingService context)
     {
         _settings = settings;
@@ -83,6 +87,7 @@ internal sealed class RunePresetManagerForm : Form
         root.Controls.Add(editor, 1, 0);
         Controls.Add(root);
         Controls.Add(_status);
+        AntdWindowChrome.AddHeader(this);
         _list.SelectIndexChanged += (_, _) => ShowSelected();
         capture.Click += async (_, _) => await CaptureAsync();
         save.Click += (_, _) => SaveSelected();
@@ -94,6 +99,7 @@ internal sealed class RunePresetManagerForm : Form
         UiTheme.Apply(this);
     }
 
+    /// <summary>语言变化后刷新依赖本地化文本的界面。</summary>
     private void LanguageChanged(object? sender, EventArgs args)
     {
         _mode.Refresh();
@@ -101,9 +107,11 @@ internal sealed class RunePresetManagerForm : Form
         Reload(Selected?.Id);
     }
 
+    /// <summary>返回当前选中的个人符文方案，无有效选择时返回空。</summary>
     private PersonalRunePreset? Selected => _list.SelectedIndex is int index && index >= 0 && index < _presets.Count
         ? _presets[index] : null;
 
+    /// <summary>重新读取符文方案并恢复有效的选择。</summary>
     private void Reload(Guid? selectId = null)
     {
         _presets = _settings.Load().PersonalRunePresets
@@ -119,6 +127,7 @@ internal sealed class RunePresetManagerForm : Form
         if (_presets.Count > 0) _list.SelectedIndex = index >= 0 ? index : 0;
     }
 
+    /// <summary>将选中符文方案的字段同步到编辑区域。</summary>
     private void ShowSelected()
     {
         var preset = Selected;
@@ -133,6 +142,7 @@ internal sealed class RunePresetManagerForm : Form
             : $"英雄 ID：{preset.ChampionId}\n主系/副系：{preset.PrimaryStyleId}/{preset.SubStyleId}\n符文：{string.Join(", ", preset.RunePerkIds)}\n召唤师技能：{string.Join(", ", preset.SummonerSpellIds)}";
     }
 
+    /// <summary>从选人阶段的当前符文页和技能捕获个人方案。</summary>
     private async Task CaptureAsync()
     {
         try
@@ -156,6 +166,7 @@ internal sealed class RunePresetManagerForm : Form
         catch (Exception ex) { _status.Text = $"捕获失败：{ex.Message}"; }
     }
 
+    /// <summary>验证编辑内容并保存选中的个人符文方案。</summary>
     private void SaveSelected()
     {
         var preset = Selected;
@@ -175,6 +186,7 @@ internal sealed class RunePresetManagerForm : Form
         _status.Text = "方案已保存。";
     }
 
+    /// <summary>确认英雄和游戏阶段后应用选中的个人方案。</summary>
     private async Task ApplySelectedAsync()
     {
         var preset = Selected;
@@ -191,6 +203,7 @@ internal sealed class RunePresetManagerForm : Form
         _status.Text = result.Message;
     }
 
+    /// <summary>将方案模式键转换为当前语言的名称。</summary>
     private static string ModeLabel(string mode) => mode switch
     {
         "ranked" => UiLanguage.IsEnglish ? "Summoner's Rift" : "召唤师峡谷",
@@ -201,6 +214,7 @@ internal sealed class RunePresetManagerForm : Form
         _ => mode
     };
 
+    /// <summary>将方案分路键转换为当前语言的名称。</summary>
     private static string PositionLabel(string position) => position switch
     {
         "top" => UiLanguage.IsEnglish ? "Top" : "上路",
@@ -211,6 +225,7 @@ internal sealed class RunePresetManagerForm : Form
         _ => UiLanguage.IsEnglish ? "Any" : "不限"
     };
 
+    /// <summary>删除当前选中的个人符文方案并刷新列表。</summary>
     private void DeleteSelected()
     {
         var preset = Selected;

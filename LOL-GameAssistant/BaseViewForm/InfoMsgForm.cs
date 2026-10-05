@@ -1,14 +1,18 @@
 ﻿namespace LOL_GameAssistant.BaseViewForm
 {
+    /// <summary>消息区域：追加并清理运行中的状态提示。</summary>
     public partial class InfoMsgForm : UserControl, InfoMsgForm.IInfoMsgForm
     {
+        /// <summary>初始化 InfoMsgForm 的实例状态。</summary>
         public InfoMsgForm()
         {
             InitializeComponent();
         }
 
+        /// <summary>供业务调用方追加界面消息的接口。</summary>
         public interface IInfoMsgForm
         {
+            /// <summary>向消息区域追加一条信息。</summary>
             void AddMsg(string msg);
         }
 
@@ -40,6 +44,7 @@
             }
         }
 
+        /// <summary>响应清空菜单操作，移除当前显示的消息。</summary>
         private void 清空消息ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             //清空消息

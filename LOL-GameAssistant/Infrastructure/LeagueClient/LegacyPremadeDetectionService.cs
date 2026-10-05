@@ -7,6 +7,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>将既有开黑算法与 LCU 战绩采集收口为应用服务。</summary>
 public sealed class LegacyPremadeDetectionService : IPremadeDetectionService
 {
+    /// <summary>根据给定队伍成员及战绩数据判断可能的组队关系。</summary>
     public async Task<PremadeDetectionResult> DetectAsync(
         IReadOnlyList<TeamMemberIdentity> teamOne,
         IReadOnlyList<TeamMemberIdentity> teamTwo,

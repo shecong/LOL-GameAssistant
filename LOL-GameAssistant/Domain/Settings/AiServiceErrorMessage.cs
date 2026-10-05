@@ -16,6 +16,7 @@ public static class AiServiceErrorMessage
     private static readonly Regex SecretPattern = new(
         @"(sk-[A-Za-z0-9_\-]{4,}|[A-Za-z0-9_\-]{24,})", RegexOptions.Compiled);
 
+    /// <summary>将错误或状态信息转换为用户可读的说明。</summary>
     public static string Describe(int statusCode, string? body)
     {
         string hint = statusCode switch
@@ -58,6 +59,7 @@ public static class AiServiceErrorMessage
         return null;
     }
 
+    /// <summary>清理错误文本中不适合直接展示的内容。</summary>
     public static string? Sanitize(string? message)
     {
         if (string.IsNullOrWhiteSpace(message)) return null;

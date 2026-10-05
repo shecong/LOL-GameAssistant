@@ -39,6 +39,7 @@ public sealed class MatchHistoryCard : UserControl
     private readonly AntdUI.Button _details;
     private bool _layoutBusy;
 
+    /// <summary>战绩卡片中的玩家行及其状态控件集合。</summary>
     private sealed record PlayerRow(
         AntdUI.Panel Panel,
         AntdUI.Label Name,
@@ -47,11 +48,13 @@ public sealed class MatchHistoryCard : UserControl
         AntdUI.Tag Premade,
         IReadOnlyList<AntdUI.Tag> Augments);
 
+    /// <summary>初始化 MatchHistoryCard 的实例状态，并保存传入的依赖或数据。</summary>
     public MatchHistoryCard(MatchDetail match, string viewerPuuid, IGameAssetService assets)
         : this(match, viewerPuuid, assets, AppCompositionRoot.PremadeDetectionService)
     {
     }
 
+    /// <summary>初始化 MatchHistoryCard 的实例状态，并保存传入的依赖或数据。</summary>
     internal MatchHistoryCard(MatchDetail match, string viewerPuuid,
         IGameAssetService assets, IPremadeDetectionService premadeService)
     {
@@ -92,6 +95,7 @@ public sealed class MatchHistoryCard : UserControl
         _ = DetectPremadesAsync(ownTeamId, otherTeamId);
     }
 
+    /// <summary>创建当前卡片使用的文本标签。</summary>
     private static AntdUI.Label MakeLabel(string text, bool bold = false, Color? color = null) => new()
     {
         Text = text,
@@ -102,6 +106,7 @@ public sealed class MatchHistoryCard : UserControl
         BackColor = Color.Transparent
     };
 
+    /// <summary>构建单支队伍的展示区域。</summary>
     private (AntdUI.Panel Team, AntdUI.Label Title) CreateTeam(int teamId, string caption,
         bool mine, List<PlayerRow> rows)
     {
@@ -139,6 +144,7 @@ public sealed class MatchHistoryCard : UserControl
         return (panel, title);
     }
 
+    /// <summary>创建禁用英雄的显示标签。</summary>
     private static AntdUI.Label MakeBanLabel()
     {
         AntdUI.Label label = MakeLabel("禁用", false, UiTheme.Palette.TextSecondary);
@@ -146,6 +152,7 @@ public sealed class MatchHistoryCard : UserControl
         return label;
     }
 
+    /// <summary>构建包含英雄、玩家信息和状态标签的玩家行。</summary>
     private PlayerRow CreatePlayerRow(AntdUI.Panel team, MatchParticipant player)
     {
         MatchPlayer? identity = _match.participantIdentities
@@ -212,6 +219,7 @@ public sealed class MatchHistoryCard : UserControl
         return new PlayerRow(row, name, score, detail, premade, augments);
     }
 
+    /// <summary>重新计算战绩卡片的内部布局。</summary>
     private void LayoutCard()
     {
         if (_layoutBusy || IsDisposed || Width <= 0) return;
@@ -252,6 +260,7 @@ public sealed class MatchHistoryCard : UserControl
         finally { _layoutBusy = false; }
     }
 
+    /// <summary>按队伍区域尺寸重新排列玩家行。</summary>
     private static int LayoutTeam(AntdUI.Panel team, AntdUI.Label title, IReadOnlyList<PlayerRow> rows, int width)
     {
         title.SetBounds(12, 6, Math.Max(100, width - 24), 27);
@@ -290,6 +299,7 @@ public sealed class MatchHistoryCard : UserControl
         return team.Height;
     }
 
+    /// <summary>解析玩家强化信息并更新对应控件。</summary>
     private async Task LoadAugmentsAsync(IReadOnlyList<AntdUI.Tag> tags, IReadOnlyList<int> ids)
     {
         IReadOnlyList<AugmentCatalog.AugmentDisplay> names = await AugmentCatalog.ResolveAsync(ids);
@@ -306,6 +316,7 @@ public sealed class MatchHistoryCard : UserControl
         }
     }
 
+    /// <summary>读取双方队伍关系并刷新疑似组队标签。</summary>
     private async Task DetectPremadesAsync(int ownTeamId, int otherTeamId)
     {
         IReadOnlyList<TeamMemberIdentity> own = TeamIdentities(ownTeamId);
@@ -328,6 +339,7 @@ public sealed class MatchHistoryCard : UserControl
         }
     }
 
+    /// <summary>在并发限制下执行历史组队关系查询。</summary>
     private async Task<PremadeDetectionResult> DetectWithLimitAsync(
         IReadOnlyList<TeamMemberIdentity> own, IReadOnlyList<TeamMemberIdentity> other)
     {
@@ -336,6 +348,7 @@ public sealed class MatchHistoryCard : UserControl
         finally { PremadeGate.Release(); }
     }
 
+    /// <summary>提取队伍中可查询的玩家身份集合。</summary>
     private IReadOnlyList<TeamMemberIdentity> TeamIdentities(int teamId) => _match.participants
         .Where(participant => participant.teamId == teamId)
         .Select(participant => _match.participantIdentities
@@ -345,6 +358,7 @@ public sealed class MatchHistoryCard : UserControl
             !string.IsNullOrWhiteSpace(player.GameName) ? player.GameName : player.SummonerName))
         .ToArray();
 
+    /// <summary>将组队推断结果同步到队伍标题和玩家标签。</summary>
     private void ApplyPremadeResult(PremadeDetectionResult result)
     {
         if (InvokeRequired)
@@ -367,6 +381,7 @@ public sealed class MatchHistoryCard : UserControl
         }
     }
 
+    /// <summary>读取强化图标并更新显示控件。</summary>
     private static async Task LoadAugmentIconAsync(AntdUI.Tag tag, string url)
     {
         try
@@ -380,6 +395,7 @@ public sealed class MatchHistoryCard : UserControl
         catch { /* 中文名称仍可显示 */ }
     }
 
+    /// <summary>读取英雄图标并更新显示控件。</summary>
     private async Task LoadChampionAsync(AntdUI.Avatar avatar, int championId)
     {
         try
@@ -393,6 +409,7 @@ public sealed class MatchHistoryCard : UserControl
         catch { /* 保留占位头像 */ }
     }
 
+    /// <summary>读取英雄图标并更新显示控件。</summary>
     private async Task LoadChampionAsync(AntdUI.Tag tag, int championId)
     {
         try
@@ -406,6 +423,7 @@ public sealed class MatchHistoryCard : UserControl
         catch { /* 保留英雄名称 */ }
     }
 
+    /// <summary>将图像字节解码为可独立使用的位图。</summary>
     private static Image? Decode(byte[]? bytes)
     {
         if (bytes == null || bytes.Length == 0) return null;
@@ -418,6 +436,7 @@ public sealed class MatchHistoryCard : UserControl
         catch { return null; }
     }
 
+    /// <summary>查询英雄名称，并为缺失数据提供标识文本。</summary>
     private static string GetChampionName(int id) =>
         id > 0 ? AppCompositionRoot.ChampionCatalog.GetDisplayName(id) : "未知英雄";
 }

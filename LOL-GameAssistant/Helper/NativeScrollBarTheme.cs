@@ -8,9 +8,11 @@ internal static class NativeScrollBarTheme
 {
     private static readonly ConditionalWeakTable<ScrollableControl, ThemeWindow> Windows = new();
 
+    /// <summary>将当前主题配色应用到目标窗口的原生滚动条。</summary>
     public static void Apply(ScrollableControl control, ThemePalette palette) =>
         Windows.GetValue(control, key => new ThemeWindow(key)).Apply(palette);
 
+    /// <summary>绑定原生滚动条窗口消息并应用主题绘制。</summary>
     private sealed class ThemeWindow : NativeWindow
     {
         private readonly ScrollableControl _control;
@@ -18,6 +20,7 @@ internal static class NativeScrollBarTheme
         private readonly System.Windows.Forms.Timer _interactionTimer = new() { Interval = 40 };
         private int _hoveredBar;
 
+        /// <summary>初始化 ThemeWindow 的实例状态，并保存传入的依赖或数据。</summary>
         public ThemeWindow(ScrollableControl control)
         {
             _control = control;
@@ -38,6 +41,7 @@ internal static class NativeScrollBarTheme
             if (control.IsHandleCreated) Attach();
         }
 
+        /// <summary>绑定目标控件或窗口的相关事件。</summary>
         private void Attach()
         {
             if (Handle == IntPtr.Zero) AssignHandle(_control.Handle);
@@ -46,18 +50,21 @@ internal static class NativeScrollBarTheme
             RefreshFrame();
         }
 
+        /// <summary>将当前主题配色应用到目标窗口的原生滚动条。</summary>
         public void Apply(ThemePalette palette)
         {
             _palette = palette;
             RefreshFrame();
         }
 
+        /// <summary>请求窗口重新绘制非客户区。</summary>
         private void RefreshFrame()
         {
             if (Handle != IntPtr.Zero)
                 RedrawWindow(Handle, IntPtr.Zero, IntPtr.Zero, 0x001 | 0x100 | 0x400); // INVALIDATE | UPDATENOW | FRAME
         }
 
+        /// <summary>处理当前窗口关注的原生消息，其余消息继续交给基类。</summary>
         protected override void WndProc(ref Message message)
         {
             if (message.Msg is 0xA0 or 0xA1 && message.WParam.ToInt64() is 6 or 7)
@@ -72,6 +79,7 @@ internal static class NativeScrollBarTheme
             }
         }
 
+        /// <summary>根据鼠标位置判断当前悬停的滚动条。</summary>
         private int GetHoveredBar()
         {
             Point cursor = Cursor.Position;
@@ -85,6 +93,7 @@ internal static class NativeScrollBarTheme
             return 0;
         }
 
+        /// <summary>按主题配色绘制窗口中的原生滚动条。</summary>
         private void PaintScrollbars()
         {
             if ((!_control.VerticalScroll.Visible && !_control.HorizontalScroll.Visible) ||
@@ -105,6 +114,7 @@ internal static class NativeScrollBarTheme
             finally { ReleaseDC(Handle, dc); }
         }
 
+        /// <summary>绘制指定方向滚动条的轨道和滑块。</summary>
         private Rectangle PaintBar(Graphics graphics, NativeRect window, bool vertical)
         {
             if (vertical ? !_control.VerticalScroll.Visible : !_control.HorizontalScroll.Visible) return Rectangle.Empty;
@@ -138,8 +148,10 @@ internal static class NativeScrollBarTheme
         }
     }
 
+    /// <summary>供原生窗口和滚动条接口使用的矩形结构。</summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect { public int Left, Top, Right, Bottom; }
+    /// <summary>原生滚动条的区域、状态和滑块信息。</summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct ScrollBarInfo
     {
@@ -148,12 +160,19 @@ internal static class NativeScrollBarTheme
         public int ArrowSize, ThumbTop, ThumbBottom, Reserved;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public uint[] State;
     }
+    /// <summary>调用 Windows API 读取窗口在屏幕上的边界。</summary>
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out NativeRect rect);
+    /// <summary>读取原生滚动条的尺寸和状态信息。</summary>
     [DllImport("user32.dll")] private static extern bool GetScrollBarInfo(IntPtr window, int objectId, ref ScrollBarInfo info);
+    /// <summary>取得包含非客户区的窗口设备上下文。</summary>
     [DllImport("user32.dll")] private static extern IntPtr GetWindowDC(IntPtr window);
+    /// <summary>归还从窗口或屏幕取得的设备上下文。</summary>
     [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr dc);
+    /// <summary>请求窗口重绘指定区域。</summary>
     [DllImport("user32.dll")] private static extern bool RedrawWindow(IntPtr window, IntPtr rect, IntPtr region, uint flags);
+    /// <summary>读取当前持有鼠标捕获的窗口。</summary>
     [DllImport("user32.dll")] private static extern IntPtr GetCapture();
+    /// <summary>设置目标窗口的原生主题绘制方式。</summary>
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
     private static extern int SetWindowTheme(IntPtr window, string subAppName, string subIdList);
 }

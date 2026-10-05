@@ -6,6 +6,7 @@ namespace LOL_GameAssistant.Application.Coaching;
 /// <summary>根据当前可见对局上下文生成 AI 时间线建议的端口。</summary>
 public interface IAiRecommendationProvider
 {
+    /// <summary>根据对局上下文及服务设置生成 AI 推荐结果。</summary>
     Task<AiRecommendationResult> CreateAsync(
         CloudAiSettings settings,
         AiGameContext context,

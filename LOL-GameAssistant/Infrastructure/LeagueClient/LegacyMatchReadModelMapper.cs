@@ -9,6 +9,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// </summary>
 internal static class LegacyMatchReadModelMapper
 {
+    /// <summary>将旧接口或持久化数据映射为业务层使用的领域对象。</summary>
     public static MatchHistoryResponse? ToDomain(GameHeadModel.MatchHistoryResponse? source)
     {
         if (source == null) return null;
@@ -60,6 +61,7 @@ internal static class LegacyMatchReadModelMapper
         };
     }
 
+    /// <summary>将旧接口或持久化数据映射为业务层使用的领域对象。</summary>
     public static MatchDetail? ToDomain(GameDetailModel.GameInfo? source)
     {
         if (source == null) return null;
@@ -108,6 +110,7 @@ internal static class LegacyMatchReadModelMapper
         };
     }
 
+    /// <summary>将旧接口或持久化数据映射为业务层使用的领域对象。</summary>
     private static MatchParticipantStats? ToDomain(GameDetailModel.Stats? source)
     {
         if (source == null) return null;
@@ -193,5 +196,6 @@ internal static class LegacyMatchReadModelMapper
         };
     }
 
+    /// <summary>解析召唤师技能标识，无效值按未提供处理。</summary>
     private static int ParseSpellId(string? value) => int.TryParse(value, out int id) ? id : 0;
 }

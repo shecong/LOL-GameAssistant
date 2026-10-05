@@ -14,6 +14,7 @@ using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
+    /// <summary>首页：展示当前召唤师概况和近期战绩。</summary>
     public partial class HomeForm : UserControl, IThemeAware
     {
         public PlayerProfile? userinfo;
@@ -48,6 +49,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         public int UserStatus = 1;
 
+        /// <summary>初始化 HomeForm 的实例状态，并保存传入的依赖或数据。</summary>
         public HomeForm(IInfoMsgForm infoMsgForm) : this(
             infoMsgForm,
             AppCompositionRoot.PlayerProfileService,
@@ -89,6 +91,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => _ownedProfileImage?.Dispose();
         }
 
+        /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
         public void ApplyTheme(ThemePalette palette)
         {
             BackColor = rootGrid.BackColor = palette.Surface;
@@ -160,6 +163,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Invalidate(true);
         }
 
+        /// <summary>同步卡片背景、文字和边框的主题颜色。</summary>
         private static void SetCardColors(GradientPanel card, Color start, Color end, Color border)
         {
             card.BackColor = start;
@@ -369,6 +373,7 @@ namespace LOL_GameAssistant.BaseViewForm
             LayoutRecordCards();
         }
 
+        /// <summary>计算首页战绩卡片的可用宽度。</summary>
         private int GetRecordCardWidth()
         {
             const int gap = 12;
@@ -378,6 +383,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 : Math.Min(700, Math.Max(600, available - gap));
         }
 
+        /// <summary>按首页容器尺寸重新排列战绩卡片。</summary>
         private void LayoutRecordCards()
         {
             if (stackPanel1.IsDisposed) return;
@@ -728,11 +734,13 @@ namespace LOL_GameAssistant.BaseViewForm
             _ = UpdateGame_paginAsync();
         }
 
+        /// <summary>响应战绩分页操作并加载对应页面。</summary>
         private void game_pagin_Click(object sender, EventArgs e)
         {
             _ = UpdateGame_paginAsync();
         }
 
+        /// <summary>刷新首页战绩分页数据及卡片内容。</summary>
         private async Task UpdateGame_paginAsync()
         {
             if (UserStatus == 1 && userinfo != null)

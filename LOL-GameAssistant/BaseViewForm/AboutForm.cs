@@ -6,11 +6,13 @@ using System.Diagnostics;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
+    /// <summary>关于页：展示项目说明、版本更新和外部数据来源。</summary>
     public partial class AboutForm : UserControl, IThemeAware
     {
         private readonly IUpdateReleaseService _updateReleaseService;
         private readonly Action<string> _openUrl;
 
+        /// <summary>初始化 AboutForm 的实例状态。</summary>
         public AboutForm() : this(AppCompositionRoot.UpdateReleaseService)
         {
         }
@@ -25,6 +27,7 @@ namespace LOL_GameAssistant.BaseViewForm
             this.Load += AboutForm_Load;
         }
 
+        /// <summary>加载关于页所需的版本和展示信息。</summary>
         private void AboutForm_Load(object? sender, EventArgs e)
         {
             var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
@@ -34,16 +37,19 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>响应项目链接按钮，打开对应项目页面。</summary>
         private void btn_opengithub_Click(object sender, EventArgs e)
         {
             OpenUrl("https://github.com/shecong/LOL-GameAssistant");
         }
 
+        /// <summary>响应 GitHub 按钮，打开对应链接。</summary>
         private void btn_github_Click(object sender, EventArgs e)
         {
             OpenUrl("https://github.com/shecong/LOL-GameAssistant");
         }
 
+        /// <summary>响应更新检查按钮，查询可用版本。</summary>
         private async void btn_update_Click(object sender, EventArgs e)
         {
             btn_update.Enabled = false;
@@ -64,6 +70,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>查询发布版本并将比较结果展示给用户。</summary>
         private async Task CheckForUpdateAsync()
         {
             UpdateRelease? release = await _updateReleaseService.GetLatestAsync();
@@ -95,8 +102,10 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>打开用户选择的网页链接。</summary>
         private void OpenUrl(string url) => _openUrl(url);
 
+        /// <summary>通过系统默认处理程序启动网页地址。</summary>
         private static void LaunchUrl(string url)
         {
             try

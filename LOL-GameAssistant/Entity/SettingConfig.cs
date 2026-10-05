@@ -238,6 +238,7 @@ namespace LOL_GameAssistant.Entity
             return new SettingConfig();
         }
 
+        /// <summary>从配置文件读取设置并构建配置对象。</summary>
         private static SettingConfig LoadFromFile(string path)
         {
             string json = File.ReadAllText(path);

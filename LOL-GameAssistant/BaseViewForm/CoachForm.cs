@@ -33,6 +33,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     private DateTimeOffset _opggRetryAfter;
     private string _lastOverlaySignature = "";
 
+    /// <summary>初始化 CoachForm 的实例状态。</summary>
     public CoachForm() : this(
         AppCompositionRoot.AiCoachingService,
         AppCompositionRoot.RecommendationCoordinator,
@@ -41,6 +42,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     {
     }
 
+    /// <summary>初始化 CoachForm 的实例状态，并保存传入的依赖或数据。</summary>
     internal CoachForm(
         IAiCoachingService aiCoachingService,
         IRecommendationCoordinator recommendationCoordinator,
@@ -77,6 +79,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     public Task RefreshRecommendationAsync(bool manual = false) =>
         _recommendationCoordinator.RefreshAsync(force: manual);
 
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
         // AntdUI.Input hides Control's color properties; set its drawing colors directly.
@@ -91,6 +94,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         }
     }
 
+    /// <summary>推荐状态变化后刷新界面及关联展示。</summary>
     private void OnRecommendationStateChanged(RecommendationState state)
     {
         if (IsDisposed || !IsHandleCreated) return;
@@ -109,6 +113,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         }
     }
 
+    /// <summary>将推荐状态转换为当前界面内容。</summary>
     private void RenderState(RecommendationState state)
     {
         if (IsDisposed) return;
@@ -204,6 +209,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         finally { _opggPickerOpen = false; }
     }
 
+    /// <summary>根据当前英雄和上下文决定是否提示推荐方案。</summary>
     private async Task PromptOpggBuildIfNeededCoreAsync(CancellationToken cancellationToken)
     {
         AssistantSettings settings = _settingsStore.Load();
@@ -237,6 +243,7 @@ public sealed class CoachForm : UserControl, IThemeAware
           await ApplyOpggBuildAsync(context, automatic: true, cancellationToken, autoApply: settings.AutoApplyRuneBuild);
       }
 
+      /// <summary>安排推荐读取失败后的重试。</summary>
       private void ScheduleOpggRetry(string context)
       {
           _opggPromptedContext = "";
@@ -244,6 +251,7 @@ public sealed class CoachForm : UserControl, IThemeAware
           _opggRetryAfter = DateTimeOffset.UtcNow.AddSeconds(10);
       }
 
+    /// <summary>按当前配置决定是否展示推荐浮窗。</summary>
     private void ShowOverlayIfNeeded(RecommendationState state)
     {
         if (!string.Equals(state.Context.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
@@ -276,6 +284,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         _overlay.ShowRecommendation(recommendation, ai);
     }
 
+    /// <summary>将选中的推荐方案应用到客户端。</summary>
     private async Task ApplyOpggBuildAsync()
     {
         if (!_settingsStore.Load().OpggBuildAssistantEnabled)
@@ -289,6 +298,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         await ApplyOpggBuildAsync(context, automatic: false, CancellationToken.None);
     }
 
+    /// <summary>为用户手动选择方案收集英雄和模式信息。</summary>
     private async Task<AiGameContext> GetManualBuildContextAsync(CancellationToken token)
     {
         try { return await _aiCoachingService.CollectContextAsync(token); }
@@ -296,6 +306,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         catch { return new AiGameContext(); }
     }
 
+    /// <summary>从可用上下文中确定手动推荐所需的场景。</summary>
     internal static (AiGameContext Context, bool PreviewOnly) ResolveManualBuildContext(AiGameContext context)
     {
         string mode = Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(context.GameMode, context.QueueId);
@@ -314,6 +325,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         }, true);
     }
 
+    /// <summary>将选中的推荐方案应用到客户端。</summary>
     private async Task ApplyOpggBuildAsync(
         AiGameContext context,
         bool automatic,
@@ -445,6 +457,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         }
     }
 
+    /// <summary>确定推荐弹窗的所属窗口，保证模态显示关系正确。</summary>
     private static Form? ResolveBuildDialogOwner(Form? requested, Form? host)
     {
         Form? owner = requested ?? host;
@@ -452,6 +465,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             ? owner : null;
     }
 
+    /// <summary>根据推荐选择上下文生成去重键。</summary>
     private static string BuildOpggSelectionKey(int championId, string mode, string? position)
     {
         string normalizedPosition = mode == "ranked"
@@ -460,6 +474,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         return $"{championId}:{mode}:{normalizedPosition}";
     }
 
+    /// <summary>创建当前界面使用的布局和操作控件。</summary>
     private void BuildUi()
     {
         var header = new FlowLayoutPanel
@@ -492,6 +507,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         Controls.Add(header);
     }
 
+    /// <summary>将当前业务状态组织为提示文本。</summary>
     private static string BuildStatusText(RecommendationState state)
     {
         string time = state.UpdatedAt == DateTimeOffset.MinValue ? "" : $" · {state.UpdatedAt:HH:mm:ss}";
@@ -499,6 +515,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         return $"{GetStatusName(state.Status)}{time}{next}";
     }
 
+    /// <summary>将验证结果组织为用户可读的文本。</summary>
     private static string BuildValidationText(RecommendationState state)
     {
         AiGameContext context = state.Context;
@@ -517,6 +534,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         return string.Join(Environment.NewLine, lines);
     }
 
+    /// <summary>将推荐内容组织为展示文本。</summary>
     private static string BuildRecommendationText(RecommendationState state)
     {
         if (state.Recommendations.Count == 0)
@@ -541,6 +559,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             "来源：AI"));
     }
 
+    /// <summary>取得当前状态对应的显示颜色。</summary>
     private static Color GetStatusColor(RecommendationStatus status) => status switch
     {
         RecommendationStatus.AiReady => Color.ForestGreen,
@@ -549,6 +568,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         _ => Color.DimGray
     };
 
+    /// <summary>取得当前状态的显示名称。</summary>
     private static string GetStatusName(RecommendationStatus status) => status switch
     {
         RecommendationStatus.Disabled => "AI 时间线建议已关闭",
@@ -560,6 +580,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         _ => "建议生成失败"
     };
 
+    /// <summary>将推荐优先级转换为显示名称。</summary>
     private static string GetPriorityName(RecommendationPriority priority) => priority switch
     {
         RecommendationPriority.Important => "重要",
@@ -567,6 +588,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         _ => "提示"
     };
 
+    /// <summary>按可用空间调整分隔区域大小。</summary>
     private static void FitSplitter(SplitContainer split)
     {
         int usableWidth = split.ClientSize.Width - split.SplitterWidth;

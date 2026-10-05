@@ -11,6 +11,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// </summary>
 public sealed class LegacyMatchHistoryService : IMatchHistoryService
 {
+    /// <summary>读取指定玩家的一页历史战绩。</summary>
     public async Task<MatchHistoryResponse?> GetPageAsync(
         string puuid,
         int beginIndex,
@@ -25,6 +26,7 @@ public sealed class LegacyMatchHistoryService : IMatchHistoryService
         return LegacyMatchReadModelMapper.ToDomain(legacy);
     }
 
+    /// <summary>读取指定玩家的历史战绩集合。</summary>
     public async Task<MatchHistoryResponse?> GetAllAsync(
         string puuid,
         int maxGames = 5000,
@@ -38,6 +40,7 @@ public sealed class LegacyMatchHistoryService : IMatchHistoryService
         return LegacyMatchReadModelMapper.ToDomain(legacy);
     }
 
+    /// <summary>读取指定对局的完整详情。</summary>
     public async Task<MatchDetail?> GetDetailAsync(
         long gameId,
         bool useCache = true,
@@ -49,5 +52,6 @@ public sealed class LegacyMatchHistoryService : IMatchHistoryService
         return LegacyMatchReadModelMapper.ToDomain(legacy);
     }
 
+    /// <summary>清空已缓存的对局详情。</summary>
     public void ClearDetailCache() => Game_Api.ClearGameDetailCache();
 }

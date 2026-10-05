@@ -5,9 +5,11 @@ namespace LOL_GameAssistant.Domain.GameData;
 /// <summary>在固定的海克斯名称表中容错匹配 OCR 结果。</summary>
 public static class AugmentNameMatcher
 {
+    /// <summary>将识别文本与强化名称候选进行匹配。</summary>
     public static IReadOnlyList<int> Match(string recognizedText, IReadOnlyDictionary<int, string> names, int limit = 3)
         => Match(recognizedText, names.Select(item => (item.Key, item.Value)), limit);
 
+    /// <summary>将识别文本与强化名称候选进行匹配。</summary>
     public static IReadOnlyList<int> Match(string recognizedText, IEnumerable<(int Id, string Name)> names, int limit = 3)
         => RankMatches(recognizedText, names).Take(Math.Max(0, limit)).Select(item => item.Id).ToArray();
 
@@ -20,6 +22,7 @@ public static class AugmentNameMatcher
         return ranked[0];
     }
 
+    /// <summary>计算候选名称与识别文本的相似度并排序。</summary>
     private static IEnumerable<AugmentNameMatch> RankMatches(string recognizedText, IEnumerable<(int Id, string Name)> names)
     {
         // The catalog contains both Arena IDs and Mayhem IDs for some identical names.
@@ -61,6 +64,7 @@ public static class AugmentNameMatcher
             .DistinctBy(item => item.Id).Select(item => new AugmentNameMatch(item.Id, item.Score));
     }
 
+    /// <summary>将配置或文本输入规范化为后续处理使用的形式。</summary>
     private static string Normalize(string text)
     {
         var builder = new StringBuilder(text.Length);
@@ -69,6 +73,7 @@ public static class AugmentNameMatcher
         return builder.ToString();
     }
 
+    /// <summary>计算两个规范化文本的编辑距离。</summary>
     private static int Distance(string left, string right)
     {
         var previous = Enumerable.Range(0, right.Length + 1).ToArray();
@@ -85,4 +90,5 @@ public static class AugmentNameMatcher
     }
 }
 
+/// <summary>强化名称匹配的候选标识、名称和相似度。</summary>
 public sealed record AugmentNameMatch(int Id, double Score);

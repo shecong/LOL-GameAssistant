@@ -68,6 +68,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         }
     }
 
+    /// <summary>启动客户端入口，并等待可确认的启动状态。</summary>
     public async Task<GameClientLaunchResult> StartAndVerifyAsync(
         string? configuredDirectory,
         CancellationToken cancellationToken = default)
@@ -104,6 +105,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         return new GameClientLaunchResult(false, failed, started.ExecutablePath);
     }
 
+    /// <summary>检查相关进程和 LCU 凭据，判断客户端启动状态。</summary>
     private static ClientState GetClientState(string? leagueClientExecutable = null)
     {
         Process[] processes = Process.GetProcessesByName("LeagueClientUx")
@@ -135,6 +137,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         }
     }
 
+    /// <summary>判断是否存在可读取的客户端 lockfile 凭据。</summary>
     private static bool HasReadableLcuLockfile(IEnumerable<Process> processes, string? leagueClientExecutable)
     {
         var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -182,6 +185,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         return false;
     }
 
+    /// <summary>从用户配置和已知安装位置确定实际启动目标。</summary>
     private static LaunchTarget ResolveLaunchTarget(string leagueClientExecutable)
     {
         // Frank 的国服流程使用 TCLS/client.exe；有它时应从游戏启动器进入，
@@ -208,9 +212,12 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         return new LaunchTarget(leagueClientExecutable, "");
     }
 
+    /// <summary>已解析的客户端启动目标及启动方式。</summary>
     private sealed record LaunchTarget(string Executable, string Arguments);
+    /// <summary>客户端进程和连接凭据检查得到的启动状态。</summary>
     private sealed record ClientState(bool ProcessRunning, bool WindowVisible, bool LcuReady, bool LauncherRunning);
 
+    /// <summary>判断安装目录是否属于腾讯客户端布局。</summary>
     private static bool IsTencentInstall(string executablePath) =>
         executablePath.Contains("WeGameApps", StringComparison.OrdinalIgnoreCase) ||
         executablePath.Contains("Tencent Games", StringComparison.OrdinalIgnoreCase) ||
@@ -303,6 +310,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         return null;
     }
 
+    /// <summary>枚举可用于探测客户端入口的已知安装位置。</summary>
     private static IEnumerable<string> GetKnownClientLocations()
     {
         string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
@@ -402,11 +410,13 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         return candidates;
     }
 
+    /// <summary>取得 Riot 客户端安装清单的位置。</summary>
     private static string GetRiotInstallManifestPath() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "Riot Games",
         "RiotClientInstalls.json");
 
+    /// <summary>递归提取安装清单中的字符串路径。</summary>
     private static IEnumerable<string> ReadJsonStrings(JsonElement element)
     {
         switch (element.ValueKind)

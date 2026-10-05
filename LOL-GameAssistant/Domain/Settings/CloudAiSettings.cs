@@ -18,8 +18,10 @@ public sealed class CloudAiSettings
     public int RecommendationOverlayOffsetX { get; set; } = 24;
     public int RecommendationOverlayOffsetY { get; set; } = 48;
     public int RecommendationOverlayDurationSeconds { get; set; } = 8;
+    /// <summary>判断当前服务配置是否需要使用 Claude 消息协议。</summary>
     public bool UsesClaudeProtocol => Provider == AiProvider.Claude;
 
+    /// <summary>取得当前 AI 服务提供商的请求地址。</summary>
     public string GetBaseUrl()
     {
         if (!string.IsNullOrWhiteSpace(BaseUrl)) return BaseUrl.Trim().TrimEnd('/');
@@ -56,6 +58,7 @@ public sealed class CloudAiSettings
         return true;
     }
 
+    /// <summary>取得当前 AI 服务提供商的密钥管理地址。</summary>
     public string GetKeyPortalUrl() => Provider switch
     {
         AiProvider.OpenAI => "https://platform.openai.com/api-keys",
@@ -73,6 +76,7 @@ public sealed class CloudAiSettings
     /// </summary>
     public void NormalizeModel() => Model = (Model ?? "").Trim();
 
+    /// <summary>将配置或文本输入规范化为后续处理使用的形式。</summary>
     public void Normalize()
     {
         Model ??= "";

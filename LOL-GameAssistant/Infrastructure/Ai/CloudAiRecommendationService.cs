@@ -22,8 +22,10 @@ public sealed class CloudAiRecommendationService
 
     private readonly HttpClient _http;
 
+    /// <summary>初始化 CloudAiRecommendationService 的实例状态，并保存传入的依赖或数据。</summary>
     public CloudAiRecommendationService(HttpClient http) => _http = http;
 
+    /// <summary>调用配置的 AI 服务获取当前对局建议。</summary>
     public async Task<AiRecommendationResult> GetRecommendationAsync(
         CloudAiSettings settings,
         AiGameContext context,
@@ -136,6 +138,7 @@ public sealed class CloudAiRecommendationService
         return models;
     }
 
+    /// <summary>读取运行时使用的 AI 服务密钥。</summary>
     private static string ReadApiKey(CloudAiSettings settings)
     {
         try
@@ -148,6 +151,7 @@ public sealed class CloudAiRecommendationService
         }
     }
 
+    /// <summary>检查 AI 服务地址、模型和密钥是否满足请求条件。</summary>
     private static void EnsureConfigured(CloudAiSettings settings, string key, bool requireModel = true)
     {
         if (string.IsNullOrWhiteSpace(key))
@@ -158,6 +162,7 @@ public sealed class CloudAiRecommendationService
             throw new InvalidOperationException(addressError);
     }
 
+    /// <summary>根据服务提供商选择对应的 AI 请求协议。</summary>
     private Task<string> CallAsync(
         CloudAiSettings settings,
         string key,
@@ -168,6 +173,7 @@ public sealed class CloudAiRecommendationService
             ? CallClaudeAsync(settings, key, systemPrompt, userPrompt, cancellationToken)
             : CallOpenAiCompatibleAsync(settings, key, systemPrompt, userPrompt, cancellationToken);
 
+    /// <summary>按 OpenAI 兼容聊天协议发送请求并解析文本结果。</summary>
     private async Task<string> CallOpenAiCompatibleAsync(
         CloudAiSettings settings,
         string key,
@@ -200,6 +206,7 @@ public sealed class CloudAiRecommendationService
                ?? throw new InvalidOperationException("服务没有返回建议内容。");
     }
 
+    /// <summary>按 Claude 消息协议发送请求并解析文本结果。</summary>
     private async Task<string> CallClaudeAsync(
         CloudAiSettings settings,
         string key,
@@ -237,6 +244,7 @@ public sealed class CloudAiRecommendationService
         throw new InvalidOperationException("服务没有返回建议内容。");
     }
 
+    /// <summary>将对局信息和建议约束组织为用户提示词。</summary>
     private static string BuildUserPrompt(AiGameContext context)
     {
         string scope = context.IsAram
@@ -245,6 +253,7 @@ public sealed class CloudAiRecommendationService
         return $"{scope}\n\n{context.ToPromptText()}";
     }
 
+    /// <summary>提炼当前游戏上下文，生成建议请求中的背景说明。</summary>
     private static string BuildContextSummary(AiGameContext context)
     {
         var lines = new List<string>
@@ -266,6 +275,7 @@ public sealed class CloudAiRecommendationService
         return string.Join(Environment.NewLine, lines);
     }
 
+    /// <summary>将请求异常转换为用户可读的错误说明。</summary>
     private static string ToFriendlyError(Exception ex) => ex switch
     {
         AiServiceException => ex.Message,
@@ -278,6 +288,7 @@ public sealed class CloudAiRecommendationService
     /// <summary>服务端拒绝时的响应：原因翻译与脱敏由 <see cref="AiServiceErrorMessage"/> 负责。</summary>
     private sealed class AiServiceException : Exception
     {
+        /// <summary>初始化 AiServiceException 的实例状态，并保存传入的依赖或数据。</summary>
         public AiServiceException(HttpStatusCode status, string body)
             : base(AiServiceErrorMessage.Describe((int)status, body))
         {

@@ -13,6 +13,7 @@ namespace LOL_GameApi.Controllers
     {
         private readonly DataDragonService _dataDragon;
 
+        /// <summary>初始化 GameInfoController 的实例状态，并保存传入的依赖或数据。</summary>
         public GameInfoController(DataDragonService dataDragon)
         {
             _dataDragon = dataDragon;

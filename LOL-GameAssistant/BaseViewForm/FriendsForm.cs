@@ -20,6 +20,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IProfileIconService _profileIconService;
         private bool _loading;
 
+        /// <summary>初始化 FriendsForm 的实例状态。</summary>
         public FriendsForm() : this(
             AppCompositionRoot.FriendDirectoryService,
             AppCompositionRoot.FriendSpectateService,
@@ -137,6 +138,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>将好友数据转换为可交互的好友卡片。</summary>
         private void RenderFriends(IReadOnlyList<FriendProfile> friends)
         {
             _friendList.SuspendLayout();
@@ -176,6 +178,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>清空好友卡片并释放其资源。</summary>
         private void ClearFriendCards()
         {
             foreach (Control card in _friendList.Controls.Cast<Control>().ToArray())
@@ -185,12 +188,14 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>计算当前容器中卡片可用的宽度。</summary>
         private int GetCardWidth()
         {
             int availableWidth = _friendList.ClientSize.Width - _friendList.Padding.Horizontal - 8;
             return Math.Max(320, Math.Min(520, availableWidth));
         }
 
+        /// <summary>窗口或控件尺寸变化时重新计算内容布局。</summary>
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
@@ -201,6 +206,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>好友卡片：显示在线状态并提供查询和观战操作。</summary>
         private sealed class FriendCard : Panel, IThemeAware
         {
             private readonly FriendProfile _friend;
@@ -210,6 +216,7 @@ namespace LOL_GameAssistant.BaseViewForm
             private bool _spectating;
             private bool _hovered;
 
+            /// <summary>初始化 FriendCard 的实例状态，并保存传入的依赖或数据。</summary>
             public FriendCard(
                 FriendProfile friend,
                 IFriendSpectateService spectateService,
@@ -301,6 +308,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 MouseLeave += (_, _) => { _hovered = false; ApplyTheme(UiTheme.Palette); };
             }
 
+            /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
             public void ApplyTheme(ThemePalette palette)
             {
                 BackColor = _hovered
@@ -309,6 +317,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Invalidate();
             }
 
+            /// <summary>绘制当前控件的自定义外观。</summary>
             protected override void OnPaint(PaintEventArgs e)
             {
                 base.OnPaint(e);
@@ -316,6 +325,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
             }
 
+            /// <summary>为指定控件绑定双击查询操作。</summary>
             private void AttachDoubleClick(Control control)
             {
                 control.DoubleClick += (_, _) => OpenBattleQuery();
@@ -325,6 +335,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
             }
 
+            /// <summary>打开目标玩家的战绩查询。</summary>
             private async void OpenBattleQuery()
             {
                 if (_querying || string.IsNullOrWhiteSpace(_friend.Puuid)) return;
@@ -360,6 +371,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
             }
 
+            /// <summary>创建好友卡片上的操作按钮。</summary>
             private static AntdUI.Button CreateActionButton(string text, Color color)
             {
                 var button = new AntdUI.Button
@@ -374,6 +386,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 return button;
             }
 
+            /// <summary>组织好友卡片的完整状态提示文本。</summary>
             private static string BuildToolTip(string name, string? note)
             {
                 return string.IsNullOrWhiteSpace(note)
@@ -381,6 +394,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     : $"{name}\n{note}\n双击查看该好友战绩";
             }
 
+            /// <summary>将当前状态转换为显示文本。</summary>
             private static string GetStatusText(FriendProfile friend)
             {
                 string status = friend.Presence switch
@@ -402,6 +416,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 return status;
             }
 
+            /// <summary>取得当前状态对应的显示颜色。</summary>
             private static Color GetStatusColor(FriendPresence presence)
             {
                 return presence switch
@@ -413,6 +428,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
             }
 
+            /// <summary>异步加载英雄或玩家头像并更新控件。</summary>
             private static async Task LoadAvatarAsync(RoundPictureBox box, int iconId, IProfileIconService profileIconService)
             {
                 if (iconId <= 0) return;

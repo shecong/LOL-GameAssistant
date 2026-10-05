@@ -7,8 +7,10 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// <summary>设置页中的随机词库、预览和主动发送操作。</summary>
 public sealed class QuickShoutForm : UserControl, IThemeAware
 {
+    /// <summary>快捷喊话列表中的文案及分类信息。</summary>
     private sealed record PhraseItem(string Text, bool IsCustom)
     {
+        /// <summary>返回当前条目用于文本控件展示的内容。</summary>
         public override string ToString() => $"{(IsCustom ? "自定义" : "默认")} · {Text}";
     }
 
@@ -49,6 +51,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private Dictionary<string, string> _kdaCustomRemarks = new();
     private DateTime _lastSentAtUtc = DateTime.MinValue;
 
+    /// <summary>初始化 QuickShoutForm 的实例状态，并保存传入的依赖或数据。</summary>
     public QuickShoutForm(LcuQuickShoutService clientChat,
         Func<string, bool, bool, bool, int, Task<GameShoutSendResult>> sendGameMessage,
         Func<IReadOnlyList<string>, bool, bool, bool, int, Task<GameShoutSendResult>> sendGameBatch,
@@ -126,6 +129,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         ApplyTheme(UiTheme.Palette);
     }
 
+    /// <summary>读取配置并同步到当前界面。</summary>
     public void LoadSettings(AssistantSettings settings)
     {
         _customPhrases.Text = settings.QuickMessageCustomPhrases ?? "";
@@ -146,6 +150,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         RestoreSelection(settings.QuickShoutSelectedPhrases);
     }
 
+    /// <summary>将当前界面选项写入配置对象。</summary>
     public void WriteSettings(AssistantSettings settings)
     {
         settings.QuickMessageCustomPhrases = _customPhrases.Text.Trim();
@@ -165,6 +170,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         settings.QuickMessageSendIntervalSeconds = (int)_minimumInterval.Value;
     }
 
+    /// <summary>保存快捷喊话相关选项。</summary>
     private void SaveOptions()
     {
         if (SelectedItems().Length > 10)
@@ -192,6 +198,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         catch (Exception ex) { _status.Text = $"保存失败：{ex.Message}"; }
     }
 
+    /// <summary>记录用户按下的按键并生成热键配置。</summary>
     private void CaptureHotkey(AntdUI.Input target, KeyEventArgs e)
     {
         e.SuppressKeyPress = true;
@@ -205,6 +212,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _status.Text = $"快捷键已录入：{target.Text}，点击“保存设置”后生效。";
     }
 
+    /// <summary>创建快捷喊话选项区域。</summary>
     private Control CreateOptionsArea()
     {
         var area = new TableLayoutPanel
@@ -258,6 +266,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         return area;
     }
 
+    /// <summary>创建逐人测评热键的配置区域。</summary>
     private Control CreatePlayerHotkeyOptions()
     {
         var panel = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 64, ColumnCount = 1, RowCount = 2, Padding = new Padding(20, 0, 20, 0) };
@@ -273,6 +282,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         return panel;
     }
 
+    /// <summary>打开 KDA 文案编辑器并处理保存结果。</summary>
     private void EditKdaRemarks()
     {
         using var editor = new GameKdaRemarkEditor(_kdaCustomRemarks, updated =>
@@ -289,6 +299,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         editor.ShowDialog(FindForm());
     }
 
+    /// <summary>创建快捷喊话界面的操作按钮区域。</summary>
     private Control CreateActionBar()
     {
         var bar = new Panel { Dock = DockStyle.Bottom, Height = 48, Padding = new Padding(12, 4, 12, 4) };
@@ -303,12 +314,14 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         return bar;
     }
 
+    /// <summary>创建设置项的说明标签。</summary>
     private static AntdUI.Label OptionLabel(string text) => new()
     {
         Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
         Margin = new Padding(3, 0, 3, 0)
     };
 
+    /// <summary>从候选喊话中选择一条并发送到游戏。</summary>
     public async Task SendRandomToGameAsync(bool custom)
     {
         PhraseItem[] candidates = _phrases.Items.Cast<PhraseItem>()
@@ -321,8 +334,10 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         await SendGameAsync([candidates[Random.Shared.Next(candidates.Length)].Text]);
     }
 
+    /// <summary>按选中顺序发送多条游戏聊天消息。</summary>
     public Task SendSelectedBatchToGameAsync() => SendGameAsync(SelectedItems().Select(item => item.Text).ToArray());
 
+    /// <summary>重新读取喊话文案并更新列表。</summary>
     private void RefreshPhrases()
     {
         string[] selected = SelectedItems().Select(PhraseKey).ToArray();
@@ -342,10 +357,13 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         finally { _phrases.EndUpdate(); }
     }
 
+    /// <summary>为喊话条目生成稳定的选择标识。</summary>
     private static string PhraseKey(PhraseItem item) => $"{(item.IsCustom ? "C" : "D")}|{item.Text}";
 
+    /// <summary>读取当前列表选中的喊话条目。</summary>
     private PhraseItem[] SelectedItems() => _phrases.SelectedItems.Cast<PhraseItem>().ToArray();
 
+    /// <summary>刷新列表后恢复仍然有效的选择。</summary>
     private void RestoreSelection(IReadOnlyCollection<string>? keys)
     {
         var wanted = new HashSet<string>(keys ?? Array.Empty<string>(), StringComparer.Ordinal);
@@ -363,6 +381,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         UpdateSelectionPreview();
     }
 
+    /// <summary>切换列表的多选模式。</summary>
     private void SetMultiSelect(bool enabled)
     {
         string[] selected = SelectedItems().Select(PhraseKey).ToArray();
@@ -371,6 +390,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         RestoreSelection(selected);
     }
 
+    /// <summary>将当前选择的喊话文案显示到预览区域。</summary>
     private void UpdateSelectionPreview()
     {
         PhraseItem[] selected = SelectedItems();
@@ -380,6 +400,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _gameSend.Text = selected.Length > 1 ? $"发送游戏（{selected.Length}）" : "一键发送到游戏";
     }
 
+    /// <summary>从可用文案中选择随机条目。</summary>
     private void SelectRandom(bool custom)
     {
         int[] indices = _phrases.Items.Cast<PhraseItem>().Select((item, index) => (item, index))
@@ -393,6 +414,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _phrases.SetSelected(indices[Random.Shared.Next(indices.Length)], true);
     }
 
+    /// <summary>验证当前输入和选择是否满足发送条件。</summary>
     private bool CanSend(IReadOnlyList<string> phrases)
     {
         if (!_clientSend.Enabled || !_gameSend.Enabled)
@@ -408,6 +430,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         return false;
     }
 
+    /// <summary>向客户端聊天发送选中的消息。</summary>
     private async Task SendClientAsync()
     {
         string[] phrases = SelectedItems().Select(item => item.Text).ToArray();
@@ -427,8 +450,10 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         finally { _clientSend.Enabled = true; _gameSend.Enabled = true; }
     }
 
+    /// <summary>向游戏聊天发送指定消息并展示发送结果。</summary>
     private Task SendGameAsync() => SendGameAsync(SelectedItems().Select(item => item.Text).ToArray());
 
+    /// <summary>向游戏聊天发送指定消息并展示发送结果。</summary>
     private async Task SendGameAsync(IReadOnlyList<string> phrases)
     {
         if (!CanSend(phrases)) return;
@@ -451,6 +476,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         finally { _clientSend.Enabled = true; _gameSend.Enabled = true; }
     }
 
+    /// <summary>测试当前游戏聊天输入方式。</summary>
     private async Task TestGameEnterAsync()
     {
         _testGameEnter.Enabled = false;
@@ -459,6 +485,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         finally { _testGameEnter.Enabled = true; }
     }
 
+    /// <summary>将当前主题的文字颜色应用到相关标签。</summary>
     private static void ApplyLabelColors(Control root, Color color)
     {
         foreach (Control child in root.Controls)
@@ -468,6 +495,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         }
     }
 
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
         BackColor = palette.Surface;

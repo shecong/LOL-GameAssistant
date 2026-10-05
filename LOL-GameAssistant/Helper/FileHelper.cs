@@ -27,6 +27,7 @@ namespace LOL_GameAssistant.Helper
             private static readonly string BasePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets");
             private static readonly Dictionary<string, ResourceEntry> ResourceCache = new Dictionary<string, ResourceEntry>();
 
+            /// <summary>初始化 AssetManager 使用的共享状态。</summary>
             static AssetManager()
             {
                 // 确保资源目录存在

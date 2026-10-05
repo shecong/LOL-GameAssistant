@@ -15,6 +15,7 @@ public static class GameKdaAnnouncementBuilder
     // 2560×1440 默认聊天栏实测：所有人频道前缀后，正文约 30 个半角宽度仍可单行显示。
     private const int MaximumBodyWidth = 30;
 
+    /// <summary>组织单名玩家的测评文案。</summary>
     public static string BuildSharpPlayer(GameKdaPlayerSummary player, int position, IReadOnlyDictionary<string, string>? customRemarks = null)
     {
         string name = ShortenToDisplayWidth(NormalizeName(player.DisplayName), 20);
@@ -39,6 +40,7 @@ public static class GameKdaAnnouncementBuilder
         return $"{prefix} {stats}，{RecentPerformanceLabelFormatter.GetText(assessment)}：{remark}";
     }
 
+    /// <summary>按队伍组织测评消息，支持逐人独立发送或按队伍合并。</summary>
     public static IReadOnlyList<string> Build(IReadOnlyList<GameKdaPlayerSummary> players,
         bool onePlayerPerLine = false)
     {
@@ -49,6 +51,7 @@ public static class GameKdaAnnouncementBuilder
             .ToArray();
     }
 
+    /// <summary>按队伍分别组织可发送的测评消息。</summary>
     private static IEnumerable<string> BuildTeamMessages(string team, IReadOnlyList<GameKdaPlayerSummary> players)
     {
         // 五人队伍必须一次生成完整汇总，不能按逐个加入时的长度提前拆开，
@@ -57,6 +60,7 @@ public static class GameKdaAnnouncementBuilder
             yield return BuildTeamMessage(team, batch);
     }
 
+    /// <summary>组织一支队伍的测评消息。</summary>
     private static string BuildTeamMessage(string team, IReadOnlyList<GameKdaPlayerSummary> players)
     {
         string heading = $"【本局近期KDA·{team}】 ";
@@ -74,6 +78,7 @@ public static class GameKdaAnnouncementBuilder
             players.Select(player => FormatTeamPlayer(player, 2, true, true)));
     }
 
+    /// <summary>将队伍中的玩家信息格式化为测评文本。</summary>
     private static string FormatTeamPlayer(GameKdaPlayerSummary player, int nameLimit, bool compact, bool terse = false)
     {
         string name = NormalizeName(player.DisplayName);
@@ -91,6 +96,7 @@ public static class GameKdaAnnouncementBuilder
             : $"{name} {label}{assessment.Score}分 KDA{FormatKda(assessment.Kda, 2)}";
     }
 
+    /// <summary>将玩家评估信息格式化为显示文本。</summary>
     private static string FormatPlayer(string team, GameKdaPlayerSummary player)
     {
         // 游戏聊天以 Enter 提交消息；名字中的换行不能传入按键模拟器。
@@ -109,11 +115,13 @@ public static class GameKdaAnnouncementBuilder
         return $"{teamLabel} {ShortenToDisplayWidth(name, nameWidth)} {detail}";
     }
 
+    /// <summary>规范化玩家名称，供测评文案使用。</summary>
     private static string NormalizeName(string displayName) => string.IsNullOrWhiteSpace(displayName)
         ? "未知玩家"
         : string.Join(" ", displayName.Split((char[]?)null,
             StringSplitOptions.RemoveEmptyEntries));
 
+    /// <summary>按显示宽度截断文本，避免中文姓名挤占消息长度。</summary>
     private static string ShortenToDisplayWidth(string value, int maximumWidth)
     {
         if (DisplayWidth(value) <= maximumWidth) return value;
@@ -130,6 +138,7 @@ public static class GameKdaAnnouncementBuilder
         return value;
     }
 
+    /// <summary>估算文本的显示宽度，区分宽字符和窄字符。</summary>
     private static int DisplayWidth(string value) => value.EnumerateRunes()
         .Sum(rune => rune.Value <= 0x7f ? 1 : 2);
 

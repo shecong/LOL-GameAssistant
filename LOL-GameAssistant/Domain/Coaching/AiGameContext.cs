@@ -28,8 +28,10 @@ public sealed class AiGameContext
     public IReadOnlyList<int> EnemyChampionIds { get; init; } = Array.Empty<int>();
     public string LaneKnowledge { get; init; } = "暂无匹配到的专项知识点。";
 
+    /// <summary>判断当前 AI 上下文是否属于大乱斗模式。</summary>
     public bool IsAram => Mode.Contains("大乱斗", StringComparison.Ordinal);
 
+    /// <summary>将对局时间转换为界面展示的分钟和秒。</summary>
     public string GameTimeText => $"{Math.Max(0, GameTimeSeconds) / 60}:{Math.Max(0, GameTimeSeconds) % 60:D2}";
 
     /// <summary>将领域上下文规整为模型请求使用的文本，不暴露身份和认证信息。</summary>

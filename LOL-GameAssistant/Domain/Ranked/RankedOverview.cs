@@ -55,8 +55,10 @@ public sealed class RankedQueue
     public string HighestTier { get; init; } = "";
     public string HighestDivision { get; init; } = "";
 
+    /// <summary>计算统计中的总对局数。</summary>
     public int TotalGames => Wins + Losses;
 
+    /// <summary>根据统计中的胜负数据或比例生成胜率值。</summary>
     public double WinRate => TotalGames > 0 ? Math.Round((double)Wins / TotalGames * 100, 1) : 0;
 
     /// <summary>将 LCU 的定位赛字段转换为用户可读文本。</summary>
@@ -94,11 +96,13 @@ public static class RankedQueues
 /// <summary>排位展示规则。</summary>
 public static class RankedDisplayRules
 {
+    /// <summary>判断当前排位数据是否包含有效段位。</summary>
     public static bool HasRank(RankedQueue? queue) =>
         queue != null &&
         !string.IsNullOrWhiteSpace(queue.Tier) &&
         !string.Equals(queue.Tier, "NONE", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>取得排位数据对应的段位名称。</summary>
     public static string GetRatedTierName(string? ratedTier) => ratedTier?.ToUpperInvariant() switch
     {
         "GRAY" => "灰",
@@ -113,6 +117,7 @@ public static class RankedDisplayRules
 /// <summary>选人伴随窗的排位文案；根据界面语言转换客户端的英文段位代码。</summary>
 public static class RankedDisplayFormatter
 {
+    /// <summary>将排位概况格式化为紧凑展示文本。</summary>
     public static string FormatCompact(RankedQueue? queue, bool english)
     {
         if (!RankedDisplayRules.HasRank(queue)) return english ? "Unranked" : "未定级";
@@ -122,6 +127,7 @@ public static class RankedDisplayFormatter
         return string.IsNullOrWhiteSpace(division) ? tier : english ? $"{tier} {division}" : $"{tier}{division}";
     }
 
+    /// <summary>将单双排数据格式化为展示文本。</summary>
     public static string FormatSoloQueue(RankedQueue? queue, bool english)
     {
         if (!RankedDisplayRules.HasRank(queue))
@@ -138,6 +144,7 @@ public static class RankedDisplayFormatter
             : $"单双排 {rank} · {queue.LeaguePoints} 胜点";
     }
 
+    /// <summary>将段位等级标识转换为中文名称。</summary>
     private static string ToChineseTier(string? tier) => tier?.Trim().ToUpperInvariant() switch
     {
         "IRON" => "黑铁",
@@ -153,6 +160,7 @@ public static class RankedDisplayFormatter
         _ => tier ?? ""
     };
 
+    /// <summary>将段位小级别转换为中文显示文本。</summary>
     private static string ToChineseDivision(string? division) => division?.Trim().ToUpperInvariant() switch
     {
         "I" => "一",

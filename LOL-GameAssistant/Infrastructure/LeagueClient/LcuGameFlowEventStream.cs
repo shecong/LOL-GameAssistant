@@ -18,6 +18,7 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
     private WebSocketClient? _client;
     private bool _disposed;
 
+    /// <summary>初始化 LcuGameFlowEventStream 的实例状态，并保存传入的依赖或数据。</summary>
     public LcuGameFlowEventStream(LeagueClientConnection connection) => _connection = connection;
 
     public event Action<LeagueClientEvent>? EventReceived;
@@ -28,6 +29,7 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
 
     public event Action<string>? Reconnecting;
 
+    /// <summary>建立客户端 WebSocket 事件连接。</summary>
     public async Task<bool> ConnectAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -62,12 +64,14 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
         return client.IsConnected;
     }
 
+    /// <summary>订阅客户端 JSON API 事件通知。</summary>
     public Task SubscribeToJsonApiEventsAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return _client?.SendAsync(JsonApiSubscription) ?? Task.CompletedTask;
     }
 
+    /// <summary>断开客户端事件连接并停止相关接收工作。</summary>
     public async Task DisconnectAsync()
     {
         WebSocketClient? client = _client;
@@ -125,6 +129,7 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
             ? text
             : data.ToJsonString();
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -133,6 +138,7 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>异步结束连接与后台工作，并释放其资源。</summary>
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
@@ -141,6 +147,7 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>对象已经释放时拒绝后续连接操作。</summary>
     private void ThrowIfDisposed()
     {
         if (_disposed) throw new ObjectDisposedException(nameof(LcuGameFlowEventStream));

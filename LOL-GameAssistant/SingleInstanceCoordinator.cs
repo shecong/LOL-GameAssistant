@@ -10,12 +10,14 @@ internal sealed class SingleInstanceCoordinator : IDisposable
     private readonly NamedPipeServerStream _server;
     private readonly CancellationTokenSource _lifetime = new();
 
+    /// <summary>初始化 SingleInstanceCoordinator 的实例状态，并保存传入的依赖或数据。</summary>
     private SingleInstanceCoordinator(NamedPipeServerStream server, Action onReplace)
     {
         _server = server;
         _ = ListenAsync(onReplace);
     }
 
+    /// <summary>取得单实例运行资格，必要时通知已有实例退出。</summary>
     public static SingleInstanceCoordinator? StartOrReplace(Action onReplace)
     {
         var timeout = Stopwatch.StartNew();
@@ -48,6 +50,7 @@ internal sealed class SingleInstanceCoordinator : IDisposable
         return null;
     }
 
+    /// <summary>等待其他实例发来的替换通知，并响应生命周期取消。</summary>
     private async Task ListenAsync(Action onReplace)
     {
         try
@@ -60,6 +63,7 @@ internal sealed class SingleInstanceCoordinator : IDisposable
         catch (ObjectDisposedException) { }
     }
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     public void Dispose()
     {
         _lifetime.Cancel();

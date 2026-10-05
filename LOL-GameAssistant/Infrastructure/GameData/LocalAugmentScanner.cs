@@ -13,9 +13,11 @@ namespace LOL_GameAssistant.Infrastructure.GameData;
 /// <summary>只截取本机游戏窗口中央的增幅卡片区域，并在本机使用 Tesseract OCR。</summary>
 public sealed class LocalAugmentScanner : IAugmentScanner
 {
+    /// <summary>执行本机强化选项识别。</summary>
     public Task<AugmentScanResult> ScanAsync(CancellationToken cancellationToken = default) =>
         Task.Run(() => Scan(cancellationToken), cancellationToken);
 
+    /// <summary>截取游戏窗口中的强化卡片区域并在本机执行 OCR 识别。</summary>
     private static AugmentScanResult Scan(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -86,6 +88,7 @@ public sealed class LocalAugmentScanner : IAugmentScanner
                 Read(threshold, PageSegMode.SparseText);
                 if (best?.Score == 1) break;
 
+                // 对标题图像执行 OCR，并将可匹配的结果加入候选集合。
                 void Read(Bitmap image, PageSegMode mode)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -114,6 +117,7 @@ public sealed class LocalAugmentScanner : IAugmentScanner
             : new AugmentScanResult(ids, $"已识别 {ids.Count} 个增幅选项。", text);
     }
 
+    /// <summary>调整标题图像的亮度或阈值，以减少背景对 OCR 的干扰。</summary>
     private static Bitmap PrepareTitle(Bitmap source, bool binary)
     {
         var result = source.Clone(new Rectangle(Point.Empty, source.Size), PixelFormat.Format24bppRgb);
@@ -140,6 +144,7 @@ public sealed class LocalAugmentScanner : IAugmentScanner
         return result;
     }
 
+    /// <summary>读取游戏窗口的客户区位置与尺寸。</summary>
     private static Rectangle GetGameBounds(out int gameProcessId)
     {
         gameProcessId = 0;
@@ -160,6 +165,7 @@ public sealed class LocalAugmentScanner : IAugmentScanner
         return Rectangle.Empty;
     }
 
+    /// <summary>判断游戏或增幅侧栏是否在前台，决定能否进行本机识别。</summary>
     private static bool IsGameOrSidebarForeground(int gameProcessId)
     {
         IntPtr foreground = GetForegroundWindow();
@@ -173,27 +179,34 @@ public sealed class LocalAugmentScanner : IAugmentScanner
             string.Equals(title.ToString(), UiLanguage.T("海克斯增幅推荐"), StringComparison.Ordinal);
     }
 
+    /// <summary>与 Windows 原生矩形布局对应的坐标结构。</summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect { public int Left, Top, Right, Bottom; }
 
+    /// <summary>读取窗口客户区的原生矩形。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetClientRect(IntPtr window, out Rect bounds);
 
+    /// <summary>将客户区坐标转换为屏幕坐标。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ClientToScreen(IntPtr window, ref Point point);
 
+    /// <summary>调用 Windows API 判断窗口是否处于最小化状态。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsIconic(IntPtr window);
 
+    /// <summary>读取当前前台窗口的句柄。</summary>
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
+    /// <summary>读取窗口所属线程和进程标识。</summary>
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
+    /// <summary>读取目标窗口的原生标题文本。</summary>
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowText(IntPtr window, StringBuilder text, int maxCount);
 }

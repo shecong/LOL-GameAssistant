@@ -18,6 +18,7 @@ public static class RuntimeDiagnostics
 
     public static event EventHandler? Changed;
 
+    /// <summary>记录一条运行诊断状态并通知订阅者。</summary>
     public static void Report(string component, string status, string detail)
     {
         var entry = new DiagnosticEntry(component, status, detail, DateTimeOffset.Now);
@@ -31,11 +32,14 @@ public static class RuntimeDiagnostics
         }
     }
 
+    /// <summary>将异常信息写入运行日志。</summary>
     public static void WriteException(Exception exception) =>
         AppendLog($"未处理异常 | {exception.GetType().Name} | {exception.Message}\n{exception.StackTrace}");
 
+    /// <summary>取得运行日志文件的位置。</summary>
     public static string GetLogPath() => LogPath;
 
+    /// <summary>将诊断文本追加到日志文件。</summary>
     private static void AppendLog(string value)
     {
         try
@@ -55,8 +59,10 @@ public static class RuntimeDiagnostics
         catch { /* 诊断日志不能影响主流程。 */ }
     }
 
+    /// <summary>返回当前诊断记录的快照，供界面展示。</summary>
     public static IReadOnlyList<DiagnosticEntry> Snapshot() =>
         Entries.Values.OrderBy(entry => entry.Component, StringComparer.OrdinalIgnoreCase).ToArray();
 }
 
+/// <summary>运行诊断中的一条状态记录。</summary>
 public sealed record DiagnosticEntry(string Component, string Status, string Detail, DateTimeOffset UpdatedAt);

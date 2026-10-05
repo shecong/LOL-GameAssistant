@@ -55,10 +55,13 @@ public sealed record RecentModePerformanceAssessment(
     bool HasEnoughSample = false,
     RecentPerformanceLabel Label = RecentPerformanceLabel.InsufficientData);
 
+/// <summary>将近期表现评估转换为界面使用的档位文本。</summary>
 public static class RecentPerformanceLabelFormatter
 {
+    /// <summary>将近期表现档位转换为上等马、中等马等界面标签。</summary>
     public static string GetText(RecentModePerformanceAssessment assessment) => GetText(assessment.Label);
 
+    /// <summary>将近期表现档位转换为上等马、中等马等界面标签。</summary>
     public static string GetText(RecentPerformanceLabel label) => label switch
     {
         RecentPerformanceLabel.Upper => "上等马",
@@ -112,9 +115,11 @@ public static class MatchPerformanceEvaluator
         return new MatchPerformanceAssessment(tier, rounded, string.Join("；", reasons), player.Kills, player.Deaths, player.Assists);
     }
 
+    /// <summary>使用至少一次死亡作为分母，计算可参与比较的 KDA。</summary>
     private static double Kda(MatchPerformanceSnapshot participant) =>
         (participant.Kills + participant.Assists) / (double)Math.Max(1, participant.Deaths);
 
+    /// <summary>将指标与参考均值的比值限制在 0 到 1.5，避免单项异常值过度影响评分。</summary>
     private static double Relative(double value, double average) => Math.Clamp(value / average, 0, 1.5);
 }
 
@@ -135,6 +140,7 @@ public static class RecentModePerformanceEvaluator
     public const double LowerKdaThreshold = 2.2;
     public const double UpperKdaThreshold = 4.5;
 
+    /// <summary>根据输入数据计算玩家表现评估结果。</summary>
     public static RecentModePerformanceAssessment Evaluate(
         string mode,
         IEnumerable<MatchPerformanceAssessment> performances,
@@ -189,6 +195,7 @@ public static class RecentModePerformanceEvaluator
         return new RecentModePerformanceAssessment(tier, score, sampleSize, winRate, detail, kda, true, label);
     }
 
+    /// <summary>按严格的评分规则计算表现分数。</summary>
     private static int GetStrictScore(double kda)
     {
         if (kda < HumanKdaThreshold)

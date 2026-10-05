@@ -18,6 +18,7 @@ public class HttpClientHelper : IDisposable
 
     private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(20, 20); // 限制并发数
 
+    /// <summary>初始化 HttpClientHelper 使用的共享状态。</summary>
     static HttpClientHelper()
     {
         var handler = new HttpClientHandler();
@@ -32,6 +33,7 @@ public class HttpClientHelper : IDisposable
         _httpClient.DefaultRequestHeaders.ConnectionClose = false; // 保持长连接
     }
 
+    /// <summary>组合请求地址与查询参数，并对查询参数进行编码。</summary>
     private string BuildRequestUrl(string baseUrl, string endpoint, Dictionary<string, string>? queryParams)
     {
         var url = $"{baseUrl}{endpoint}";
@@ -49,6 +51,7 @@ public class HttpClientHelper : IDisposable
         return url;
     }
 
+    /// <summary>判断请求是否指向当前本机 LCU 端口。</summary>
     private static bool IsLcuUri(Uri? uri)
     {
         return uri?.Host == "127.0.0.1"
@@ -63,26 +66,31 @@ public class HttpClientHelper : IDisposable
         return SendRequestStreamAsync("GET", endpoint, queryParams, null, cancellationToken);
     }
 
+    /// <summary>发送 POST 请求，将操作数据提交到目标接口。</summary>
     public Task<Stream?> PostAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
     {
         return SendRequestStreamAsync("POST", endpoint, queryParams, body, cancellationToken);
     }
 
+    /// <summary>发送 PUT 请求，更新目标资源。</summary>
     public Task<Stream?> PutAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
     {
         return SendRequestStreamAsync("PUT", endpoint, queryParams, body, cancellationToken);
     }
 
+    /// <summary>发送 PATCH 请求，修改目标资源的部分字段。</summary>
     public Task<Stream?> PatchAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
     {
         return SendRequestStreamAsync("PATCH", endpoint, queryParams, body, cancellationToken);
     }
 
+    /// <summary>发送 DELETE 请求，删除目标资源。</summary>
     public Task<Stream?> DeleteAsync(string endpoint, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
     {
         return SendRequestStreamAsync("DELETE", endpoint, queryParams, null, cancellationToken);
     }
 
+    /// <summary>发送请求并将响应内容作为流返回调用方。</summary>
     public async Task<Stream?> SendRequestStreamAsync(string httpMethod, string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default) =>
         (await SendRequestResultAsync(httpMethod, endpoint, queryParams, body, cancellationToken).ConfigureAwait(false)).Content;
 
@@ -252,12 +260,14 @@ public class HttpClientHelper : IDisposable
         return results;
     }
 
+    /// <summary>保留共享 HTTP 客户端的生命周期，不随单次请求包装器释放。</summary>
     public void Dispose()
     {
         // 静态 HttpClient 不需要手动释放，但可以实现 IDisposable 接口以保持模式一致
         // 如果需要释放资源，可以在这里添加
     }
 
+    /// <summary>尝试重新读取本机客户端连接凭据。</summary>
     private static async Task<bool> TryRefreshLcuCredentialsAsync(CancellationToken cancellationToken)
     {
         (string? port, string? token) = await Task.Run(

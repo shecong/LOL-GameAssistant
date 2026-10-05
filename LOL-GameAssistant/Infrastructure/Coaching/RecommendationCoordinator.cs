@@ -27,6 +27,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
     private bool _started;
     private bool _disposed;
 
+    /// <summary>初始化 RecommendationCoordinator 的实例状态，并保存传入的依赖或数据。</summary>
     public RecommendationCoordinator(
         IAiCoachingService aiCoachingService,
         IAiRecommendationProvider aiRecommendationProvider)
@@ -35,6 +36,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         _aiRecommendationProvider = aiRecommendationProvider;
     }
 
+    /// <summary>返回当前发布的推荐状态。</summary>
     public RecommendationState Current
     {
         get { lock (_sync) return _current; }
@@ -42,6 +44,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
 
     public event Action<RecommendationState>? StateChanged;
 
+    /// <summary>启动当前服务或组件的运行流程。</summary>
     public void Start(AssistantSettings settings)
     {
         if (_disposed) return;
@@ -51,6 +54,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         _ = RefreshAsync(force: true, _lifetime.Token);
     }
 
+    /// <summary>同步最新设置并调整运行策略。</summary>
     public void UpdateSettings(AssistantSettings settings)
     {
         if (_disposed) return;
@@ -72,6 +76,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         if (_started) _ = RefreshAsync(force: true, _lifetime.Token);
     }
 
+    /// <summary>通知服务游戏阶段已变化，以更新后续处理。</summary>
     public void NotifyGamePhaseChanged(string? phase)
     {
         if (_disposed || !_started) return;
@@ -97,12 +102,14 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         }
     }
 
+    /// <summary>异步刷新当前服务或界面负责的数据。</summary>
     public async Task RefreshAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         if (_disposed) return;
         CancellationTokenSource? refreshCts = null;
         try
         {
+            // 定时刷新、阶段变化和手动刷新共用同一入口，串行执行以保持推荐状态发布顺序。
             await _refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             refreshCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
             bool disposedAfterAcquire;
@@ -113,6 +120,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
             }
             if (disposedAfterAcquire)
             {
+                // 等待锁期间对象可能已释放；此处归还锁，不启动新的推荐请求。
                 refreshCts.Dispose();
                 _refreshGate.Release();
                 return;
@@ -278,6 +286,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         }
     }
 
+    /// <summary>取消当前尚未完成的推荐刷新任务。</summary>
     private void CancelActiveRefresh()
     {
         lock (_sync)
@@ -286,6 +295,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         }
     }
 
+    /// <summary>按当前设置配置推荐刷新计时器。</summary>
     private void ConfigureTimer()
     {
         _timer ??= new System.Threading.Timer(_ => _ = RefreshAsync(cancellationToken: _lifetime.Token));
@@ -299,19 +309,23 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         _timer.Change(interval, interval);
     }
 
+    /// <summary>判断当前配置和对局上下文是否需要请求 AI。</summary>
     private bool ShouldRequestAi(string fingerprint, DateTimeOffset now, bool force) =>
         force || ((fingerprint != _lastCloudFingerprint || _lastCloudRecommendations.Count == 0) &&
                   now - _lastCloudRequestAt >= AiMinimumInterval);
 
+    /// <summary>判断游戏阶段是否允许生成推荐。</summary>
     private static bool IsRecommendationPhase(string phase) =>
         string.Equals(phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(phase, "InProgress", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>计算下一次推荐刷新时间。</summary>
     private DateTimeOffset? GetNextRefreshAt(AssistantSettings settings) =>
         settings.Ai.RecommendationEnabled && settings.Ai.DynamicRefreshEnabled
             ? DateTimeOffset.Now.AddSeconds(Math.Clamp(settings.Ai.DynamicRefreshSeconds, 15, 600))
             : null;
 
+    /// <summary>保存当前推荐状态并通知状态订阅者。</summary>
     private void Publish(RecommendationState state, bool force = false)
     {
         if (_disposed) return;
@@ -331,9 +345,11 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         }
     }
 
+    /// <summary>生成展示内容指纹，避免重复显示同一推荐。</summary>
     private static string BuildDisplayFingerprint(RecommendationState state) =>
         $"{state.Status}|{state.Diagnostic}|{string.Join('|', state.Recommendations.Select(item => item.Id))}";
 
+    /// <summary>生成对局上下文指纹，用于判断输入是否变化。</summary>
     private static string BuildContextFingerprint(AiGameContext context) =>
         string.Join("|", new[]
         {
@@ -347,6 +363,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
             string.Join(",", context.EnemyChampions.OrderBy(item => item, StringComparer.Ordinal))
         });
 
+    /// <summary>复制配置数据，避免运行流程持有外部可变对象。</summary>
     private static AssistantSettings Clone(AssistantSettings source) => new()
     {
         Ai = new CloudAiSettings
@@ -367,6 +384,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         }
     };
 
+    /// <summary>将异常信息整理为界面可显示的状态文本。</summary>
     private static string ToFriendlyMessage(Exception ex) => ex switch
     {
         HttpRequestException => "本机客户端连接失败。",
@@ -374,6 +392,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         _ => ex.Message
     };
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     public void Dispose()
     {
         lock (_sync)

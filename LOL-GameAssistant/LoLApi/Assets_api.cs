@@ -40,6 +40,7 @@ namespace LOL_GameAssistant.LoLApi
             return await reader.ReadToEndAsync().ConfigureAwait(false);
         }
 
+        /// <summary>读取当前召唤师或指定 PUUID 的召唤师资料 JSON。</summary>
         public static async Task<string> GetUser()
         {
             HttpClientHelper client = new HttpClientHelper();
@@ -56,6 +57,7 @@ namespace LOL_GameAssistant.LoLApi
             }
         }
 
+        /// <summary>读取当前召唤师或指定 PUUID 的召唤师资料 JSON。</summary>
         public static async Task<string> GetUser(String? puuid)
         {
             if (puuid == null) return String.Empty;
@@ -75,6 +77,7 @@ namespace LOL_GameAssistant.LoLApi
             }
         }
 
+        /// <summary>读取指定召唤师头像的资源流。</summary>
         public static async Task<Stream> GetImg(String? id)
         {
             HttpClientHelper client = new HttpClientHelper();

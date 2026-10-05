@@ -11,8 +11,10 @@ public sealed class OpggChampionInsightsService : IChampionInsightsService
     private static readonly HttpClient Http = CreateHttpClient();
     private readonly IChampionCatalog _champions;
 
+    /// <summary>初始化 OpggChampionInsightsService 的实例状态，并保存传入的依赖或数据。</summary>
     public OpggChampionInsightsService(IChampionCatalog champions) => _champions = champions;
 
+    /// <summary>查询指定模式下的英雄梯度信息。</summary>
     public async Task<IReadOnlyList<ChampionTierInsight>> GetChampionTiersAsync(
         string mode,
         CancellationToken cancellationToken = default)
@@ -55,6 +57,7 @@ public sealed class OpggChampionInsightsService : IChampionInsightsService
             .ToList();
     }
 
+    /// <summary>查询英雄在大乱斗模式中的平衡调整。</summary>
     public async Task<IReadOnlyList<ChampionBalanceAdjustment>> GetAramBalanceAdjustmentsAsync(
         CancellationToken cancellationToken = default)
     {
@@ -78,6 +81,7 @@ public sealed class OpggChampionInsightsService : IChampionInsightsService
             .ToList();
     }
 
+    /// <summary>从外部服务读取 JSON 数据。</summary>
     private static async Task<JObject> GetJsonAsync(string url, CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await Http.GetAsync(url, cancellationToken).ConfigureAwait(false);
@@ -86,12 +90,14 @@ public sealed class OpggChampionInsightsService : IChampionInsightsService
         return JObject.Parse(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
     }
 
+    /// <summary>根据英雄目录和外部数据确定显示名称。</summary>
     private string ResolveName(int championId)
     {
         string name = _champions.GetDisplayName(championId);
         return string.IsNullOrWhiteSpace(name) ? $"英雄 {championId}" : name;
     }
 
+    /// <summary>创建外部数据服务使用的 HTTP 客户端。</summary>
     private static HttpClient CreateHttpClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
@@ -99,6 +105,7 @@ public sealed class OpggChampionInsightsService : IChampionInsightsService
         return http;
     }
 
+    /// <summary>将队列和玩法别名转换为推荐服务使用的模式键。</summary>
     private static string NormalizeMode(string? mode) => mode?.Trim().ToLowerInvariant() switch
     {
         string kiwi when kiwi.StartsWith("kiwi", StringComparison.Ordinal) => "aram_mayhem",
@@ -109,6 +116,7 @@ public sealed class OpggChampionInsightsService : IChampionInsightsService
         _ => "ranked"
     };
 
+    /// <summary>将外部英雄梯度文本转换为内部梯度值。</summary>
     private static int ParseTier(string tier) => int.TryParse(tier.TrimStart('T'), out int value) ? value : int.MaxValue;
 
     /// <summary>OP.GG 有些模式返回 0~1，有些返回 0~100，统一为百分数供 UI 使用。</summary>

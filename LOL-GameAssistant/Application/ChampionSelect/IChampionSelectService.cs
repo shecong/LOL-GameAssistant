@@ -5,8 +5,10 @@ namespace LOL_GameAssistant.Application.ChampionSelect;
 /// <summary>选人会话读取与自动禁用、选用用例端口。</summary>
 public interface IChampionSelectService
 {
+    /// <summary>读取当前选人会话。</summary>
     Task<ChampionSelectionSnapshot?> GetSessionAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>按配置尝试禁用英雄。</summary>
     Task<bool> AutoBanAsync(IReadOnlyList<int> championIds, CancellationToken cancellationToken = default);
 
     /// <summary>

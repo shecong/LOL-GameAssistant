@@ -3,6 +3,7 @@ namespace LOL_GameAssistant.Helper;
 /// <summary>清空动态区域时同时释放子控件持有的计时器、提示框和图像。</summary>
 public static class ControlLifetime
 {
+    /// <summary>移出并释放动态子控件，同时清除旧内容留下的滚动范围。</summary>
     public static void ClearAndDispose(Control parent)
     {
         foreach (Control child in parent.Controls.Cast<Control>().ToArray())

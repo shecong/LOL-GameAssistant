@@ -17,8 +17,10 @@ public sealed record ThemePalette(
     Color BlueHeader,
     Color RedHeader);
 
+/// <summary>允许控件在主题变化后更新自定义绘制颜色。</summary>
 public interface IThemeAware
 {
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     void ApplyTheme(ThemePalette palette);
 }
 
@@ -32,10 +34,14 @@ public static class UiMetrics
     public const int ControlHeight = 34;
 }
 
+/// <summary>统一维护深浅主题配色，并将主题应用到已有和动态控件。</summary>
 public static class UiTheme
 {
+    /// <summary>控件首次应用主题前的背景、前景及初始模式。</summary>
     private sealed record OriginalColors(Color BackColor, Color ForeColor, bool CapturedDark);
+    /// <summary>渐变控件首次应用主题前的颜色和边框配置。</summary>
     private sealed record OriginalGradient(Color StartColor, Color EndColor, Color BorderColor, bool CapturedDark);
+    /// <summary>按钮首次应用主题前的背景、边框及初始模式。</summary>
     private sealed record OriginalButtonColors(Color? Back, Color? Border, bool CapturedDark);
 
     private static readonly ConditionalWeakTable<Control, OriginalColors> Originals = new();
@@ -46,9 +52,12 @@ public static class UiTheme
 
     public static event EventHandler? Changed;
 
+    /// <summary>根据当前主题模式返回语义配色。</summary>
     public static ThemePalette Palette => CreatePalette(IsDark());
+    /// <summary>返回当前保存的主题模式。</summary>
     public static string Mode => _mode;
 
+    /// <summary>切换当前显示模式并通知相关订阅者。</summary>
     public static void SetMode(string? mode)
     {
         string normalized = mode is "Light" or "Dark" or "System" ? mode : "System";
@@ -58,6 +67,7 @@ public static class UiTheme
         Changed?.Invoke(null, EventArgs.Empty);
     }
 
+    /// <summary>递归更新控件主题、调用自定义主题接口，并监听后续添加的控件。</summary>
     public static void Apply(Control root)
     {
         if (root.IsDisposed) return;
@@ -76,6 +86,7 @@ public static class UiTheme
         }
     }
 
+    /// <summary>递归应用基础主题颜色，并保留原始颜色用于主题切换。</summary>
     private static void ApplyCore(Control control, ThemePalette palette)
     {
         OriginalColors original = Originals.GetValue(control, key => new OriginalColors(key.BackColor, key.ForeColor, palette.IsDark));
@@ -171,6 +182,7 @@ public static class UiTheme
             ApplyCore(child, palette);
     }
 
+    /// <summary>按当前主题绘制下拉选择项。</summary>
     private static void DrawComboItem(object? sender, DrawItemEventArgs e)
     {
         if (sender is not ComboBox combo || e.Index < 0) return;
@@ -187,6 +199,7 @@ public static class UiTheme
         e.DrawFocusRectangle();
     }
 
+    /// <summary>递归通知支持主题接口的控件更新自身样式。</summary>
     private static void ApplyThemeAware(Control control, ThemePalette palette)
     {
         if (control is IThemeAware aware) aware.ApplyTheme(palette);
@@ -194,6 +207,7 @@ public static class UiTheme
             ApplyThemeAware(child, palette);
     }
 
+    /// <summary>监听后续添加的动态控件并同步主题。</summary>
     private static void WatchNewControls(Control control)
     {
         if (!DynamicControls.TryGetValue(control, out _))
@@ -204,6 +218,7 @@ public static class UiTheme
         foreach (Control child in control.Controls) WatchNewControls(child);
     }
 
+    /// <summary>根据当前模式确定是否使用深色主题。</summary>
     private static bool IsDark() => _mode switch
     {
         "Dark" => true,
@@ -211,6 +226,7 @@ public static class UiTheme
         _ => IsSystemDark()
     };
 
+    /// <summary>读取 Windows 当前主题偏好。</summary>
     private static bool IsSystemDark()
     {
         try
@@ -227,6 +243,7 @@ public static class UiTheme
         }
     }
 
+    /// <summary>构建深色或浅色主题使用的语义颜色集合。</summary>
     private static ThemePalette CreatePalette(bool dark) => dark
         ? new ThemePalette(true,
             Color.FromArgb(36, 44, 56), Color.FromArgb(48, 58, 72), Color.FromArgb(58, 70, 86),
@@ -237,21 +254,27 @@ public static class UiTheme
             Color.FromArgb(35, 45, 55), Color.FromArgb(88, 99, 110), Color.FromArgb(210, 218, 228),
             Color.FromArgb(25, 118, 210), Color.FromArgb(25, 118, 210), Color.FromArgb(198, 40, 40));
 
+    /// <summary>判断颜色是否属于浅色中性色。</summary>
     private static bool IsLightNeutral(Color color) =>
         color.A > 0 && color.GetBrightness() > .76f && IsNeutral(color);
 
+    /// <summary>判断颜色是否接近白色。</summary>
     private static bool IsNearlyWhite(Color color) => color.GetBrightness() > .93f && IsNeutral(color);
 
+    /// <summary>判断颜色是否属于深色中性色。</summary>
     private static bool IsDarkNeutral(Color color) =>
         color.A > 0 && color.GetBrightness() < .62f && IsNeutral(color);
 
+    /// <summary>判断颜色是否属于较暗的中性色。</summary>
     private static bool IsVeryDarkNeutral(Color color) =>
         color.A > 0 && color.GetBrightness() < .2f && IsNeutral(color);
 
+    /// <summary>判断颜色是否适合作为浅色背景。</summary>
     private static bool IsLightSurface(Color color) =>
         color.A > 0 && color.GetBrightness() > .76f &&
         Math.Max(color.R, Math.Max(color.G, color.B)) - Math.Min(color.R, Math.Min(color.G, color.B)) < 36;
 
+    /// <summary>判断颜色是否接近灰阶中性色。</summary>
     private static bool IsNeutral(Color color) =>
         Math.Max(color.R, Math.Max(color.G, color.B)) - Math.Min(color.R, Math.Min(color.G, color.B)) < 42;
 }

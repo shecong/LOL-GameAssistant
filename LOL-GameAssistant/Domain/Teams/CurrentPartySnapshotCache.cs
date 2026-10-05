@@ -9,6 +9,7 @@ public sealed class CurrentPartySnapshotCache
     private readonly HashSet<string> _lobbyMembers = new(StringComparer.Ordinal);
     private string _localPuuid = "";
 
+    /// <summary>清空当前缓存或历史状态。</summary>
     public void Clear()
     {
         _sessionParties.Clear();
@@ -16,6 +17,7 @@ public sealed class CurrentPartySnapshotCache
         _localPuuid = "";
     }
 
+    /// <summary>记录大厅阶段可确认的组队关系。</summary>
     public void ObserveLobby(LobbySnapshot lobby)
     {
         foreach (string puuid in _lobbyMembers) _sessionParties.Remove(puuid);
@@ -27,6 +29,7 @@ public sealed class CurrentPartySnapshotCache
         if (!_lobbyMembers.Contains(_localPuuid)) _lobbyMembers.Clear();
     }
 
+    /// <summary>记录当前会话中的成员与队伍信息。</summary>
     public void ObserveSession(IEnumerable<GameTeamMember> members)
     {
         foreach (var member in members.Where(member => !member.IsBot && !string.IsNullOrWhiteSpace(member.Puuid)))
@@ -34,6 +37,7 @@ public sealed class CurrentPartySnapshotCache
                 _sessionParties[member.Puuid] = member.PartyId.Trim();
     }
 
+    /// <summary>根据当前成员恢复此前记录的组队关系。</summary>
     public IReadOnlyList<GameTeamMember> Restore(IReadOnlyList<GameTeamMember> team)
     {
         bool containsLocal = team.Any(member => member.Puuid == _localPuuid);

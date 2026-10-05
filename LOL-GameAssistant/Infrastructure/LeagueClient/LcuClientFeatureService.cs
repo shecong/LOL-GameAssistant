@@ -18,19 +18,24 @@ public sealed class LcuClientFeatureService : IClientFeatureService
     private IReadOnlyDictionary<long, ProfileSkinAsset>? _profileSkinCatalog;
     private DateTimeOffset _profileSkinCatalogLoadedAt;
 
+    /// <summary>客户端皮肤资源中的背景预览信息。</summary>
     private sealed record ProfileSkinAsset(long SkinId, string Name, string ChampionName, string ImagePath, bool IsOwned);
 
+    /// <summary>初始化 LcuClientFeatureService 的实例状态，并保存传入的依赖或数据。</summary>
     public LcuClientFeatureService(ILcuRequestSender lcu) => _lcu = lcu;
 
+    /// <summary>向客户端提交拒绝当前匹配确认的请求。</summary>
     public async Task<ClientFeatureResult> DeclineReadyCheckAsync(CancellationToken cancellationToken = default) =>
         await PostResultAsync("/lol-matchmaking/v1/ready-check/decline", "{}", "已拒绝本次对局。", "拒绝对局失败", cancellationToken);
 
+    /// <summary>向客户端提交退出当前选人阶段的请求。</summary>
     public async Task<ClientFeatureResult> DodgeChampionSelectAsync(CancellationToken cancellationToken = default)
     {
         bool ok = await _lcu.DeleteAsync("/lol-champ-select/v1/session", cancellationToken).ConfigureAwait(false);
         return ok ? ClientFeatureResult.Success("已请求退出英雄选择。") : ClientFeatureResult.Failure("退出英雄选择失败，请确认当前处于可退出的非自定义选人阶段。");
     }
 
+    /// <summary>请求交换指定的大乱斗备选英雄。</summary>
     public async Task<ClientFeatureResult> SwapAramBenchAsync(int championId, CancellationToken cancellationToken = default)
     {
         if (championId <= 0) return ClientFeatureResult.Failure("英雄 ID 无效。");
@@ -38,6 +43,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
             $"/lol-champ-select/v1/session/bench/swap/{championId}", "{}", "已请求换取共享池英雄。", "换英雄失败", cancellationToken);
     }
 
+    /// <summary>根据指定队列创建快捷大厅。</summary>
     public async Task<ClientFeatureResult> CreateQuickLobbyAsync(int queueId, CancellationToken cancellationToken = default)
     {
         if (queueId <= 0) return ClientFeatureResult.Failure("队列 ID 无效。");
@@ -45,6 +51,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         return await PostResultAsync("/lol-lobby/v2/lobby", body, "已创建目标队列大厅。", "创建大厅失败", cancellationToken);
     }
 
+    /// <summary>请求从当前流程返回大厅。</summary>
     public async Task<ClientFeatureResult> ReturnToLobbyAsync(bool startMatchmaking, CancellationToken cancellationToken = default)
     {
         bool playedAgain = await _lcu.PostAsync("/lol-lobby/v2/play-again", "{}", cancellationToken).ConfigureAwait(false);
@@ -61,6 +68,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         return ClientFeatureResult.Failure("已返回房间，但队伍暂未满足开始匹配条件。");
     }
 
+    /// <summary>从可点赞队友中选择目标并提交点赞。</summary>
     public async Task<ClientFeatureResult> HonorRandomEligibleAllyAsync(CancellationToken cancellationToken = default)
     {
         string? json = await _lcu.GetStringAsync("/lol-honor-v2/v1/ballot", cancellationToken).ConfigureAwait(false);
@@ -102,16 +110,19 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         }
     }
 
+    /// <summary>请求下载指定对局录像。</summary>
     public Task<ClientFeatureResult> DownloadReplayAsync(long gameId, CancellationToken cancellationToken = default) =>
         gameId <= 0
             ? Task.FromResult(ClientFeatureResult.Failure("Game ID 无效。"))
             : PostResultAsync($"/lol-replays/v1/rofls/{gameId}/download", "{}", "已开始下载回放。", "下载回放失败", cancellationToken);
 
+    /// <summary>请求观看指定对局录像。</summary>
     public Task<ClientFeatureResult> WatchReplayAsync(long gameId, CancellationToken cancellationToken = default) =>
         gameId <= 0
             ? Task.FromResult(ClientFeatureResult.Failure("Game ID 无效。"))
             : PostResultAsync($"/lol-replays/v1/rofls/{gameId}/watch", "{}", "已请求启动回放。", "启动回放失败，请先下载完整回放", cancellationToken);
 
+    /// <summary>读取待领取奖励列表。</summary>
     public async Task<IReadOnlyList<ClientRewardGrant>> GetPendingRewardsAsync(CancellationToken cancellationToken = default)
     {
         string? json = await _lcu.GetStringAsync("/lol-rewards/v1/grants", cancellationToken).ConfigureAwait(false);
@@ -130,6 +141,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         }
     }
 
+    /// <summary>逐项领取当前可领取的奖励。</summary>
     public async Task<ClientFeatureResult> ClaimAllPendingRewardsAsync(CancellationToken cancellationToken = default)
     {
         IReadOnlyList<ClientRewardGrant> pending = await GetPendingRewardsAsync(cancellationToken).ConfigureAwait(false);
@@ -159,6 +171,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
             : ClientFeatureResult.Failure("领取奖励失败，可能需要在客户端手动选择。 ");
     }
 
+    /// <summary>列出当前账号已有的游戏设置备份。</summary>
     public async Task<IReadOnlyList<ClientSettingsBackup>> ListGameSettingsBackupsAsync(CancellationToken cancellationToken = default)
     {
         string directory = await GetAccountBackupDirectoryAsync(cancellationToken).ConfigureAwait(false);
@@ -170,6 +183,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
             .ToArray();
     }
 
+    /// <summary>按指定名称保存当前游戏设置备份。</summary>
     public async Task<ClientFeatureResult> SaveGameSettingsBackupAsync(string name, CancellationToken cancellationToken = default)
     {
         string safeName = NormalizeBackupName(name);
@@ -183,6 +197,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         return ClientFeatureResult.Success($"已保存设置备份“{safeName}”。");
     }
 
+    /// <summary>从所选备份恢复游戏设置。</summary>
     public async Task<ClientFeatureResult> RestoreGameSettingsBackupAsync(string name, CancellationToken cancellationToken = default)
     {
         string safeName = NormalizeBackupName(name);
@@ -194,6 +209,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         return ok ? ClientFeatureResult.Success($"已恢复设置备份“{safeName}”。") : ClientFeatureResult.Failure("恢复设置失败。");
     }
 
+    /// <summary>删除指定的游戏设置备份。</summary>
     public async Task<ClientFeatureResult> DeleteGameSettingsBackupAsync(string name, CancellationToken cancellationToken = default)
     {
         string safeName = NormalizeBackupName(name);
@@ -204,6 +220,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         return ClientFeatureResult.Success($"已删除设置备份“{safeName}”。");
     }
 
+    /// <summary>读取好友在线及游戏活动信息。</summary>
     public async Task<IReadOnlyList<FriendActivity>> GetFriendActivitiesAsync(CancellationToken cancellationToken = default)
     {
         string? json = await _lcu.GetStringAsync("/lol-chat/v1/friends", cancellationToken).ConfigureAwait(false);
@@ -237,6 +254,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         }
     }
 
+    /// <summary>更新客户端聊天的在线状态。</summary>
     public async Task<ClientFeatureResult> UpdateChatPresenceAsync(string availability, string statusMessage, CancellationToken cancellationToken = default)
     {
         string normalizedAvailability = availability.Trim().ToLowerInvariant();
@@ -258,6 +276,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         }
     }
 
+    /// <summary>读取客户端资源中可选择的生涯背景。</summary>
     public async Task<IReadOnlyList<ClientSkinChoice>> GetProfileBackgroundChoicesAsync(CancellationToken cancellationToken = default)
     {
         IReadOnlyDictionary<long, ProfileSkinAsset> catalog = await GetProfileSkinCatalogAsync(cancellationToken).ConfigureAwait(false);
@@ -268,6 +287,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
             .ToArray();
     }
 
+    /// <summary>读取指定皮肤对应的生涯背景预览图。</summary>
     public async Task<ClientSkinPreview?> GetProfileSkinPreviewAsync(long skinId, CancellationToken cancellationToken = default)
     {
         if (skinId <= 0) return null;
@@ -280,6 +300,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         return new ClientSkinPreview(skin.SkinId, skin.Name, skin.ChampionName, image);
     }
 
+    /// <summary>读取皮肤资源目录，供背景选择器查询。</summary>
     private async Task<IReadOnlyDictionary<long, ProfileSkinAsset>> GetProfileSkinCatalogAsync(CancellationToken cancellationToken)
     {
         if (_profileSkinCatalog != null && DateTimeOffset.UtcNow - _profileSkinCatalogLoadedAt < TimeSpan.FromMinutes(15))
@@ -360,29 +381,35 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         }
     }
 
+    /// <summary>更新当前召唤师的生涯背景。</summary>
     public Task<ClientFeatureResult> UpdateProfileBackgroundAsync(long skinId, CancellationToken cancellationToken = default) =>
         skinId <= 0
             ? Task.FromResult(ClientFeatureResult.Failure("皮肤 ID 无效。"))
             : PostResultAsync("/lol-summoner/v1/current-summoner/summoner-profile", JsonConvert.SerializeObject(new { key = "backgroundSkinId", value = skinId }), "已更新生涯背景。", "更新生涯背景失败", cancellationToken);
 
+    /// <summary>更新当前召唤师头像。</summary>
     public Task<ClientFeatureResult> SetProfileIconAsync(int profileIconId, CancellationToken cancellationToken = default) =>
         profileIconId <= 0
             ? Task.FromResult(ClientFeatureResult.Failure("头像 ID 无效。"))
             : PutResultAsync("/lol-summoner/v1/current-summoner/icon", profileIconId.ToString(CultureInfo.InvariantCulture), "已更新召唤师头像。", "更新头像失败", cancellationToken);
 
+    /// <summary>清除当前生涯展示的挑战徽章。</summary>
     public Task<ClientFeatureResult> ClearChallengeBadgesAsync(CancellationToken cancellationToken = default) =>
         PostResultAsync("/lol-challenges/v1/update-player-preferences", JsonConvert.SerializeObject(new { challengeIds = Array.Empty<long>() }), "已清空身份徽章。", "清空身份徽章失败", cancellationToken);
 
+    /// <summary>发送 POST 操作并转换为统一的客户端功能结果。</summary>
     private async Task<ClientFeatureResult> PostResultAsync(string endpoint, string body, string success, string failed, CancellationToken cancellationToken) =>
         await _lcu.PostAsync(endpoint, body, cancellationToken).ConfigureAwait(false)
             ? ClientFeatureResult.Success(success)
             : ClientFeatureResult.Failure(failed);
 
+    /// <summary>发送 PUT 操作并转换为统一的客户端功能结果。</summary>
     private async Task<ClientFeatureResult> PutResultAsync(string endpoint, string body, string success, string failed, CancellationToken cancellationToken) =>
         await _lcu.PutAsync(endpoint, body, cancellationToken).ConfigureAwait(false)
             ? ClientFeatureResult.Success(success)
             : ClientFeatureResult.Failure(failed);
 
+    /// <summary>将奖励 JSON 转换为界面使用的奖励条目。</summary>
     private static ClientRewardGrant ToRewardGrant(JObject grant)
     {
         JObject? group = grant["rewardGroup"] as JObject;
@@ -400,6 +427,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         return new ClientRewardGrant(grant.SelectToken("info.id")?.Value<string>() ?? "", title, choices, ids);
     }
 
+    /// <summary>尝试从奖励数据中定位指定奖励。</summary>
     private static JObject? TryFindGrant(string? json, string grantId)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;
@@ -413,6 +441,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         }
     }
 
+    /// <summary>根据当前召唤师确定账号隔离的备份目录。</summary>
     private async Task<string> GetAccountBackupDirectoryAsync(CancellationToken cancellationToken)
     {
         string account = "default";
@@ -426,6 +455,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, BackupsDirectoryName, NormalizeBackupName(account));
     }
 
+    /// <summary>规范化备份名称，避免非法文件名字符。</summary>
     private static string NormalizeBackupName(string? value)
     {
         string trimmed = (value ?? "").Trim();

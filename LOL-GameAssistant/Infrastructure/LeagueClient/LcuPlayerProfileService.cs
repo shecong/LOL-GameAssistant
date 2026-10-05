@@ -11,20 +11,24 @@ public sealed class LcuPlayerProfileService : IPlayerProfileService
 {
     private readonly ILcuRequestSender _requestSender;
 
+    /// <summary>初始化 LcuPlayerProfileService 的实例状态，并保存传入的依赖或数据。</summary>
     public LcuPlayerProfileService(ILcuRequestSender requestSender)
     {
         _requestSender = requestSender;
     }
 
+    /// <summary>读取当前登录召唤师的资料。</summary>
     public Task<PlayerProfile?> GetCurrentAsync(CancellationToken cancellationToken = default) =>
         GetAsync("/lol-summoner/v1/current-summoner", cancellationToken);
 
+    /// <summary>按玩家唯一标识读取召唤师资料。</summary>
     public Task<PlayerProfile?> GetByPuuidAsync(string puuid, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(puuid)) return Task.FromResult<PlayerProfile?>(null);
         return GetAsync($"/lol-summoner/v2/summoners/puuid/{Uri.EscapeDataString(puuid)}", cancellationToken);
     }
 
+    /// <summary>按游戏名和标签查找召唤师资料。</summary>
     public async Task<PlayerProfile?> FindByRiotIdAsync(string gameName, string tagLine, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(gameName) || string.IsNullOrWhiteSpace(tagLine)) return null;
@@ -37,6 +41,7 @@ public sealed class LcuPlayerProfileService : IPlayerProfileService
             ?? await GetAsync($"/lol-summoner/v1/summoners/by-name/{escapedName}", cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>读取玩家 JSON 并验证唯一标识，缺失有效身份时返回空结果。</summary>
     private async Task<PlayerProfile?> GetAsync(string endpoint, CancellationToken cancellationToken)
     {
         string? json = await _requestSender.GetStringAsync(endpoint, cancellationToken).ConfigureAwait(false);
@@ -54,6 +59,7 @@ public sealed class LcuPlayerProfileService : IPlayerProfileService
             Math.Max(0, dto.XpUntilNextLevel));
     }
 
+    /// <summary>将文本解析为非负数，并处理无效输入。</summary>
     private static int ParseNonNegative(string? value) =>
         int.TryParse(value, out int parsed) ? Math.Max(0, parsed) : 0;
 }

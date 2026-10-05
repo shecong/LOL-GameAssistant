@@ -1,5 +1,6 @@
 using LOL_GameAssistant.Domain.Coaching;
 using LOL_GameAssistant.Domain.Settings;
+using LOL_GameAssistant.Helper;
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -14,7 +15,7 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// 逐像素透明需要分层窗口（WS_EX_LAYERED + UpdateLayeredWindow），而分层窗口不承载子控件，
 /// 所以标题、正文与依据都在这里手工排版绘制。
 /// </summary>
-internal sealed class RecommendationOverlayForm : Form
+internal sealed class RecommendationOverlayForm : AntdUI.Window
 {
     private const int WsExNoActivate = 0x08000000;
     private const int WsExTransparent = 0x00000020;
@@ -53,9 +54,11 @@ internal sealed class RecommendationOverlayForm : Form
     private string _body = "";
     private string _evidence = "";
 
+    /// <summary>初始化 RecommendationOverlayForm 的实例状态。</summary>
     public RecommendationOverlayForm()
     {
-        FormBorderStyle = FormBorderStyle.None;
+        AntdWindowChrome.Configure(this);
+        EnableHitTest = false;
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
@@ -73,8 +76,10 @@ internal sealed class RecommendationOverlayForm : Form
         };
     }
 
+    /// <summary>显示浮窗时不抢占游戏或客户端的输入焦点。</summary>
     protected override bool ShowWithoutActivation => true;
 
+    /// <summary>保留无激活或分层透明等浮窗需要的原生窗口标志。</summary>
     protected override CreateParams CreateParams
     {
         get
@@ -91,10 +96,12 @@ internal sealed class RecommendationOverlayForm : Form
     {
     }
 
+    /// <summary>绘制当前控件的自定义外观。</summary>
     protected override void OnPaint(PaintEventArgs e)
     {
     }
 
+    /// <summary>更新游戏内推荐文字并按配置时长显示浮窗。</summary>
     public void ShowRecommendation(CoachRecommendation recommendation, CloudAiSettings settings)
     {
         if (IsDisposed || string.IsNullOrWhiteSpace(recommendation.Body)) return;
@@ -139,9 +146,11 @@ internal sealed class RecommendationOverlayForm : Form
             (int)Math.Ceiling(height));
     }
 
+    /// <summary>按指定字体和宽度测量文本所需高度。</summary>
     private float MeasureHeight(Graphics graphics, string text, Font font, float width) =>
         string.IsNullOrEmpty(text) ? 0 : graphics.MeasureString(text, font, new SizeF(width, 10000), _textFormat).Height;
 
+    /// <summary>将浮窗文字绘制为带透明通道的分层位图。</summary>
     private void RenderLayered()
     {
         using Graphics screen = CreateGraphics();
@@ -199,6 +208,7 @@ internal sealed class RecommendationOverlayForm : Form
         return y + height;
     }
 
+    /// <summary>将透明位图提交给原生分层窗口。</summary>
     private void ApplyLayeredBitmap(Bitmap bitmap)
     {
         IntPtr screenDc = GetDC(IntPtr.Zero);
@@ -244,6 +254,7 @@ internal sealed class RecommendationOverlayForm : Form
         }
     }
 
+    /// <summary>根据屏幕区域和浮窗设置计算显示位置。</summary>
     private Point GetLocation(CloudAiSettings settings)
     {
         Rectangle area = Screen.FromHandle(GetLeagueWindowHandle() ?? Program.GameMain.Handle).WorkingArea;
@@ -297,6 +308,7 @@ internal sealed class RecommendationOverlayForm : Form
         return null;
     }
 
+    /// <summary>判断指定窗口是否属于游戏进程。</summary>
     private static bool IsLeagueWindow(IntPtr window)
     {
         if (window == IntPtr.Zero) return false;
@@ -315,6 +327,7 @@ internal sealed class RecommendationOverlayForm : Form
         }
     }
 
+    /// <summary>原生分层窗口更新使用的透明混合参数。</summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct BlendFunction
     {
@@ -324,12 +337,15 @@ internal sealed class RecommendationOverlayForm : Form
         public byte AlphaFormat;
     }
 
+    /// <summary>读取当前前台窗口的句柄。</summary>
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
+    /// <summary>读取窗口所属线程和进程标识。</summary>
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
+    /// <summary>将带透明通道的位图更新到分层窗口。</summary>
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UpdateLayeredWindow(
         IntPtr window,
@@ -342,21 +358,27 @@ internal sealed class RecommendationOverlayForm : Form
         ref BlendFunction blend,
         int flags);
 
+    /// <summary>取得指定窗口或屏幕的设备上下文。</summary>
     [DllImport("user32.dll")]
     private static extern IntPtr GetDC(IntPtr window);
 
+    /// <summary>归还从窗口或屏幕取得的设备上下文。</summary>
     [DllImport("user32.dll")]
     private static extern int ReleaseDC(IntPtr window, IntPtr dc);
 
+    /// <summary>创建用于离屏绘制的兼容设备上下文。</summary>
     [DllImport("gdi32.dll")]
     private static extern IntPtr CreateCompatibleDC(IntPtr dc);
 
+    /// <summary>释放由绘图流程创建的设备上下文。</summary>
     [DllImport("gdi32.dll")]
     private static extern bool DeleteDC(IntPtr dc);
 
+    /// <summary>将绘图对象选入设备上下文，并返回此前的对象。</summary>
     [DllImport("gdi32.dll")]
     private static extern IntPtr SelectObject(IntPtr dc, IntPtr value);
 
+    /// <summary>释放原生 GDI 绘图对象。</summary>
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr value);
 }

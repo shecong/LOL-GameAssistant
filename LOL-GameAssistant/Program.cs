@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant
 {
+    /// <summary>程序入口：配置应用启动环境与生命周期。</summary>
     internal static class Program
     {
         public static GameMain GameMain { get; private set; } = null!;
@@ -90,6 +91,7 @@ namespace LOL_GameAssistant
             }
         }
 
+        /// <summary>记录未处理异常，并提供用户可见的错误提示。</summary>
         private static void HandleException(Exception ex)
         {
             RuntimeDiagnostics.Report("应用", "未处理异常", ex.Message);
@@ -131,6 +133,7 @@ namespace LOL_GameAssistant
         [DllImport("user32.dll")]
         private static extern bool SetProcessDPIAware();
 
+        /// <summary>设置进程 DPI 感知方式，使窗口在高分屏上正确缩放。</summary>
         [DllImport("shcore.dll")]
         private static extern int SetProcessDpiAwareness(_Process_DPI_Awareness value);
 

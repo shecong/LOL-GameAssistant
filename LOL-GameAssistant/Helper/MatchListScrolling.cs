@@ -3,6 +3,7 @@ namespace LOL_GameAssistant.Helper;
 /// <summary>战绩列表使用固定虚拟坐标，重排时保留正在阅读的记录。</summary>
 internal static class MatchListScrolling
 {
+    /// <summary>按容器宽度排列战绩行并维护滚动区域。</summary>
     public static void LayoutRows(Panel panel, IReadOnlyList<Control> rows, int inset, int gap)
     {
         if (panel.IsDisposed || panel.ClientSize.Width <= 0) return;
@@ -42,6 +43,7 @@ internal static class MatchListScrolling
         finally { panel.ResumeLayout(true); }
     }
 
+    /// <summary>处理鼠标滚轮并在适用时向外层滚动区域传递剩余滚动。</summary>
     public static void ScrollWheel(ScrollableControl panel, MouseEventArgs e, ref int remainder)
     {
         if (e is HandledMouseEventArgs { Handled: true }) return;
@@ -73,18 +75,24 @@ internal static class MatchListScrolling
     }
 }
 
+/// <summary>支持嵌套滚轮传递的战绩滚动容器。</summary>
 internal class MatchScrollPanel : Panel
 {
     private int _wheelRemainder;
+    /// <summary>初始化 MatchScrollPanel 的实例状态。</summary>
     public MatchScrollPanel() => DoubleBuffered = true;
+    /// <summary>将滚轮输入交给战绩区域的滚动规则处理。</summary>
     protected override void OnMouseWheel(MouseEventArgs e) =>
         MatchListScrolling.ScrollWheel(this, e, ref _wheelRemainder);
 }
 
+/// <summary>支持嵌套滚轮传递的战绩流式布局容器。</summary>
 internal class MatchFlowPanel : FlowLayoutPanel
 {
     private int _wheelRemainder;
+    /// <summary>初始化 MatchFlowPanel 的实例状态。</summary>
     public MatchFlowPanel() => DoubleBuffered = true;
+    /// <summary>将滚轮输入交给战绩区域的滚动规则处理。</summary>
     protected override void OnMouseWheel(MouseEventArgs e) =>
         MatchListScrolling.ScrollWheel(this, e, ref _wheelRemainder);
 }

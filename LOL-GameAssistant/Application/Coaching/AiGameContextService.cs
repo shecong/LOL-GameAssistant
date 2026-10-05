@@ -23,6 +23,7 @@ public sealed class AiGameContextService : IAiGameContextService
     private readonly IChampionCatalog _championCatalog;
     private string? _cachedMyPuuid;
 
+    /// <summary>初始化 AiGameContextService 的实例状态，并保存传入的依赖或数据。</summary>
     public AiGameContextService(
         ILobbyService lobbyService,
         IPlayerProfileService playerProfileService,
@@ -39,6 +40,7 @@ public sealed class AiGameContextService : IAiGameContextService
         _championCatalog = championCatalog;
     }
 
+    /// <summary>收集当前游戏阶段可用的 AI 建议上下文。</summary>
     public async Task<AiGameContext> CollectAsync(CancellationToken cancellationToken = default)
     {
         string? phase = await _lobbyService.GetGameFlowPhaseAsync(cancellationToken).ConfigureAwait(false);
@@ -57,6 +59,7 @@ public sealed class AiGameContextService : IAiGameContextService
         };
     }
 
+    /// <summary>从选人会话收集英雄、队友和操作阶段信息。</summary>
     private async Task<AiGameContext> CollectChampSelectAsync(
         string phase,
         string? myPuuid,
@@ -115,6 +118,7 @@ public sealed class AiGameContextService : IAiGameContextService
         };
     }
 
+    /// <summary>从进行中的对局收集玩家状态及推荐上下文。</summary>
     private async Task<AiGameContext> CollectInProgressAsync(
         string phase,
         string? myPuuid,
@@ -159,6 +163,7 @@ public sealed class AiGameContextService : IAiGameContextService
         };
     }
 
+    /// <summary>从当前玩家的选人动作中确定英雄标识。</summary>
     private static int GetCurrentMyActionChampion(ChampionSelectionSnapshot session) =>
         session.Actions.SelectMany(group => group)
             .FirstOrDefault(action =>
@@ -180,6 +185,7 @@ public sealed class AiGameContextService : IAiGameContextService
             : value;
     }
 
+    /// <summary>读取当前召唤师的唯一标识。</summary>
     private async Task<string?> GetMyPuuidAsync(CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(_cachedMyPuuid)) return _cachedMyPuuid;
@@ -194,8 +200,10 @@ public sealed class AiGameContextService : IAiGameContextService
         return _cachedMyPuuid;
     }
 
+    /// <summary>判断英雄标识是否存在于当前英雄目录。</summary>
     private static bool IsKnownChampion(string name) => !string.IsNullOrWhiteSpace(name);
 
+    /// <summary>结合游戏模式和队列信息统一实时模式名称。</summary>
     private static string NormalizeLiveMode(string? mode) => mode?.Trim().ToUpperInvariant() switch
     {
         "ARAM" => "深渊大乱斗",

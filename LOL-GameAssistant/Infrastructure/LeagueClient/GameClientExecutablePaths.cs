@@ -3,14 +3,17 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>客户端安装目录中的可执行文件选择规则。</summary>
 internal static class GameClientExecutablePaths
 {
+    /// <summary>判断所选路径是否为支持的客户端启动程序。</summary>
     internal static bool IsSupportedExecutable(string path) =>
         string.Equals(Path.GetFileName(path), "LeagueClient.exe", StringComparison.OrdinalIgnoreCase) ||
         IsTencentLauncher(path);
 
+    /// <summary>判断启动文件是否属于腾讯客户端入口。</summary>
     internal static bool IsTencentLauncher(string path) =>
         string.Equals(Path.GetFileName(path), "client.exe", StringComparison.OrdinalIgnoreCase) &&
         string.Equals(Path.GetFileName(Path.GetDirectoryName(path)), "TCLS", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>在指定目录中直接查找支持的客户端入口。</summary>
     internal static string? FindDirectlyIn(string directory)
     {
         // 国服 TCLS 启动器与 LeagueClient 文件夹通常位于同一个游戏根目录。
@@ -27,6 +30,7 @@ internal static class GameClientExecutablePaths
         return File.Exists(league) ? league : null;
     }
 
+    /// <summary>在多个候选入口中优先选取腾讯启动器。</summary>
     internal static string PreferTencentLauncher(string executable)
     {
         if (!string.Equals(Path.GetFileName(executable), "LeagueClient.exe", StringComparison.OrdinalIgnoreCase))

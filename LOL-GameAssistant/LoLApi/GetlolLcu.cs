@@ -5,6 +5,7 @@ using static LOL_GameAssistant.BaseViewForm.InfoMsgForm;
 
 namespace LOL_GameAssistant.LoLApi
 {
+    /// <summary>从本机客户端进程读取 LCU 端口和认证信息。</summary>
     public static class GetlolLcu
     {
         public static IInfoMsgForm? _infoMsgForm;
@@ -64,6 +65,7 @@ namespace LOL_GameAssistant.LoLApi
             return GetlolLcuCmd();
         }
 
+        /// <summary>通过客户端启动命令行提取 LCU 连接信息。</summary>
         public static (string? port, string? token) GetlolLcuCmd()
         {
             try
@@ -114,6 +116,7 @@ namespace LOL_GameAssistant.LoLApi
             }
         }
 
+        /// <summary>使用 WMI 读取目标进程的启动命令行。</summary>
         public static string? GetCommandLineUsingWmi(int processId)
         {
             string query = $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}";

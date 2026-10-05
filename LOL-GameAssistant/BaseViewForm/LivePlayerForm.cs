@@ -74,6 +74,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>当前卡片对应玩家的 puuid（供开黑检测结果回填）。</summary>
         public string? Puuid => _playerPuuid;
+        /// <summary>将玩家近期战绩区域滚动到顶部。</summary>
         public void ScrollMatchesToTop() => panelMatches.AutoScrollPosition = Point.Empty;
 
         /// <summary>近期同队列 KDA 已完成计算；选人页据此汇总十名玩家并发送一次聊天公告。</summary>
@@ -93,6 +94,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private bool _glowTarget;
         private double _glowT;
 
+        /// <summary>初始化 LivePlayerForm 的实例状态，并保存传入的依赖或数据。</summary>
         public LivePlayerForm(
             string? playerPuuid,
             string? fallbackName = null,
@@ -259,6 +261,7 @@ namespace LOL_GameAssistant.BaseViewForm
             UiTheme.Apply(this);
         }
 
+        /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
         public void ApplyTheme(ThemePalette palette)
         {
             BackColor = palette.SurfaceRaised;
@@ -280,6 +283,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>句柄创建后执行依赖原生窗口的初始化。</summary>
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
@@ -382,6 +386,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>按容器宽度更新近期战绩行的大小。</summary>
         private void ResizeMatchRows()
         {
             if (_layingOutMatchRows || IsDisposed) return;
@@ -394,6 +399,7 @@ namespace LOL_GameAssistant.BaseViewForm
             finally { _layingOutMatchRows = false; }
         }
 
+        /// <summary>展示玩家数据加载失败的状态。</summary>
         private void ShowLoadFailure(string status, string detail)
         {
             lblSummary.Text = status;
@@ -445,6 +451,7 @@ namespace LOL_GameAssistant.BaseViewForm
             RecalcHeaderLayout();
         }
 
+        /// <summary>读取并展示玩家排位信息。</summary>
         private async Task LoadRankAsync(CancellationToken cancellationToken)
         {
             if (_rankedStatsService == null || _isBot || string.IsNullOrWhiteSpace(_playerPuuid)) return;
@@ -478,6 +485,7 @@ namespace LOL_GameAssistant.BaseViewForm
             RecalcHeaderLayout();
         }
 
+        /// <summary>异步加载当前对象负责的数据。</summary>
         private async Task LoadAsync(CancellationToken cancellationToken)
         {
             if (_isBot || string.IsNullOrEmpty(_playerPuuid))
@@ -603,20 +611,24 @@ namespace LOL_GameAssistant.BaseViewForm
             UiTheme.Apply(this);
         }
 
+        /// <summary>读取指定玩家资料，供玩家卡片展示。</summary>
         private Task<PlayerProfile?> GetPlayerProfileAsync(string puuid, CancellationToken cancellationToken) =>
             GetCachedAsync(PlayerProfileCache, puuid,
                 () => _playerProfileService.GetByPuuidAsync(puuid, cancellationToken)).WaitAsync(cancellationToken);
 
+        /// <summary>读取指定玩家的近期战绩。</summary>
         private Task<MatchHistoryResponse?> GetRecentHistoryAsync(string puuid, CancellationToken cancellationToken) =>
             GetCachedAsync(RecentHistoryCache, puuid,
                 () => _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1, cancellationToken))
                 .WaitAsync(cancellationToken);
 
+        /// <summary>读取指定对局的完整详情。</summary>
         private Task<MatchDetail?> GetMatchDetailAsync(long gameId, CancellationToken cancellationToken) =>
             GetCachedAsync(MatchDetailCache, gameId,
                 () => _matchHistoryService.GetDetailAsync(gameId, cancellationToken: cancellationToken))
                 .WaitAsync(cancellationToken);
 
+        /// <summary>优先使用缓存，并按需读取缺失数据。</summary>
         private static Task<T?> GetCachedAsync<TKey, T>(
             ConcurrentDictionary<TKey, (DateTime CachedAt, Task<T?> Value)> cache,
             TKey key,
@@ -669,6 +681,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return assessment;
         }
 
+        /// <summary>为样本不足的玩家构建明确的评估状态。</summary>
         private RecentModePerformanceAssessment CreateInsufficientPerformanceAssessment() =>
             RecentModePerformanceEvaluator.Evaluate(
                 string.IsNullOrWhiteSpace(_currentGameMode) && _currentQueueId <= 0
@@ -677,6 +690,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Array.Empty<MatchPerformanceAssessment>(),
                 Array.Empty<bool>());
 
+        /// <summary>通知外部订阅者当前玩家的近期表现结果。</summary>
         private void PublishRecentPerformance(RecentModePerformanceAssessment? assessment)
         {
             if (_recentPerformancePublished || IsDisposed || string.IsNullOrWhiteSpace(_playerPuuid)) return;
@@ -689,11 +703,13 @@ namespace LOL_GameAssistant.BaseViewForm
                 assessment));
         }
 
+        /// <summary>判断当前卡片是否可继续用于指定玩家上下文。</summary>
         internal bool CanReuseFor(int queueId, string? gameMode, bool isAlly, bool teamKnown, bool isBot) =>
             !IsDisposed && _isBot == isBot && _isAlly == isAlly && _teamKnown == teamKnown &&
             _currentQueueId == queueId &&
             (queueId > 0 || string.Equals(_currentGameMode, gameMode ?? "", StringComparison.OrdinalIgnoreCase));
 
+        /// <summary>向订阅者重新发布已加载的近期表现结果。</summary>
         internal void ReplayRecentPerformance()
         {
             if (!_recentPerformancePublished || IsDisposed || string.IsNullOrWhiteSpace(_playerPuuid)) return;
@@ -701,6 +717,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _playerPuuid, lblName.Text, _isAlly, _cachedAssessment));
         }
 
+        /// <summary>切换数据加载期间的骨架占位展示。</summary>
         private void ShowShimmer()
         {
             ControlLifetime.ClearAndDispose(panelMatches);
@@ -712,6 +729,7 @@ namespace LOL_GameAssistant.BaseViewForm
             panelMatches.Controls.Add(shimmer);
         }
 
+        /// <summary>展示机器人或不可查询玩家的基础信息。</summary>
         private async Task RenderBotHeaderAsync(CancellationToken cancellationToken)
         {
             lblName.Text = string.IsNullOrEmpty(lblName.Text) ? "机器人" : lblName.Text;
@@ -739,6 +757,7 @@ namespace LOL_GameAssistant.BaseViewForm
             });
         }
 
+        /// <summary>读取并展示玩家召唤师头像。</summary>
         private async Task LoadProfileIconAsync(int profileIconId, CancellationToken cancellationToken)
         {
             if (profileIconId <= 0) return;
@@ -762,6 +781,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>读取并展示当前英雄图像。</summary>
         private async Task LoadCurrentChampionAsync(CancellationToken cancellationToken)
         {
             int championId = _championId;
@@ -807,6 +827,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _ownedChampionImage = image;
         }
 
+        /// <summary>将资源二进制转换为独立图像对象。</summary>
         private static Image? ToImage(GameAsset? asset)
         {
             try
@@ -822,12 +843,14 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>根据英雄标识取得展示名称。</summary>
         private static string GetChampionDisplayName(int championId)
         {
             string name = AppCompositionRoot.ChampionCatalog.GetDisplayName(championId);
             return string.IsNullOrWhiteSpace(name) ? $"英雄{championId}" : name;
         }
 
+        /// <summary>将玩家分路标识转换为显示文本。</summary>
         private static string GetPositionText(string position)
         {
             return position.ToLowerInvariant() switch
@@ -842,6 +865,7 @@ namespace LOL_GameAssistant.BaseViewForm
             };
         }
 
+        /// <summary>绘制当前控件的自定义外观。</summary>
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
@@ -869,6 +893,7 @@ namespace LOL_GameAssistant.BaseViewForm
             g.DrawPath(border, path);
         }
 
+        /// <summary>启动玩家卡片的高亮动画。</summary>
         private void StartGlow(bool hovering)
         {
             _glowTarget = hovering;
@@ -876,6 +901,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _glowTimer.Start();
         }
 
+        /// <summary>推进高亮动画并触发重绘。</summary>
         private void GlowTick()
         {
             _glowT = Math.Min(1, _glowT + 0.12);
@@ -894,6 +920,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private double _glowAlpha;
 
+        /// <summary>响应复制按钮并复制玩家身份信息。</summary>
         private void BtnCopy_Click(object? sender, EventArgs e)
         {
             if (string.IsNullOrEmpty(_playerPuuid)) return;
@@ -924,6 +951,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// <summary>玩家卡片完成同队列近期 KDA 计算后，提供给对局页汇总的一项结果。</summary>
     public sealed class PlayerRecentPerformanceEventArgs : EventArgs
     {
+        /// <summary>初始化 PlayerRecentPerformanceEventArgs 的实例状态，并保存传入的依赖或数据。</summary>
         public PlayerRecentPerformanceEventArgs(
             string puuid,
             string? displayName,

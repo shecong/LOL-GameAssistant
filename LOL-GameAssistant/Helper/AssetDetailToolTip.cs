@@ -9,6 +9,7 @@ internal sealed class AssetDetailToolTip : IDisposable
     private readonly ToolTip _tip = new() { OwnerDraw = true, InitialDelay = 300, ReshowDelay = 100, AutoPopDelay = 30000 };
     private readonly Dictionary<Control, string> _details = new();
 
+    /// <summary>初始化 AssetDetailToolTip 的实例状态。</summary>
     public AssetDetailToolTip()
     {
         _tip.Popup += (_, e) =>
@@ -30,6 +31,7 @@ internal sealed class AssetDetailToolTip : IDisposable
         };
     }
 
+    /// <summary>将游戏富文本标签和图标占位符转换为可读的纯文本。</summary>
     internal static string PlainText(string? html)
     {
         string text = Regex.Replace(html ?? "", @"<br\s*/?>|</(?:p|div|li)>", "\n", RegexOptions.IgnoreCase);
@@ -38,6 +40,7 @@ internal sealed class AssetDetailToolTip : IDisposable
         return Regex.Replace(text, @"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n").Trim();
     }
 
+    /// <summary>绑定资源名称和作用说明，并提供悬停与点击查看入口。</summary>
     public void SetDetails(Control control, string title, string? description)
     {
         if (control.IsDisposed) return;
@@ -53,11 +56,12 @@ internal sealed class AssetDetailToolTip : IDisposable
         _tip.SetToolTip(control, (text.Length > 800 ? text[..800] + "…" : text) + "\n\n点击查看完整详情");
     }
 
+    /// <summary>打开可滚动的资源说明弹窗。</summary>
     private void ShowDetails(object? sender, EventArgs e)
     {
         if (sender is not Control control || !_details.TryGetValue(control, out string? text)) return;
         _tip.Hide(control);
-        using var dialog = new Form
+        using var dialog = new AntdUI.Window
         {
             Text = text.Split('\n')[0], Size = new Size(480, 400), MinimumSize = new Size(360, 260),
             StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
@@ -71,9 +75,11 @@ internal sealed class AssetDetailToolTip : IDisposable
             ForeColor = UiTheme.Palette.TextPrimary
         });
         dialog.Padding = new Padding(16);
+        AntdWindowChrome.AddHeader(dialog);
         UiTheme.Apply(dialog);
         dialog.ShowDialog(control.FindForm());
     }
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     public void Dispose() { _tip.Dispose(); _details.Clear(); }
 }

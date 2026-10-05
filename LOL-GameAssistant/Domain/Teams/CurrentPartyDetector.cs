@@ -5,6 +5,7 @@ namespace LOL_GameAssistant.Domain.Teams;
 /// <summary>按本局 LCU 会话里的房间标识识别同队开黑，不查询历史战绩。</summary>
 public static class CurrentPartyDetector
 {
+    /// <summary>根据当前输入执行组队关系识别。</summary>
     public static CurrentPartyDetectionResult Detect(
         IReadOnlyList<GameTeamMember> teamOne,
         IReadOnlyList<GameTeamMember> teamTwo)
@@ -15,6 +16,7 @@ public static class CurrentPartyDetector
         AddTeam(teamTwo, 1);
         return new CurrentPartyDetectionResult(new PremadeDetectionResult(groups), complete);
 
+        // 将识别到的成员归入对应队伍的检测集合。
         void AddTeam(IReadOnlyList<GameTeamMember> team, int teamIndex)
         {
             GameTeamMember[] players = team.Where(member => !member.IsBot)
@@ -41,6 +43,7 @@ public static class CurrentPartyDetector
         }
     }
 
+    /// <summary>取得玩家当前组队关系使用的标识。</summary>
     private static string? GetPartyKey(GameTeamMember member)
     {
         string partyId = member.PartyId?.Trim() ?? "";
@@ -51,6 +54,7 @@ public static class CurrentPartyDetector
         return null;
     }
 
+    /// <summary>判断组队标识是否为有效值。</summary>
     internal static bool IsValidPartyId(string? value) => !string.IsNullOrWhiteSpace(value) &&
         value.Trim() != "0" && !string.Equals(value.Trim(), Guid.Empty.ToString(), StringComparison.OrdinalIgnoreCase);
 }
@@ -60,6 +64,7 @@ public sealed class CurrentPartyDetectionResult
 {
     private readonly bool[] _complete;
 
+    /// <summary>初始化 CurrentPartyDetectionResult 的实例状态，并保存传入的依赖或数据。</summary>
     public CurrentPartyDetectionResult(PremadeDetectionResult groups, bool[] complete)
     {
         Groups = groups;
@@ -68,8 +73,10 @@ public sealed class CurrentPartyDetectionResult
 
     public PremadeDetectionResult Groups { get; }
 
+    /// <summary>判断当前组队信息是否不足，需要使用历史战绩补充。</summary>
     public bool NeedsHistoryFallback(int teamIndex) => !Groups.Groups.Any(group => group.TeamIndex == teamIndex);
 
+    /// <summary>将历史推断结果补入当前组队结果。</summary>
     public CurrentPartyDetectionResult WithHistoryFallback(PremadeDetectionResult history)
     {
         var merged = Groups.Groups.Concat(history.Groups.Where(group => NeedsHistoryFallback(group.TeamIndex))
@@ -78,6 +85,7 @@ public sealed class CurrentPartyDetectionResult
         return new CurrentPartyDetectionResult(new PremadeDetectionResult(merged), _complete);
     }
 
+    /// <summary>生成指定队伍的组队状态文本。</summary>
     public string GetTeamStatus(int teamIndex)
     {
         if (Groups.Groups.Any(group => group.TeamIndex == teamIndex))
@@ -86,6 +94,7 @@ public sealed class CurrentPartyDetectionResult
         return _complete[teamIndex] ? "未见组队" : "未知";
     }
 
+    /// <summary>生成指定队伍的组队关系详细说明。</summary>
     public string GetTeamDetail(int teamIndex)
     {
         var groups = Groups.Groups.Where(group => group.TeamIndex == teamIndex).ToArray();

@@ -23,6 +23,7 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
 
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1500 };
 
+    /// <summary>初始化 DiagnosticsForm 的实例状态。</summary>
     public DiagnosticsForm()
     {
         _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Component), "组件") { Width = "150" });
@@ -44,6 +45,7 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
         RefreshSnapshot();
     }
 
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
         BackColor = palette.Surface;
@@ -53,6 +55,7 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
         _hint.ForeColor = palette.TextSecondary;
     }
 
+    /// <summary>诊断记录变化后刷新诊断列表。</summary>
     private void DiagnosticsChanged(object? sender, EventArgs e)
     {
         if (IsDisposed || !IsHandleCreated) return;
@@ -60,6 +63,7 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
         else RefreshSnapshot();
     }
 
+    /// <summary>将最新诊断快照同步到界面。</summary>
     private void RefreshSnapshot()
     {
         if (IsDisposed) return;
@@ -69,5 +73,6 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
             .ToArray();
     }
 
+    /// <summary>诊断列表中的一行展示数据。</summary>
     private sealed record DiagnosticRow(string Component, string Status, string Detail, string UpdatedAt);
 }

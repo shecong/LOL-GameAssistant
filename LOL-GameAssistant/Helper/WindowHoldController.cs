@@ -42,6 +42,7 @@ public sealed class WindowHoldController : IDisposable
     private bool _disposed;
     private long _nextRegisterAttempt;
 
+    /// <summary>初始化 WindowHoldController 的实例状态，并保存传入的依赖或数据。</summary>
     public WindowHoldController(Form window)
     {
         _window = window;
@@ -58,6 +59,7 @@ public sealed class WindowHoldController : IDisposable
         _hotkeyWatch.Start();
     }
 
+    /// <summary>应用置顶热键、前台限制和透明度设置，并重新注册有效热键。</summary>
     public void Apply(AssistantSettings config)
     {
         Keys newKey = ParseKey(config.HoldToTopHotkey);
@@ -79,6 +81,7 @@ public sealed class WindowHoldController : IDisposable
         else RefreshRegistration();
     }
 
+    /// <summary>注册快捷喊话热键，并将热键动作分派到对应的发送流程。</summary>
     public void ConfigureQuickShoutHotkeys(AssistantSettings config, Action<QuickShoutHotkeyAction> action)
     {
         _shoutAction = action;
@@ -91,6 +94,7 @@ public sealed class WindowHoldController : IDisposable
             string.Join(" · ", _gameHotkeys.Select(binding => $"{binding.Value}: {binding.Key}")) + " · 仅游戏前台");
     }
 
+    /// <summary>根据配置建立游戏热键与动作的映射。</summary>
     internal static Dictionary<Keys, QuickShoutHotkeyAction> CreateGameHotkeyBindings(AssistantSettings config)
     {
         var candidates = new List<(Keys Key, QuickShoutHotkeyAction Action)>();
@@ -111,13 +115,16 @@ public sealed class WindowHoldController : IDisposable
             .ToDictionary(group => group.Key, group => group.Single().Action);
     }
 
+    /// <summary>检查当前热键是否与其他游戏热键冲突。</summary>
     public static bool HasGameHotkeyConflict(AssistantSettings config) =>
         CreateGameHotkeyBindings(config).Count !=
         (config.QuickShoutHotkeysEnabled ? 3 : 0) + (config.GameKdaHotkeyEnabled ? 1 : 0) + (config.GameKdaPlayerHotkeysEnabled ? 10 : 0);
 
+    /// <summary>解析游戏热键配置并返回按键组合。</summary>
     private static Keys ParseGameHotkey(string? value, Keys fallback) =>
         TryParseGameHotkey(value, out Keys key) ? key : fallback;
 
+    /// <summary>尝试解析游戏热键配置，格式无效时返回失败。</summary>
     public static bool TryParseGameHotkey(string? value, out Keys key)
     {
         key = Keys.None;
@@ -138,11 +145,13 @@ public sealed class WindowHoldController : IDisposable
         return IsGameHotkeyMainKey(key & Keys.KeyCode);
     }
 
+    /// <summary>判断按键是否可以作为游戏热键的主键。</summary>
     private static bool IsGameHotkeyMainKey(Keys key) => key is > Keys.None and <= (Keys)254 &&
         key is not (Keys.ShiftKey or Keys.ControlKey or Keys.Menu or Keys.LShiftKey or Keys.RShiftKey or
                     Keys.LControlKey or Keys.RControlKey or Keys.LMenu or Keys.RMenu or Keys.LWin or Keys.RWin or
                     Keys.LButton or Keys.RButton or Keys.MButton or Keys.XButton1 or Keys.XButton2);
 
+    /// <summary>将按键组合格式化为可保存和显示的热键文本。</summary>
     public static string FormatGameHotkey(Keys key)
     {
         string modifiers = ((key & Keys.Control) != 0 ? "Ctrl+" : "") +
@@ -152,21 +161,27 @@ public sealed class WindowHoldController : IDisposable
         return modifiers + name;
     }
 
+    /// <summary>读取当前按下的热键修饰键。</summary>
     private static Keys CurrentGameModifiers() =>
         ((GetAsyncKeyState((int)Keys.ControlKey) & 0x8000) != 0 ? Keys.Control : Keys.None) |
         ((GetAsyncKeyState((int)Keys.Menu) & 0x8000) != 0 ? Keys.Alt : Keys.None) |
         ((GetAsyncKeyState((int)Keys.ShiftKey) & 0x8000) != 0 ? Keys.Shift : Keys.None);
 
+    /// <summary>将配置文本转换为按键值。</summary>
     public static Keys ParseKey(string? value) =>
         Enum.TryParse(value, true, out Keys parsed) && parsed != Keys.None
             ? parsed : Keys.Oem3;
 
+    /// <summary>将按键值转换为可读名称。</summary>
     public static string DescribeKey(Keys key) => key == Keys.Oem3 ? "·" : key.ToString();
 
+    /// <summary>窗口新句柄创建后恢复热键注册。</summary>
     private void WindowHandleCreated(object? sender, EventArgs e) => RefreshRegistration();
 
+    /// <summary>窗口句柄销毁前清理其热键注册。</summary>
     private void WindowHandleDestroyed(object? sender, EventArgs e) => UnregisterHoldHotkey();
 
+    /// <summary>根据最新设置更新已注册的窗口热键。</summary>
     private void RefreshRegistration()
     {
         if (_disposed || !_window.IsHandleCreated) return;
@@ -196,6 +211,7 @@ public sealed class WindowHoldController : IDisposable
         }
     }
 
+    /// <summary>移除按住置顶功能对应的热键。</summary>
     private void UnregisterHoldHotkey()
     {
         if (_registeredHandle == IntPtr.Zero) return;
@@ -215,6 +231,7 @@ public sealed class WindowHoldController : IDisposable
         return true;
     }
 
+    /// <summary>开始按住置顶状态并记录窗口原有状态。</summary>
     private void BeginHold()
     {
         if (_window.IsDisposed) return;
@@ -232,6 +249,7 @@ public sealed class WindowHoldController : IDisposable
             $"按住 {DescribeKey(_hotkey)} 时以非激活方式置顶");
     }
 
+    /// <summary>结束按住置顶状态并恢复窗口原有状态。</summary>
     private void EndHold()
     {
         _holding = false;
@@ -243,6 +261,7 @@ public sealed class WindowHoldController : IDisposable
             "已松开快捷键，可从托盘恢复窗口");
     }
 
+    /// <summary>安装用于识别游戏喊话热键的键盘钩子。</summary>
     private void InstallShoutHook()
     {
         if (_hook != IntPtr.Zero || _disposed) return;
@@ -251,6 +270,7 @@ public sealed class WindowHoldController : IDisposable
         _hook = SetWindowsHookEx(WhKeyboardLl, _callback, GetModuleHandle(module?.ModuleName), 0);
     }
 
+    /// <summary>移除游戏喊话键盘钩子。</summary>
     private void RemoveShoutHook()
     {
         if (_hook == IntPtr.Zero) return;
@@ -258,6 +278,7 @@ public sealed class WindowHoldController : IDisposable
         _hook = IntPtr.Zero;
     }
 
+    /// <summary>过滤键盘钩子消息并分派有效的游戏热键。</summary>
     private IntPtr HookCallback(int code, IntPtr wParam, IntPtr lParam)
     {
         if (code < 0 || _disposed)
@@ -286,6 +307,7 @@ public sealed class WindowHoldController : IDisposable
         return CallNextHookEx(_hook, code, wParam, lParam);
     }
 
+    /// <summary>将识别到的热键动作交给对应的异步操作。</summary>
     private async Task DispatchGameHotkeyAsync(QuickShoutHotkeyAction action)
     {
         // 等待组合键松开，避免仍按住 Ctrl / Alt 时把聊天回车变成另一条游戏命令。
@@ -298,6 +320,7 @@ public sealed class WindowHoldController : IDisposable
             RunOnWindowThread(() => _shoutAction?.Invoke(action));
     }
 
+    /// <summary>将窗口操作调度到创建该窗口的 UI 线程。</summary>
     private void RunOnWindowThread(Action action)
     {
         if (_window.IsDisposed || !_window.IsHandleCreated) return;
@@ -309,11 +332,14 @@ public sealed class WindowHoldController : IDisposable
         catch (InvalidOperationException) { /* 窗口正在关闭 */ }
     }
 
+    /// <summary>判断前台窗口是否属于英雄联盟相关进程。</summary>
     private static bool IsLeagueForeground() => IsForegroundProcess(
         "League of Legends", "LeagueClient", "LeagueClientUx");
 
+    /// <summary>判断当前前台进程是否为游戏进程。</summary>
     private static bool IsLeagueGameForeground() => IsForegroundProcess("League of Legends");
 
+    /// <summary>根据进程名称判断当前前台进程。</summary>
     private static bool IsForegroundProcess(params string[] names)
     {
         IntPtr foreground = GetForegroundWindow();
@@ -328,6 +354,7 @@ public sealed class WindowHoldController : IDisposable
         catch { return false; }
     }
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -342,40 +369,51 @@ public sealed class WindowHoldController : IDisposable
 
     private delegate IntPtr LowLevelKeyboardProc(int code, IntPtr wParam, IntPtr lParam);
 
+    /// <summary>为窗口注册系统级热键。</summary>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
+    /// <summary>注销此前为窗口注册的系统热键。</summary>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    /// <summary>安装原生输入钩子并返回其句柄。</summary>
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc callback, IntPtr module, uint threadId);
 
+    /// <summary>移除此前安装的输入钩子。</summary>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnhookWindowsHookEx(IntPtr hook);
 
+    /// <summary>将当前输入消息传递给后续钩子。</summary>
     [DllImport("user32.dll")]
     private static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);
 
+    /// <summary>读取指定模块在当前进程中的句柄。</summary>
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr GetModuleHandle(string? moduleName);
 
+    /// <summary>读取当前前台窗口的句柄。</summary>
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
+    /// <summary>读取窗口所属线程和进程标识。</summary>
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processId);
 
+    /// <summary>读取按键的当前异步状态。</summary>
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int virtualKey);
 
+    /// <summary>调用 Windows API 更新窗口显示状态。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+    /// <summary>调整窗口位置、层级或触发非客户区重绘。</summary>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,

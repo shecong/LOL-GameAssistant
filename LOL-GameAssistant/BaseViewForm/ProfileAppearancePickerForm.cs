@@ -35,6 +35,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
 
     public long SelectedId { get; private set; }
 
+    /// <summary>初始化 ProfileAppearancePickerForm 的实例状态，并保存传入的依赖或数据。</summary>
     public ProfileAppearancePickerForm(
         IClientFeatureService features,
         IProfileIconService profileIcons,
@@ -54,6 +55,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         Controls.Add(_grid);
         Controls.Add(_loadMore);
         Controls.Add(toolbar);
+        AntdWindowChrome.AddHeader(this);
 
         _search.TextChanged += (_, _) => { _visibleCount = PageSize; RenderTiles(); };
         _loadMore.Click += (_, _) => { _visibleCount += PageSize; RenderTiles(); };
@@ -69,6 +71,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         };
     }
 
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
         BackColor = palette.Surface;
@@ -78,6 +81,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         _summary.ForeColor = palette.TextSecondary;
     }
 
+    /// <summary>读取可供选择的头像或背景条目。</summary>
     private async Task LoadItemsAsync()
     {
         _summary.Text = "正在读取本机客户端资源…";
@@ -117,6 +121,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>按筛选条件和已加载数量构建资源网格。</summary>
     private void RenderTiles()
     {
         if (IsDisposed) return;
@@ -145,6 +150,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
             _summary.Text = $"显示 {Math.Min(filtered.Length, _visibleCount)} / {filtered.Length} 项；点击“选择”仅回填 ID，确认后再应用。";
     }
 
+    /// <summary>创建一个头像或背景选择条目。</summary>
     private Control CreateTile(PickerItem item, out PictureBox picture)
     {
         int width = _isBackgroundPicker ? 190 : 118;
@@ -193,6 +199,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         return tile;
     }
 
+    /// <summary>在并发限制下读取条目缩略图。</summary>
     private async Task LoadTileImageAsync(PickerItem item, PictureBox picture, int version)
     {
         try
@@ -222,6 +229,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>保存用户选中的资源标识并返回选择结果。</summary>
     private void SelectItem(PickerItem item)
     {
         SelectedId = item.Id;
@@ -229,12 +237,14 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         Close();
     }
 
+    /// <summary>释放网格中已加载的缩略图。</summary>
     private void DisposeTileImages()
     {
         foreach (Image image in _tileImages) image.Dispose();
         _tileImages.Clear();
     }
 
+    /// <summary>从二进制内容解码独立图像，避免持有原始流。</summary>
     private static Image? DecodeImage(byte[] bytes)
     {
         using var stream = new MemoryStream(bytes);
@@ -242,5 +252,6 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
         return new Bitmap(source);
     }
 
+    /// <summary>头像或生涯背景选择器中的资源条目。</summary>
     private sealed record PickerItem(long Id, string Name, string Group, string Description);
 }

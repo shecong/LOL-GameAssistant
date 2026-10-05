@@ -12,9 +12,11 @@ public sealed class QuickMessageSenderController : IDisposable
     private DateTime _lastSentAtUtc = DateTime.MinValue;
     private int _sending;
 
+    /// <summary>初始化 QuickMessageSenderController 的实例状态，并保存传入的依赖或数据。</summary>
     public QuickMessageSenderController(Form owner)
     { }
 
+    /// <summary>测试游戏聊天输入是否能被当前方式打开。</summary>
     public async Task<GameShoutSendResult> TestChatOpenAsync()
     {
         GameShoutSendResult? focusError = await FocusGameAsync();
@@ -33,6 +35,7 @@ public sealed class QuickMessageSenderController : IDisposable
         }
     }
 
+    /// <summary>将用户选择的消息发送到游戏聊天。</summary>
     public async Task<GameShoutSendResult> SendSelectedToGameAsync(string message, bool sendToAll,
         bool useClipboard, bool perCharacter, int minimumIntervalSeconds)
     {
@@ -52,6 +55,7 @@ public sealed class QuickMessageSenderController : IDisposable
         return await SendOnceAsync(body, sendToAll, useClipboard, perCharacter, interval);
     }
 
+    /// <summary>按选中顺序发送多条游戏聊天消息。</summary>
     public Task<GameShoutSendResult> SendSelectedBatchToGameAsync(IReadOnlyList<string> phrases,
         bool sendToAll, bool useClipboard, bool perCharacter, int minimumIntervalSeconds)
     {
@@ -74,6 +78,7 @@ public sealed class QuickMessageSenderController : IDisposable
         if (messages.Count == 0 || messages.Count > maximumMessages ||
             messages.Any(message => string.IsNullOrWhiteSpace(message) || message.Length > 500))
             return new(false, $"{description}内容为空、过长或消息数量过多。");
+        // 热键和界面按钮可能同时触发；只允许一个发送流程注入按键，避免聊天序列交错。
         if (Interlocked.Exchange(ref _sending, 1) != 0)
             return new(false, "另一条游戏内喊话正在发送。");
 
@@ -91,6 +96,7 @@ public sealed class QuickMessageSenderController : IDisposable
             if (focusError.HasValue) return focusError.Value;
             for (int index = 0; index < messages.Count; index++)
             {
+                // 每条消息发送前重新检查焦点；用户切到其他程序后立即停止剩余输入。
                 if (!IsLeagueGameForeground())
                     return new(false, $"游戏失去前台焦点；{description}已注入 {index}/{messages.Count} 条。", index);
                 string text = sendToAll ? "/all " + messages[index] : messages[index];
@@ -109,6 +115,7 @@ public sealed class QuickMessageSenderController : IDisposable
         finally { Volatile.Write(ref _sending, 0); }
     }
 
+    /// <summary>尝试将游戏窗口切换到前台以接受聊天输入。</summary>
     private async Task<GameShoutSendResult?> FocusGameAsync()
     {
         if (IsLeagueGameForeground()) return null;
@@ -131,6 +138,7 @@ public sealed class QuickMessageSenderController : IDisposable
             : new GameShoutSendResult(false, "等待输入焦点时游戏窗口离开前台，未发送。");
     }
 
+    /// <summary>执行一次游戏聊天消息发送。</summary>
     private async Task<GameShoutSendResult> SendOnceAsync(string message, bool sendToAll,
         bool useClipboard, bool perCharacter, int minimumIntervalSeconds)
     {
@@ -172,10 +180,12 @@ public sealed class QuickMessageSenderController : IDisposable
         }
     }
 
+    /// <summary>根据输入条目组织待发送的消息集合。</summary>
     private static List<string> BuildMessages(string message, bool perCharacter)
     {
         if (!perCharacter) return [message];
         var messages = new List<string>();
+        // 按 Unicode 文本元素拆分，保留组合字符及代理对，避免逐字发送破坏字符。
         TextElementEnumerator enumerator = StringInfo.GetTextElementEnumerator(message);
         while (enumerator.MoveNext())
         {
@@ -185,6 +195,7 @@ public sealed class QuickMessageSenderController : IDisposable
         return messages;
     }
 
+    /// <summary>打开聊天输入框，输入一行文本并提交。</summary>
     private static async Task<GameShoutSendResult> SendChatLineAsync(string text, bool useClipboard,
         int stepDelayMilliseconds = 100)
     {
@@ -228,6 +239,7 @@ public sealed class QuickMessageSenderController : IDisposable
         }
     }
 
+    /// <summary>保存发送操作前的剪贴板内容。</summary>
     private static ClipboardSnapshot CaptureClipboard()
     {
         try
@@ -242,6 +254,7 @@ public sealed class QuickMessageSenderController : IDisposable
         }
     }
 
+    /// <summary>发送完成后恢复原有剪贴板内容。</summary>
     private static void RestoreClipboard(ClipboardSnapshot snapshot, string sentText)
     {
         try
@@ -256,6 +269,7 @@ public sealed class QuickMessageSenderController : IDisposable
         }
     }
 
+    /// <summary>判断当前前台进程是否为游戏进程。</summary>
     private static bool IsLeagueGameForeground()
     {
         IntPtr window = GetForegroundWindow();
@@ -270,20 +284,26 @@ public sealed class QuickMessageSenderController : IDisposable
         catch { return false; }
     }
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     public void Dispose()
     { }
 
+    /// <summary>游戏聊天发送前保存的剪贴板内容。</summary>
     private readonly record struct ClipboardSnapshot(bool HasText, string? Text);
 
+    /// <summary>读取当前前台窗口的句柄。</summary>
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
+    /// <summary>请求将目标窗口切换到前台。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetForegroundWindow(IntPtr windowHandle);
 
+    /// <summary>读取窗口所属线程和进程标识。</summary>
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 }
 
+/// <summary>游戏喊话操作的状态及可展示说明。</summary>
 public readonly record struct GameShoutSendResult(bool Succeeded, string Message, int SentCount = 0);

@@ -29,6 +29,7 @@ public static class GameKdaRemarkLibrary
             "这KDA，嘴硬之前先给成绩单放个假。", "先别谈战术高度，活着参与才是第一步。"]
     };
 
+    /// <summary>优先使用用户文案，在对应档位随机选句，并避免连续两次重复。</summary>
     public static string Select(RecentPerformanceLabel label, IReadOnlyDictionary<string, string>? custom = null)
     {
         string[] choices = custom != null && custom.TryGetValue(label.ToString(), out string? text)

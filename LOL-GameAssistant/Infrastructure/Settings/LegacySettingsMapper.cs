@@ -6,6 +6,7 @@ namespace LOL_GameAssistant.Infrastructure.Settings;
 /// <summary>旧 settings.json DTO 与领域设置模型间的兼容映射。</summary>
 internal static class LegacySettingsMapper
 {
+    /// <summary>将旧接口或持久化数据映射为业务层使用的领域对象。</summary>
     public static AssistantSettings ToDomain(SettingConfig source)
     {
         source.Normalize();
@@ -72,6 +73,7 @@ internal static class LegacySettingsMapper
         return settings;
     }
 
+    /// <summary>将领域设置映射回兼容旧存储格式的数据对象。</summary>
     public static SettingConfig ToLegacy(AssistantSettings source)
     {
         source.Normalize();
@@ -138,6 +140,7 @@ internal static class LegacySettingsMapper
         return settings;
     }
 
+    /// <summary>将旧接口或持久化数据映射为业务层使用的领域对象。</summary>
     private static CloudAiSettings ToDomain(AiSettings source) => new()
     {
         RecommendationEnabled = source.RecommendationEnabled,
@@ -155,6 +158,7 @@ internal static class LegacySettingsMapper
         RecommendationOverlayDurationSeconds = source.RecommendationOverlayDurationSeconds
     };
 
+    /// <summary>将领域设置映射回兼容旧存储格式的数据对象。</summary>
     private static AiSettings ToLegacy(CloudAiSettings source) => new()
     {
         RecommendationEnabled = source.RecommendationEnabled,

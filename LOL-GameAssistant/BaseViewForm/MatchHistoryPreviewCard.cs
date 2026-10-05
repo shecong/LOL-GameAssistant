@@ -12,6 +12,7 @@ public sealed class MatchHistoryPreviewCard : UserControl
     private readonly AntdUI.Label _summary;
     private readonly AntdUI.Label _detailState;
 
+    /// <summary>初始化 MatchHistoryPreviewCard 的实例状态，并保存传入的依赖或数据。</summary>
     public MatchHistoryPreviewCard(MatchHistoryGame game, string viewerPuuid)
     {
         MatchParticipant? mine = game.GetParticipant(viewerPuuid);
@@ -46,11 +47,13 @@ public sealed class MatchHistoryPreviewCard : UserControl
         LayoutLabels();
     }
 
+    /// <summary>将战绩预览卡片切换为详情不可用状态。</summary>
     public void SetDetailUnavailable()
     {
         if (!IsDisposed) _detailState.Text = "双方详情暂不可用，已保留本场摘要";
     }
 
+    /// <summary>根据当前卡片尺寸排列文字区域。</summary>
     private void LayoutLabels()
     {
         int width = ClientSize.Width;
@@ -60,6 +63,7 @@ public sealed class MatchHistoryPreviewCard : UserControl
         _detailState.SetBounds(76, 62, Math.Max(100, width - 90), 22);
     }
 
+    /// <summary>创建当前卡片使用的文本标签。</summary>
     private static AntdUI.Label MakeLabel(string text, bool bold, Color color) => new()
     {
         Text = text,

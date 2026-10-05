@@ -23,6 +23,7 @@ namespace LOL_GameAssistant.Helper
             }
         });
 
+        /// <summary>读取 Base64 编码的流内容并解析为 JSON 数据。</summary>
         public static async Task<T?> ReadAsBase64JsonAsync<T>(this Stream stream)
         {
             using (StreamReader reader = new StreamReader(stream))
@@ -34,6 +35,7 @@ namespace LOL_GameAssistant.Helper
             }
         }
 
+        /// <summary>异步读取响应流中的原始文本，并在读取结束后关闭流。</summary>
         public static async Task<string> ReadAsStringJsonAsync(this Stream stream)
         {
             using (StreamReader reader = new StreamReader(stream))

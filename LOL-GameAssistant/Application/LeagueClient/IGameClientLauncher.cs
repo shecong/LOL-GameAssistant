@@ -5,6 +5,7 @@ namespace LOL_GameAssistant.Application.LeagueClient;
 /// <summary>启动本地 LOL 客户端的应用端口。</summary>
 public interface IGameClientLauncher
 {
+    /// <summary>启动当前服务或组件的运行流程。</summary>
     GameClientLaunchResult Start(string? configuredDirectory);
 
     /// <summary>启动客户端并等待 LCU；启动器仍在登录或更新时返回等待状态。</summary>

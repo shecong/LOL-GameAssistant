@@ -6,6 +6,7 @@ public interface IProfileIconService
     /// <summary>读取客户端资源目录中的头像 ID，用于分页式可视化选择。</summary>
     Task<IReadOnlyList<ProfileIconChoice>> GetProfileIconsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>读取指定召唤师头像的二进制资源。</summary>
     Task<byte[]?> GetProfileIconAsync(int iconId, CancellationToken cancellationToken = default);
 }
 

@@ -10,6 +10,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// </summary>
 public sealed class LeagueClientConnection : ILeagueClientConnection
 {
+    /// <summary>探测客户端连接信息，取得可用的本机 LCU 凭据。</summary>
     public bool TryConnect() => TryGetCredentials() != null;
 
     /// <summary>仅供基础设施内部的 LCU HTTP/WebSocket 适配器读取认证信息。</summary>

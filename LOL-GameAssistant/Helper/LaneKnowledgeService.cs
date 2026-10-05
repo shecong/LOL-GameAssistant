@@ -11,6 +11,7 @@ internal static class LocalLaneKnowledgeReader
     private static readonly object Sync = new();
     private static LaneKnowledgeDocument? _cached;
 
+    /// <summary>根据对局上下文读取适用的本地对线建议。</summary>
     public static string GetAdvice(string champion, string role, string? matchup = null)
     {
         LaneKnowledgeDocument document = Load();
@@ -35,6 +36,7 @@ internal static class LocalLaneKnowledgeReader
         return entry == null ? "关注兵线、视野与关键技能冷却，依据可见信息选择换血或回撤。" : entry.ToText();
     }
 
+    /// <summary>复用已加载的对线知识，文件不可用时回退到内置默认内容。</summary>
     private static LaneKnowledgeDocument Load()
     {
         lock (Sync)
@@ -58,6 +60,7 @@ internal static class LocalLaneKnowledgeReader
     }
 }
 
+/// <summary>本地对线知识文件的整体结构。</summary>
 internal sealed class LaneKnowledgeDocument
 {
     [JsonProperty("version")]
@@ -66,6 +69,7 @@ internal sealed class LaneKnowledgeDocument
     [JsonProperty("entries")]
     public List<LaneKnowledgeEntry> Entries { get; set; } = new();
 
+    /// <summary>构建本地知识配置缺失时使用的默认内容。</summary>
     public static LaneKnowledgeDocument Default() => new()
     {
         Entries = new List<LaneKnowledgeEntry>
@@ -75,6 +79,7 @@ internal sealed class LaneKnowledgeDocument
     };
 }
 
+/// <summary>按英雄或场景配置的单条对线知识。</summary>
 internal sealed class LaneKnowledgeEntry
 {
     [JsonProperty("champion")]
@@ -89,5 +94,6 @@ internal sealed class LaneKnowledgeEntry
     [JsonProperty("notes")]
     public List<string> Notes { get; set; } = new();
 
+    /// <summary>将知识条目组织为可展示的建议文本。</summary>
     public string ToText() => Notes.Count == 0 ? "暂无专项知识点。" : string.Join("；", Notes);
 }

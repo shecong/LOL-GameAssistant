@@ -9,6 +9,7 @@ using System.Data;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
+    /// <summary>首页单场战绩卡片，支持查看本局详情。</summary>
     public partial class RecordForm : UserControl, IThemeAware
     {
         private MatchDetail? _gameDetail;
@@ -21,6 +22,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private bool? _isWin;
         private RecentModePerformanceAssessment? _performanceAssessment;
 
+        /// <summary>初始化 RecordForm 的实例状态。</summary>
         public RecordForm() : this(AppCompositionRoot.MatchHistoryService, AppCompositionRoot.GameAssetService)
         {
         }
@@ -47,6 +49,7 @@ namespace LOL_GameAssistant.BaseViewForm
             };
         }
 
+        /// <summary>加载首页战绩卡片的英雄及对局信息。</summary>
         private void RecordForm_Load(object sender, EventArgs e)
         {
         }
@@ -119,6 +122,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ApplyPostGamePerformanceTag(assessment);
         }
 
+        /// <summary>将已结束对局的表现结果显示为状态标签。</summary>
         private void ApplyPostGamePerformanceTag(RecentModePerformanceAssessment assessment)
         {
             _performanceAssessment = assessment;
@@ -136,6 +140,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _performanceTip.SetToolTip(_performanceTag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");
         }
 
+        /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
         public void ApplyTheme(ThemePalette palette)
         {
             BackColor = palette.IsDark ? (_isWin == false ? palette.SurfaceMuted : palette.SurfaceRaised)
@@ -256,6 +261,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (image != null) _ownedImages[box] = image;
         }
 
+        /// <summary>替换控件图像并释放旧图像资源。</summary>
         private void ReplaceImage(AntdUI.Avatar box, Image? image)
         {
             if (_ownedImages.Remove(box, out Image? old)) old.Dispose();
@@ -263,6 +269,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (image != null) _ownedImages[box] = image;
         }
 
+        /// <summary>为战绩卡片及子控件统一绑定双击操作。</summary>
         private void AttachDoubleClickToAllControls(Control parent)
         {
             // 为父控件本身添加双击事件
@@ -275,6 +282,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>响应战绩卡片双击并打开对应对局详情。</summary>
         private void FormOrControl_DoubleClick(object? sender, EventArgs e)
         {
             //双击打开对局详情

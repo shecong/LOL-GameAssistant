@@ -9,6 +9,7 @@ using System.Diagnostics;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
+    /// <summary>设置页：读取、编辑并保存助手各功能的配置。</summary>
     public partial class SettingForm : UserControl
     {
         public DateTime? lastOpenGameTime = null;
@@ -29,6 +30,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private Control? _activeFeatureTipControl;
         private Control? _activeDesignerTipControl;
 
+        /// <summary>按当前语言刷新界面文本。</summary>
         public void ApplyLanguage()
         {
             HideSettingTips();
@@ -42,6 +44,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_settingsSegments[5] is ClientToolsForm tools) tools.ApplyLanguage();
         }
 
+        /// <summary>根据设置页可用宽度调整各列大小。</summary>
         private static void ResizeSettingColumns(Control root)
         {
             if (root is TableLayoutPanel layout && layout.ColumnStyles.Count >= 2 &&
@@ -51,6 +54,7 @@ namespace LOL_GameAssistant.BaseViewForm
             foreach (Control child in root.Controls) ResizeSettingColumns(child);
         }
 
+        /// <summary>为设置控件绑定对应的功能说明。</summary>
         private void ApplyTips(Control root, ToolTip tip)
         {
             string current = tip.GetToolTip(root) ?? "";
@@ -64,6 +68,7 @@ namespace LOL_GameAssistant.BaseViewForm
             foreach (Control child in root.Controls) ApplyTips(child, tip);
         }
 
+        /// <summary>保存所选语言并触发界面文本刷新。</summary>
         private void SwitchLanguage()
         {
             if (_isLoading) return;
@@ -131,6 +136,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private bool _clearAiKey;
         private static readonly string[] ResolutionPresets = { "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3840x2160" };
 
+        /// <summary>初始化 SettingForm 的实例状态。</summary>
         public SettingForm() : this(
             AppCompositionRoot.GameClientLauncher,
             AppCompositionRoot.ApplicationSettingsStore,
@@ -160,6 +166,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => { toolTip1.Dispose(); _featureTip.Dispose(); };
         }
 
+        /// <summary>加载设置页配置并同步到各设置区域。</summary>
         private async void SettingForm_Load(object sender, EventArgs e)
         {
             await LoadCachedSettings();
@@ -173,6 +180,7 @@ namespace LOL_GameAssistant.BaseViewForm
             // 自动启动由 GameMain 的启动生命周期统一执行，避免依赖用户是否打开“设置”标签。
         }
 
+        /// <summary>创建分类设置页面并建立切换关系。</summary>
         private void InitializeSegmentedSettings()
         {
             Controls.Remove(gridPanel2);
@@ -214,6 +222,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ShowSettingsSegment(0);
         }
 
+        /// <summary>显示选中的设置分类。</summary>
         private void ShowSettingsSegment(int index)
         {
             if (index < 0 || index >= _settingsSegments.Length) return;
@@ -222,6 +231,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _settingsSegments[i].Visible = i == index;
         }
 
+        /// <summary>切换页面前隐藏当前设置提示。</summary>
         private void HideSettingTips()
         {
             if (_activeFeatureTipControl is { IsDisposed: false } feature)
@@ -234,6 +244,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         #region 本地缓存
 
+        /// <summary>读取当前缓存的设置数据。</summary>
         private async Task LoadCachedSettings()
         {
             _isLoading = true;
@@ -280,6 +291,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _autoSwapAramBench.CheckedChanged += (_, _) => SaveSettings();
         }
 
+        /// <summary>将当前设置界面的内容保存到配置存储。</summary>
         private void SaveSettings()
         {
             if (_isLoading) return;
@@ -385,6 +397,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 "设置与缓存的存放位置；删除该文件相当于恢复默认设置。本页的开关切换后会自动保存，不需要再点保存按钮。");
         }
 
+        /// <summary>创建匹配及对局自动操作的设置区域。</summary>
         private Control CreateMatchSegment()
         {
             var panel = CreateSegmentPanel();
@@ -430,6 +443,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return panel;
         }
 
+        /// <summary>向设置布局追加分组标题。</summary>
         private static void AddSectionHeader(TableLayoutPanel layout, int row, string text)
         {
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -444,6 +458,7 @@ namespace LOL_GameAssistant.BaseViewForm
             layout.SetColumnSpan(title, 2);
         }
 
+        /// <summary>创建客户端启动及相关功能设置区域。</summary>
         private Control CreateClientSegment()
         {
             var panel = CreateSegmentPanel();
@@ -475,6 +490,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return panel;
         }
 
+        /// <summary>创建窗口行为和热键设置区域。</summary>
         private Control CreateWindowSegment()
         {
             var panel = CreateSegmentPanel();
@@ -509,6 +525,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return panel;
         }
 
+        /// <summary>创建快捷喊话配置区域。</summary>
         private Control CreateShoutSegment()
         {
             _quickShoutForm = new QuickShoutForm(AppCompositionRoot.QuickShoutService,
@@ -524,12 +541,15 @@ namespace LOL_GameAssistant.BaseViewForm
             return _quickShoutForm;
         }
 
+        /// <summary>从配置的喊话文案中随机选择并发送到游戏。</summary>
         public Task SendRandomQuickShoutToGameAsync(bool custom) =>
             _quickShoutForm?.SendRandomToGameAsync(custom) ?? Task.CompletedTask;
 
+        /// <summary>将当前选中的喊话文案发送到游戏。</summary>
         public Task SendSelectedQuickShoutToGameAsync() =>
             _quickShoutForm?.SendSelectedBatchToGameAsync() ?? Task.CompletedTask;
 
+        /// <summary>保存快捷喊话界面当前选项。</summary>
         private void SaveShoutSettings()
         {
             if (_isLoading || _quickShoutForm is null) return;
@@ -542,6 +562,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Program.GameMain.ConfigureQuickShoutHotkeys(latest);
         }
 
+        /// <summary>创建 AI 服务、模型及推荐显示设置区域。</summary>
         private Control CreateAiSegment()
         {
             var panel = CreateSegmentPanel();
@@ -658,6 +679,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Padding = new Padding(UiMetrics.SpaceMedium)
         };
 
+        /// <summary>保存逐人 KDA 测评及发送相关配置。</summary>
         private void SaveKdaAnnouncementSettings()
         {
             if (_isLoading) return;
@@ -679,6 +701,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>创建统一间距的设置分区布局。</summary>
         private static TableLayoutPanel CreateSegmentLayout()
         {
             var layout = new TableLayoutPanel
@@ -694,6 +717,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return layout;
         }
 
+        /// <summary>创建设置分区中的说明文本。</summary>
         private static AntdUI.Label CreateNote(string text) => new()
         {
             AutoSize = true,
@@ -758,12 +782,14 @@ namespace LOL_GameAssistant.BaseViewForm
             foreach (Control child in control.Controls) AttachTipDeep(child, text);
         }
 
+        /// <summary>将同一功能说明绑定到控件及其子控件。</summary>
         private void AttachTipDeep(Control caption, Control control, string text)
         {
             AttachTip(caption, text);
             AttachTipDeep(control, text);
         }
 
+        /// <summary>向设置区域追加保存操作行。</summary>
         private void AddSaveRow(TableLayoutPanel layout, int row, string text)
         {
             var save = new AntdUI.Button { Text = text, AutoSize = true };
@@ -771,6 +797,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, row, "", save, $"点击后立即生效，并写入本机的 {_settingsStore.GetStoragePath()}");
         }
 
+        /// <summary>读取扩展设置并同步到相应控件。</summary>
         private void LoadExtendedSettings()
         {
             _config.Normalize();
@@ -811,6 +838,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _apiKeyStatus.Text = string.IsNullOrWhiteSpace(ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
         }
 
+        /// <summary>从控件收集扩展选项并保存。</summary>
         private void SaveExtendedSettings()
         {
             if (_isLoading) return;
@@ -875,6 +903,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     : "设置已保存");
         }
 
+        /// <summary>打开文件选择器，选取客户端启动程序。</summary>
         private void BrowseClientExecutable()
         {
             using var dialog = new FolderBrowserDialog
@@ -887,6 +916,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _clientPath.Text = dialog.SelectedPath;
         }
 
+        /// <summary>根据设置中的路径启动客户端并展示启动结果。</summary>
         private async Task StartLeagueClientFromSettingsAsync()
         {
             GameClientLaunchResult result;
@@ -924,6 +954,7 @@ namespace LOL_GameAssistant.BaseViewForm
             else LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, result.Message);
         }
 
+        /// <summary>录制按住置顶功能使用的热键。</summary>
         private void CaptureHoldToTopHotkey(object? sender, KeyEventArgs e)
         {
             if (e.KeyCode is Keys.ControlKey or Keys.ShiftKey or Keys.Menu) return;
@@ -933,6 +964,7 @@ namespace LOL_GameAssistant.BaseViewForm
             e.Handled = true;
         }
 
+        /// <summary>将浮窗位置配置转换为界面选项索引。</summary>
         private static int OverlayPositionToIndex(string? value) => value switch
         {
             "TopLeft" => 1,
@@ -942,6 +974,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _ => 0
         };
 
+        /// <summary>将界面选择索引转换为浮窗位置配置。</summary>
         private static string IndexToOverlayPosition(int index) => index switch
         {
             1 => "TopLeft",
@@ -951,6 +984,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _ => "BottomLeft"
         };
 
+        /// <summary>服务提供商变化后填入其默认地址和模型配置。</summary>
         private void ApplyProviderDefaults()
         {
             if (_isLoading || _provider.SelectedValue is not LOL_GameAssistant.Domain.Settings.AiProvider provider) return;
@@ -1030,6 +1064,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>更新 AI 服务测试的状态提示。</summary>
         private void SetAiTestStatus(string text, Color color)
         {
             _aiTestStatus.ForeColor = color;
@@ -1052,6 +1087,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     : _config.Ai.EncryptedApiKey
         };
 
+        /// <summary>打开当前 AI 服务提供商的密钥管理页面。</summary>
         private void OpenKeyPortal()
         {
             if (_provider.SelectedValue is not LOL_GameAssistant.Domain.Settings.AiProvider provider) return;
@@ -1072,6 +1108,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>按当前客户端启动配置发起启动操作。</summary>
         private void LaunchLeagueClient(bool showMessage)
         {
             GameClientLaunchResult result = _gameClientLauncher.Start(_config.GameClientPath);
@@ -1093,6 +1130,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>更新客户端启动或连接的状态提示。</summary>
         private void SetClientStatus(GameClientLaunchResult result)
         {
             _clientStatus.ForeColor = result.IsReady ? Color.ForestGreen
@@ -1124,6 +1162,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>提取多选控件中选中条目的文本。</summary>
         private static List<string> GetSelectedTexts(AntdUI.SelectMultiple select)
         {
             var result = new List<string>();
@@ -1139,6 +1178,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return result;
         }
 
+        /// <summary>根据配置文本恢复多选控件的选择。</summary>
         private static void SetSelectedTexts(AntdUI.SelectMultiple select, List<string> texts)
         {
             if (texts.Count == 0) return;
@@ -1149,6 +1189,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch { }
         }
 
+        /// <summary>响应分辨率设置变化并保存对应配置。</summary>
         private void SelectResolutionChanged(object? sender, EventArgs e)
         {
             if (select_resolution.SelectedIndex < 0 || select_resolution.SelectedIndex >= ResolutionPresets.Length)
@@ -1261,6 +1302,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         #region 定时执行方法
 
+        /// <summary>启用自动匹配时发起匹配请求，并用十秒间隔抑制重复调用。</summary>
         public static void OpenGame(SettingForm form)
         {
             var now = DateTime.Now;
@@ -1274,6 +1316,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>启用自动接受时向客户端提交接受匹配请求。</summary>
         public static void GameTrue(SettingForm form)
         {
             if (AppCompositionRoot.ApplicationSettingsStore.Load().AutoAccept)
@@ -1329,6 +1372,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         #endregion 定时执行方法
 
+        /// <summary>加载基础配置并同步到设置控件。</summary>
         private async Task LoadBase()
         {
             var allChampions = AppCompositionRoot.ChampionCatalog.GetAll();
@@ -1348,6 +1392,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 .OfType<int>()
                 .ToList();
 
+        /// <summary>根据已保存的英雄配置恢复选择状态。</summary>
         private void RestoreSelectedChampions()
         {
             SetSelectedTexts(setting_select_jyx, _config.BanChampions);

@@ -8,6 +8,7 @@ public sealed record AiRecommendationResult(
     AiGameContext Context,
     string? Error)
 {
+    /// <summary>构建推荐不可用结果，并记录原因。</summary>
     public static AiRecommendationResult Unavailable(
         string contextSummary,
         AiGameContext context,

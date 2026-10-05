@@ -12,6 +12,7 @@ public interface ILcuRequestSender
     /// <summary>读取 LCU 二进制资源，例如头像；失败时返回 null。</summary>
     Task<byte[]?> GetBytesAsync(string endpoint, CancellationToken cancellationToken = default);
 
+    /// <summary>向本机 LCU 提交 JSON 请求，并返回接口是否接受操作。</summary>
     Task<bool> PostAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default);
 
     /// <summary>向 LCU 覆盖写入一个 JSON 资源。</summary>

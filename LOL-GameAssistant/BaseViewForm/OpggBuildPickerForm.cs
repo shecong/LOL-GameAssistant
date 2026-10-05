@@ -54,10 +54,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private RouteCard? _selectedCard;
     private string _filter = "all";
 
+    /// <summary>返回推荐选择器当前选中的方案。</summary>
     public OpggBuildOption? SelectedOption => _selectedCard?.Option;
+    /// <summary>返回推荐选择器当前选中的分路。</summary>
     public string SelectedPosition => _selectedCard?.Position ?? _position;
+    /// <summary>返回用户是否允许方案应用时覆盖当前符文页。</summary>
     public bool AllowReplaceCurrentRunePage => _replaceCurrentRunePage.Checked;
 
+    /// <summary>初始化 OpggBuildPickerForm 的实例状态，并保存传入的依赖或数据。</summary>
     public OpggBuildPickerForm(OpggBuildChoices choices, IGameAssetService gameAssetService,
         int initiallySelectedOrder = 0, IOpggBuildApplyService? buildService = null, bool allowApply = true)
     {
@@ -74,7 +78,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _cache[(choices.Mode, _position)] = choices;
         Text = $"一键配置 · {choices.ChampionName} · {choices.PositionName}";
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.None;
+        AntdWindowChrome.Configure(this);
         Icon = AppIcon.Shared;
         _windowHeader.Text = Text;
         _windowHeader.Icon = AppIcon.Shared.ToBitmap();
@@ -102,6 +106,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         };
     }
 
+    /// <summary>在控件加载后完成依赖尺寸或句柄的初始化。</summary>
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
@@ -111,6 +116,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             area.Top + Math.Max(0, (area.Height - Height) / 2));
     }
 
+    /// <summary>创建推荐方案中的文本标签。</summary>
     private static Label TextLabel(string text, Color color, int height = 24) => new()
     {
         Text = text, ForeColor = color, BackColor = Color.Transparent,
@@ -118,6 +124,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         Dock = DockStyle.Fill, Margin = Padding.Empty
     };
 
+    /// <summary>创建推荐选择器使用的金色操作按钮。</summary>
     private static Button CreateGoldButton(string text) => new()
     {
         Text = text, FlatStyle = FlatStyle.Flat, ForeColor = Gold, BackColor = Navy,
@@ -126,12 +133,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             MouseOverBackColor = Color.FromArgb(38, 51, 51), MouseDownBackColor = SelectedNavy }
     };
 
+    /// <summary>创建装备、符文或召唤师技能图标行。</summary>
     private static FlowLayoutPanel AssetRow() => new()
     {
         Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
         Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Color.Transparent
     };
 
+    /// <summary>创建当前界面使用的布局和操作控件。</summary>
     private void BuildUi(int initiallySelectedOrder)
     {
         var header = new Panel { Dock = DockStyle.Top, Height = 154 };
@@ -247,6 +256,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         FilterCards(_choices.Mode);
     }
 
+    /// <summary>创建一条推荐路线的卡片。</summary>
     private RouteCard CreateRouteCard(OpggBuildOption option, OpggBuildChoices? context = null, string? position = null)
     {
         var choices = context ?? _choices;
@@ -375,6 +385,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         return card;
     }
 
+    /// <summary>创建竖向排列的路线标签。</summary>
     private static Label VerticalTag(string text) => new()
     {
         Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
@@ -382,12 +393,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         Margin = new Padding(0, 4, 8, 4)
     };
 
+    /// <summary>创建行内展示的说明标签。</summary>
     private static Label InlineTag(string text) => new()
     {
         Text = text, AutoSize = true, ForeColor = Muted,
         Margin = new Padding(8, 4, 8, 0)
     };
 
+    /// <summary>向符文展示行追加一个图标条目。</summary>
     private void AddRune(FlowLayoutPanel row, List<AssetTile> tiles, int id, int size, int gap)
     {
         if (id <= 0) return;
@@ -403,6 +416,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         row.Controls.Add(tile.Root);
     }
 
+    /// <summary>向推荐卡片追加一个装备分组。</summary>
     private void AddItemSection(FlowLayoutPanel host, string title, IEnumerable<int> ids, List<AssetTile> tiles)
     {
         int[] items = ids.Where(id => id > 0).ToArray();
@@ -426,6 +440,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         host.Controls.Add(section);
     }
 
+    /// <summary>创建图标和文字组成的资源条目。</summary>
     private AssetTile CreateAssetTile(int id, int size)
     {
         var root = new Panel { Size = new Size(size, size), Margin = new Padding(0, 0, 4, 0), Cursor = Cursors.Hand };
@@ -453,12 +468,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         return new AssetTile(id, root, icon, name);
     }
 
+    /// <summary>绑定条目点击事件，使子控件点击也能选择所属方案。</summary>
     private void AttachSelectionHandler(Control control, RouteCard card)
     {
         control.Click += (_, _) => SelectCard(card);
         foreach (Control child in control.Controls) AttachSelectionHandler(child, card);
     }
 
+    /// <summary>更新当前选中的推荐卡片及其视觉状态。</summary>
     private void SelectCard(RouteCard card)
     {
         _selectedCard = card;
@@ -466,11 +483,13 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         ApplyTheme(UiTheme.Palette);
     }
 
+    /// <summary>判断当前推荐是否具备应用到客户端的必要数据。</summary>
     private bool CanApply(RouteCard card) => _allowApply && !_loading && card.Option.Mode == _choices.Mode;
 
     private static readonly (string Key, string Name)[] Lanes =
         [("TOP", "上路"), ("JUNGLE", "打野"), ("MIDDLE", "中路"), ("BOTTOM", "下路"), ("UTILITY", "辅助")];
 
+    /// <summary>切换推荐类别并加载对应方案。</summary>
     internal async Task ChangeCategoryAsync(string mode, string position)
     {
         if (_buildService == null) return;
@@ -582,6 +601,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>清空已有推荐卡片并释放其图像资源。</summary>
     private void ClearRouteCards()
     {
         foreach (var card in _cards)
@@ -602,6 +622,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _routeCards.AutoScrollPosition = Point.Empty;
     }
 
+    /// <summary>按当前筛选条件更新推荐卡片的可见状态。</summary>
     private void FilterCards(string mode)
     {
         _filter = mode;
@@ -619,12 +640,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         ResizeRouteCards();
     }
 
+    /// <summary>根据可用宽度调整推荐卡片布局。</summary>
     private void ResizeRouteCards()
     {
         int width = Math.Max(300, _routeCards.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 4);
         foreach (RouteCard card in _cards) card.Root.Width = width;
         _empty.Width = width;
     }
+    /// <summary>启动推荐界面所需的图标和名称加载。</summary>
     private async Task LoadVisualsAsync()
     {
         var tasks = _cards.ToArray().Select(LoadCardVisualsAsync).ToList();
@@ -632,10 +655,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         await Task.WhenAll(tasks);
     }
 
+    /// <summary>加载单张推荐卡片中的英雄及资源图标。</summary>
     private Task LoadCardVisualsAsync(RouteCard card) => Task.WhenAll(
         card.ItemTiles.Select(LoadItemVisualAsync)
             .Concat(card.RuneTiles.Select(LoadRuneVisualAsync))
             .Concat(card.SpellTiles.Select(LoadSpellVisualAsync)));
+    /// <summary>读取推荐卡片中的英雄图像。</summary>
     private async Task LoadChampionVisualAsync()
     {
         try
@@ -657,6 +682,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>读取装备条目的图标和名称。</summary>
     private async Task LoadItemVisualAsync(AssetTile tile)
     {
         try
@@ -688,6 +714,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>读取符文条目的展示图标。</summary>
     private async Task LoadRuneVisualAsync(AssetTile tile)
     {
         try
@@ -714,10 +741,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>根据推荐上下文确定英雄标识。</summary>
     private int ResolveChampionId() => _choices.ChampionId > 0
         ? _choices.ChampionId
         : AppCompositionRoot.ChampionCatalog.FindIdByDisplayName(_choices.ChampionName) ?? 0;
 
+    /// <summary>将新图像绑定到资源条目，并处理已释放控件。</summary>
     private void AssignImage(PictureBox target, Image? image)
     {
         if (image == null) return;
@@ -736,6 +765,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _ownedImages.Add(image);
     }
 
+    /// <summary>将资源二进制转换为独立图像对象。</summary>
     private static Image? ToImage(GameAsset? asset)
     {
         try
@@ -751,6 +781,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>确认当前方案并将选择结果返回调用方。</summary>
     private void ConfirmSelection()
     {
         if (_selectedCard == null || !CanApply(_selectedCard)) return;
@@ -758,6 +789,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         Close();
     }
 
+    /// <summary>读取召唤师技能条目的图标和名称。</summary>
     private async Task LoadSpellVisualAsync(AssetTile tile)
     {
         try
@@ -776,6 +808,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
         catch { /* 图标不可用不会影响方案应用。 */ }
     }
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
         // 此推荐弹窗采用独立的游戏客户端配色，保持参考图的深蓝与金色。
@@ -803,6 +836,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>按推荐选择器的配色更新各控件。</summary>
     private static void PaintControls(Control control)
     {
         control.BackColor = control is PictureBox ? SelectedNavy :
@@ -816,6 +850,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         if (control is TableLayoutPanel or FlowLayoutPanel) control.BackColor = Color.Transparent;
     }
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -829,13 +864,16 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         base.Dispose(disposing);
     }
 
+    /// <summary>释放当前界面自行持有的图像对象。</summary>
     private void DisposeOwnedImages()
     {
         foreach (Image image in _ownedImages) image.Dispose();
         _ownedImages.Clear();
     }
 
+    /// <summary>推荐方案中的资源图标条目及其标识。</summary>
     private sealed record AssetTile(int Id, Panel Root, PictureBox Icon, Label Name);
+    /// <summary>推荐路线卡片及其符文、装备和技能条目集合。</summary>
     private sealed record RouteCard(OpggBuildOption Option, Panel Root,
         IReadOnlyList<AssetTile> ItemTiles, IReadOnlyList<AssetTile> RuneTiles,
         IReadOnlyList<AssetTile> SpellTiles, string Position, Button Apply);

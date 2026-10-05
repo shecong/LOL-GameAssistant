@@ -5,6 +5,7 @@
     /// </summary>
     public class GameDetailModel
     {
+        /// <summary>LCU 对局身份数据中的召唤师信息。</summary>
         public class Player
         {
             public int accountId { get; set; }
@@ -20,12 +21,14 @@
             public string tagLine { get; set; } = "";
         }
 
+        /// <summary>参赛者编号到玩家身份的映射条目。</summary>
         public class ParticipantIdentitiesItem
         {
             public int participantId { get; set; }
             public Player player { get; set; } = null!;
         }
 
+        /// <summary>LCU 对局统计字段，包括 KDA、装备、符文和强化选择。</summary>
         public class Stats
         {
             public int assists { get; set; }
@@ -148,6 +151,7 @@
             public object? win { get; set; }
         }
 
+        /// <summary>LCU 对局详情中的参赛者时间线信息。</summary>
         public class Timeline
         {
             public object creepsPerMinDeltas { get; set; } = new();
@@ -161,6 +165,7 @@
             public object xpPerMinDeltas { get; set; } = new();
         }
 
+        /// <summary>LCU 对局详情中的单名参赛者及其统计。</summary>
         public class ParticipantsItem
         {
             public int championId { get; set; }
@@ -173,12 +178,14 @@
             public Timeline timeline { get; set; } = null!;
         }
 
+        /// <summary>队伍禁用的英雄及禁用顺序。</summary>
         public class BansItem
         {
             public int championId { get; set; }
             public int pickTurn { get; set; }
         }
 
+        /// <summary>LCU 对局详情中的队伍结果和禁用信息。</summary>
         public class TeamsItem
         {
             public List<BansItem> bans { get; set; } = new();
@@ -199,6 +206,7 @@
             public string win { get; set; } = "";
         }
 
+        /// <summary>LCU 单场对局详情数据。</summary>
         public class GameInfo
         {
             public string endOfGameResult { get; set; } = "";

@@ -62,6 +62,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>初始化 RecentMatchRow 的实例状态。</summary>
         public RecentMatchRow() : this(AppCompositionRoot.GameAssetService, AppCompositionRoot.PremadeDetectionService)
         {
         }
@@ -219,18 +220,21 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>窗口或控件尺寸变化时重新计算内容布局。</summary>
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
             LayoutRow();
         }
 
+        /// <summary>布局发生变化后更新内部控件尺寸。</summary>
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
             LayoutRow();
         }
 
+        /// <summary>读取并绑定近期战绩行的展示数据。</summary>
         public async Task SetDataAsync(MatchDetail detail, MatchParticipant gamer, string? puuid,
             bool championAndModeOnly = false)
         {
@@ -353,6 +357,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>更新当前战绩行的组队状态提示。</summary>
         private void SetTeamQueueStatus(string status, string detail)
         {
             _teamQueueTag.Text = status;
@@ -408,6 +413,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ResizeTeammateCards();
         }
 
+        /// <summary>计算队友预览卡片的合适宽度。</summary>
         private int CalculateTeammateCardWidth(int count)
         {
             if (count <= 0) return 48;
@@ -416,6 +422,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return Math.Max(48, available / count);
         }
 
+        /// <summary>按战绩行可用空间调整队友卡片。</summary>
         private void ResizeTeammateCards()
         {
             var cards = _teammatesPanel.Controls.OfType<AntdUI.Panel>().ToList();
@@ -428,6 +435,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>创建一名队友的战绩预览卡片。</summary>
         private Control CreateTeammateCard(
             MatchParticipant participant,
             MatchPlayer? identity,
@@ -521,11 +529,13 @@ namespace LOL_GameAssistant.BaseViewForm
             labels[1].Size = new Size(textWidth, 20);
         }
 
+        /// <summary>为卡片和子控件绑定打开对局详情的操作。</summary>
         private void WireOpenDetail(Control control)
         {
             control.DoubleClick += (_, _) => OpenDetail();
         }
 
+        /// <summary>异步加载英雄或玩家头像并更新控件。</summary>
         private async Task LoadAvatarAsync(RoundPictureBox box, int championId)
         {
             try
@@ -546,6 +556,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>根据英雄标识取得展示名称。</summary>
         private static string GetChampionDisplayName(int championId)
         {
             string name = AppCompositionRoot.ChampionCatalog.GetDisplayName(championId);
@@ -568,6 +579,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>绘制当前控件的自定义外观。</summary>
         protected override void OnPaint(PaintEventArgs e)
         {
             // 滑入/布局过程中行高可能被压到极小，Width-3 / Height-3 会变成 0 或负数，
@@ -592,6 +604,7 @@ namespace LOL_GameAssistant.BaseViewForm
             base.OnPaint(e);
         }
 
+        /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
         public void ApplyTheme(ThemePalette palette)
         {
             _hoverTimer.Stop();
@@ -604,6 +617,7 @@ namespace LOL_GameAssistant.BaseViewForm
             BackColor = _baseBack;
         }
 
+        /// <summary>根据鼠标位置更新战绩行的悬停状态。</summary>
         internal void UpdateHoverState(Point screenPosition)
         {
             bool inside = IsHandleCreated && Visible && RectangleToScreen(ClientRectangle).Contains(screenPosition);
@@ -618,6 +632,7 @@ namespace LOL_GameAssistant.BaseViewForm
             BackColor = _baseBack;
         }
 
+        /// <summary>启动战绩行悬停动画。</summary>
         private void StartHover(bool hovering)
         {
             if (_isHovered == hovering) return;
@@ -629,6 +644,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _hoverTimer.Start();
         }
 
+        /// <summary>推进悬停动画并重绘战绩行。</summary>
         private void HoverTick()
         {
             // MouseLeave can be missed when scrolling or moving across child windows.
@@ -643,6 +659,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>打开当前对局的完整详情。</summary>
         private void OpenDetail()
         {
             if (_detail == null || string.IsNullOrEmpty(_puuid)) return;

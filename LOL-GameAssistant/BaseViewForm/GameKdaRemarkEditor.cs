@@ -2,6 +2,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
+/// <summary>逐人 KDA 文案编辑弹窗，保存各表现档位的候选文案。</summary>
 internal sealed class GameKdaRemarkEditor : AntdUI.Window, IThemeAware
 {
     private readonly Dictionary<string, AntdUI.Input> _inputs = new();
@@ -9,12 +10,13 @@ internal sealed class GameKdaRemarkEditor : AntdUI.Window, IThemeAware
     private readonly AntdUI.PageHeader _header;
     private readonly Image _headerIcon;
 
+    /// <summary>初始化 GameKdaRemarkEditor 的实例状态，并保存传入的依赖或数据。</summary>
     public GameKdaRemarkEditor(IReadOnlyDictionary<string, string> current, Action<Dictionary<string, string>> save)
     {
         Text = "自定义逐人 KDA 测评文案";
         Icon = AppIcon.Shared;
         StartPosition = FormStartPosition.CenterParent;
-        FormBorderStyle = FormBorderStyle.None;
+        AntdWindowChrome.Configure(this);
         ShowInTaskbar = false;
         Size = new Size(860, 650);
         MinimumSize = Size;
@@ -70,6 +72,7 @@ internal sealed class GameKdaRemarkEditor : AntdUI.Window, IThemeAware
         UiTheme.Apply(this);
     }
 
+    /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
         BackColor = palette.Surface;
@@ -88,6 +91,7 @@ internal sealed class GameKdaRemarkEditor : AntdUI.Window, IThemeAware
         }
     }
 
+    /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);

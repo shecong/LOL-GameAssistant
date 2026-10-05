@@ -486,6 +486,7 @@ namespace LOL_GameAssistant.Helper
             _ = FinishDisposeAsync();
         }
 
+        /// <summary>等待连接清理完成并结束异步释放流程。</summary>
         private async Task FinishDisposeAsync()
         {
             try { await DisposeAsync().ConfigureAwait(false); }

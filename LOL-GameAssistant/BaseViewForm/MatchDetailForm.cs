@@ -15,7 +15,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// 对局详情弹窗：完整展示本局 10 名玩家（我方/敌方、头像、英雄、KDA、伤害），
     /// 底部展示当前玩家详细数据。
     /// </summary>
-    public partial class MatchDetailForm : Form, IThemeAware
+    public partial class MatchDetailForm : AntdUI.Window, IThemeAware
     {
         private readonly MatchDetail _gameInfo;
         private readonly string _puuid;
@@ -29,6 +29,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>点击玩家头像后选中的玩家 puuid（用于跳转战绩查询）。</summary>
         public string? SelectedPlayerPuuid { get; private set; }
 
+        /// <summary>初始化 MatchDetailForm 的实例状态，并保存传入的依赖或数据。</summary>
         public MatchDetailForm(MatchDetail? gameInfo, string? puuid)
             : this(gameInfo, puuid, AppCompositionRoot.GameAssetService)
         {
@@ -45,6 +46,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _matchHistoryService = AppCompositionRoot.MatchHistoryService;
             _premadeDetectionService = AppCompositionRoot.PremadeDetectionService;
             InitializeComponent();
+            AntdWindowChrome.Configure(this);
             Text = $"对局详情 · {_gameInfo.GetModeText()}";
             lblTitle.Text = Text;
             var detailIcon = (Icon)AppIcon.Shared.Clone();
@@ -56,6 +58,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => _detailToolTip.Dispose();
         }
 
+        /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
         public void ApplyTheme(ThemePalette palette)
         {
             BackColor = palette.Surface;
@@ -63,6 +66,9 @@ namespace LOL_GameAssistant.BaseViewForm
             flowEnemy.BackColor = palette.Surface;
             lblAllyHeader.ForeColor = palette.TextPrimary;
             lblEnemyHeader.ForeColor = palette.TextPrimary;
+            lblTitle.BackColor = palette.Surface;
+            lblTitle.UseSystemStyleColor = false;
+            lblTitle.UseForeColorDrawIcons = true;
         }
 
         /// <summary>
@@ -86,6 +92,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>异步读取详情展示所需的数据并更新界面。</summary>
         private async Task LoadDataAsync()
         {
             try
@@ -94,8 +101,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (gamer == null) return;
 
                 bool isWin = gamer.IsWin();
-                lblTitle.Text = $"{_gameInfo.GetModeText()} · {(isWin ? "胜利" : "失败")} · {_gameInfo.GetDurationText()}";
-                Text = $"对局详情 · {lblTitle.Text}";
+                Text = $"对局详情 · {_gameInfo.GetModeText()} · {(isWin ? "胜利" : "失败")} · {_gameInfo.GetDurationText()}";
+                lblTitle.Text = Text;
                 lblTitle.ForeColor = isWin
                     ? (UiTheme.Palette.IsDark ? Color.FromArgb(129, 199, 132) : Color.FromArgb(46, 125, 50))
                     : (UiTheme.Palette.IsDark ? Color.FromArgb(239, 154, 154) : Color.FromArgb(198, 40, 40));
@@ -306,6 +313,7 @@ namespace LOL_GameAssistant.BaseViewForm
             return panel;
         }
 
+        /// <summary>在队伍区域展示本局禁用英雄。</summary>
         private void AddBanRow(FlowLayoutPanel target, IReadOnlyList<int> championIds)
         {
             if (championIds.Count == 0) return;
@@ -333,6 +341,7 @@ namespace LOL_GameAssistant.BaseViewForm
             target.Controls.Add(row);
         }
 
+        /// <summary>解析强化名称、作用和图标并更新标签。</summary>
         private async Task LoadAugmentTagsAsync(AntdUI.Panel host, IReadOnlyList<int> ids)
         {
             var tags = new List<AntdUI.Tag>();
@@ -365,6 +374,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>异步加载强化标签图标，并处理控件已释放的情况。</summary>
         private static async Task LoadAugmentTagIconAsync(AntdUI.Tag tag, string url)
         {
             byte[]? bytes = await AugmentCatalog.GetIconAsync(url);
@@ -381,6 +391,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch { }
         }
 
+        /// <summary>异步加载禁用英雄标签图标。</summary>
         private async Task LoadChampionTagIconAsync(AntdUI.Tag tag, int championId)
         {
             try
@@ -394,6 +405,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch { /* 图标失败时保留英雄名称 */ }
         }
 
+        /// <summary>为玩家卡片创建召唤师技能图标。</summary>
         private void AddSummonerSpellIcons(AntdUI.Panel panel, MatchParticipant participant, int x, int y)
         {
             int[] spells = { participant.Spell1Id, participant.Spell2Id };
@@ -413,6 +425,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>按装备栏顺序创建玩家装备图标。</summary>
         private void AddItemIcons(AntdUI.Panel panel, MatchParticipant participant, int x, int y)
         {
             int[] items =
@@ -437,6 +450,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>读取召唤师技能图标及名称提示。</summary>
         private async Task LoadSpellIconAsync(PictureBox box, int spellId)
         {
             if (spellId <= 0) return;
@@ -447,6 +461,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (!box.IsDisposed) _assetToolTip.SetToolTip(box, name ?? $"召唤师技能 {spellId}");
         }
 
+        /// <summary>读取装备图标并启动详细说明加载。</summary>
         private async Task LoadItemIconAsync(PictureBox box, int itemId)
         {
             if (itemId <= 0)
@@ -461,6 +476,7 @@ namespace LOL_GameAssistant.BaseViewForm
             else image?.Dispose();
         }
 
+        /// <summary>并发读取装备名称与作用，用于悬停及点击详情。</summary>
         private async Task LoadItemDetailsAsync(PictureBox box, int itemId)
         {
             try
@@ -473,6 +489,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch { if (!IsDisposed) _detailToolTip.SetDetails(box, $"装备 {itemId}", null); }
         }
 
+        /// <summary>按玩家所选符文顺序创建符文图标。</summary>
         private void AddRuneIcons(AntdUI.Panel panel, MatchParticipant participant)
         {
             if (participant.stats == null) return;
@@ -491,6 +508,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>读取符文图标和作用说明并绑定详情提示。</summary>
         private async Task LoadRuneAsync(PictureBox box, int id)
         {
             try
@@ -506,6 +524,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch { if (!IsDisposed) _detailToolTip.SetDetails(box, $"符文 {id}", null); }
         }
 
+        /// <summary>读取双方队伍关系并刷新疑似组队标签。</summary>
         private async Task DetectPremadesAsync(int myTeamId)
         {
             try
@@ -537,6 +556,7 @@ namespace LOL_GameAssistant.BaseViewForm
             await Task.WhenAll(playerPuuids.Select(ApplyRecentModePerformanceTagAsync));
         }
 
+        /// <summary>读取单名玩家的近期同模式表现并更新评估标签。</summary>
         private async Task ApplyRecentModePerformanceTagAsync(string puuid)
         {
             try
@@ -561,6 +581,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>将评分和样本状态转换为表现标签及提示内容。</summary>
         private void SetPerformanceTag(string puuid, RecentModePerformanceAssessment assessment)
         {
             if (IsDisposed || !_performanceTagsByPuuid.TryGetValue(puuid, out AntdUI.Label? tag) || tag.IsDisposed) return;
@@ -583,6 +604,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _assetToolTip.SetToolTip(tag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");
         }
 
+        /// <summary>收集指定队伍中可用于查询的玩家身份。</summary>
         private List<TeamMemberIdentity> BuildTeamIdentities(int teamId) => _gameInfo.participants
             .Where(participant => participant.teamId == teamId)
             .Select(participant => _gameInfo.participantIdentities.FirstOrDefault(identity => identity.participantId == participant.participantId)?.player)
@@ -590,6 +612,7 @@ namespace LOL_GameAssistant.BaseViewForm
             .Select(player => new TeamMemberIdentity(player!.puuid, player.gameName ?? player.summonerName ?? "玩家"))
             .ToList();
 
+        /// <summary>将组队推断结果同步到队伍标题和玩家标签。</summary>
         private void ApplyPremadeResult(PremadeDetectionResult result)
         {
             lblAllyHeader.Text = $"我方 · {result.GetInferredTeamStatus(0)}";
@@ -620,6 +643,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        /// <summary>根据英雄标识取得展示名称。</summary>
         private static string GetChampionDisplayName(int championId)
         {
             string name = AppCompositionRoot.ChampionCatalog.GetDisplayName(championId);
@@ -642,9 +666,5 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        private void btnClose_Click(object sender, EventArgs e)
-        {
-            this.Close();
-        }
     }
 }

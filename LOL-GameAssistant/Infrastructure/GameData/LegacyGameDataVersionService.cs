@@ -6,6 +6,7 @@ namespace LOL_GameAssistant.Infrastructure.GameData;
 /// <summary>将 Data Dragon 版本缓存初始化从界面层收口到基础设施层。</summary>
 public sealed class LegacyGameDataVersionService : IGameDataVersionService
 {
+    /// <summary>初始化或刷新游戏资源使用的版本号。</summary>
     public Task EnsureCurrentVersionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

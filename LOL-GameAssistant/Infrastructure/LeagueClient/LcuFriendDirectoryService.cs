@@ -11,11 +11,13 @@ public sealed class LcuFriendDirectoryService : IFriendDirectoryService
 {
     private readonly ILcuRequestSender _requestSender;
 
+    /// <summary>初始化 LcuFriendDirectoryService 的实例状态，并保存传入的依赖或数据。</summary>
     public LcuFriendDirectoryService(ILcuRequestSender requestSender)
     {
         _requestSender = requestSender;
     }
 
+    /// <summary>读取当前召唤师的好友列表。</summary>
     public async Task<IReadOnlyList<FriendProfile>> GetFriendsAsync(CancellationToken cancellationToken = default)
     {
         string? json = await _requestSender.GetStringAsync("/lol-chat/v1/friends", cancellationToken).ConfigureAwait(false);
@@ -42,6 +44,7 @@ public sealed class LcuFriendDirectoryService : IFriendDirectoryService
             gameId);
     }
 
+    /// <summary>读取指定英雄的展示名称。</summary>
     private static string GetDisplayName(LcuFriendDto source)
     {
         if (!string.IsNullOrWhiteSpace(source.DisplayName)) return source.DisplayName.Trim();
@@ -55,6 +58,7 @@ public sealed class LcuFriendDirectoryService : IFriendDirectoryService
         return string.IsNullOrWhiteSpace(source.SummonerName) ? "未知好友" : source.SummonerName.Trim();
     }
 
+    /// <summary>将客户端在线状态映射为统一的好友状态。</summary>
     private static FriendPresence ToPresence(string? availability) => availability?.Trim().ToLowerInvariant() switch
     {
         "online" or "chat" => FriendPresence.Online,

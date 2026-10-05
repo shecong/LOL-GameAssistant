@@ -33,6 +33,7 @@
         public List<TeamMember> TeamTwo { get; set; } = new();
     }
 
+    /// <summary>客户端游戏会话中的队列信息。</summary>
     public class GameQueue
     {
         [Newtonsoft.Json.JsonProperty("id")]

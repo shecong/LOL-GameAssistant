@@ -8,7 +8,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>海克斯大乱斗专用局内侧边栏；推荐和 OCR 均只在本机处理。</summary>
-internal sealed class MayhemOverlayForm : Form
+internal sealed class MayhemOverlayForm : AntdUI.Window
 {
     private readonly IAiCoachingService _context = AppCompositionRoot.AiCoachingService;
     private readonly IOpggBuildApplyService _builds = AppCompositionRoot.OpggBuildApplyService;
@@ -49,10 +49,12 @@ internal sealed class MayhemOverlayForm : Form
     private bool _titleDragging;
     private Point _titleMouseDownScreen;
 
+    /// <summary>初始化 MayhemOverlayForm 的实例状态。</summary>
     public MayhemOverlayForm()
     {
         Text = "海克斯增幅推荐";
-        FormBorderStyle = FormBorderStyle.None;
+        AntdWindowChrome.Configure(this);
+        EnableHitTest = false;
         ShowInTaskbar = false;
         TopMost = true;
         Size = new Size(420, 650);
@@ -109,6 +111,7 @@ internal sealed class MayhemOverlayForm : Form
         };
     }
 
+    /// <summary>语言变化后刷新依赖本地化文本的界面。</summary>
     private async void LanguageChanged(object? sender, EventArgs args)
     {
         if (IsDisposed) return;
@@ -120,8 +123,10 @@ internal sealed class MayhemOverlayForm : Form
             catch (Exception ex) { if (!IsDisposed) _status.Text = UiLanguage.T($"数据暂不可用：{ex.Message}"); }
     }
 
+    /// <summary>显示浮窗时不抢占游戏或客户端的输入焦点。</summary>
     protected override bool ShowWithoutActivation => true;
 
+    /// <summary>句柄创建后执行依赖原生窗口的初始化。</summary>
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
@@ -130,6 +135,7 @@ internal sealed class MayhemOverlayForm : Form
         _excludedFromCapture = SetWindowDisplayAffinity(Handle, 0x11); // WDA_EXCLUDEFROMCAPTURE
     }
 
+    /// <summary>启动当前对象的持续跟踪流程。</summary>
     public void StartTracking()
     {
         if (IsDisposed) return;
@@ -141,6 +147,7 @@ internal sealed class MayhemOverlayForm : Form
         _ = PollAsync();
     }
 
+    /// <summary>停止持续跟踪并清理未完成的工作。</summary>
     public void StopTracking()
     {
         if (IsDisposed) return;
@@ -153,6 +160,7 @@ internal sealed class MayhemOverlayForm : Form
         Hide();
     }
 
+    /// <summary>收起浮窗并保留恢复入口。</summary>
     private void Collapse()
     {
         if (_collapsed || IsDisposed) return;
@@ -169,6 +177,7 @@ internal sealed class MayhemOverlayForm : Form
         Left = right - Width;
     }
 
+    /// <summary>展开已收起的浮窗内容。</summary>
     private void Expand()
     {
         if (!_collapsed || IsDisposed) return;
@@ -180,10 +189,12 @@ internal sealed class MayhemOverlayForm : Form
         _contentLayout.Visible = _scan.Visible = _status.Visible = _close.Visible = true;
     }
 
+    /// <summary>根据当前浮窗状态刷新标题文本。</summary>
     private void UpdateTitle() => _titleLabel.Text = _collapsed
         ? (UiLanguage.IsEnglish ? "Mayhem offers · click to open" : "海克斯推荐 · 点击展开")
         : (UiLanguage.IsEnglish ? "Mayhem · augment sidebar" : "海克斯大乱斗 · 增幅侧边栏");
 
+    /// <summary>记录标题区域按下的位置，为拖动判断准备状态。</summary>
     private void OnTitleMouseDown(MouseEventArgs e)
     {
         if (e.Button != MouseButtons.Left) return;
@@ -192,6 +203,7 @@ internal sealed class MayhemOverlayForm : Form
         _titleMouseDownScreen = Cursor.Position;
     }
 
+    /// <summary>超过拖动条件后移动浮窗位置。</summary>
     private void OnTitleMouseMove(MouseEventArgs e)
     {
         if (!_titleMousePressed || _titleDragging || e.Button != MouseButtons.Left) return;
@@ -203,6 +215,7 @@ internal sealed class MayhemOverlayForm : Form
         Drag(e);
     }
 
+    /// <summary>结束标题区域的按压或拖动状态。</summary>
     private void OnTitleMouseUp(MouseEventArgs e)
     {
         if (e.Button != MouseButtons.Left || !_titleMousePressed) return;
@@ -212,6 +225,7 @@ internal sealed class MayhemOverlayForm : Form
         else Collapse();
     }
 
+    /// <summary>定期读取游戏上下文和推荐数据。</summary>
     private async Task PollAsync()
     {
         if (!_tracking || _busy || IsDisposed) return;
@@ -258,6 +272,7 @@ internal sealed class MayhemOverlayForm : Form
         finally { _busy = false; }
     }
 
+    /// <summary>将当前英雄的增幅推荐转换为展示内容。</summary>
     private async Task RenderRecommendationsAsync()
     {
         if (_choices is not { Succeeded: true })
@@ -287,12 +302,14 @@ internal sealed class MayhemOverlayForm : Form
         RenderSelectedRarity();
     }
 
+    /// <summary>按当前语言刷新强化稀有度名称。</summary>
     private void UpdateRarityLabels()
     {
         for (int rarity = 0; rarity < 3; rarity++) _raritySelector.Items[rarity].Text = RarityName(rarity);
         _raritySelector.Invalidate();
     }
 
+    /// <summary>取得指定稀有度的显示名称。</summary>
     private static string RarityName(int rarity) => rarity switch
     {
         0 => UiLanguage.IsEnglish ? "Silver" : "白银",
@@ -301,6 +318,7 @@ internal sealed class MayhemOverlayForm : Form
         _ => UiLanguage.IsEnglish ? "Unknown type" : "类型未知"
     };
 
+    /// <summary>展示当前选中稀有度下的强化推荐。</summary>
     private void RenderSelectedRarity()
     {
         if (IsDisposed || _choices is not { Succeeded: true }) return;
@@ -330,6 +348,7 @@ internal sealed class MayhemOverlayForm : Form
         _recommendations.Text = string.Join(Environment.NewLine, lines);
     }
 
+    /// <summary>执行本机强化选项识别。</summary>
     private async Task ScanAsync()
     {
         if (_scanning) return;
@@ -344,6 +363,7 @@ internal sealed class MayhemOverlayForm : Form
         finally { if (!IsDisposed) _scan.Enabled = true; }
     }
 
+    /// <summary>识别当前屏幕中的强化选项并更新推荐结果。</summary>
     private async Task ScanOffersAsync(bool automatic)
     {
         if (_scanning) return;
@@ -417,6 +437,7 @@ internal sealed class MayhemOverlayForm : Form
         }
     }
 
+    /// <summary>创建展示强化名称和说明的文本面板。</summary>
     private static AntdUI.Input TextPanel() => new()
     {
         Dock = DockStyle.Fill, ReadOnly = true, Multiline = true, AutoScroll = true,
@@ -424,13 +445,16 @@ internal sealed class MayhemOverlayForm : Form
         Font = new Font("Microsoft YaHei UI", 10.5f)
     };
 
+    /// <summary>按当前语言选择条目的展示名称。</summary>
     private static string DisplayName(AugmentInfo? item) => item == null ? "未知增幅" :
         UiLanguage.IsEnglish && !string.IsNullOrWhiteSpace(item.EnglishName) ? item.EnglishName : item.Name;
 
+    /// <summary>设置窗口的屏幕捕获可见性策略。</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowDisplayAffinity(IntPtr window, uint affinity);
 
+    /// <summary>启动原生窗口拖动流程。</summary>
     private void Drag(MouseEventArgs e)
     {
         if (e.Button != MouseButtons.Left) return;
@@ -438,8 +462,10 @@ internal sealed class MayhemOverlayForm : Form
         SendMessage(Handle, 0xA1, (IntPtr)2, IntPtr.Zero);
     }
 
+    /// <summary>释放当前鼠标捕获，供原生拖动流程使用。</summary>
     [DllImport("user32.dll")]
     private static extern bool ReleaseCapture();
+    /// <summary>同步向目标窗口发送原生消息。</summary>
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 }

@@ -3,6 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
+/// <summary>设置页：读取、编辑并保存助手各功能的配置。</summary>
 public partial class SettingForm
 {
     private readonly IClientFeatureService _matchFeatures;
@@ -16,6 +17,7 @@ public partial class SettingForm
     private readonly AntdUI.InputNumber _quickQueue = new() { Minimum = 1, Maximum = 3000, Value = 430, Height = 32 };
     private readonly AntdUI.Label _matchToolsStatus = new() { AutoSize = true, Text = "操作仅作用于当前登录的客户端。" };
 
+    /// <summary>创建自动接受匹配的延迟配置行。</summary>
     private Control CreateAcceptDelayRow()
     {
         var row = new FlowLayoutPanel { AutoSize = true, WrapContents = true };
@@ -25,9 +27,11 @@ public partial class SettingForm
         return row;
     }
 
+    /// <summary>创建匹配自动操作的设置控件。</summary>
     private Control CreateMatchActions()
     {
         var row = new FlowLayoutPanel { AutoSize = true, WrapContents = true };
+        // 向匹配工具设置区域追加一项操作配置。
         void Add(string text, string tip, Func<Task<ClientFeatureResult>> action)
         {
             var button = new AntdUI.Button { Text = text, AutoSize = true, Height = 34, Margin = new Padding(3) };
@@ -55,6 +59,7 @@ public partial class SettingForm
         return row;
     }
 
+    /// <summary>将匹配工具配置载入设置界面。</summary>
     private void LoadMatchToolsSettings()
     {
         _acceptMin.Value = Math.Clamp(_config.AutoAcceptDelayMinMilliseconds, 0, 15000);
@@ -72,6 +77,7 @@ public partial class SettingForm
         _quickQueue.ValueChanged += (_, _) => SaveSettings();
     }
 
+    /// <summary>从设置界面读取匹配工具选项。</summary>
     private void ReadMatchToolsSettings()
     {
         // Treat either edit order as a valid range, without clearing the user's delay values.

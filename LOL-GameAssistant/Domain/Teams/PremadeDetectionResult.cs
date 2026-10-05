@@ -11,6 +11,7 @@ public sealed record PremadeGroup(
 /// <summary>开黑检测结果及面向界面的摘要规则。</summary>
 public sealed class PremadeDetectionResult
 {
+    /// <summary>初始化 PremadeDetectionResult 的实例状态，并保存传入的依赖或数据。</summary>
     public PremadeDetectionResult(IReadOnlyList<PremadeGroup> groups)
     {
         Groups = groups;
@@ -23,6 +24,7 @@ public sealed class PremadeDetectionResult
 
     public IReadOnlyDictionary<string, PremadeGroup> GroupByPuuid { get; }
 
+    /// <summary>生成队伍组队情况的简要说明。</summary>
     public string GetTeamSummary(int teamIndex)
     {
         var sizes = Groups.Where(group => group.TeamIndex == teamIndex)
@@ -32,6 +34,7 @@ public sealed class PremadeDetectionResult
         return sizes.Count == 0 ? "" : string.Join("+", sizes);
     }
 
+    /// <summary>生成队伍中单排、双排等组队状态文本。</summary>
     public string GetTeamQueueStatus(int teamIndex)
     {
         var sizes = Groups.Where(group => group.TeamIndex == teamIndex)
@@ -58,6 +61,7 @@ public sealed class PremadeDetectionResult
         return status == "单排" ? "未发现" : $"疑似{status}";
     }
 
+    /// <summary>生成队伍组队情况的详细提示。</summary>
     public string GetTeamQueueDetail(int teamIndex)
     {
         var groups = Groups.Where(group => group.TeamIndex == teamIndex).ToList();
