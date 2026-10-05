@@ -6,3 +6,5 @@
 - 斗魂竞技场：<https://raw.communitydragon.org/latest/cdragon/arena/zh_cn.json> 的 `id` / `name` / `iconSmall`。
 
 新赛季出现未知 ID 时，更新这个映射文件即可；界面会对未知 ID 显示编号。
+
+`augment-descriptions.json` 在 2026-10-06 从上述海克斯大乱斗数据源的 `description` 字段生成，保存 247 条中文作用说明，并嵌入发布包。优先使用说明字段，避免将需要局内动态参数的 tooltip 当作确定数值显示。详情窗口将游戏富文本标签转换为普通文本；新版本更新名称时也应同步更新说明文件。

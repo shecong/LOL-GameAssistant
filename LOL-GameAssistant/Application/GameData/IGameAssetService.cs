@@ -19,5 +19,9 @@ public interface IGameAssetService
 
     Task<string?> GetItemNameAsync(int itemId, CancellationToken cancellationToken = default);
 
+    Task<string?> GetItemDescriptionAsync(int itemId, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+
+    Task<string?> GetRuneDetailsAsync(int perkId, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+
     Task<string?> GetSummonerSpellNameAsync(int spellId, CancellationToken cancellationToken = default);
 }

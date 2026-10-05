@@ -172,6 +172,7 @@ public sealed class MatchParticipantStats
     public int visionScore { get; set; }
     public bool Win { get; set; }
     public List<int> AugmentIds { get; set; } = new();
+    public List<int> RuneIds { get; set; } = new();
 }
 
 /// <summary>战绩读模型的业务计算与模式名称规则。</summary>

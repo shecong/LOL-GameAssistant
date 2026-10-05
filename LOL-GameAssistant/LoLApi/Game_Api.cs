@@ -41,6 +41,7 @@ namespace LOL_GameAssistant.LoLApi
         private static readonly SemaphoreSlim RuneDataGate = new SemaphoreSlim(1, 1);
 
         private static IReadOnlyDictionary<int, string>? RuneIconPaths;
+        private static readonly ConcurrentDictionary<int, string> RuneDetails = new();
 
         /// <summary>
         /// 对局详情内存缓存，避免对同一场对局重复请求。
@@ -132,6 +133,19 @@ namespace LOL_GameAssistant.LoLApi
             if (itemId <= 0) return null;
             var items = await GetItemsAsync().ConfigureAwait(false);
             return items.FirstOrDefault(p => string.Equals(p.id, itemId.ToString(), StringComparison.Ordinal))?.name;
+        }
+
+        public static async Task<string?> GetItemDescriptionAsync(int itemId)
+        {
+            if (itemId <= 0) return null;
+            var items = await GetItemsAsync().ConfigureAwait(false);
+            return items.FirstOrDefault(item => item.id == itemId.ToString())?.description;
+        }
+
+        public static async Task<string?> GetRuneDetailsAsync(int perkId)
+        {
+            await GetRuneIconPathsAsync().ConfigureAwait(false);
+            return RuneDetails.GetValueOrDefault(perkId);
         }
 
         /// <summary>
@@ -242,6 +256,7 @@ namespace LOL_GameAssistant.LoLApi
                     .SelectMany(slot => slot["runes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>()))
                 {
                     int id = rune.Value<int?>("id") ?? 0;
+                    if (id > 0) RuneDetails[id] = $"{rune.Value<string>("name")}\n\n{rune.Value<string>("longDesc") ?? rune.Value<string>("shortDesc")}";
                     string? icon = rune.Value<string>("icon");
                     if (id > 0 && !string.IsNullOrWhiteSpace(icon)) resolved[id] = icon;
                 }

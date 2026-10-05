@@ -137,6 +137,8 @@ internal static class LegacyMatchReadModelMapper
             tripleKills = source.tripleKills,
             visionScore = source.visionScore,
             Win = IsWin(source.win),
+            RuneIds = new[] { source.perk0, source.perk1, source.perk2, source.perk3, source.perk4, source.perk5 }
+                .Where(id => id > 0).ToList(),
             AugmentIds = new[]
                 {
                     source.playerAugment1, source.playerAugment2, source.playerAugment3,

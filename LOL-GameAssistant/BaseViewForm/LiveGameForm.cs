@@ -96,6 +96,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblGameInfo.AutoSize = false;
             lblGameInfo.Dock = DockStyle.Fill;
             lblGameInfo.TextAlign = ContentAlignment.MiddleLeft;
+            lblGameInfo.Padding = new Padding(30, 0, 0, 0);
             infoBar.Controls.Add(backToTop);
             backToTop.BringToFront();
             panelTeam1.SizeChanged += (_, _) => LayoutPlayerCards();

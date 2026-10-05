@@ -51,6 +51,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\augment-names.json" LogicalName="LOL_GameAssistant.Resources.AugmentNames.json" />
+    <EmbeddedResource Include="Resources\augment-descriptions.json" LogicalName="LOL_GameAssistant.Resources.AugmentDescriptions.json" />
     <EmbeddedResource Update="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

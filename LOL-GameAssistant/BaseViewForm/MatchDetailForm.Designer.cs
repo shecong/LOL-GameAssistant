@@ -47,11 +47,13 @@ namespace LOL_GameAssistant.BaseViewForm
             lblTitle.Dock = DockStyle.Top;
             lblTitle.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold);
             lblTitle.Height = 44;
+            lblTitle.Padding = new Padding(12, 0, 90, 0);
             lblTitle.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // btnClose
             // 
             btnClose.Location = new Point(910, 8);
+            btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnClose.Name = "btnClose";
             btnClose.Size = new Size(64, 28);
             btnClose.TabIndex = 0;
@@ -131,7 +133,7 @@ namespace LOL_GameAssistant.BaseViewForm
             bottomPanel.Controls.Add(lblKda);
             bottomPanel.Controls.Add(lblChampion);
             bottomPanel.Dock = DockStyle.Bottom;
-            bottomPanel.Height = 116;
+            bottomPanel.Height = 140;
             bottomPanel.Padding = new Padding(12, 8, 12, 8);
             // 
             // lblItems
@@ -174,6 +176,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Controls.Add(btnClose);
             DoubleBuffered = true;
             Name = "MatchDetailForm";
+            Text = "对局详情";
             StartPosition = FormStartPosition.CenterParent;
             playersGrid.ResumeLayout(false);
             allyPanel.ResumeLayout(false);

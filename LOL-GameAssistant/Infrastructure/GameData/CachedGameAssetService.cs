@@ -21,6 +21,10 @@ internal sealed class CachedGameAssetService : IGameAssetService
     }
 
     private string Key(string kind, int id) => $"{_version()}:{kind}:{id}";
+    public Task<string?> GetItemDescriptionAsync(int id, CancellationToken token = default) =>
+        _names.GetAsync(Key("item-description-zh-CN", id), () => _inner.GetItemDescriptionAsync(id), token);
+    public Task<string?> GetRuneDetailsAsync(int id, CancellationToken token = default) =>
+        _names.GetAsync(Key("rune-details-zh-CN", id), () => _inner.GetRuneDetailsAsync(id), token);
     public Task<GameAsset?> GetChampionIconAsync(int id, CancellationToken token = default) =>
         _icons.GetAsync(Key("champion", id), () => _inner.GetChampionIconAsync(id), token);
     public Task<GameAsset?> GetItemIconAsync(int id, CancellationToken token = default) =>

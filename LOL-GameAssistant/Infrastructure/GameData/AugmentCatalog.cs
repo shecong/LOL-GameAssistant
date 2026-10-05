@@ -9,6 +9,13 @@ internal static class AugmentCatalog
     private const string ResourceName = "LOL_GameAssistant.Resources.AugmentNames.json";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
     private static readonly Lazy<IReadOnlyDictionary<int, AugmentDisplay>> Catalog = new(Load);
+    private static readonly Lazy<Dictionary<string, string>> Descriptions = new(() =>
+    {
+        using Stream? stream = typeof(AugmentCatalog).Assembly.GetManifestResourceStream("LOL_GameAssistant.Resources.AugmentDescriptions.json");
+        return stream == null ? new() : JsonSerializer.Deserialize<Dictionary<string, string>>(stream) ?? new();
+    });
+
+    internal static string? GetDescription(int id) => Descriptions.Value.GetValueOrDefault(id.ToString());
     private static readonly ConcurrentDictionary<string, Task<byte[]?>> IconCache = new(StringComparer.Ordinal);
 
     internal sealed record AugmentDisplay(int Id, string Name, string? IconUrl, string? EnglishName = null, int? Rarity = null);

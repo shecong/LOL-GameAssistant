@@ -25,6 +25,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly Dictionary<string, AntdUI.Label> _premadeTagsByPuuid = new(StringComparer.Ordinal);
         private readonly Dictionary<string, AntdUI.Label> _performanceTagsByPuuid = new(StringComparer.Ordinal);
         private readonly ToolTip _assetToolTip = new();
+        private readonly AssetDetailToolTip _detailToolTip = new();
         /// <summary>点击玩家头像后选中的玩家 puuid（用于跳转战绩查询）。</summary>
         public string? SelectedPlayerPuuid { get; private set; }
 
@@ -44,12 +45,15 @@ namespace LOL_GameAssistant.BaseViewForm
             _matchHistoryService = AppCompositionRoot.MatchHistoryService;
             _premadeDetectionService = AppCompositionRoot.PremadeDetectionService;
             InitializeComponent();
+            Text = $"对局详情 · {_gameInfo.GetModeText()}";
+            lblTitle.Text = Text;
             var detailIcon = (Icon)AppIcon.Shared.Clone();
             Icon = detailIcon;
             Disposed += (_, _) => detailIcon.Dispose();
             UiTheme.Apply(this);
             this.Load += async (_, _) => await LoadDataAsync();
             Disposed += (_, _) => _assetToolTip.Dispose();
+            Disposed += (_, _) => _detailToolTip.Dispose();
         }
 
         public void ApplyTheme(ThemePalette palette)
@@ -91,7 +95,10 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 bool isWin = gamer.IsWin();
                 lblTitle.Text = $"{_gameInfo.GetModeText()} · {(isWin ? "胜利" : "失败")} · {_gameInfo.GetDurationText()}";
-                lblTitle.ForeColor = isWin ? Color.FromArgb(46, 125, 50) : Color.FromArgb(198, 40, 40);
+                Text = $"对局详情 · {lblTitle.Text}";
+                lblTitle.ForeColor = isWin
+                    ? (UiTheme.Palette.IsDark ? Color.FromArgb(129, 199, 132) : Color.FromArgb(46, 125, 50))
+                    : (UiTheme.Palette.IsDark ? Color.FromArgb(239, 154, 154) : Color.FromArgb(198, 40, 40));
 
                 string champName = GetChampionDisplayName(gamer.championId);
                 lblChampion.Text = $"{champName}  |  等级 {gamer.stats?.champLevel}";
@@ -174,7 +181,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ThemePalette palette = UiTheme.Palette;
             var panel = new AntdUI.Panel
             {
-                Size = new Size(455, _gameInfo.IsAugmentAram() ? 166 : 118),
+                Size = new Size(455, (_gameInfo.IsAugmentAram() ? 166 : 118) + (p.stats?.RuneIds.Count > 0 ? 30 : 0)),
                 Margin = new Padding(0, 0, 0, 6),
                 BackColor = isMe
                     ? (palette.IsDark ? Color.FromArgb(75, 60, 25) : Color.FromArgb(255, 249, 230))
@@ -273,6 +280,7 @@ namespace LOL_GameAssistant.BaseViewForm
             });
             AddSummonerSpellIcons(panel, p, 300, 30);
             AddItemIcons(panel, p, 70, 78);
+            AddRuneIcons(panel, p);
 
             if (_gameInfo.IsAugmentAram() && p.stats?.AugmentIds.Count > 0)
             {
@@ -325,7 +333,7 @@ namespace LOL_GameAssistant.BaseViewForm
             target.Controls.Add(row);
         }
 
-        private static async Task LoadAugmentTagsAsync(AntdUI.Panel host, IReadOnlyList<int> ids)
+        private async Task LoadAugmentTagsAsync(AntdUI.Panel host, IReadOnlyList<int> ids)
         {
             var tags = new List<AntdUI.Tag>();
             for (int index = 0; index < ids.Count; index++)
@@ -341,6 +349,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     BackColor = UiTheme.Palette.SurfaceMuted
                 };
                 host.Controls.Add(placeholder);
+                _detailToolTip.SetDetails(placeholder, placeholder.Text, "正在加载作用说明…");
                 tags.Add(placeholder);
             }
             IReadOnlyList<AugmentCatalog.AugmentDisplay> augments = await AugmentCatalog.ResolveAsync(ids);
@@ -351,6 +360,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 AntdUI.Tag tag = tags[index];
                 tag.Text = UiLanguage.IsEnglish && !string.IsNullOrWhiteSpace(augment.EnglishName)
                     ? augment.EnglishName : augment.Name;
+                _detailToolTip.SetDetails(tag, tag.Text, AugmentCatalog.GetDescription(augment.Id));
                 if (augment.IconUrl != null) _ = LoadAugmentTagIconAsync(tag, augment.IconUrl);
             }
         }
@@ -444,11 +454,56 @@ namespace LOL_GameAssistant.BaseViewForm
                 _assetToolTip.SetToolTip(box, "空装备栏");
                 return;
             }
+            _detailToolTip.SetDetails(box, $"装备 {itemId}", "正在加载作用说明…");
+            _ = LoadItemDetailsAsync(box, itemId);
             Image? image = ToImage(await _gameAssetService.GetItemIconAsync(itemId));
             if (image != null && !box.IsDisposed) box.Image = image;
             else image?.Dispose();
-            string? name = await _gameAssetService.GetItemNameAsync(itemId);
-            if (!box.IsDisposed) _assetToolTip.SetToolTip(box, name ?? $"装备 {itemId}");
+        }
+
+        private async Task LoadItemDetailsAsync(PictureBox box, int itemId)
+        {
+            try
+            {
+                var nameTask = _gameAssetService.GetItemNameAsync(itemId);
+                var descriptionTask = _gameAssetService.GetItemDescriptionAsync(itemId);
+                await Task.WhenAll(nameTask, descriptionTask);
+                if (!IsDisposed) _detailToolTip.SetDetails(box, await nameTask ?? $"装备 {itemId}", await descriptionTask);
+            }
+            catch { if (!IsDisposed) _detailToolTip.SetDetails(box, $"装备 {itemId}", null); }
+        }
+
+        private void AddRuneIcons(AntdUI.Panel panel, MatchParticipant participant)
+        {
+            if (participant.stats == null) return;
+            for (int index = 0; index < participant.stats.RuneIds.Count; index++)
+            {
+                int id = participant.stats.RuneIds[index];
+                var icon = new PictureBox
+                {
+                    Location = new Point(70 + index * 29, _gameInfo.IsAugmentAram() ? 160 : 109),
+                    Size = new Size(25, 25), SizeMode = PictureBoxSizeMode.Zoom
+                };
+                panel.Controls.Add(icon);
+                icon.Disposed += (_, _) => icon.Image?.Dispose();
+                _detailToolTip.SetDetails(icon, $"符文 {id}", "正在加载作用说明…");
+                _ = LoadRuneAsync(icon, id);
+            }
+        }
+
+        private async Task LoadRuneAsync(PictureBox box, int id)
+        {
+            try
+            {
+                string? details = await _gameAssetService.GetRuneDetailsAsync(id);
+                if (IsDisposed || box.IsDisposed) return;
+                string[] parts = (details ?? $"符文 {id}").Split('\n', 2);
+                _detailToolTip.SetDetails(box, parts[0], parts.Length > 1 ? parts[1] : null);
+                Image? image = ToImage(await _gameAssetService.GetRuneIconAsync(id));
+                if (!box.IsDisposed) box.Image = image;
+                else image?.Dispose();
+            }
+            catch { if (!IsDisposed) _detailToolTip.SetDetails(box, $"符文 {id}", null); }
         }
 
         private async Task DetectPremadesAsync(int myTeamId)
