@@ -121,6 +121,29 @@ public sealed class AntdWindowMigrationTests
     private static extern int GetWindowLong(nint handle, int index);
 
     [Fact]
+    public void MayhemSidebarKeepsNoActivationWhenCollapsedAndReopened() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var window = new MayhemOverlayForm();
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        window.Show();
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            Assert.Equal(0x08000000, GetWindowLong(window.Handle, -20) & 0x08000000);
+            typeof(MayhemOverlayForm).GetMethod("Collapse", flags)!.Invoke(window, null);
+            Assert.Equal(new Size(210, 46), window.Size);
+            Assert.Equal((nint)3, SendMessage(window.Handle, 0x0021, 0, 0));
+            window.Hide();
+            // 重建句柄后仍要保留禁止激活的原生样式。
+            typeof(Control).GetMethod("RecreateHandle", flags)!.Invoke(window, null);
+            window.Show();
+            Assert.Equal(0x08000000, GetWindowLong(window.Handle, -20) & 0x08000000);
+            Assert.Equal((nint)3, SendMessage(window.Handle, 0x0021, 0, 0));
+            typeof(MayhemOverlayForm).GetMethod("Expand", flags)!.Invoke(window, null);
+            Assert.Equal(new Size(420, 650), window.Size);
+        }
+    });
+
+    [Fact]
     public void TransparentRecommendationKeepsNoActivationAndMousePassthrough() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var window = new RecommendationOverlayForm();

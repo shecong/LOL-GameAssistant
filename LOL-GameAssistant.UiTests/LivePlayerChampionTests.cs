@@ -209,6 +209,45 @@ public sealed class LivePlayerChampionTests
             Assert.True(icon.Parent.ClientRectangle.Contains(icon.Bounds));
         });
 
+    [Fact]
+    public void RefreshKeepsCompatibleCardsButRejectsChangedContext() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var card = CreateCard(22, new TaskCompletionSource<PlayerProfile?>().Task,
+            _ => Task.FromResult<GameAsset?>(null));
+        using var form = Mount(card);
+        List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members =
+            [("enemy", "对手", 122, "", false)];
+        Assert.True(LiveGameForm.CanKeepPlayerCards(form, members, "me", 430, "CLASSIC"));
+        Assert.False(LiveGameForm.CanKeepPlayerCards(form, members, "enemy", 430, "CLASSIC"));
+        Assert.False(LiveGameForm.CanKeepPlayerCards(form, members, "me", 2400, "KIWI"));
+        members[0] = ("new-player", "新玩家", 122, "", false);
+        Assert.False(LiveGameForm.CanKeepPlayerCards(form, members, "me", 430, "CLASSIC"));
+    });
+
+    [Fact]
+    public void HoverDoesNotRestartAndReversalContinuesFromCurrentBrightness() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var card = CreateCard(0, new TaskCompletionSource<PlayerProfile?>().Task,
+            _ => Task.FromResult<GameAsset?>(null));
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var start = typeof(LivePlayerForm).GetMethod("StartGlow", flags)!;
+        var tick = typeof(LivePlayerForm).GetMethod("GlowTick", flags)!;
+        var alpha = typeof(LivePlayerForm).GetField("_glowAlpha", flags)!;
+        var progress = typeof(LivePlayerForm).GetField("_glowT", flags)!;
+        start.Invoke(card, [true]);
+        tick.Invoke(card, null);
+        double before = (double)alpha.GetValue(card)!;
+        object elapsed = progress.GetValue(card)!;
+        start.Invoke(card, [true]);
+        Assert.Equal(elapsed, progress.GetValue(card));
+        start.Invoke(card, [false]);
+        Assert.Equal(before, (double)alpha.GetValue(card)!);
+        tick.Invoke(card, null);
+        Assert.InRange((double)alpha.GetValue(card)!, 0, before);
+        for (int i = 0; i < 10; i++) tick.Invoke(card, null);
+        Assert.Equal(0, (double)alpha.GetValue(card)!);
+    });
+
     private static Control Child(Control parent, string name) => parent.Controls.Find(name, true).Single();
 
     private static LivePlayerForm CreateCard(int id, Task<PlayerProfile?> profile,

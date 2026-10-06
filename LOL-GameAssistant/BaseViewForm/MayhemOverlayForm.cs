@@ -126,6 +126,28 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     /// <summary>显示浮窗时不抢占游戏或客户端的输入焦点。</summary>
     protected override bool ShowWithoutActivation => true;
 
+    /// <summary>侧边栏只展示推荐并响应鼠标操作，创建或重建句柄时均禁止抢占游戏焦点。</summary>
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            parameters.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE，ShowWithoutActivation 仅保护 Show()。
+            return parameters;
+        }
+    }
+
+    /// <summary>保留标题展开、收起和按钮点击事件，同时阻止鼠标操作激活侧边栏。</summary>
+    protected override void WndProc(ref Message message)
+    {
+        if (message.Msg == 0x0021) // WM_MOUSEACTIVATE
+        {
+            message.Result = (IntPtr)3; // MA_NOACTIVATE：不激活，也不吞掉本次点击。
+            return;
+        }
+        base.WndProc(ref message);
+    }
+
     /// <summary>句柄创建后执行依赖原生窗口的初始化。</summary>
     protected override void OnHandleCreated(EventArgs e)
     {

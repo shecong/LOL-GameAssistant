@@ -275,7 +275,7 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>
-        /// 刷新对局信息；<paramref name="force"/> 为 true 时强制重建玩家卡片。
+        /// 刷新对局信息；<paramref name="force"/> 为 true 时重新评估公告状态，兼容的卡片仍原地更新。
         /// </summary>
         public async Task AddView(bool force = false)
         {
@@ -514,10 +514,20 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             string signature = BuildRosterSignature(team1, team2);
 
-            // 阵容未变化时跳过重建，避免自动刷新反复销毁/重建控件
-            if (!force && signature == _lastSignature && _lastRenderedPhase == Program.GameMain.gameFlowPhase &&
-                panelTeam1.Controls.Count > 0)
+            // 阶段重试和手动刷新也复用原位控件，避免移除再添加引起背景闪白和滚动位置跳动。
+            if (signature == _lastSignature && _lastRenderedPhase == Program.GameMain.gameFlowPhase &&
+                CanKeepPlayerCards(panelTeam1, team1, myPuuid, queueId, gameMode) &&
+                CanKeepPlayerCards(panelTeam2, team2, myPuuid, queueId, gameMode))
             {
+                if (force)
+                {
+                    // 设置变更仍需重新准备公告，并用已加载的战绩补齐评估结果。
+                    PrepareChampSelectAssessments(signature, team1, team2, myPuuid);
+                    PrepareGameAssessments(signature, team1, team2);
+                    foreach (var card in panelTeam1.Controls.OfType<LivePlayerForm>()
+                        .Concat(panelTeam2.Controls.OfType<LivePlayerForm>()))
+                        card.ReplayRecentPerformance();
+                }
                 // 名单相同时英雄仍可能从未知变为已选择，或在选人阶段换选。
                 // 原地更新英雄，保留已加载的战绩和一次性公告状态。
                 UpdateCurrentChampions(panelTeam1, team1);
@@ -572,22 +582,25 @@ namespace LOL_GameAssistant.BaseViewForm
 
             LayoutPlayerCards();
 
-            // 卡片展开动效（交错延迟）
-            int index = 0;
-            foreach (Control card in panelTeam1.Controls)
-            {
-                if (card is LivePlayerForm)
-                    UiAnimation.ExpandIn(card, 0, 300, index++ * 60);
-            }
-            foreach (Control card in panelTeam2.Controls)
-            {
-                if (card is LivePlayerForm)
-                    UiAnimation.ExpandIn(card, 0, 300, index++ * 60);
-            }
+            // 卡片保持固定高度；展开动画与滚动条触发布局时的高度修正相互覆盖，会导致闪烁。
 
             _teamTitleBase1 = lblTeamTitle1.Text;
             _teamTitleBase2 = lblTeamTitle2.Text;
             ApplyPremadeResult(partyDetection);
+        }
+
+        /// <summary>确认当前队伍的每张卡片仍与玩家、队列和敌我关系兼容，才允许原位刷新。</summary>
+        internal static bool CanKeepPlayerCards(
+            Control panel,
+            List<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> members,
+            string? myPuuid, int queueId, string? gameMode)
+        {
+            var cards = panel.Controls.OfType<LivePlayerForm>().ToArray();
+            if (members.Count == 0) return cards.Length == 0 && panel.Controls.Count > 0;
+            if (cards.Length != members.Count) return false;
+            bool isAlly = myPuuid != null && members.Any(member => member.Puuid == myPuuid);
+            return members.Zip(cards).All(pair => pair.First.Puuid == pair.Second.Puuid &&
+                pair.Second.CanReuseFor(queueId, gameMode, isAlly, myPuuid != null, pair.First.IsBot));
         }
 
         /// <summary>同步玩家当前所选英雄，避免沿用旧阶段头像。</summary>

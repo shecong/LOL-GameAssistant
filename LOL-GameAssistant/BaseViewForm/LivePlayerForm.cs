@@ -84,6 +84,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly System.Windows.Forms.Timer _glowTimer;
         private bool _glowTarget;
         private double _glowT;
+        private double _glowStartAlpha;
 
         /// <summary>初始化 LivePlayerForm 的实例状态，并保存传入的依赖或数据。</summary>
         public LivePlayerForm(
@@ -205,11 +206,11 @@ namespace LOL_GameAssistant.BaseViewForm
             };
 
             this.MouseEnter += (_, _) => StartGlow(true);
-            this.MouseLeave += (_, _) => StartGlow(false);
+            this.MouseLeave += (_, _) => UpdateGlowFromPointer();
             foreach (Control child in Controls)
             {
                 child.MouseEnter += (_, _) => StartGlow(true);
-                child.MouseLeave += (_, _) => StartGlow(false);
+                child.MouseLeave += (_, _) => UpdateGlowFromPointer();
             }
 
             this.Resize += (_, _) => RecalcHeaderLayout();
@@ -866,9 +867,19 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>启动玩家卡片的高亮动画。</summary>
         private void StartGlow(bool hovering)
         {
+            // 子控件间移动不重启动画；反向过渡从当前亮度开始，避免边框突然跳亮。
+            if (_glowTarget == hovering) return;
             _glowTarget = hovering;
+            _glowStartAlpha = _glowAlpha;
             _glowT = 0;
             _glowTimer.Start();
+        }
+
+        /// <summary>离开子控件时检查整张卡片，仍在卡片内则保留悬停状态。</summary>
+        private void UpdateGlowFromPointer()
+        {
+            if (!IsDisposed && IsHandleCreated)
+                StartGlow(ClientRectangle.Contains(PointToClient(Cursor.Position)));
         }
 
         /// <summary>推进高亮动画并触发重绘。</summary>
@@ -876,14 +887,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             _glowT = Math.Min(1, _glowT + 0.12);
             double eased = UiAnimation.EaseOutCubic(_glowT);
-            if (_glowTarget)
-            {
-                _glowAlpha = eased;
-            }
-            else
-            {
-                _glowAlpha = 1 - eased;
-            }
+            _glowAlpha = _glowStartAlpha + ((_glowTarget ? 1 : 0) - _glowStartAlpha) * eased;
             Invalidate();
             if (_glowT >= 1) _glowTimer.Stop();
         }
