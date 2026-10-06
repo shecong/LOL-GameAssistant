@@ -541,7 +541,7 @@ namespace LOL_GameAssistant.BaseViewForm
             game_dsp_win.ForeColor = Color.FromArgb(46, 125, 50);
             game_dsp_win.Location = new Point(14, 66);
             game_dsp_win.Name = "game_dsp_win";
-            game_dsp_win.Size = new Size(120, 22);
+            game_dsp_win.Size = new Size(100, 22);
             game_dsp_win.TabIndex = 3;
             game_dsp_win.Text = "胜场 -";
             // 
@@ -561,7 +561,7 @@ namespace LOL_GameAssistant.BaseViewForm
             game_dsp_lp.ForeColor = Color.FromArgb(255, 152, 0);
             game_dsp_lp.Location = new Point(14, 92);
             game_dsp_lp.Name = "game_dsp_lp";
-            game_dsp_lp.Size = new Size(120, 22);
+            game_dsp_lp.Size = new Size(100, 22);
             game_dsp_lp.TabIndex = 5;
             game_dsp_lp.Text = "LP -";
             // 
@@ -631,7 +631,7 @@ namespace LOL_GameAssistant.BaseViewForm
             game_lhp_win.ForeColor = Color.FromArgb(46, 125, 50);
             game_lhp_win.Location = new Point(14, 66);
             game_lhp_win.Name = "game_lhp_win";
-            game_lhp_win.Size = new Size(120, 22);
+            game_lhp_win.Size = new Size(100, 22);
             game_lhp_win.TabIndex = 3;
             game_lhp_win.Text = "胜场 -";
             // 
@@ -651,7 +651,7 @@ namespace LOL_GameAssistant.BaseViewForm
             game_lhp_lp.ForeColor = Color.FromArgb(255, 152, 0);
             game_lhp_lp.Location = new Point(14, 92);
             game_lhp_lp.Name = "game_lhp_lp";
-            game_lhp_lp.Size = new Size(120, 22);
+            game_lhp_lp.Size = new Size(100, 22);
             game_lhp_lp.TabIndex = 5;
             game_lhp_lp.Text = "LP -";
             // 
