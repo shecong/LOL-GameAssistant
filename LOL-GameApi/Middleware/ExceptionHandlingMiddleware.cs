@@ -22,9 +22,14 @@
             {
                 await _next(context);
             }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            {
+                if (!context.Response.HasStarted) context.Response.StatusCode = 499;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "未处理异常: {Path}", context.Request.Path);
+                if (context.Response.HasStarted) throw;
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                 context.Response.ContentType = "application/json; charset=utf-8";
                 await context.Response.WriteAsJsonAsync(new

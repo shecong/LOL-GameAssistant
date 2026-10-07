@@ -21,7 +21,7 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
     /// <summary>初始化 LcuGameFlowEventStream 的实例状态，并保存传入的依赖或数据。</summary>
     public LcuGameFlowEventStream(LeagueClientConnection connection) => _connection = connection;
 
-    public event Action<LeagueClientEvent>? EventReceived;
+    public event Func<LeagueClientEvent, CancellationToken, Task>? EventReceived;
 
     public event Action<string>? ErrorOccurred;
 
@@ -54,13 +54,22 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
         var client = new WebSocketClient(
             $"wss://127.0.0.1:{credentials.Port}",
             Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{credentials.Token}")));
-        client.OnMessage += HandleRawMessage;
+        client.OnMessageAsync += HandleRawMessageAsync;
         client.OnError += error => ErrorOccurred?.Invoke(error.Message);
         client.OnConnectChanged += connected => ConnectionChanged?.Invoke(connected);
         client.OnReconnecting += message => Reconnecting?.Invoke(message);
         _client = client;
 
-        await client.ConnectAsync().ConfigureAwait(false);
+        try
+        {
+            await client.ConnectAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            if (ReferenceEquals(_client, client)) _client = null;
+            await client.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
         return client.IsConnected;
     }
 
@@ -78,19 +87,19 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
         _client = null;
         if (client == null) return;
 
-        client.OnMessage -= HandleRawMessage;
+        client.OnMessageAsync -= HandleRawMessageAsync;
         try
         {
             await client.CloseAsync().ConfigureAwait(false);
         }
         finally
         {
-            client.Dispose();
+            await client.DisposeAsync().ConfigureAwait(false);
         }
     }
 
     /// <summary>将 LCU 数组报文转换为稳定的领域事件。</summary>
-    private void HandleRawMessage(string message)
+    private async Task HandleRawMessageAsync(string message, CancellationToken cancellationToken)
     {
         // LCU WebSocket 除业务数组外，还可能传来空帧、心跳或其他协议控制文本。
         // 只有数组报文才可能是 [8, "OnJsonApiEvent", ...]，其余内容无需进入 JSON 解析器。
@@ -120,7 +129,12 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
             !eventBody.TryGetPropertyValue("data", out JsonNode? data) ||
             data == null) return;
 
-        EventReceived?.Invoke(new LeagueClientEvent(uri, GetEventDataText(data)));
+        var gameEvent = new LeagueClientEvent(uri, GetEventDataText(data));
+        foreach (Func<LeagueClientEvent, CancellationToken, Task> handler in EventReceived?.GetInvocationList() ?? [])
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await handler(gameEvent, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>字符串事件保留原文本，复合事件保留 JSON 文本供后续应用用例扩展。</summary>

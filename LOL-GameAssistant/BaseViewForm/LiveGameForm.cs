@@ -289,9 +289,11 @@ namespace LOL_GameAssistant.BaseViewForm
                 var phase = Program.GameMain.gameFlowPhase;
                 if (force || !IsRenderablePhase(phase))
                 {
+                    long revision = Program.GameMain.GameFlowRevision;
                     string? livePhase = await _lobbyService.GetGameFlowPhaseAsync();
-                    Program.GameMain?.ApplyGameFlowPhase(livePhase);
-                    if (Enum.TryParse(livePhase, true, out GameFlowPhase parsed)) phase = parsed;
+                    if (revision != Program.GameMain.GameFlowRevision) return;
+                    Program.GameMain.ApplyGameFlowPhase(livePhase, revision);
+                    phase = Program.GameMain.gameFlowPhase;
                 }
 
                 if (phase == GameFlowPhase.ChampSelect)

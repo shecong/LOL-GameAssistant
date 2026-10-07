@@ -8,7 +8,7 @@ namespace LOL_GameAssistant.Application.LeagueClient;
 /// </summary>
 public interface ILeagueClientEventStream : IDisposable, IAsyncDisposable
 {
-    event Action<LeagueClientEvent>? EventReceived;
+    event Func<LeagueClientEvent, CancellationToken, Task>? EventReceived;
 
     event Action<string>? ErrorOccurred;
 

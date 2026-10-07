@@ -1,0 +1,5058 @@
+[
+  {
+    "Method": "baseline",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n\nia\n",
+        "Confidence": 0.63
+      }
+    ],
+    "Milliseconds": 44.4813
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.64
+      }
+    ],
+    "Milliseconds": 29.7564
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": " \u56FD        KL ei\n",
+        "Confidence": 0.23
+      }
+    ],
+    "Milliseconds": 36.3868
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": " \u56FD        KL ei\n",
+        "Confidence": 0.23
+      }
+    ],
+    "Milliseconds": 34.8314
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KL\n",
+        "Confidence": 0.42
+      }
+    ],
+    "Milliseconds": 58.3018
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "          \u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.8
+      }
+    ],
+    "Milliseconds": 63.4769
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "          \u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.8
+      }
+    ],
+    "Milliseconds": 58.329
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 54.6925
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 65.0778
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 62.0129
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KER\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 66.0884
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "|    KL BiH\n",
+        "Confidence": 0.33
+      }
+    ],
+    "Milliseconds": 65.8834
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "|    KL BiH\n",
+        "Confidence": 0.33
+      }
+    ],
+    "Milliseconds": 63.1791
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KE sith\n",
+        "Confidence": 0.52
+      }
+    ],
+    "Milliseconds": 31.9737
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KE sith\n",
+        "Confidence": 0.52
+      }
+    ],
+    "Milliseconds": 30.4454
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KE sith\n",
+        "Confidence": 0.52
+      }
+    ],
+    "Milliseconds": 27.883
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KL\n",
+        "Confidence": 0.42
+      }
+    ],
+    "Milliseconds": 44.565
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KL\n",
+        "Confidence": 0.42
+      }
+    ],
+    "Milliseconds": 41.0122
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KL\n",
+        "Confidence": 0.42
+      }
+    ],
+    "Milliseconds": 39.1196
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 41.4703
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 42.9918
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 39.792
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KER\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 44.4106
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KER\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 40.7802
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "KER\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 40.2261
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 28.4355
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 29.4783
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|         \u6025\u6025\u5C0F\u5B50         |\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 27.8167
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|         \u6025\u6025\u5C0F\u5B50         |\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 25.7616
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 51.8247
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "a         \u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 53.3884
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "a         \u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 55.234
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u4E45\u4E45\n\nRs Roy\n\n\u5C0F\u5B50\n",
+        "Confidence": 0.45
+      }
+    ],
+    "Milliseconds": 66.5492
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 53.6899
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.8
+      }
+    ],
+    "Milliseconds": 53.3973
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "BA \u548C\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.79
+      }
+    ],
+    "Milliseconds": 53.419
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|    \u6025\u6025\u5C0F\u5B50    |\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 50.816
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|    \u6025\u6025\u5C0F\u5B50    |\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 47.5759
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 28.0589
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 27.4443
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 27.2669
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u90B9 \u520D\n\nFU Lt\n\n\u5C0F\u5B50\n",
+        "Confidence": 0.34
+      }
+    ],
+    "Milliseconds": 62.2166
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 41.9875
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 41.4677
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u4E45\u4E45\n\nRs Roy\n\n\u5C0F\u5B50\n",
+        "Confidence": 0.45
+      }
+    ],
+    "Milliseconds": 56.3693
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 40.5934
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.8
+      }
+    ],
+    "Milliseconds": 40.1786
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "BA \u548C\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.79
+      }
+    ],
+    "Milliseconds": 45.9122
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 39.5078
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 40.926
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 35.3169
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n\n|\n",
+        "Confidence": 0.86
+      }
+    ],
+    "Milliseconds": 30.3418
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "          \u5173\u952E\u66B4\u51FB          |\n",
+        "Confidence": 0.82
+      }
+    ],
+    "Milliseconds": 35.5923
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "          \u5173\u952E\u66B4\u51FB          |\n",
+        "Confidence": 0.82
+      }
+    ],
+    "Milliseconds": 32.7261
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 49.7123
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "         ARBRE         |\n",
+        "Confidence": 0.37
+      }
+    ],
+    "Milliseconds": 58.8159
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "         ARBRE         |\n",
+        "Confidence": 0.37
+      }
+    ],
+    "Milliseconds": 55.3152
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 52.0253
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 49.977
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 50.1272
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 51.8222
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "    \u5173\u952E\u66B4\u51FB    |\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 52.2324
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "    \u5173\u952E\u66B4\u51FB    |\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 54.4919
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 28.9192
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 27.7464
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 27.3069
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 37.3999
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 36.3118
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 36.4844
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 38.404
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 37.7009
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 36.8182
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 39.15
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 41.6589
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 41.4677
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n\nEla Gz\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 39.5629
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 17.1662
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|         \u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 28.9366
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|         \u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 32.2217
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 41.1068
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "S|             \u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 47.7244
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "S|             \u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 49.2821
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "|\n\n\u548C\n\n\u6761\n\nTORY\n\n1\u0026\n\nR\n\nz\n\n18\n\n\u81EA\n\n\u6C42\n",
+        "Confidence": 0.52
+      }
+    ],
+    "Milliseconds": 71.4409
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 39.5987
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 38.7698
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 46.7759
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "| BRIER\n",
+        "Confidence": 0.26
+      }
+    ],
+    "Milliseconds": 51.6137
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "| BRIER\n",
+        "Confidence": 0.26
+      }
+    ],
+    "Milliseconds": 55.7758
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 16.8187
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 18.2199
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 16.0447
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.94
+      }
+    ],
+    "Milliseconds": 30.57
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.94
+      }
+    ],
+    "Milliseconds": 30.1923
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.94
+      }
+    ],
+    "Milliseconds": 29.835
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "|\n\n\u548C\n\n\u6761\n\nTORY\n\n1\u0026\n\nR\n\nz\n\n18\n\n\u81EA\n\n\u6C42\n",
+        "Confidence": 0.52
+      }
+    ],
+    "Milliseconds": 53.6206
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 29.6013
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 28.8444
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 0.82,
+    "Readings": [
+      {
+        "Text": "Aik\n\n\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 37.1878
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 33.9326
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 36.0012
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 21.3285
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 14.1632
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|             \u72D9\u795E\u98DE\u661F              |\n",
+        "Confidence": 0.76
+      }
+    ],
+    "Milliseconds": 23.8991
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|             \u72D9\u795E\u98DE\u661F              |\n",
+        "Confidence": 0.76
+      }
+    ],
+    "Milliseconds": 22.2192
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 38.5756
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "\u4E86            \u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 53.4632
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "\u4E86            \u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 49.8328
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 38.6263
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 37.6049
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 37.9791
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 39.0563
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|             \u72D9\u795E\u98DE\u661F              |\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 38.8819
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|             \u72D9\u795E\u98DE\u661F              |\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 40.5966
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 15.1658
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 15.2296
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 14.0383
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 27.6651
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 31.9576
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 30.0686
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 31.25
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 29.1107
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 29.006
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 29.2704
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 31.0346
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 29.4207
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 17.4708
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 11.143
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "               FF               |\n",
+        "Confidence": 0.62
+      }
+    ],
+    "Milliseconds": 19.2467
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "               FF               |\n",
+        "Confidence": 0.62
+      }
+    ],
+    "Milliseconds": 18.8761
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 43.6457
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "                 \u7259\u4ED9\u5B50                 |\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 42.4865
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "                 \u7259\u4ED9\u5B50                 |\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 41.3904
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 37.0106
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 38.8034
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 37.4178
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 40.4621
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "              \u7259\u4ED9\u5B50              |\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 43.0599
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "              \u7259\u4ED9\u5B50              |\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 43.6036
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 10.9328
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 11.3205
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 11.2613
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.84
+      }
+    ],
+    "Milliseconds": 33.0639
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.84
+      }
+    ],
+    "Milliseconds": 30.25
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.84
+      }
+    ],
+    "Milliseconds": 32.2822
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 26.2254
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 27.5571
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 26.4754
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 31.5486
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 31.2745
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 31.3842
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 41.6721
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "LJ)\n\n\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.73
+      }
+    ],
+    "Milliseconds": 35.4807
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "LJ)          \u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 32.9664
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "LJ)          \u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 34.834
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 53.9085
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|          \u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.8
+      }
+    ],
+    "Milliseconds": 61.6831
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|          \u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.8
+      }
+    ],
+    "Milliseconds": 57.2806
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.94
+      }
+    ],
+    "Milliseconds": 51.1069
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|               \u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 55.6149
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|               \u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 56.5155
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "| |\n\n\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 55.6286
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "| |    \u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 49.0376
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "| |    \u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 52.33
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 31.1215
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 29.9371
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 33.9334
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 40.1528
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 37.4314
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 39.0719
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.94
+      }
+    ],
+    "Milliseconds": 43.2744
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.94
+      }
+    ],
+    "Milliseconds": 38.4346
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.94
+      }
+    ],
+    "Milliseconds": 37.39
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 43.8093
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 44.0509
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 44.752
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6B8B\n\nim\n\nPal\n",
+        "Confidence": 0.53
+      },
+      {
+        "Text": "aa\n",
+        "Confidence": 0.4
+      },
+      {
+        "Text": "\u6B8B\u5FCD\n",
+        "Confidence": 0.86
+      }
+    ],
+    "Milliseconds": 265.5172
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "a\n\n\u5FCD\n",
+        "Confidence": 0.51
+      }
+    ],
+    "Milliseconds": 24.2499
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "7       \u6B8B\u5FCD       |\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 23.9704
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "7       \u6B8B\u5FCD       |\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 24.1099
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "AU\n",
+        "Confidence": 0.4
+      }
+    ],
+    "Milliseconds": 48.6793
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "sil       \u6B8B\u5FCD        |\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 51.752
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "sil       \u6B8B\u5FCD        |\n",
+        "Confidence": 0.72
+      }
+    ],
+    "Milliseconds": 53.29
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u6B8B\n\nTU\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 51.3722
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|              \u6B8B\u5FCD\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 50.3193
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u6B8B\n",
+        "Confidence": 0.69
+      }
+    ],
+    "Milliseconds": 44.9789
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u6B8B\n\nTi\n\nPa\n",
+        "Confidence": 0.52
+      }
+    ],
+    "Milliseconds": 53.916
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|           \u6B8B\u5FCD           |\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 51.2917
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|           \u6B8B\u5FCD           |\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 49.1643
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u6B8B\n\n\u300ALA\n\nPa\n",
+        "Confidence": 0.55
+      }
+    ],
+    "Milliseconds": 30.4817
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "",
+        "Confidence": 0
+      }
+    ],
+    "Milliseconds": 11.8495
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "",
+        "Confidence": 0
+      }
+    ],
+    "Milliseconds": 12.2334
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "AU\n",
+        "Confidence": 0.4
+      }
+    ],
+    "Milliseconds": 37.2285
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "",
+        "Confidence": 0
+      }
+    ],
+    "Milliseconds": 33.6565
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "",
+        "Confidence": 0
+      }
+    ],
+    "Milliseconds": 36.4307
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u6B8B\n\nTU\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 43.0436
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "",
+        "Confidence": 0
+      }
+    ],
+    "Milliseconds": 32.0121
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u6B8B\n",
+        "Confidence": 0.69
+      }
+    ],
+    "Milliseconds": 39.8997
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "\u6B8B\n\nTi\n\nPa\n",
+        "Confidence": 0.52
+      }
+    ],
+    "Milliseconds": 45.4037
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6B8B\u5FCD\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 38.8309
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6B8B\u5FCD\n",
+        "Confidence": 0.81
+      }
+    ],
+    "Milliseconds": 38.438
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n\n\u4F24\u5BB3\u7528 \u590D\u539F\u529B|\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 54.9927
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 31.5233
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "          \u6FD2\u6B7B\u609F\u9053          \u56FD\n",
+        "Confidence": 0.8
+      }
+    ],
+    "Milliseconds": 35.1247
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "          \u6FD2\u6B7B\u609F\u9053          \u56FD\n",
+        "Confidence": 0.8
+      }
+    ],
+    "Milliseconds": 35.0918
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 60.9336
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "          \u6FD2\u6B7B\u609F\u9053          |\n",
+        "Confidence": 0.84
+      }
+    ],
+    "Milliseconds": 61.1034
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "          \u6FD2\u6B7B\u609F\u9053          |\n",
+        "Confidence": 0.84
+      }
+    ],
+    "Milliseconds": 56.2497
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 53.3471
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "         \u6FD2\u6B7B\u609F\u9053          | |\n",
+        "Confidence": 0.64
+      }
+    ],
+    "Milliseconds": 56.8538
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "         \u6FD2\u6B7B\u609F\u9053          | |\n",
+        "Confidence": 0.64
+      }
+    ],
+    "Milliseconds": 59.1339
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 56.1948
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|    \u6FD2\u6B7B\u609F\u9053    |\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 60.1216
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|    \u6FD2\u6B7B\u609F\u9053    |\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 54.1261
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 32.6858
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 29.737
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 30.3289
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 43.6773
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 48.9027
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.87
+      }
+    ],
+    "Milliseconds": 43.529
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 45.5649
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 44.3227
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 43.1851
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 41.6061
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 46.9409
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.75
+      }
+    ],
+    "Milliseconds": 45.55
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n\n\u4F24\u5BB3\u7528 \u901F\u5EA6|\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 35.5366
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.67
+      }
+    ],
+    "Milliseconds": 27.1642
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|         \u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 26.2147
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|         \u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 27.9273
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 43.3621
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|              \u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 52.2092
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|              \u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 48.246
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 40.3804
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|               \u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 51.0778
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|               \u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 47.3894
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "| |\n\n\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 47.0303
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "| | Recon rR\n",
+        "Confidence": 0.29
+      }
+    ],
+    "Milliseconds": 50.9073
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "| | Recon rR\n",
+        "Confidence": 0.29
+      }
+    ],
+    "Milliseconds": 53.7767
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.67
+      }
+    ],
+    "Milliseconds": 24.5771
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.67
+      }
+    ],
+    "Milliseconds": 24.813
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.67
+      }
+    ],
+    "Milliseconds": 26.7471
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 30.9583
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 35.0778
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 36.3758
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 32.2876
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 31.355
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 30.0653
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 32.7147
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 0.8,
+    "Readings": [
+      {
+        "Text": "\u6218\u52A1\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.79
+      }
+    ],
+    "Milliseconds": 35.4285
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 0.8,
+    "Readings": [
+      {
+        "Text": "\u6218\u52A1\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.79
+      }
+    ],
+    "Milliseconds": 33.3157
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 23.2143
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 14.962
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "7          \u6273\u673A\u70BC\u72F1          |\n",
+        "Confidence": 0.84
+      }
+    ],
+    "Milliseconds": 24.1047
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "7          \u6273\u673A\u70BC\u72F1          |\n",
+        "Confidence": 0.84
+      }
+    ],
+    "Milliseconds": 23.6613
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 46.1634
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "sil    \u6273\u673A\u70BC\u72F1    |\n",
+        "Confidence": 0.68
+      }
+    ],
+    "Milliseconds": 48.1883
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 0.9,
+    "Readings": [
+      {
+        "Text": "sil    \u6273\u673A\u70BC\u72F1    |\n",
+        "Confidence": 0.68
+      }
+    ],
+    "Milliseconds": 49.0972
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 42.6448
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "|    RULER    |\n",
+        "Confidence": 0.5
+      }
+    ],
+    "Milliseconds": 46.1084
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "|    RULER    |\n",
+        "Confidence": 0.5
+      }
+    ],
+    "Milliseconds": 48.6013
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 39.2131
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|    \u6273\u673A\u70BC\u72F1    |\n",
+        "Confidence": 0.86
+      }
+    ],
+    "Milliseconds": 45.5942
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|    \u6273\u673A\u70BC\u72F1    |\n",
+        "Confidence": 0.86
+      }
+    ],
+    "Milliseconds": 45.0041
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.86
+      }
+    ],
+    "Milliseconds": 25.7446
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.86
+      }
+    ],
+    "Milliseconds": 20.2801
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.86
+      }
+    ],
+    "Milliseconds": 20.8028
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 32.4514
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 34.3105
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 32.1561
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 32.0838
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 30.0144
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.83
+      }
+    ],
+    "Milliseconds": 32.5748
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 29.219
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 29.2206
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 30.4437
+  },
+  {
+    "Method": "baseline",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "MatchScore": 0.6666666666666667,
+    "Readings": [
+      {
+        "Text": "\u593A\u4EBA\u91D1\n",
+        "Confidence": 0.73
+      },
+      {
+        "Text": "Ff\neg\n",
+        "Confidence": 0.38
+      },
+      {
+        "Text": "Fs\n",
+        "Confidence": 0.49
+      },
+      {
+        "Text": "|\n\naS\n",
+        "Confidence": 0.4
+      },
+      {
+        "Text": "|    7     |\n\u5728\u5168\n",
+        "Confidence": 0.7
+      },
+      {
+        "Text": "ON\n\n\u5728\u5168\n",
+        "Confidence": 0.69
+      },
+      {
+        "Text": "ee\n\n\u7528\u653B\u51FB\u6216\u6280\u80FD\u5BF9\u4E00\u4E2A\u82F1\u96C4\u9020\u6210\u4F24\u5BB3\u65F6\u4F1A\u9020\n\n\u6210\u989D\u5916\u9B54\u6CD5\u4F24\u5BB3\uFF0C\u5E76\u4E3A\u4F60\u63D0\u4F9B\u91D1\u5E01\u548C \u79FB\u52A8\n\n\u901F\u5EA6\u3002\n",
+        "Confidence": 0.92
+      },
+      {
+        "Text": "\u7528\u653B\u51FB\u6216\u6280\u80FD\u5BF9\u4E00\u4E2A\u82F1\u96C4\u9020\u6210\u4F24\u5BB3\u65F6\u4F1A\u9020\n\u6210\u989D\u5916\u5E7F\u6CD5\u4F24\u5BB3\uFF0C \u8C2D\u6676\u4F60\u63D0\u4F9B\u5168\u4E0B\u548C \u79FB\u52A8\n",
+        "Confidence": 0.82
+      },
+      {
+        "Text": "el\n\n\u7528\u653B\u51FB\u6216\u6280\u80FD\u5BF9\u4E00\u4E2A\u82F1\u96C4\u9020\u6210\u4F24\u5BB3\u65F6\u4F1A\u9020\n\n\u6210\u989D\u5916\n\n1\n\n\uFF0C\u5E76\u4E3A\u4F60\u63D0\u4F9B\u91D1\u5E01\u548C \u79FB\u52A8\n\nRE.\n",
+        "Confidence": 0.89
+      },
+      {
+        "Text": "?3\u7740\n",
+        "Confidence": 0.13
+      },
+      {
+        "Text": "| ~ Y\n",
+        "Confidence": 0.63
+      },
+      {
+        "Text": "",
+        "Confidence": 0
+      },
+      {
+        "Text": "TBI o\n",
+        "Confidence": 0.65
+      },
+      {
+        "Text": "TRIS o\n|\n",
+        "Confidence": 0.74
+      },
+      {
+        "Text": "IR he\n",
+        "Confidence": 0.42
+      }
+    ],
+    "Milliseconds": 1967.1622
+  },
+  {
+    "Method": "narrow-raw-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "MatchScore": 0.6666666666666667,
+    "Readings": [
+      {
+        "Text": "\u593A\u4EBA\u91D1\n",
+        "Confidence": 0.73
+      }
+    ],
+    "Milliseconds": 12.8302
+  },
+  {
+    "Method": "narrow-raw-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "            FS            F\n",
+        "Confidence": 0.43
+      }
+    ],
+    "Milliseconds": 16.939
+  },
+  {
+    "Method": "narrow-raw-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "            FS            F\n",
+        "Confidence": 0.43
+      }
+    ],
+    "Milliseconds": 18.8164
+  },
+  {
+    "Method": "narrow-contrast-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "FE\n",
+        "Confidence": 0.78
+      }
+    ],
+    "Milliseconds": 43.5201
+  },
+  {
+    "Method": "narrow-contrast-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "|            FE            a\n",
+        "Confidence": 0.58
+      }
+    ],
+    "Milliseconds": 41.4063
+  },
+  {
+    "Method": "narrow-contrast-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "|            FE            a\n",
+        "Confidence": 0.58
+      }
+    ],
+    "Milliseconds": 41.4401
+  },
+  {
+    "Method": "narrow-fixed150-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fs\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 37.9287
+  },
+  {
+    "Method": "narrow-fixed150-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "           \u593A\u4EBA\u91D1            \u56FD\n",
+        "Confidence": 0.64
+      }
+    ],
+    "Milliseconds": 45.7348
+  },
+  {
+    "Method": "narrow-fixed150-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "           \u593A\u4EBA\u91D1            \u56FD\n",
+        "Confidence": 0.64
+      }
+    ],
+    "Milliseconds": 46.8086
+  },
+  {
+    "Method": "narrow-adaptive-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fe\n",
+        "Confidence": 0.3
+      }
+    ],
+    "Milliseconds": 42.6131
+  },
+  {
+    "Method": "narrow-adaptive-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "MatchScore": 0.6666666666666667,
+    "Readings": [
+      {
+        "Text": "|            \u593A\u4EBA\u91D1            |\n",
+        "Confidence": 0.77
+      }
+    ],
+    "Milliseconds": 45.0026
+  },
+  {
+    "Method": "narrow-adaptive-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "MatchScore": 0.6666666666666667,
+    "Readings": [
+      {
+        "Text": "|            \u593A\u4EBA\u91D1            |\n",
+        "Confidence": 0.77
+      }
+    ],
+    "Milliseconds": 41.9783
+  },
+  {
+    "Method": "tight-raw-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "MatchScore": 0.6666666666666667,
+    "Readings": [
+      {
+        "Text": "\u593A\u4EBA\u91D1\n",
+        "Confidence": 0.77
+      }
+    ],
+    "Milliseconds": 10.4789
+  },
+  {
+    "Method": "tight-raw-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "MatchScore": 0.6666666666666667,
+    "Readings": [
+      {
+        "Text": "\u593A\u4EBA\u91D1\n",
+        "Confidence": 0.77
+      }
+    ],
+    "Milliseconds": 10.6595
+  },
+  {
+    "Method": "tight-raw-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "MatchScore": 0.6666666666666667,
+    "Readings": [
+      {
+        "Text": "\u593A\u4EBA\u91D1\n",
+        "Confidence": 0.77
+      }
+    ],
+    "Milliseconds": 13.0138
+  },
+  {
+    "Method": "tight-contrast-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fs\n",
+        "Confidence": 0.28
+      }
+    ],
+    "Milliseconds": 28.3365
+  },
+  {
+    "Method": "tight-contrast-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fs\n",
+        "Confidence": 0.28
+      }
+    ],
+    "Milliseconds": 28.2397
+  },
+  {
+    "Method": "tight-contrast-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fs\n",
+        "Confidence": 0.28
+      }
+    ],
+    "Milliseconds": 29.3084
+  },
+  {
+    "Method": "tight-fixed150-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fs\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 29.7556
+  },
+  {
+    "Method": "tight-fixed150-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fs\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 29.7888
+  },
+  {
+    "Method": "tight-fixed150-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fs\n",
+        "Confidence": 0.49
+      }
+    ],
+    "Milliseconds": 27.3912
+  },
+  {
+    "Method": "tight-adaptive-SparseText",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fe\n",
+        "Confidence": 0.3
+      }
+    ],
+    "Milliseconds": 32.8784
+  },
+  {
+    "Method": "tight-adaptive-SingleLine",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fe\n",
+        "Confidence": 0.3
+      }
+    ],
+    "Milliseconds": 30.2673
+  },
+  {
+    "Method": "tight-adaptive-SingleBlock",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "MatchScore": null,
+    "Readings": [
+      {
+        "Text": "Fe\n",
+        "Confidence": 0.3
+      }
+    ],
+    "Milliseconds": 35.5094
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u706B\u4E0A\u6D47\u6CB9\n",
+        "Confidence": 0.64
+      }
+    ],
+    "Milliseconds": 29.7564
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u6025\u5C0F\u5B50\n",
+        "Confidence": 0.88
+      }
+    ],
+    "Milliseconds": 29.4783
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image1",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u5173\u952E\u66B4\u51FB\n\n|\n",
+        "Confidence": 0.86
+      }
+    ],
+    "Milliseconds": 30.3418
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n",
+        "Confidence": 0.93
+      }
+    ],
+    "Milliseconds": 17.1662
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u72D9\u795E\u98DE\u661F\n",
+        "Confidence": 0.91
+      }
+    ],
+    "Milliseconds": 14.1632
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image2",
+    "Tier": "gold",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u7259\u4ED9\u5B50\n",
+        "Confidence": 0.9
+      }
+    ],
+    "Milliseconds": 11.143
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "LJ)\n\n\u7EC8\u6781\u5524\u9192\n",
+        "Confidence": 0.73
+      }
+    ],
+    "Milliseconds": 35.4807
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "|              \u6B8B\u5FCD\n",
+        "Confidence": 0.85
+      }
+    ],
+    "Milliseconds": 74.5692
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image3",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6FD2\u6B7B\u609F\u9053\n",
+        "Confidence": 0.89
+      }
+    ],
+    "Milliseconds": 31.5233
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n",
+        "Confidence": 0.67
+      }
+    ],
+    "Milliseconds": 27.1642
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "MatchScore": 1,
+    "Readings": [
+      {
+        "Text": "\u6273\u673A\u70BC\u72F1\n",
+        "Confidence": 0.92
+      }
+    ],
+    "Milliseconds": 14.962
+  },
+  {
+    "Method": "narrow-raw-then-fixed",
+    "Sample": "image4",
+    "Tier": "prismatic",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "MatchScore": 0.6666666666666667,
+    "Readings": [
+      {
+        "Text": "\u593A\u4EBA\u91D1\n",
+        "Confidence": 0.73
+      }
+    ],
+    "Milliseconds": 12.8302
+  }
+]

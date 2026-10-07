@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
@@ -12,10 +13,11 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
 {
     private readonly IAiCoachingService _context = AppCompositionRoot.AiCoachingService;
     private readonly IOpggBuildApplyService _builds = AppCompositionRoot.OpggBuildApplyService;
-    private readonly IAugmentScanner _scanner = AppCompositionRoot.AugmentScanner;
+    private readonly IAugmentScanner _scanner;
     private readonly IAugmentInfoService _augments = AppCompositionRoot.AugmentInfoService;
     private readonly IGameAssetService _assets = AppCompositionRoot.GameAssetService;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 6000 };
+    private readonly System.Windows.Forms.Timer _visibilityTimer = new() { Interval = 1000 };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Top, Height = 54, ForeColor = Color.LightGray };
     private readonly AntdUI.Input _recommendations = TextPanel();
@@ -44,14 +46,16 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     private bool _sawOfferGap;
     private DateTimeOffset _lastAutoScanAt;
     private int _autoScanMisses;
-    private bool _excludedFromCapture;
     private bool _titleMousePressed;
     private bool _titleDragging;
     private Point _titleMouseDownScreen;
 
     /// <summary>初始化 MayhemOverlayForm 的实例状态。</summary>
-    public MayhemOverlayForm()
+    public MayhemOverlayForm() : this(AppCompositionRoot.AugmentScanner) { }
+
+    internal MayhemOverlayForm(IAugmentScanner scanner)
     {
+        _scanner = scanner;
         Text = "海克斯增幅推荐";
         AntdWindowChrome.Configure(this);
         EnableHitTest = false;
@@ -101,12 +105,14 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         Controls.Add(title);
         _scan.Click += async (_, _) => await ScanAsync();
         _timer.Tick += async (_, _) => await PollAsync();
+        _visibilityTimer.Tick += (_, _) => MaintainOverlayVisibility();
         UiLanguage.Changed += LanguageChanged;
         Disposed += (_, _) =>
         {
             _lifetime.Cancel();
             UiLanguage.Changed -= LanguageChanged;
             _timer.Dispose();
+            _visibilityTimer.Dispose();
             _lifetime.Dispose();
         };
     }
@@ -152,9 +158,9 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        // The sidebar overlaps the right offer on smaller screens. Keep it visible
-        // to the player without including it in CopyFromScreen screenshots.
-        _excludedFromCapture = SetWindowDisplayAffinity(Handle, 0x11); // WDA_EXCLUDEFROMCAPTURE
+        // Capture exclusion is temporary while OCR captures the cards. A permanent
+        // exclusion makes the sidebar disappear from screenshots and screen sharing.
+        SetWindowDisplayAffinity(Handle, 0);
     }
 
     /// <summary>启动当前对象的持续跟踪流程。</summary>
@@ -165,7 +171,10 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         _tracking = true;
         _status.Text = UiLanguage.T("正在读取当前对局与海克斯数据…");
         if (!Visible) Show();
+        RaiseWithoutActivation();
         _timer.Start();
+        _visibilityTimer.Start();
+        RuntimeDiagnostics.Report("增幅浮窗", "已启动", "已开启局内侧栏跟踪");
         _ = PollAsync();
     }
 
@@ -175,11 +184,36 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         if (IsDisposed) return;
         _tracking = false;
         _timer.Stop();
+        _visibilityTimer.Stop();
         if (_collapsed) Expand();
         _lastOfferKey = _dismissedOfferKey = _pendingOfferKey = "";
         _pendingOfferScans = 0;
         _sawOfferGap = false;
         Hide();
+    }
+
+    /// <summary>游戏重新成为前台后恢复层级，不依赖网络请求或 OCR 是否完成。</summary>
+    private void MaintainOverlayVisibility()
+    {
+        if (!_tracking || _scanning || IsDisposed || !Visible) return;
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return;
+        GetWindowThreadProcessId(foreground, out uint processId);
+        try
+        {
+            using var process = Process.GetProcessById((int)processId);
+            if (string.Equals(process.ProcessName, "League of Legends", StringComparison.OrdinalIgnoreCase))
+                RaiseWithoutActivation();
+        }
+        catch (ArgumentException) { } // Foreground process exited during the check.
+    }
+
+    private void RaiseWithoutActivation()
+    {
+        if (!IsHandleCreated || IsDisposed || !Visible) return;
+        // TOPMOST | NOMOVE | NOSIZE | NOACTIVATE: preserve dragging and game input focus.
+        if (!SetWindowPos(Handle, (IntPtr)(-1), 0, 0, 0, 0, 0x0013))
+            RuntimeDiagnostics.Report("增幅浮窗", "置顶失败", $"Windows 错误 {Marshal.GetLastWin32Error()}");
     }
 
     /// <summary>收起浮窗并保留恢复入口。</summary>
@@ -390,17 +424,10 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     {
         if (_scanning) return;
         _scanning = true;
-        Point? originalLocation = null;
         try
         {
-            if (!_excludedFromCapture && Visible)
-            {
-                // Older Windows builds do not support WDA_EXCLUDEFROMCAPTURE.
-                // Move the sidebar outside the virtual desktop for this capture.
-                originalLocation = Location;
-                Location = new Point(SystemInformation.VirtualScreen.Right + 32, Top);
-                await Task.Delay(80, _lifetime.Token);
-            }
+            // Capture only the central card region; keep the sidebar's position and
+            // display affinity stable to avoid a visible flash on each OCR pass.
             AugmentScanResult result = await _scanner.ScanAsync(_lifetime.Token);
             if (IsDisposed || _lifetime.IsCancellationRequested || !_tracking) return;
             if (result.AugmentIds.Count == 0)
@@ -454,7 +481,6 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         }
         finally
         {
-            if (originalLocation is Point location && !IsDisposed) Location = location;
             _scanning = false;
         }
     }
@@ -475,6 +501,17 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowDisplayAffinity(IntPtr window, uint affinity);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y,
+        int width, int height, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
     /// <summary>启动原生窗口拖动流程。</summary>
     private void Drag(MouseEventArgs e)

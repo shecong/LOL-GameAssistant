@@ -1,541 +1,251 @@
-﻿using System.Net.WebSockets;
+using System.Net.WebSockets;
 using System.Text;
 
-namespace LOL_GameAssistant.Helper
+namespace LOL_GameAssistant.Helper;
+
+public sealed class WebSocketClientOptions
 {
-    /// <summary>
-    /// WebSocket客户端，支持认证、心跳和自动重连
-    /// </summary>
-    public class WebSocketClient : IDisposable, IAsyncDisposable
+    public int MaxMessageBytes { get; init; } = 1024 * 1024;
+    public TimeSpan FragmentTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
+}
+
+/// <summary>每条连接只有一个接收/事件消费者；等待业务处理提供背压，不创建消息任务队列。</summary>
+public class WebSocketClient : IDisposable, IAsyncDisposable
+{
+    private readonly Uri _uri;
+    private readonly string? _token;
+    private readonly WebSocketClientOptions _options;
+    private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private ClientWebSocket? _socket;
+    private CancellationTokenSource? _lifetime;
+    private Task? _runTask;
+    private volatile bool _isRunning;
+    private volatile bool _reconnectEnabled = true;
+    private int _reconnectDelayMs = 5000;
+    private int _maxReconnectDelayMs = 30000;
+    private int _disposed;
+
+    public bool IsConnected => _isRunning && _socket?.State == WebSocketState.Open;
+    public event Action<string>? OnMessage;
+    public event Func<string, CancellationToken, Task>? OnMessageAsync;
+    public event Action<Exception>? OnError;
+    public event Action<bool>? OnConnectChanged;
+    public event Action<string>? OnReconnecting;
+    public bool ReconnectEnabled { get => _reconnectEnabled; set => _reconnectEnabled = value; }
+    public int ReconnectDelayMs { get => _reconnectDelayMs; set => _reconnectDelayMs = Math.Max(1000, value); }
+    public int MaxReconnectDelayMs { get => _maxReconnectDelayMs; set => _maxReconnectDelayMs = Math.Max(1000, value); }
+
+    public WebSocketClient(string url, string? token = null, WebSocketClientOptions? options = null)
     {
-        private ClientWebSocket? _socket;
-        private CancellationTokenSource _cts;
-        private readonly string _url;
-        private readonly string? _token;
-        private volatile bool _isRunning;
-        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
-        private CancellationTokenSource? _heartbeatCts;
-        private Task? _receiveTask;
-        private Task? _heartbeatTask;
+        _uri = new Uri(url ?? throw new ArgumentNullException(nameof(url)));
+        if (_uri.Scheme is not ("ws" or "wss")) throw new ArgumentException("Expected a WebSocket URL.", nameof(url));
+        _token = token;
+        _options = options ?? new();
+        if (_options.MaxMessageBytes is < 1 or > 16 * 1024 * 1024 ||
+            _options.FragmentTimeout <= TimeSpan.Zero || _options.FragmentTimeout > TimeSpan.FromMinutes(5) ||
+            _options.ConnectTimeout <= TimeSpan.Zero || _options.ConnectTimeout > TimeSpan.FromMinutes(5))
+            throw new ArgumentException("Invalid WebSocket limits.", nameof(options));
+    }
 
-        // 自动重连字段
-        private bool _reconnectEnabled = true;
+    public void StopReconnect() => _reconnectEnabled = false;
 
-        private int _reconnectDelayMs = 5000;
-        private int _maxReconnectDelayMs = 30000;
-        private CancellationTokenSource? _reconnectCts;
-        private Task? _reconnectTask;
-        private volatile bool _disposed;
-
-        /// <summary>
-        /// 当前连接状态
-        /// </summary>
-        public bool IsConnected => _socket?.State == WebSocketState.Open && _isRunning;
-
-        /// <summary>
-        /// 收到消息时触发
-        /// </summary>
-        public event Action<string>? OnMessage;
-
-        /// <summary>
-        /// 发生错误时触发
-        /// </summary>
-        public event Action<Exception>? OnError;
-
-        /// <summary>
-        /// 连接状态变化时触发
-        /// </summary>
-        public event Action<bool>? OnConnectChanged;
-
-        /// <summary>
-        /// 正在重连时触发，参数为描述文本
-        /// </summary>
-        public event Action<string>? OnReconnecting;
-
-        /// <summary>
-        /// 是否启用自动重连
-        /// </summary>
-        public bool ReconnectEnabled
+    public async Task ConnectAsync()
+    {
+        Task<bool> firstAttempt;
+        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        try
         {
-            get => _reconnectEnabled;
-            set => _reconnectEnabled = value;
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            if (_runTask is { IsCompleted: false }) throw new InvalidOperationException("客户端已经在运行");
+            _lifetime?.Dispose();
+            _lifetime = new CancellationTokenSource();
+            var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            firstAttempt = started.Task;
+            var cancellationToken = _lifetime.Token;
+            _runTask = Task.Run(() => RunConnectionLoopAsync(started, cancellationToken));
         }
+        finally { _lifecycle.Release(); }
+        await firstAttempt.ConfigureAwait(false);
+    }
 
-        /// <summary>
-        /// 重连初始延迟（毫秒），默认 5000
-        /// </summary>
-        public int ReconnectDelayMs
+    private ClientWebSocket CreateSocket()
+    {
+        var socket = new ClientWebSocket();
+        if (!string.IsNullOrEmpty(_token)) socket.Options.SetRequestHeader("Authorization", $"Basic {_token}");
+        // 本机 LCU 使用自签名证书；远程目标仍执行正常证书校验。
+        if (_uri.Host == "127.0.0.1")
+            socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+        return socket;
+    }
+
+    private async Task RunConnectionLoopAsync(TaskCompletionSource<bool> started, CancellationToken lifetime)
+    {
+        int attempt = 0;
+        int delay = Math.Min(_reconnectDelayMs, _maxReconnectDelayMs);
+        try
         {
-            get => _reconnectDelayMs;
-            set => _reconnectDelayMs = Math.Max(1000, value);
-        }
-
-        /// <summary>
-        /// 重连最大延迟（毫秒），默认 30000
-        /// </summary>
-        public int MaxReconnectDelayMs
-        {
-            get => _maxReconnectDelayMs;
-            set => _maxReconnectDelayMs = Math.Max(1000, value);
-        }
-
-        /// <summary>
-        /// 构造函数
-        /// </summary>
-        /// <param name="url">WebSocket服务器地址</param>
-        /// <param name="token">认证令牌（可选）</param>
-        public WebSocketClient(string url, string? token = null)
-        {
-            _url = url ?? throw new ArgumentNullException(nameof(url));
-            _token = token;
-            _cts = new CancellationTokenSource();
-        }
-
-        /// <summary>
-        /// 停止自动重连
-        /// </summary>
-        public void StopReconnect()
-        {
-            _reconnectEnabled = false;
-            try { _reconnectCts?.Cancel(); }
-            catch (ObjectDisposedException) { }
-        }
-
-        /// <summary>
-        /// 连接到WebSocket服务器
-        /// </summary>
-        /// <exception cref="InvalidOperationException">已经连接</exception>
-        /// <exception cref="Exception">连接失败</exception>
-        public async Task ConnectAsync()
-        {
-            if (_isRunning)
-                throw new InvalidOperationException("客户端已经在运行");
-
-            // 清理之前的连接
-            await CleanupAsync().ConfigureAwait(true);
-
-            _socket = new ClientWebSocket();
-
-            // 添加认证头（Basic认证）
-            if (!string.IsNullOrEmpty(_token))
+            while (!lifetime.IsCancellationRequested)
             {
-                _socket.Options.SetRequestHeader("Authorization", $"Basic {_token}");
-            }
-
-            // 跳过SSL验证（仅用于本地测试）
-            _socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
-
-            try
-            {
-                // 连接到服务器
-                await _socket.ConnectAsync(new Uri(_url), _cts.Token).ConfigureAwait(false);
-                _isRunning = true;
-
-                // 触发连接状态变化事件（异步触发，不等待）
-                _ = Task.Run(() => OnConnectChanged?.Invoke(true));
-
-                // 启动接收循环
-                _receiveTask = Task.Run(() => ReceiveLoopAsync(), _cts.Token);
-
-                // 启动心跳任务
-                _heartbeatCts = new CancellationTokenSource();
-                _heartbeatTask = Task.Run(() => HeartbeatLoopAsync(), _heartbeatCts.Token);
-            }
-            catch (Exception ex)
-            {
-                _isRunning = false;
-                // 异步触发错误事件
-                _ = Task.Run(() => OnError?.Invoke(new Exception($"连接失败: {ex.Message}", ex)));
-
-                // 连接失败时启动重连，让客户端持续检测
-                _reconnectEnabled = true;
-                _ = Task.Run(() => StartReconnectLoopAsync());
-            }
-        }
-
-        /// <summary>
-        /// 清理资源
-        /// </summary>
-        private async Task CleanupAsync()
-        {
-            _isRunning = false;
-
-            // 停止重连
-            CancellationTokenSource? reconnectCts = _reconnectCts;
-            if (reconnectCts != null)
-            {
-                try { reconnectCts.Cancel(); }
-                catch (ObjectDisposedException) { }
-            }
-
-            // 停止心跳任务
-            CancellationTokenSource? heartbeatCts = Interlocked.Exchange(ref _heartbeatCts, null);
-            if (heartbeatCts != null)
-            {
-                try { await heartbeatCts.CancelAsync().ConfigureAwait(false); }
-                catch (ObjectDisposedException) { }
-                finally { heartbeatCts.Dispose(); }
-            }
-
-            // 断线回调和窗口退出可能同时清理连接。先取走实例，确保每个资源只释放一次。
-            ClientWebSocket? socket = Interlocked.Exchange(ref _socket, null);
-            if (socket != null)
-            {
+                bool connected = false;
+                using var session = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+                using var socket = CreateSocket();
+                _socket = socket;
+                Task? heartbeat = null;
                 try
                 {
-                    if (socket.State == WebSocketState.Open)
-                    {
-                        using var closeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-                        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "清理连接", closeTimeout.Token)
-                            .ConfigureAwait(false);
-                    }
+                    using var connect = CancellationTokenSource.CreateLinkedTokenSource(session.Token);
+                    connect.CancelAfter(_options.ConnectTimeout);
+                    await socket.ConnectAsync(_uri, connect.Token).ConfigureAwait(false);
+                    connected = _isRunning = true;
+                    if (attempt > 0)
+                        await SendOnSocketAsync(socket, "[5, \"OnJsonApiEvent\"]", session.Token).ConfigureAwait(false);
+                    Notify(OnConnectChanged, true);
+                    started.TrySetResult(true);
+                    if (attempt > 0) Notify(OnReconnecting, "WebSocket 重连成功");
+                    delay = Math.Min(_reconnectDelayMs, _maxReconnectDelayMs);
+                    heartbeat = HeartbeatAsync(socket, session);
+                    await WebSocketMessagePump.RunAsync(socket, DispatchMessageAsync,
+                        (message, token) => SendOnSocketAsync(socket, message, token), _options, session.Token)
+                        .ConfigureAwait(false);
                 }
-                catch (Exception)
+                catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+                catch (Exception ex) { ReportError(new Exception($"WebSocket 连接或接收失败: {ex.Message}", ex)); }
+                finally
                 {
-                    // 远端断开或其他清理方先行释放时无需阻止窗口退出。
+                    _isRunning = false;
+                    session.Cancel();
+                    socket.Abort();
+                    if (heartbeat != null)
+                    {
+                        try { await heartbeat.ConfigureAwait(false); }
+                        catch (OperationCanceledException) { }
+                    }
+                    Interlocked.CompareExchange(ref _socket, null, socket);
+                    if (connected) Notify(OnConnectChanged, false);
+                    started.TrySetResult(false);
                 }
-                finally { socket.Dispose(); }
-            }
-
-            // 等待任务完成，但设置超时
-            var tasks = new List<Task>();
-            if (_receiveTask != null && !_receiveTask.IsCompleted)
-                tasks.Add(_receiveTask);
-            if (_heartbeatTask != null && !_heartbeatTask.IsCompleted)
-                tasks.Add(_heartbeatTask);
-
-            if (tasks.Count > 0)
-            {
-                await Task.WhenAny(Task.WhenAll(tasks), Task.Delay(1000)).ConfigureAwait(false);
-            }
-        }
-
-        /// <summary>
-        /// 发送消息到服务器
-        /// </summary>
-        /// <param name="message">要发送的消息</param>
-        /// <exception cref="InvalidOperationException">未连接</exception>
-        public async Task SendAsync(string message)
-        {
-            var socket = _socket;
-            if (socket == null || !IsConnected) return;
-
-            await _sendLock.WaitAsync(_cts.Token).ConfigureAwait(false);
-            try
-            {
-                var buffer = Encoding.UTF8.GetBytes(message);
-                await socket.SendAsync(
-                    new ArraySegment<byte>(buffer),
-                    WebSocketMessageType.Text,
-                    true,
-                    _cts.Token
-                ).ConfigureAwait(false);
-            }
-            finally
-            {
-                _sendLock.Release();
+                if (lifetime.IsCancellationRequested || !_reconnectEnabled) break;
+                attempt++;
+                Notify(OnReconnecting, $"正在重连... 第 {attempt} 次尝试，等待 {delay / 1000} 秒");
+                await Task.Delay(delay, lifetime).ConfigureAwait(false);
+                delay = (int)Math.Min((long)delay * 2, _maxReconnectDelayMs);
             }
         }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        finally { started.TrySetResult(false); }
+    }
 
-        /// <summary>
-        /// 接收消息的循环
-        /// </summary>
-        private async Task ReceiveLoopAsync()
+    private async Task DispatchMessageAsync(string message, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        foreach (Action<string> handler in OnMessage?.GetInvocationList() ?? [])
         {
-            var buffer = new byte[4096];
-            var segments = new List<ArraySegment<byte>>();
+            try { handler(message); }
+            catch (Exception ex) { ReportError(ex); }
+        }
+        foreach (Func<string, CancellationToken, Task> handler in OnMessageAsync?.GetInvocationList() ?? [])
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try { await handler(message, cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) { ReportError(ex); }
+        }
+    }
 
-            while (_isRunning && !_cts.Token.IsCancellationRequested)
+    private async Task HeartbeatAsync(ClientWebSocket socket, CancellationTokenSource session)
+    {
+        try
+        {
+            while (!session.IsCancellationRequested)
             {
-                try
-                {
-                    if (_socket == null || _socket.State != WebSocketState.Open)
-                    {
-                        await Task.Delay(100, _cts.Token).ConfigureAwait(false);
-                        continue;
-                    }
-
-                    var result = await _socket.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token).ConfigureAwait(false);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            await CleanupAsync().ConfigureAwait(false);
-                            _ = Task.Run(() => OnConnectChanged?.Invoke(false));
-                            _ = Task.Run(() => StartReconnectLoopAsync());
-                        });
-                        break;
-                    }
-
-                    // ReceiveAsync 会复用 buffer；每帧必须保留自己的字节副本。
-                    segments.Add(new ArraySegment<byte>(buffer[..result.Count].ToArray()));
-
-                    if (!result.EndOfMessage)
-                        continue;
-
-                    // 拼接完整消息
-                    var totalBytes = segments.Sum(s => s.Count);
-                    var messageBytes = new byte[totalBytes];
-                    var offset = 0;
-
-                    foreach (var segment in segments)
-                    {
-                        if (segment.Array == null) continue;
-                        Buffer.BlockCopy(segment.Array, segment.Offset, messageBytes, offset, segment.Count);
-                        offset += segment.Count;
-                    }
-
-                    segments.Clear();
-                    var message = Encoding.UTF8.GetString(messageBytes);
-
-                    // 异步触发消息事件
-                    _ = Task.Run(() => OnMessage?.Invoke(message));
-
-                    // 处理 LCU 心跳消息（协议格式 [8,"PING"]，同时兼容裸文本 PING）
-                    if (message == "[8,\"PING\"]" || message == "PING")
-                        _ = Task.Run(() => SendAsync("[8,\"PONG\"]"));
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (WebSocketException)
-                {
-                    if (_isRunning)
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            await CleanupAsync().ConfigureAwait(false);
-                            _ = Task.Run(() => OnConnectChanged?.Invoke(false));
-                            _ = Task.Run(() => StartReconnectLoopAsync());
-                        });
-                    }
-                    break;
-                }
-                catch (Exception)
-                {
-                    if (_isRunning)
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            await CleanupAsync().ConfigureAwait(false);
-                            _ = Task.Run(() => OnConnectChanged?.Invoke(false));
-                            _ = Task.Run(() => StartReconnectLoopAsync());
-                        });
-                    }
-                    break;
-                }
+                await Task.Delay(TimeSpan.FromSeconds(30), session.Token).ConfigureAwait(false);
+                await SendOnSocketAsync(socket, "[8,\"PING\"]", session.Token).ConfigureAwait(false);
             }
         }
-
-        /// <summary>
-        /// 心跳循环，定期发送心跳消息
-        /// </summary>
-        private async Task HeartbeatLoopAsync()
+        catch (OperationCanceledException) when (session.IsCancellationRequested) { }
+        catch (Exception ex)
         {
-            while (_isRunning && _heartbeatCts?.Token.IsCancellationRequested != true)
-            {
-                try
-                {
-                    var cts = _heartbeatCts;
-                    if (cts == null) break;
-                    await Task.Delay(TimeSpan.FromSeconds(30), cts.Token).ConfigureAwait(false);
-
-                    if (IsConnected)
-                    {
-                        // LCU WebSocket 心跳使用 JSON 数组格式 [8,"PING"]
-                        _ = Task.Run(() => SendAsync("[8,\"PING\"]"));
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    // 异步触发错误事件
-                    _ = Task.Run(() => OnError?.Invoke(ex));
-                }
-            }
+            ReportError(ex);
+            session.Cancel();
+            socket.Abort();
         }
+    }
 
-        /// <summary>
-        /// 自动重连循环（指数退避）
-        /// </summary>
-        private async Task StartReconnectLoopAsync()
+    public async Task SendAsync(string message)
+    {
+        var socket = _socket;
+        var lifetime = _lifetime;
+        if (socket == null || lifetime == null || !IsConnected) return;
+        await SendOnSocketAsync(socket, message, lifetime.Token).ConfigureAwait(false);
+    }
+
+    private async Task SendOnSocketAsync(ClientWebSocket socket, string message, CancellationToken cancellationToken)
+    {
+        await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            // 防止多个重连循环同时运行
-            if (!_reconnectEnabled || _disposed) return;
-            if (_reconnectTask != null && !_reconnectTask.IsCompleted)
-            {
-                return;
-            }
-
-            _reconnectCts = new CancellationTokenSource();
-            var token = _reconnectCts.Token;
-
-            _reconnectTask = Task.Run(async () =>
-            {
-                var delay = _reconnectDelayMs;
-                var attempt = 0;
-
-                while (_reconnectEnabled && !token.IsCancellationRequested && !_disposed)
-                {
-                    attempt++;
-                    var msg = $"正在重连... 第 {attempt} 次尝试，等待 {delay / 1000} 秒 (最多 {_maxReconnectDelayMs / 1000} 秒)";
-                    _ = Task.Run(() => OnReconnecting?.Invoke(msg));
-
-                    try
-                    {
-                        await Task.Delay(delay, token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-
-                    if (!_reconnectEnabled || token.IsCancellationRequested || _disposed) break;
-
-                    // 尝试重连
-                    try
-                    {
-                        // 清理旧 socket
-                        ClientWebSocket? previousSocket = Interlocked.Exchange(ref _socket, null);
-                        previousSocket?.Dispose();
-
-                        _socket = new ClientWebSocket();
-                        if (!string.IsNullOrEmpty(_token))
-                        {
-                            _socket.Options.SetRequestHeader("Authorization", $"Basic {_token}");
-                        }
-                        _socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
-
-                        await _socket.ConnectAsync(new Uri(_url), token).ConfigureAwait(false);
-
-                        // 重连成功
-                        _isRunning = true;
-
-                        // 重新订阅事件消息
-                        await SendAsync("[5, \"OnJsonApiEvent\"]").ConfigureAwait(false);
-
-                        // 重启子任务
-                        _heartbeatCts = new CancellationTokenSource();
-                        _heartbeatTask = Task.Run(() => HeartbeatLoopAsync(), _heartbeatCts.Token);
-                        _receiveTask = Task.Run(() => ReceiveLoopAsync(), _cts.Token);
-
-                        _ = Task.Run(() => OnConnectChanged?.Invoke(true));
-                        _ = Task.Run(() => OnReconnecting?.Invoke("WebSocket 重连成功"));
-
-                        // 重置重连延迟
-                        delay = _reconnectDelayMs;
-
-                        return; // 退出重连循环
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _isRunning = false;
-                        var errMsg = $"重连失败 (第 {attempt} 次): {ex.Message}";
-                        _ = Task.Run(() => OnError?.Invoke(new Exception(errMsg, ex)));
-                        _ = Task.Run(() => OnReconnecting?.Invoke(errMsg));
-
-                        // 指数退避，上限 maxReconnectDelayMs
-                        delay = Math.Min(delay * 2, _maxReconnectDelayMs);
-                    }
-                }
-            }, token);
-
-            try
-            {
-                await _reconnectTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                // 正常取消，无需处理
-            }
+            if (socket.State != WebSocketState.Open) return;
+            var bytes = Encoding.UTF8.GetBytes(message);
+            await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cancellationToken)
+                .ConfigureAwait(false);
         }
+        finally { _sendLock.Release(); }
+    }
 
-        /// <summary>
-        /// 关闭WebSocket连接
-        /// </summary>
-        public async Task CloseAsync()
+    private void Notify<T>(Action<T>? handlers, T value)
+    {
+        foreach (Action<T> handler in handlers?.GetInvocationList() ?? [])
         {
-            var wasRunning = _isRunning;
+            try { handler(value); }
+            catch (Exception ex) { ReportError(ex); }
+        }
+    }
+
+    private void ReportError(Exception error)
+    {
+        foreach (Action<Exception> handler in OnError?.GetInvocationList() ?? [])
+        {
+            try { handler(error); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.Message); }
+        }
+    }
+
+    public async Task CloseAsync()
+    {
+        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        try
+        {
             StopReconnect();
-            await CleanupAsync().ConfigureAwait(false);
-
-            if (wasRunning)
-            {
-                // 异步触发连接状态变化事件
-                _ = Task.Run(() => OnConnectChanged?.Invoke(false));
-            }
-        }
-
-        /// <summary>
-        /// 释放资源
-        /// </summary>
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _cts?.Cancel();
+            _lifetime?.Cancel();
             _socket?.Abort();
-            _ = FinishDisposeAsync();
+            if (_runTask != null) await _runTask.ConfigureAwait(false);
+            _runTask = null;
+            _lifetime?.Dispose();
+            _lifetime = null;
         }
-
-        /// <summary>等待连接清理完成并结束异步释放流程。</summary>
-        private async Task FinishDisposeAsync()
-        {
-            try { await DisposeAsync().ConfigureAwait(false); }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"WebSocket 清理失败: {ex.Message}"); }
-        }
-
-        /// <summary>
-        /// 异步释放资源
-        /// </summary>
-        public async ValueTask DisposeAsync()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            _cts?.Cancel();
-            _isRunning = false;
-
-            StopReconnect();
-            await CleanupAsync().ConfigureAwait(false);
-
-            _cts?.Dispose();
-            _heartbeatCts?.Dispose();
-            _reconnectCts?.Dispose();
-            _sendLock?.Dispose();
-
-            GC.SuppressFinalize(this);
-        }
+        finally { _lifecycle.Release(); }
     }
 
-    /// <summary>
-    /// WebSocket客户端（简化版本，无重试机制）
-    /// </summary>
-    public class SimpleWebSocketClient : WebSocketClient, IDisposable, IAsyncDisposable
+    public void Dispose() => _ = FinishDisposeAsync();
+
+    private async Task FinishDisposeAsync()
     {
-        /// <summary>
-        /// 构造函数
-        /// </summary>
-        /// <param name="url">WebSocket服务器地址</param>
-        /// <param name="token">认证令牌（可选）</param>
-        public SimpleWebSocketClient(string url, string? token = null)
-            : base(url, token)
-        {
-        }
-
-        /// <summary>
-        /// 异步释放资源
-        /// </summary>
-        public new async ValueTask DisposeAsync()
-        {
-            await base.DisposeAsync().ConfigureAwait(false);
-        }
+        try { await DisposeAsync().ConfigureAwait(false); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.Message); }
     }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        await CloseAsync().ConfigureAwait(false);
+        _lifetime?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}
+
+public class SimpleWebSocketClient : WebSocketClient
+{
+    public SimpleWebSocketClient(string url, string? token = null) : base(url, token) { }
 }

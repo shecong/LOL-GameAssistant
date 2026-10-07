@@ -44,7 +44,11 @@ public static class AugmentNameMatcher
             string joined = normalizedLines[index];
             for (int next = index + 1; next < Math.Min(index + 3, normalizedLines.Length); next++)
             {
-                joined += normalizedLines[next];
+                // Do not turn isolated Latin OCR noise into a plausible English title.
+                string fragment = normalizedLines[next];
+                if (HasChinese(joined) != HasChinese(fragment) ||
+                    (!HasChinese(joined) && (joined.Length < 3 || fragment.Length < 3))) break;
+                joined += fragment;
                 if (joined.Length > maxNameLength) break;
                 readings.Add(joined);
             }
@@ -53,16 +57,29 @@ public static class AugmentNameMatcher
         {
             foreach ((int id, string name) in candidates)
             {
+                bool chinese = HasChinese(name);
+                if (HasChinese(line) != chinese) continue;
+                if (line != name && !chinese && line.Length < 4) continue;
+                int distance = Distance(line, name);
+                // Short Chinese titles cannot safely tolerate arbitrary substitutions.
+                // Still allow one inserted/deleted character, e.g. 夺人金 -> 夺金.
+                if (chinese && name.Length <= 3 && line != name &&
+                    !(Math.Abs(line.Length - name.Length) == 1 && distance == 1)) continue;
                 double score = line == name ? 1 :
                     line.Contains(name, StringComparison.Ordinal) ? 0.9 :
-                    name.Contains(line, StringComparison.Ordinal) && line.Length >= 3 ? 0.82 :
-                    1d - (double)Distance(line, name) / Math.Max(line.Length, name.Length);
-                if (score >= 0.66) result.Add((id, score));
+                    name.Contains(line, StringComparison.Ordinal) && line.Length >= (chinese ? 3 : 6) &&
+                        line.Length >= name.Length * 0.75 ? 0.82 :
+                    1d - (double)distance / Math.Max(line.Length, name.Length);
+                double threshold = chinese && name.Length <= 3 ? 0.66 : 0.75;
+                if (score >= threshold) result.Add((id, score));
             }
         }
         return result.OrderByDescending(item => item.Score)
             .DistinctBy(item => item.Id).Select(item => new AugmentNameMatch(item.Id, item.Score));
     }
+
+    private static bool HasChinese(string text) => text.Any(c =>
+        c is >= '\u3400' and <= '\u4dbf' or >= '\u4e00' and <= '\u9fff' or >= '\uf900' and <= '\ufaff');
 
     /// <summary>将配置或文本输入规范化为后续处理使用的形式。</summary>
     private static string Normalize(string text)

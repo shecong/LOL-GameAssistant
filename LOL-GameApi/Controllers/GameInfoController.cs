@@ -23,6 +23,7 @@ namespace LOL_GameApi.Controllers
         /// 获取最新游戏版本（DataDragon，带 6 小时缓存）。
         /// </summary>
         [HttpGet("version")]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("version")]
         public async Task<ActionResult<ApiResponse<string?>>> GetVersion(CancellationToken cancellationToken)
         {
             string? version = await _dataDragon.GetLatestVersionAsync(cancellationToken);

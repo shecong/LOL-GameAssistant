@@ -6,6 +6,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\LOL-GameAssistant\Helper\WebSocketClient.cs" Link="Helper\WebSocketClient.cs" />
+    <Compile Include="..\LOL-GameAssistant\Helper\WebSocketMessagePump.cs" Link="Helper\WebSocketMessagePump.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\GameData\IAugmentInfoService.cs" Link="Application\IAugmentInfoService.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Builds\AugmentRecommendationGroups.cs" Link="Application\AugmentRecommendationGroups.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\ChampionSelect\ChampionSelectionSnapshot.cs" Link="Domain\ChampionSelectionSnapshot.cs" />

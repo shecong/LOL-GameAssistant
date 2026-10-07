@@ -37,7 +37,8 @@
     <PackageReference Include="AntdUI" Version="2.4.12" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Management" Version="10.0.12" />
-    <PackageReference Include="Tesseract" Version="5.2.0" />
+    <PackageReference Include="Sdcb.SimdPaddleOCR" Version="1.4.2" />
+    <PackageReference Include="Sdcb.SimdPaddleOCR.Models.ChineseV6Small" Version="1.0.0" />
     <PackageReference Include="WindowsInput" Version="6.4.1" />
   </ItemGroup>
 
@@ -62,24 +63,17 @@
     <Content Include="Data\lane-knowledge.zh-CN.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Resources\tessdata\*.traineddata">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
     <Content Include="Resources\locale-en.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
     <EmbeddedResource Include="icon_16x16.ico" LogicalName="LOL_GameAssistant.AppIcon.ico" />
+    <Content Include="..\docs\licenses\SimdPaddleOCR\LICENSE.txt" Link="licenses\SimdPaddleOCR\LICENSE.txt">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\docs\licenses\SimdPaddleOCR\THIRD-PARTY-NOTICES.md" Link="licenses\SimdPaddleOCR\THIRD-PARTY-NOTICES.md">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
-
-  <!-- Tesseract's InteropDotNet loader reads its assembly location to find x64 native DLLs. -->
-  <Target Name="KeepTesseractOutsideBundle" BeforeTargets="_ComputeFilesToBundle" Condition="'$(PublishSingleFile)' == 'true'">
-    <ItemGroup>
-      <ResolvedFileToPublish Update="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.Filename)' == 'Tesseract'">
-        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-      </ResolvedFileToPublish>
-    </ItemGroup>
-  </Target>
 
 </Project>

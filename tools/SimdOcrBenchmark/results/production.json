@@ -1,0 +1,66 @@
+[
+  {
+    "Sample": "image1",
+    "Expected": [
+      "\u706B\u4E0A\u6D47\u6CB9",
+      "\u6025\u6025\u5C0F\u5B50",
+      "\u5173\u952E\u66B4\u51FB"
+    ],
+    "Actual": [
+      "\u706B\u4E0A\u6D47\u6CB9",
+      "\u6025\u6025\u5C0F\u5B50",
+      "\u5173\u952E\u66B4\u51FB"
+    ],
+    "Passed": true,
+    "Milliseconds": 278.948,
+    "Text": "\u706B\u4E0A\u6D47\u6CB9\n---\n\u6025\u6025\u5C0F\u5B50\n---\n\u5173\u952E\u66B4\u51FB"
+  },
+  {
+    "Sample": "image2",
+    "Expected": [
+      "\u6025\u901F\u4E4B\u8FFD\u6C42",
+      "\u72D9\u795E\u98DE\u661F",
+      "\u7259\u4ED9\u5B50"
+    ],
+    "Actual": [
+      "\u6025\u901F\u4E4B\u8FFD\u6C42",
+      "\u72D9\u795E\u98DE\u661F",
+      "\u7259\u4ED9\u5B50"
+    ],
+    "Passed": true,
+    "Milliseconds": 87.7475,
+    "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42\n---\n\u72D9\u795E\u98DE\u661F\n---\n\u7259\u4ED9\u5B50"
+  },
+  {
+    "Sample": "image3",
+    "Expected": [
+      "\u7EC8\u6781\u5524\u9192",
+      "\u6B8B\u5FCD",
+      "\u6FD2\u6B7B\u609F\u9053"
+    ],
+    "Actual": [
+      "\u7EC8\u6781\u5524\u9192",
+      "\u6B8B\u5FCD",
+      "\u6FD2\u6B7B\u609F\u9053"
+    ],
+    "Passed": true,
+    "Milliseconds": 73.8218,
+    "Text": "\u7EC8\u6781\u5524\u9192\n---\n\u6B8B\u5FCD\n---\n\u6FD2\u6B7B\u609F\u9053"
+  },
+  {
+    "Sample": "image4",
+    "Expected": [
+      "\u6218\u4E89\u4EA4\u54CD\u4E50",
+      "\u6273\u673A\u70BC\u72F1",
+      "\u593A\u91D1"
+    ],
+    "Actual": [
+      "\u6218\u4E89\u4EA4\u54CD\u4E50",
+      "\u6273\u673A\u70BC\u72F1",
+      "\u593A\u91D1"
+    ],
+    "Passed": true,
+    "Milliseconds": 78.2148,
+    "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50\n---\n\u6273\u673A\u70BC\u72F1\n---\n\u593A\u91D1"
+  }
+]

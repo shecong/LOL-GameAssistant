@@ -5,6 +5,33 @@ namespace LOL_GameAssistant.Tests;
 
 public sealed class AugmentNameMatcherTests
 {
+    [Theory]
+    [InlineData("残\n\n《LA\n\nPa\n")]
+    [InlineData("邹 刍\n\nFU Lt\n\n小子\n")]
+    public void CardTitle_RejectsObservedLatinNoise(string text)
+    {
+        var names = LOL_GameAssistant.Infrastructure.GameData.AugmentCatalog.GetAll()
+            .Where(item => item.Id >= 1000)
+            .SelectMany(item => new[] {(item.Id, item.Name), (item.Id, item.EnglishName ?? "")});
+        Assert.Null(AugmentNameMatcher.MatchCard(text, names));
+    }
+
+    [Fact]
+    public void ShortChineseTitle_AllowsInsertedCharacterButRejectsSubstitution()
+    {
+        (int Id, string Name)[] names = [(1001, "夺金"), (1002, "牙仙子")];
+        Assert.Equal(1001, AugmentNameMatcher.MatchCard("夺人金", names)?.Id);
+        Assert.Null(AugmentNameMatcher.MatchCard("牙先子", names));
+    }
+
+    [Fact]
+    public void EnglishTitle_RejectsShortSubstringButKeepsFullTitle()
+    {
+        (int Id, string Name)[] names = [(1001, "Slap Around"), (1002, "Witchful Thinking")];
+        Assert.Null(AugmentNameMatcher.MatchCard("lap\nful", names));
+        Assert.Equal(1001, AugmentNameMatcher.MatchCard("Slap\nAround", names)?.Id);
+    }
+
     [Fact]
     public void ExactCardTitleWinsOverNameContainedInTitle()
     {

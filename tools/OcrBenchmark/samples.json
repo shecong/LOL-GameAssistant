@@ -1,0 +1,6 @@
+[
+  {"Name":"image1","Tier":"gold","Path":"C:/Users/ADMINI~1/AppData/Local/Temp/codex-clipboard-871cea55-2a4b-4207-b1a5-339222e65165.png","X":0,"Y":0,"Width":2544,"Height":1353,"Expected":["火上浇油","急急小子","关键暴击"]},
+  {"Name":"image2","Tier":"gold","Path":"C:/Users/ADMINI~1/AppData/Local/Temp/codex-clipboard-e28457b5-4cb0-410d-9f52-70721154ecef.png","X":8,"Y":31,"Width":2544,"Height":1353,"Expected":["急速之追求","狙神飞星","牙仙子"]},
+  {"Name":"image3","Tier":"prismatic","Path":"C:/Users/ADMINI~1/AppData/Local/Temp/codex-clipboard-8a47fd8d-0a76-4d59-a6e3-0c83d14483d0.png","X":0,"Y":0,"Width":2544,"Height":1353,"Expected":["终极唤醒","残忍","濒死悟道"]},
+  {"Name":"image4","Tier":"prismatic","Path":"C:/Users/ADMINI~1/AppData/Local/Temp/codex-clipboard-2a1828a9-3135-4010-ab26-23d9b528f30a.png","X":8,"Y":31,"Width":2544,"Height":1353,"Expected":["战争交响乐","扳机炼狱","夺金"]}
+]

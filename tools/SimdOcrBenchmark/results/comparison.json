@@ -1,0 +1,218 @@
+[
+  {
+    "Model": "tiny",
+    "Sample": "image1",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "Text": "\u706B\u4E0A\u6D47\u6CB9",
+    "Milliseconds": 143.8558
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image1",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "Text": "\u6025\u6025\u5C0F\u5B50",
+    "Milliseconds": 12.5507
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image1",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "Text": "\u5173\u952E\u66B4\u51FB",
+    "Milliseconds": 5.748
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image2",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Milliseconds": 6.8599
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image2",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "Text": "\u72D9\u795E\n\u98DE\u661F",
+    "Milliseconds": 10.733
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image2",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": null,
+    "Text": "",
+    "Milliseconds": 2.6566
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image3",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "Text": "\u7EC8\u6781\u5524\u9192",
+    "Milliseconds": 5.8249
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image3",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "Text": "\u6B8B\u5FCD",
+    "Milliseconds": 6.7969
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image3",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "Text": "\u6FD2\u6B7B\u609F\u9053",
+    "Milliseconds": 5.7852
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image4",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Milliseconds": 14.4797
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image4",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "Text": "\u6273\u673A\u70BC\u72F1",
+    "Milliseconds": 7.2213
+  },
+  {
+    "Model": "tiny",
+    "Sample": "image4",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": null,
+    "Text": "\u91D1",
+    "Milliseconds": 4.3495
+  },
+  {
+    "Model": "small",
+    "Sample": "image1",
+    "Card": 1,
+    "Expected": "\u706B\u4E0A\u6D47\u6CB9",
+    "Actual": "\u706B\u4E0A\u6D47\u6CB9",
+    "Text": "\u706B\u4E0A\u6D47\u6CB9",
+    "Milliseconds": 65.9778
+  },
+  {
+    "Model": "small",
+    "Sample": "image1",
+    "Card": 2,
+    "Expected": "\u6025\u6025\u5C0F\u5B50",
+    "Actual": "\u6025\u6025\u5C0F\u5B50",
+    "Text": "\u6025\u6025\u5C0F\u5B50",
+    "Milliseconds": 11.2245
+  },
+  {
+    "Model": "small",
+    "Sample": "image1",
+    "Card": 3,
+    "Expected": "\u5173\u952E\u66B4\u51FB",
+    "Actual": "\u5173\u952E\u66B4\u51FB",
+    "Text": "\u5173\u952E\u66B4\u51FB",
+    "Milliseconds": 13.4106
+  },
+  {
+    "Model": "small",
+    "Sample": "image2",
+    "Card": 1,
+    "Expected": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Actual": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Text": "\u6025\u901F\u4E4B\u8FFD\u6C42",
+    "Milliseconds": 16.2343
+  },
+  {
+    "Model": "small",
+    "Sample": "image2",
+    "Card": 2,
+    "Expected": "\u72D9\u795E\u98DE\u661F",
+    "Actual": "\u72D9\u795E\u98DE\u661F",
+    "Text": "\u72D9\u795E\u98DE\u661F",
+    "Milliseconds": 12.9153
+  },
+  {
+    "Model": "small",
+    "Sample": "image2",
+    "Card": 3,
+    "Expected": "\u7259\u4ED9\u5B50",
+    "Actual": "\u7259\u4ED9\u5B50",
+    "Text": "\u7259\u4ED9\u5B50",
+    "Milliseconds": 10.7069
+  },
+  {
+    "Model": "small",
+    "Sample": "image3",
+    "Card": 1,
+    "Expected": "\u7EC8\u6781\u5524\u9192",
+    "Actual": "\u7EC8\u6781\u5524\u9192",
+    "Text": "\u7EC8\u6781\u5524\u9192",
+    "Milliseconds": 14.5065
+  },
+  {
+    "Model": "small",
+    "Sample": "image3",
+    "Card": 2,
+    "Expected": "\u6B8B\u5FCD",
+    "Actual": "\u6B8B\u5FCD",
+    "Text": "\u6B8B\u5FCD",
+    "Milliseconds": 11.5876
+  },
+  {
+    "Model": "small",
+    "Sample": "image3",
+    "Card": 3,
+    "Expected": "\u6FD2\u6B7B\u609F\u9053",
+    "Actual": "\u6FD2\u6B7B\u609F\u9053",
+    "Text": "\u6FD2\u6B7B\u609F\u9053",
+    "Milliseconds": 10.3612
+  },
+  {
+    "Model": "small",
+    "Sample": "image4",
+    "Card": 1,
+    "Expected": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Actual": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Text": "\u6218\u4E89\u4EA4\u54CD\u4E50",
+    "Milliseconds": 12.1739
+  },
+  {
+    "Model": "small",
+    "Sample": "image4",
+    "Card": 2,
+    "Expected": "\u6273\u673A\u70BC\u72F1",
+    "Actual": "\u6273\u673A\u70BC\u72F1",
+    "Text": "\u6273\u673A\u70BC\u72F1",
+    "Milliseconds": 12.2602
+  },
+  {
+    "Model": "small",
+    "Sample": "image4",
+    "Card": 3,
+    "Expected": "\u593A\u91D1",
+    "Actual": "\u593A\u91D1",
+    "Text": "\u593A\u91D1",
+    "Milliseconds": 15.4725
+  }
+]

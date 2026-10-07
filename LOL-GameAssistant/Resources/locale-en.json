@@ -18,7 +18,7 @@
   "大乱斗备战席优先级": "ARAM Bench Priorities",
   "设置英雄优先顺序，备战席出现比当前英雄优先级更高的英雄时自动交换。": "Set champion priority order and automatically swap when a higher-priority champion is available on the bench.",
   "海克斯增幅与 OCR": "Mayhem Augments & OCR",
-  "局内侧边栏展示英雄增幅推荐，按白银、黄金、棱彩切换。扫描当前增幅卡片后按英雄样本胜率排序；截图在本机内存中处理，识别需要完整的中英文语言资源。": "View champion augment recommendations by Silver, Gold, and Prismatic tiers. Scan current cards and rank them by champion sample win rate. Screenshots are processed locally in memory; complete Chinese and English OCR resources are required.",
+  "局内侧边栏展示英雄增幅推荐，按白银、黄金、棱彩切换。扫描当前增幅卡片后按英雄样本胜率排序；截图在本机内存中处理，识别模型已内置。": "View champion augment recommendations by Silver, Gold, and Prismatic tiers. Scan current cards and rank them by champion sample win rate. Screenshots are processed locally in memory; OCR models are built in.",
   "KDA 评估与自动发送": "KDA Assessments & Messages",
   "统计最近 30 天同模式有效对局的累计 KDA。选人通过客户端聊天汇总我方；对局发送蓝红双方，可按队伍汇总或单人一行。等待游戏就绪并位于前台后发送，开启和关闭即时保存。": "Evaluate cumulative KDA from valid same-mode games in the last 30 days. Champion-select messages summarize allies; in-game messages cover both teams, grouped by team or one player per line. Send when the game is ready and in the foreground. Switches save immediately.",
   "快捷喊话与热键": "Quick Messages & Hotkeys",

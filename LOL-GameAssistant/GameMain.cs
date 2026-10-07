@@ -58,6 +58,7 @@ namespace LOL_GameAssistant
         private readonly QuickMessageSenderController _quickMessageController;
         private bool _autoClientLaunchAttempted;
         private bool? _lastAntdDarkMode;
+        private long _gameFlowRevision;
 
         /// <summary>
         /// 游戏状态枚举
@@ -345,16 +346,22 @@ namespace LOL_GameAssistant
         /// 不能只依赖 WebSocket 事件：LCU 只在阶段"变化"时推送，订阅当下不会补发当前阶段，
         /// 因此启动或重连时可能一直停在旧值，导致"刷新"按钮点了没反应。
         /// </summary>
-        public void ApplyGameFlowPhase(string? phaseText)
+        internal long GameFlowRevision => Interlocked.Read(ref _gameFlowRevision);
+
+        public void ApplyGameFlowPhase(string? phaseText, long? expectedRevision = null)
         {
             if (string.IsNullOrEmpty(phaseText)) return;
             if (!Enum.TryParse(phaseText, true, out GameFlowPhase parsed)) return;
-
+            if (IsDisposed) return;
+            if (IsHandleCreated && InvokeRequired)
+            {
+                RunOnUiThread(() => ApplyGameFlowPhase(phaseText, expectedRevision));
+                return;
+            }
+            if (expectedRevision.HasValue && expectedRevision.Value != GameFlowRevision) return;
             gameFlowPhase = parsed;
-            string label = parsed.GetChineseName();
-            // 该全局阶段值可能由后台线程写入，表头更新统一切回 UI 线程
-            if (RunOnUiThread(() => { gameFlowPhaseName.Text = label; })) return;
-            gameFlowPhaseName.Text = label;
+            Interlocked.Increment(ref _gameFlowRevision);
+            gameFlowPhaseName.Text = parsed.GetChineseName();
         }
 
         /// <summary>
@@ -364,11 +371,13 @@ namespace LOL_GameAssistant
         {
             try
             {
+                long revision = Interlocked.Read(ref _gameFlowRevision);
                 string? phase = await _lobbyService.GetGameFlowPhaseAsync();
+                if (revision != Interlocked.Read(ref _gameFlowRevision)) return;
                 if (string.IsNullOrEmpty(phase)) return;
 
                 // 先写回全局阶段，否则 AddView 读到的是默认值，会什么都不做
-                ApplyGameFlowPhase(phase);
+                ApplyGameFlowPhase(phase, revision);
                 RefreshMayhemOverlaySetting();
                 RefreshChampSelectCompanionSetting();
                 _recommendationCoordinator.NotifyGamePhaseChanged(phase);
@@ -522,7 +531,9 @@ namespace LOL_GameAssistant
         {
             try
             {
+                long revision = Interlocked.Read(ref _gameFlowRevision);
                 string? phase = await _lobbyService.GetGameFlowPhaseAsync();
+                if (revision != Interlocked.Read(ref _gameFlowRevision)) return;
                 if (string.IsNullOrWhiteSpace(phase)) return;
                 if (RunOnUiThread(() => _ = SynchronizeCurrentGameFlowAsync())) return;
                 await gameflowphaseStatus(phase);
@@ -614,6 +625,7 @@ namespace LOL_GameAssistant
         private void WebSocketChange(bool connected)
         {
             if (RunOnUiThread(() => WebSocketChange(connected))) return;
+            Interlocked.Increment(ref _gameFlowRevision);
 
             if (connected)
             {
@@ -655,14 +667,20 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>处理基础设施已解析的 LCU 事件；表现层不再解析 WebSocket 原始 JSON。</summary>
-        private void LeagueClientEventReceived(LeagueClientEvent gameEvent)
+        private async Task LeagueClientEventReceived(LeagueClientEvent gameEvent, CancellationToken cancellationToken)
         {
-            if (RunOnUiThread(() => LeagueClientEventReceived(gameEvent))) return;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                await this.InvokeAsync(async token => await LeagueClientEventReceived(gameEvent, token), cancellationToken);
+                return;
+            }
 
             if (string.Equals(gameEvent.Uri, "/lol-gameflow/v1/gameflow-phase", StringComparison.Ordinal))
             {
                 RuntimeDiagnostics.Report("游戏流程", gameEvent.Data, "来自 LCU 游戏流程事件");
-                _ = gameflowphaseStatus(gameEvent.Data);
+                await gameflowphaseStatus(gameEvent.Data, cancellationToken);
                 infoMsg.AddMsg(gameEvent.Data);
             }
             else if (string.Equals(gameEvent.Uri, "/lol-matchmaking/v1/ready-check", StringComparison.Ordinal))
@@ -696,13 +714,20 @@ namespace LOL_GameAssistant
         /// 游戏流程状态处理
         /// </summary>
         /// <param name="statustype"></param>
-        private async Task gameflowphaseStatus(String? statustype)
+        private async Task gameflowphaseStatus(String? statustype, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrEmpty(statustype)) return;
             // 下面会直接操作对局页控件（AddView / ResetRosterCache），必须回到 UI 线程
-            if (RunOnUiThread(() => { _ = gameflowphaseStatus(statustype); })) return;
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                await this.InvokeAsync(async token => await gameflowphaseStatus(statustype, token), cancellationToken);
+                return;
+            }
 
             string phase = statustype.ToLowerInvariant();
+            long revision = Interlocked.Increment(ref _gameFlowRevision);
 
             //修改主页状态
             if (Enum.TryParse(statustype, true, out GameFlowPhase parsedPhase))
@@ -781,6 +806,8 @@ namespace LOL_GameAssistant
                     // 该局已经结束，清除对局页阵容和房间标识；下一局重新读取会话。
                     liveGameForm.ResetRosterCache();
                     await NotifyGameEndedAsync();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (revision != Interlocked.Read(ref _gameFlowRevision)) return;
                     TriggerPostGameAutomations();
                     _ = liveGameForm.AddView();
                     break;

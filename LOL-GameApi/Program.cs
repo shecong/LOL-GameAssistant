@@ -12,7 +12,27 @@
 
             builder.Services.AddControllers();
             // 注册业务服务（DataDragon 版本查询与缓存）
-            builder.Services.AddSingleton<LOL_GameApi.Services.DataDragonService>();
+            builder.Services.AddSingleton(TimeProvider.System);
+            builder.Services.AddOptions<Services.DataDragonOptions>()
+                .Bind(builder.Configuration.GetSection("DataDragon"))
+                .Validate(o => o.CacheDuration > TimeSpan.Zero && o.RequestTimeout > TimeSpan.Zero &&
+                    o.RequestTimeout <= TimeSpan.FromMinutes(1) && o.FailureCooldown > TimeSpan.Zero &&
+                    o.MaxFailureCooldown >= o.FailureCooldown && o.MaxFailureCooldown <= TimeSpan.FromHours(1) &&
+                    o.MaxResponseBytes is >= 1024 and <= 1024 * 1024, "Invalid DataDragon limits")
+                .ValidateOnStart();
+            builder.Services.AddHttpClient("DataDragon", client => client.Timeout = Timeout.InfiniteTimeSpan);
+            builder.Services.AddSingleton(sp => new Services.DataDragonService(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("DataDragon"),
+                sp.GetRequiredService<ILogger<Services.DataDragonService>>(),
+                sp.GetRequiredService<TimeProvider>(),
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Services.DataDragonOptions>>()));
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddPolicy("version", _ => System.Threading.RateLimiting.RateLimitPartition.GetConcurrencyLimiter(
+                    "version", _ => new System.Threading.RateLimiting.ConcurrencyLimiterOptions
+                    { PermitLimit = 32, QueueLimit = 0 }));
+            });
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
@@ -29,6 +49,7 @@
             // 全局异常处理中间件（统一错误响应）
             app.UseMiddleware<LOL_GameApi.Middleware.ExceptionHandlingMiddleware>();
 
+            app.UseRateLimiter();
             app.UseAuthorization();
 
             app.MapControllers();
