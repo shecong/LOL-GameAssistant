@@ -9,6 +9,32 @@ namespace LOL_GameAssistant.Infrastructure.LiveGame;
 /// </summary>
 internal static class LocalLiveClientDataReader
 {
+    public static async Task<IReadOnlyList<LOL_GameAssistant.Domain.LiveGame.LiveScoreboardPlayer>?> GetScoreboardAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await Client.GetAsync("https://127.0.0.1:2999/liveclientdata/playerlist", cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return null;
+            string content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return ParseScoreboard(content);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { return null; }
+    }
+
+    internal static IReadOnlyList<LOL_GameAssistant.Domain.LiveGame.LiveScoreboardPlayer> ParseScoreboard(string content) =>
+        JArray.Parse(content).OfType<JObject>().Select(player =>
+            new LOL_GameAssistant.Domain.LiveGame.LiveScoreboardPlayer(
+                player["riotId"]?.Value<string>() ??
+                    (player["riotIdGameName"]?.Value<string>() is { Length: > 0 } name
+                        ? name + (player["riotIdTagLine"]?.Value<string>() is { Length: > 0 } tag ? "#" + tag : "") : ""),
+                player["summonerName"]?.Value<string>() ?? "", player["team"]?.Value<string>() ?? "",
+                player["scores"]?["kills"]?.Value<int>() ?? 0,
+                player["scores"]?["deaths"]?.Value<int>() ?? 0,
+                player["scores"]?["assists"]?.Value<int>() ?? 0,
+                player["scores"]?["creepScore"]?.Value<int>() ?? 0,
+                player["scores"]?["wardScore"]?.Value<double>())).ToArray();
     private static readonly HttpClient Client;
 
     /// <summary>初始化 LocalLiveClientDataReader 使用的共享状态。</summary>

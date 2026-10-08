@@ -16,6 +16,8 @@ public sealed class AssistantSettings
     public string GameClientPath { get; set; } = "";
     public int WindowOpacityPercent { get; set; } = 100;
     public string HoldToTopHotkey { get; set; } = "Oem3";
+    public bool BattleOverlayEnabled { get; set; } = true;
+    public string BattleOverlayHotkey { get; set; } = "Oem3";
     public bool HoldToTopOnlyWhenLeagueFocused { get; set; } = true;
     public int QuickMessageSendIntervalSeconds { get; set; } = 3;
     public string QuickMessageCustomPhrases { get; set; } = "";
@@ -93,6 +95,7 @@ public sealed class AssistantSettings
         GameClientPath ??= "";
         WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
         HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
+        BattleOverlayHotkey = string.IsNullOrWhiteSpace(BattleOverlayHotkey) ? "Oem3" : BattleOverlayHotkey;
         QuickMessageCustomPhrases ??= "";
         QuickShoutBuiltInHotkey = string.IsNullOrWhiteSpace(QuickShoutBuiltInHotkey) ? "F6" : QuickShoutBuiltInHotkey;
         QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;

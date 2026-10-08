@@ -29,10 +29,18 @@ public sealed class WindowHoldController : IDisposable
 
     private readonly Form _window;
     private readonly LowLevelKeyboardProc _callback;
-    private readonly System.Windows.Forms.Timer _hotkeyWatch = new() { Interval = 120 };
+    private readonly System.Windows.Forms.Timer _hotkeyWatch = new() { Interval = 50 };
     private IntPtr _hook;
     private IntPtr _registeredHandle;
     private Keys _hotkey = Keys.Oem3;
+    private Keys _overlayKey = Keys.Oem3;
+    private Keys _registeredKey;
+    private bool _overlayEnabled;
+    private bool _registeredForOverlay;
+    private bool _holdingOverlay;
+    private Func<bool>? _canShowOverlay;
+    private Action<Rectangle>? _showOverlay;
+    private Action? _hideOverlay;
     private Dictionary<Keys, QuickShoutHotkeyAction> _gameHotkeys = new();
     private Action<QuickShoutHotkeyAction>? _shoutAction;
     private readonly Dictionary<int, QuickShoutHotkeyAction> _pressedGameHotkeys = new();
@@ -51,8 +59,8 @@ public sealed class WindowHoldController : IDisposable
         _window.HandleDestroyed += WindowHandleDestroyed;
         _hotkeyWatch.Tick += (_, _) =>
         {
-            if (_holding && ((GetAsyncKeyState((int)_hotkey) & 0x8000) == 0 ||
-                (_onlyWhenLeagueFocused && !IsLeagueForeground())))
+            if (_holding && (!IsHotkeyHeld(_registeredKey) ||
+                (_holdingOverlay ? !ShouldUseOverlay() : _onlyWhenLeagueFocused && !IsLeagueForeground())))
                 EndHold();
             RefreshRegistration();
         };
@@ -66,16 +74,36 @@ public sealed class WindowHoldController : IDisposable
         if (_holding) EndHold();
         if (_hotkey != newKey) UnregisterHoldHotkey();
         _hotkey = newKey;
+        _overlayKey = ParseGameHotkey(config.BattleOverlayHotkey, Keys.Oem3);
+        _overlayEnabled = config.BattleOverlayEnabled && !HasBattleOverlayHotkeyConflict(config);
         _onlyWhenLeagueFocused = config.HoldToTopOnlyWhenLeagueFocused;
         _window.Opacity = Math.Clamp(config.WindowOpacityPercent, 40, 100) / 100D;
         _nextRegisterAttempt = 0;
         RefreshRegistration();
     }
 
+    public void ConfigureBattleOverlay(Func<bool> canShow, Action<Rectangle> show, Action hide)
+    {
+        _canShowOverlay = canShow;
+        _showOverlay = show;
+        _hideOverlay = hide;
+    }
+
+    private bool ShouldUseOverlay() => _overlayEnabled && _canShowOverlay?.Invoke() == true && IsLeagueGameForeground();
+
+    internal static bool IsHotkeyHeld(Keys key, Func<int, bool> isDown) =>
+        isDown((int)(key & Keys.KeyCode)) &&
+        ((key & Keys.Control) == 0 || isDown((int)Keys.ControlKey)) &&
+        ((key & Keys.Alt) == 0 || isDown((int)Keys.Menu)) &&
+        ((key & Keys.Shift) == 0 || isDown((int)Keys.ShiftKey));
+
+    private static bool IsHotkeyHeld(Keys key) => IsHotkeyHeld(key, vk => (GetAsyncKeyState(vk) & 0x8000) != 0);
+
     /// <summary>设置页录入快捷键期间暂停注册，避免旧快捷键吃掉输入。</summary>
     public void SetCapturePaused(bool paused)
     {
         _capturePaused = paused;
+        if (paused && _holding) EndHold();
         _pressedGameHotkeys.Clear();
         if (paused) UnregisterHoldHotkey();
         else RefreshRegistration();
@@ -111,7 +139,8 @@ public sealed class WindowHoldController : IDisposable
                 candidates.Add((slot == 9 ? Keys.NumPad0 : Keys.NumPad1 + slot, (QuickShoutHotkeyAction)(100 + slot)));
         // 禁用冲突键，防止旧配置误触另一个动作；其它有效快捷键继续可用。
         return candidates.GroupBy(candidate => candidate.Key)
-            .Where(group => group.Count() == 1 && group.Key != ParseKey(config.HoldToTopHotkey))
+            .Where(group => group.Count() == 1 && group.Key != ParseKey(config.HoldToTopHotkey) &&
+                (!config.BattleOverlayEnabled || group.Key != ParseGameHotkey(config.BattleOverlayHotkey, Keys.Oem3)))
             .ToDictionary(group => group.Key, group => group.Single().Action);
     }
 
@@ -119,6 +148,20 @@ public sealed class WindowHoldController : IDisposable
     public static bool HasGameHotkeyConflict(AssistantSettings config) =>
         CreateGameHotkeyBindings(config).Count !=
         (config.QuickShoutHotkeysEnabled ? 3 : 0) + (config.GameKdaHotkeyEnabled ? 1 : 0) + (config.GameKdaPlayerHotkeysEnabled ? 10 : 0);
+
+    public static bool HasBattleOverlayHotkeyConflict(AssistantSettings config)
+    {
+        if (!config.BattleOverlayEnabled) return false;
+        if (!TryParseGameHotkey(config.BattleOverlayHotkey, out Keys key)) return true;
+        return (config.QuickShoutHotkeysEnabled && new[]
+            {
+                ParseGameHotkey(config.QuickShoutBuiltInHotkey, Keys.F6),
+                ParseGameHotkey(config.QuickShoutCustomHotkey, Keys.F7),
+                ParseGameHotkey(config.QuickShoutBatchHotkey, Keys.F8)
+            }.Contains(key)) ||
+            (config.GameKdaHotkeyEnabled && key == ParseGameHotkey(config.GameKdaHotkey, Keys.F9)) ||
+            (config.GameKdaPlayerHotkeysEnabled && key is >= Keys.NumPad0 and <= Keys.NumPad9);
+    }
 
     /// <summary>解析游戏热键配置并返回按键组合。</summary>
     private static Keys ParseGameHotkey(string? value, Keys fallback) =>
@@ -136,7 +179,8 @@ public sealed class WindowHoldController : IDisposable
             else if (part.Equals("Shift", StringComparison.OrdinalIgnoreCase)) key |= Keys.Shift;
             else
             {
-                string token = part.Length == 1 && char.IsAsciiDigit(part[0]) ? $"D{part}" : part;
+                string token = part is "·" or "`" or "~" ? "Oem3" :
+                    part.Length == 1 && char.IsAsciiDigit(part[0]) ? $"D{part}" : part;
                 if (!Enum.TryParse(token, true, out Keys parsed) || (key & Keys.KeyCode) != Keys.None ||
                     !IsGameHotkeyMainKey(parsed)) return false;
                 key |= parsed;
@@ -185,6 +229,8 @@ public sealed class WindowHoldController : IDisposable
     private void RefreshRegistration()
     {
         if (_disposed || !_window.IsHandleCreated) return;
+        bool overlay = ShouldUseOverlay();
+        Keys key = overlay ? _overlayKey : _hotkey;
         bool shouldRegister = !_capturePaused &&
             (!_onlyWhenLeagueFocused || IsLeagueForeground());
         if (!shouldRegister)
@@ -194,14 +240,19 @@ public sealed class WindowHoldController : IDisposable
             UnregisterHoldHotkey();
             return;
         }
-        if (_registeredHandle == _window.Handle) return;
+        if (_registeredHandle == _window.Handle && _registeredKey == key && _registeredForOverlay == overlay) return;
+        if (_holding) EndHold();
         if (Environment.TickCount64 < _nextRegisterAttempt) return;
         UnregisterHoldHotkey();
-        if (RegisterHotKey(_window.Handle, HoldHotkeyId, ModNoRepeat, (uint)_hotkey))
+        uint modifiers = ModNoRepeat | ((key & Keys.Control) != 0 ? 2u : 0) |
+            ((key & Keys.Alt) != 0 ? 1u : 0) | ((key & Keys.Shift) != 0 ? 4u : 0);
+        if (RegisterHotKey(_window.Handle, HoldHotkeyId, modifiers, (uint)(key & Keys.KeyCode)))
         {
             _registeredHandle = _window.Handle;
+            _registeredKey = key;
+            _registeredForOverlay = overlay;
             RuntimeDiagnostics.Report("按住置顶键", "已注册",
-                $"{DescribeKey(_hotkey)} · {(_onlyWhenLeagueFocused ? "仅 LOL 前台" : "所有窗口")}");
+                $"{FormatGameHotkey(key)} · {(overlay ? "对局信息面板" : _onlyWhenLeagueFocused ? "仅 LOL 前台" : "所有窗口")}");
         }
         else
         {
@@ -226,6 +277,10 @@ public sealed class WindowHoldController : IDisposable
         if (_disposed || _capturePaused || _registeredHandle == IntPtr.Zero || _holding)
             return true;
         if (_onlyWhenLeagueFocused && !IsLeagueForeground()) return true;
+        if (_registeredForOverlay && !ShouldUseOverlay()) return true;
+        // A queued WM_HOTKEY must not reopen the window after a quick tap has already ended.
+        if (!IsHotkeyHeld(_registeredKey)) return true;
+        _holdingOverlay = _registeredForOverlay;
         _holding = true;
         BeginHold();
         return true;
@@ -235,6 +290,15 @@ public sealed class WindowHoldController : IDisposable
     private void BeginHold()
     {
         if (_window.IsDisposed) return;
+        if (_holdingOverlay)
+        {
+            IntPtr foreground = GetForegroundWindow();
+            Rectangle bounds = Screen.FromHandle(foreground).Bounds;
+            if (GetWindowRect(foreground, out NativeRect rect) && rect.Right > rect.Left && rect.Bottom > rect.Top)
+                bounds = Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom);
+            _showOverlay?.Invoke(bounds);
+            return;
+        }
         ShowWindow(_window.Handle, SwShownoactivate);
         if (!SetWindowPos(_window.Handle, HwndTopmost, 0, 0, 0, 0,
             SwpNoMove | SwpNoSize | SwpNoActivate | SwpShowWindow))
@@ -253,6 +317,12 @@ public sealed class WindowHoldController : IDisposable
     private void EndHold()
     {
         _holding = false;
+        if (_holdingOverlay)
+        {
+            _holdingOverlay = false;
+            _hideOverlay?.Invoke();
+            return;
+        }
         if (_window.IsDisposed) return;
         SetWindowPos(_window.Handle, HwndNotopmost, 0, 0, 0, 0,
             SwpNoMove | SwpNoSize | SwpNoActivate);
@@ -359,6 +429,7 @@ public sealed class WindowHoldController : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        if (_holding) EndHold();
         _hotkeyWatch.Stop();
         _hotkeyWatch.Dispose();
         _window.HandleCreated -= WindowHandleCreated;
@@ -407,6 +478,13 @@ public sealed class WindowHoldController : IDisposable
     /// <summary>读取按键的当前异步状态。</summary>
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int virtualKey);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect { public int Left, Top, Right, Bottom; }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect rect);
 
     /// <summary>调用 Windows API 更新窗口显示状态。</summary>
     [DllImport("user32.dll")]

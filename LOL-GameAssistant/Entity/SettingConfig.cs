@@ -26,6 +26,12 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("holdToTopHotkey")]
         public string HoldToTopHotkey { get; set; } = "Oem3";
 
+        [JsonProperty("battleOverlayEnabled")]
+        public bool BattleOverlayEnabled { get; set; } = true;
+
+        [JsonProperty("battleOverlayHotkey")]
+        public string BattleOverlayHotkey { get; set; } = "Oem3";
+
         /// <summary>仅在 LOL 客户端或游戏窗口位于前台时响应置顶快捷键。</summary>
         [JsonProperty("holdToTopOnlyWhenLeagueFocused")]
         public bool HoldToTopOnlyWhenLeagueFocused { get; set; } = true;
@@ -190,6 +196,7 @@ namespace LOL_GameAssistant.Entity
             LanguageMode = LanguageMode == "en-US" ? "en-US" : "zh-CN";
             WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
             HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
+            BattleOverlayHotkey = string.IsNullOrWhiteSpace(BattleOverlayHotkey) ? "Oem3" : BattleOverlayHotkey;
             QuickMessageCustomPhrases ??= "";
             QuickShoutBuiltInHotkey = string.IsNullOrWhiteSpace(QuickShoutBuiltInHotkey) ? "F6" : QuickShoutBuiltInHotkey;
             QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;

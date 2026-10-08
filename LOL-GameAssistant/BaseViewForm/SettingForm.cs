@@ -101,6 +101,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Select _themeMode = new() { List = true, DropDownArrow = true, Width = 160, Height = UiMetrics.ControlHeight };
         private readonly AntdUI.Select _languageMode = new() { List = true, DropDownArrow = true, Width = 160, Height = UiMetrics.ControlHeight };
         private readonly AntdUI.Input _hotkey = new() { ReadOnly = true, Width = 160, TabStop = true };
+        private readonly AntdUI.Checkbox _battleOverlayEnabled = new() { Text = "启用局内双方对局信息面板", AutoSize = true };
+        private readonly AntdUI.Input _battleOverlayHotkey = new() { ReadOnly = true, Width = 200, TabStop = true };
         private readonly AntdUI.Checkbox _onlyLeagueFocused = new() { Text = "仅在 LOL 位于前台时响应", AutoSize = true };
         private QuickShoutForm? _quickShoutForm;
         private readonly AntdUI.Checkbox _recommendationEnabled = new() { Text = "启用 AI 时间线建议", AutoSize = true };
@@ -504,6 +506,17 @@ namespace LOL_GameAssistant.BaseViewForm
             _hotkey.Click += (_, _) => _hotkey.Focus();
             _hotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
             _hotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
+            _battleOverlayHotkey.KeyDown += (_, e) =>
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                if (!WindowHoldController.TryParseGameHotkey(WindowHoldController.FormatGameHotkey(e.KeyData), out Keys key)) return;
+                _battleOverlayHotkey.Tag = key;
+                _battleOverlayHotkey.Text = key == Keys.Oem3 ? "·" : WindowHoldController.FormatGameHotkey(key);
+            };
+            _battleOverlayHotkey.Click += (_, _) => _battleOverlayHotkey.Focus();
+            _battleOverlayHotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
+            _battleOverlayHotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
             _themeMode.Items.AddRange(new object[] { "跟随系统", "浅色", "深色" });
             _languageMode.Items.AddRange(new object[] { "中文", "English" });
             var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后隐藏到托盘；默认是键盘左上角的 · 键。\nWindows 会接管已注册的按键；快捷键不会注入或修改游戏客户端。");
@@ -518,10 +531,15 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 4, "快捷键范围：", _onlyLeagueFocused,
                 "开启时只有 LOL 位于前台才响应置顶键；关闭则任何窗口下都响应。");
             AddSegmentRow(layout, 5, "置顶说明：", holdNote);
-            AddSectionHeader(layout, 6, "窗口行为");
-            AddSegmentRow(layout, 7, "最小化到托盘：", swi_tray);
-            AddSegmentRow(layout, 8, "游戏分辨率：", select_resolution);
-            AddSaveRow(layout, 9, "保存窗口设置");
+            AddSectionHeader(layout, 6, "局内对局信息面板");
+            AddSegmentRow(layout, 7, "对局信息：", _battleOverlayEnabled);
+            AddSegmentRow(layout, 8, "面板快捷键：", _battleOverlayHotkey,
+                "默认 · 键，可设置单键或 Ctrl / Alt / Shift 组合键。按住显示，松开或切出游戏后隐藏。");
+            AddSegmentRow(layout, 9, "面板说明：", CreateNote("游戏位于前台时，面板快捷键显示独立的蓝红双方信息表，不抢焦点。\n启用后，游戏中使用面板快捷键；客户端或桌面仍使用上面的按住置顶键。\n可查看段位、赛季战绩、近期胜负、英雄样本胜率和本局 KDA / 补刀 / 视野得分。窗口或无边框模式下使用。"));
+            AddSectionHeader(layout, 10, "窗口行为");
+            AddSegmentRow(layout, 11, "最小化到托盘：", swi_tray);
+            AddSegmentRow(layout, 12, "游戏分辨率：", select_resolution);
+            AddSaveRow(layout, 13, "保存窗口设置");
             return panel;
         }
 
@@ -556,7 +574,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AssistantSettings latest = _settingsStore.Load();
             _quickShoutForm.WriteSettings(latest);
             if (WindowHoldController.HasGameHotkeyConflict(latest))
-                throw new InvalidOperationException("已启用的喊话、KDA 快捷键不能重复或与按住置顶键相同。");
+                throw new InvalidOperationException("已启用的喊话、KDA 快捷键不能重复或与按住置顶键、对局面板快捷键相同。");
             _settingsStore.Save(latest);
             _config = latest;
             Program.GameMain.ConfigureQuickShoutHotkeys(latest);
@@ -809,6 +827,10 @@ namespace LOL_GameAssistant.BaseViewForm
             Keys holdKey = WindowHoldController.ParseKey(_config.HoldToTopHotkey);
             _hotkey.Tag = holdKey;
             _hotkey.Text = WindowHoldController.DescribeKey(holdKey);
+            _battleOverlayEnabled.Checked = _config.BattleOverlayEnabled;
+            Keys overlayKey = WindowHoldController.TryParseGameHotkey(_config.BattleOverlayHotkey, out Keys parsedOverlay) ? parsedOverlay : Keys.Oem3;
+            _battleOverlayHotkey.Tag = overlayKey;
+            _battleOverlayHotkey.Text = overlayKey == Keys.Oem3 ? "·" : WindowHoldController.FormatGameHotkey(overlayKey);
             _onlyLeagueFocused.Checked = _config.HoldToTopOnlyWhenLeagueFocused;
             _quickShoutForm?.LoadSettings(_config);
 
@@ -843,6 +865,16 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (_isLoading) return;
 
+            AssistantSettings overlayCandidate = _settingsStore.Load();
+            overlayCandidate.BattleOverlayEnabled = _battleOverlayEnabled.Checked;
+            overlayCandidate.BattleOverlayHotkey = WindowHoldController.FormatGameHotkey(
+                _battleOverlayHotkey.Tag is Keys overlayKey ? overlayKey : Keys.Oem3);
+            if (WindowHoldController.HasBattleOverlayHotkeyConflict(overlayCandidate))
+            {
+                UiMessage.warn(Program.GameMain, "对局面板快捷键与喊话或 KDA 快捷键冲突，请更换按键后保存。");
+                return;
+            }
+
             _config.GameClientPath = _gameClientLauncher.NormalizeConfiguredDirectory(_clientPath.Text);
             _config.AutoLaunchGameClient = _autoLaunchClient.Checked;
             _config.WindowOpacityPercent = (int)_opacity.Value;
@@ -850,6 +882,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.LanguageMode = _languageMode.SelectedIndex == 1 ? "en-US" : "zh-CN";
             _config.HoldToTopHotkey = (_hotkey.Tag is Keys holdKey ? holdKey : WindowHoldController.ParseKey(_config.HoldToTopHotkey)).ToString();
             _config.HoldToTopOnlyWhenLeagueFocused = _onlyLeagueFocused.Checked;
+            _config.BattleOverlayEnabled = overlayCandidate.BattleOverlayEnabled;
+            _config.BattleOverlayHotkey = overlayCandidate.BattleOverlayHotkey;
 
             CloudAiSettings ai = _config.Ai;
             ai.RecommendationEnabled = _recommendationEnabled.Checked;

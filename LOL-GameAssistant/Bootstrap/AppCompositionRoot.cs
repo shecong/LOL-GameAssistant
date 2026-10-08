@@ -124,6 +124,9 @@ public static class AppCompositionRoot
     /// <summary>仅读取本机当前玩家实时状态的服务。</summary>
     public static ILiveClientGameStateService LiveClientGameStateService { get; } = new LiveClientGameStateService();
 
+    public static LOL_GameAssistant.Application.LiveGame.BattleOverlayService BattleOverlayService { get; } =
+        new(PlayerProfileService, RankedStatsService, MatchHistoryService);
+
     private static readonly ILaneKnowledgeService LaneKnowledgeService = new FileLaneKnowledgeService();
 
     private static readonly IAiGameContextService AiGameContextService = new AiGameContextService(

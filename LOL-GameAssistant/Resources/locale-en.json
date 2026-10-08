@@ -1,4 +1,13 @@
 {
+  "启用局内双方对局信息面板": "Enable in-game match details overlay",
+  "局内对局信息面板": "In-game Match Details",
+  "对局信息：": "Match details:",
+  "面板快捷键：": "Overlay hotkey:",
+  "面板说明：": "Overlay notes:",
+  "默认 · 键，可设置单键或 Ctrl / Alt / Shift 组合键。按住显示，松开或切出游戏后隐藏。": "Default: backtick. Set a single key or a Ctrl / Alt / Shift combination. Hold to show; release or switch away from the game to hide.",
+  "游戏位于前台时，面板快捷键显示独立的蓝红双方信息表，不抢焦点。\n启用后，游戏中使用面板快捷键；客户端或桌面仍使用上面的按住置顶键。\n可查看段位、赛季战绩、近期胜负、英雄样本胜率和本局 KDA / 补刀 / 视野得分。窗口或无边框模式下使用。": "Hold the overlay hotkey while the game is focused to view both teams without taking focus.\nWhen enabled, the game uses the overlay hotkey; the client and desktop use the hold-to-show key above.\nView ranks, season records, recent results, champion sample rates, and live KDA / CS / vision score. Use windowed or borderless mode.",
+  "对局面板快捷键与喊话或 KDA 快捷键冲突，请更换按键后保存。": "The overlay hotkey conflicts with a quick shout or KDA shortcut. Choose another key before saving.",
+  "已启用的喊话、KDA 快捷键不能重复或与按住置顶键、对局面板快捷键相同。": "Enabled quick shout and KDA shortcuts must be unique and cannot use the hold-to-show or overlay hotkey.",
   "功能说明": "Features",
   "常用网站": "Useful Websites",
   "打开网站": "Open website",

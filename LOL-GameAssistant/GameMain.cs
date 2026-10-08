@@ -24,6 +24,7 @@ namespace LOL_GameAssistant
         public readonly BattleQueryForm battleQueryForm = new BattleQueryForm();
         public readonly CoachForm coachForm = new CoachForm();
         private readonly MayhemOverlayForm _mayhemOverlay = new();
+        private readonly BattleOverlayForm _battleOverlay = new();
         private readonly ChampSelectCompanionForm _champSelectCompanion = new();
         public readonly DiagnosticsForm diagnosticsForm = new DiagnosticsForm();
 
@@ -182,6 +183,10 @@ namespace LOL_GameAssistant
             tabs1.Pages.Add(_diagnosticsTab);
             tabs1.Pages.Add(tabPage4);
             _windowHoldController = new WindowHoldController(this);
+            _windowHoldController.ConfigureBattleOverlay(
+                () => gameFlowPhase == GameFlowPhase.InProgress,
+                ShowBattleOverlay,
+                () => _battleOverlay.Hide());
             _quickMessageController = new QuickMessageSenderController(this);
             UiTheme.Changed += UiThemeChanged;
             UiLanguage.Changed += UiLanguageChanged;
@@ -195,6 +200,7 @@ namespace LOL_GameAssistant
         public void ApplyWindowSettings(AssistantSettings config)
         {
             _windowHoldController.Apply(config);
+            RefreshBattleOverlaySetting(config);
             ConfigureQuickShoutHotkeys(config);
             UiTheme.SetMode(config.ThemeMode);
             UiLanguage.SetMode(config.LanguageMode);
@@ -1328,6 +1334,7 @@ namespace LOL_GameAssistant
                 Cleanup(CancelAutoAccept);
                 Cleanup(StopOpggChampSelectMonitor);
                 Cleanup(() => _mayhemOverlay.Dispose());
+                Cleanup(() => _battleOverlay.Dispose());
                 Cleanup(() => _champSelectCompanion.Dispose());
                 Cleanup(StopPhaseDataLoad);
                 Cleanup(() => _lcuRetryCts?.Cancel());
@@ -1354,11 +1361,27 @@ namespace LOL_GameAssistant
         /// <summary>将当前设置同步到海克斯增幅浮窗的显示与跟踪状态。</summary>
         public void RefreshMayhemOverlaySetting()
         {
+            RefreshBattleOverlaySetting(_settingsStore.Load());
             if (IsDisposed || _mayhemOverlay.IsDisposed) return;
             if (gameFlowPhase == GameFlowPhase.InProgress && _settingsStore.Load().MayhemOverlayEnabled)
                 _mayhemOverlay.StartTracking();
             else
                 _mayhemOverlay.StopTracking();
+        }
+
+        private void ShowBattleOverlay(Rectangle bounds)
+        {
+            string hotkey = _settingsStore.Load().BattleOverlayHotkey;
+            _battleOverlay.ShowForGame(bounds, WindowHoldController.TryParseGameHotkey(hotkey, out Keys key) && key == Keys.Oem3 ? "·" : hotkey);
+        }
+
+        private void RefreshBattleOverlaySetting(AssistantSettings config)
+        {
+            if (IsDisposed || _battleOverlay.IsDisposed) return;
+            if (gameFlowPhase == GameFlowPhase.InProgress && config.BattleOverlayEnabled)
+                _battleOverlay.StartTracking();
+            else
+                _battleOverlay.StopTracking();
         }
 
         /// <summary>将当前设置同步到选人伴随窗的显示与跟踪状态。</summary>

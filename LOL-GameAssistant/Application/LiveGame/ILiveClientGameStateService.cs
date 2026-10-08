@@ -5,6 +5,8 @@ namespace LOL_GameAssistant.Application.LiveGame;
 /// <summary>读取本机 Live Client Data API 中允许展示的当前玩家状态。</summary>
 public interface ILiveClientGameStateService
 {
+    Task<IReadOnlyList<LiveScoreboardPlayer>?> GetScoreboardAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<LiveScoreboardPlayer>?>(null);
     /// <summary>读取当前玩家的金币、装备及游戏时间状态。</summary>
     Task<LivePlayerState?> GetOwnStateAsync(CancellationToken cancellationToken = default);
 
