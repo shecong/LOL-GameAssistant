@@ -416,7 +416,7 @@
             [Newtonsoft.Json.JsonProperty("playerAugment6")] public int PlayerAugment6 { get; set; }
 
             // 胜负结果
-            [Newtonsoft.Json.JsonProperty("win")] public bool Win { get; set; }
+            [Newtonsoft.Json.JsonProperty("win")] public bool? Win { get; set; }
 
             // 投降相关
             [Newtonsoft.Json.JsonProperty("causedEarlySurrender")] public bool CausedEarlySurrender { get; set; }

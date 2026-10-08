@@ -190,8 +190,11 @@ namespace LOL_GameAssistant.BaseViewForm
                 _copyTip.SetToolTip(this, $"PUUID: {_playerPuuid}");
             }
 
-            _glowTimer = new System.Windows.Forms.Timer { Interval = 15 };
+            components ??= new System.ComponentModel.Container();
+            _glowTimer = new System.Windows.Forms.Timer(components) { Interval = 15 };
             _glowTimer.Tick += (_, _) => GlowTick();
+            HandleDestroyed += (_, _) => StopGlow();
+            VisibleChanged += (_, _) => { if (!Visible) StopGlow(); };
             Disposed += (_, _) =>
             {
                 _lifetimeCancellation.Cancel();
@@ -867,6 +870,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>启动玩家卡片的高亮动画。</summary>
         private void StartGlow(bool hovering)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated || !Visible) return;
             // 子控件间移动不重启动画；反向过渡从当前亮度开始，避免边框突然跳亮。
             if (_glowTarget == hovering) return;
             _glowTarget = hovering;
@@ -875,16 +879,28 @@ namespace LOL_GameAssistant.BaseViewForm
             _glowTimer.Start();
         }
 
+        private void StopGlow()
+        {
+            _glowTimer.Stop();
+            _glowTarget = false;
+            _glowAlpha = 0;
+        }
+
         /// <summary>离开子控件时检查整张卡片，仍在卡片内则保留悬停状态。</summary>
         private void UpdateGlowFromPointer()
         {
-            if (!IsDisposed && IsHandleCreated)
+            if (!IsDisposed && !Disposing && IsHandleCreated && Visible)
                 StartGlow(ClientRectangle.Contains(PointToClient(Cursor.Position)));
         }
 
         /// <summary>推进高亮动画并触发重绘。</summary>
         private void GlowTick()
         {
+            if (IsDisposed || Disposing || !IsHandleCreated || !Visible)
+            {
+                _glowTimer.Stop();
+                return;
+            }
             _glowT = Math.Min(1, _glowT + 0.12);
             double eased = UiAnimation.EaseOutCubic(_glowT);
             _glowAlpha = _glowStartAlpha + ((_glowTarget ? 1 : 0) - _glowStartAlpha) * eased;

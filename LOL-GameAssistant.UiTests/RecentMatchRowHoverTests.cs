@@ -1,6 +1,9 @@
 using System.Reflection;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Teams;
+using LOL_GameAssistant.Application.Players;
+using LOL_GameAssistant.Application.Profiles;
+using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Helper;
 using Xunit;
@@ -9,6 +12,31 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class RecentMatchRowHoverTests
 {
+    [Fact]
+    public void DisposedPlayerCardCannotRestartGlowTimer() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var card = new LivePlayerForm(null, "preview", 0, "", false, false, false, 0, "",
+            Service<IPlayerProfileService>(), Service<IProfileIconService>(), Service<IMatchHistoryService>(),
+            Service<IGameAssetService>());
+        card.Dispose();
+        typeof(LivePlayerForm).GetMethod("StartGlow", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(card, new object[] { true });
+        Assert.False(Field<System.Windows.Forms.Timer>(card, "_glowTimer").Enabled);
+        Assert.False(card.IsHandleCreated);
+    });
+
+    [Fact]
+    public void LateMouseEnterAfterDisposalCannotRecreateAnimationWindow() =>
+        MatchListScrollingTests.OnUiThread(() =>
+        {
+            var row = new RecentMatchRow(Service<IGameAssetService>(), Service<IPremadeDetectionService>());
+            row.Dispose();
+            typeof(RecentMatchRow).GetMethod("StartHover", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(row, new object[] { true });
+            Assert.False(Field<System.Windows.Forms.Timer>(row, "_hoverTimer").Enabled);
+            Assert.False(row.IsHandleCreated);
+        });
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

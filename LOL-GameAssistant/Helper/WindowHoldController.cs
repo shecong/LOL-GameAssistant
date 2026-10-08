@@ -7,7 +7,7 @@ namespace LOL_GameAssistant.Helper;
 public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda, Player1 = 100, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10 }
 
 /// <summary>
-/// 置顶键由 Windows 注册热键触发，按键状态负责松开；喊话保留独立的键盘钩子。
+/// 置顶键使用 Windows 热键；局内面板同时检测按键状态，避免游戏拦截热键消息后无响应。
 /// </summary>
 public sealed class WindowHoldController : IDisposable
 {
@@ -35,6 +35,7 @@ public sealed class WindowHoldController : IDisposable
     private Keys _hotkey = Keys.Oem3;
     private Keys _overlayKey = Keys.Oem3;
     private Keys _registeredKey;
+    private Keys _holdingKey;
     private bool _overlayEnabled;
     private bool _registeredForOverlay;
     private bool _holdingOverlay;
@@ -59,9 +60,8 @@ public sealed class WindowHoldController : IDisposable
         _window.HandleDestroyed += WindowHandleDestroyed;
         _hotkeyWatch.Tick += (_, _) =>
         {
-            if (_holding && (!IsHotkeyHeld(_registeredKey) ||
-                (_holdingOverlay ? !ShouldUseOverlay() : _onlyWhenLeagueFocused && !IsLeagueForeground())))
-                EndHold();
+            ObserveHotkeyState(ShouldUseOverlay(), IsLeagueForeground(), IsCaptureActive,
+                CurrentGameModifiers(), vk => (GetAsyncKeyState(vk) & 0x8000) != 0);
             RefreshRegistration();
         };
         _hotkeyWatch.Start();
@@ -76,6 +76,9 @@ public sealed class WindowHoldController : IDisposable
         _hotkey = newKey;
         _overlayKey = ParseGameHotkey(config.BattleOverlayHotkey, Keys.Oem3);
         _overlayEnabled = config.BattleOverlayEnabled && !HasBattleOverlayHotkeyConflict(config);
+        RuntimeDiagnostics.Report("对局信息快捷键", _overlayEnabled ? "已启用" : "未启用",
+            _overlayEnabled ? $"{FormatGameHotkey(_overlayKey)} · 按住显示，松开隐藏 · 热键消息与按键状态双重检测" :
+                config.BattleOverlayEnabled ? "快捷键配置无效或与喊话 / KDA 冲突" : "已在设置中关闭");
         _onlyWhenLeagueFocused = config.HoldToTopOnlyWhenLeagueFocused;
         _window.Opacity = Math.Clamp(config.WindowOpacityPercent, 40, 100) / 100D;
         _nextRegisterAttempt = 0;
@@ -90,6 +93,26 @@ public sealed class WindowHoldController : IDisposable
     }
 
     private bool ShouldUseOverlay() => _overlayEnabled && _canShowOverlay?.Invoke() == true && IsLeagueGameForeground();
+
+    // Focus stays on a shortcut editor when the user Alt-Tabs away from the assistant.
+    // Suspend input only while that editor's window is actually in the foreground.
+    private bool IsCaptureActive => _capturePaused && _window.IsHandleCreated && GetForegroundWindow() == _window.Handle;
+
+    internal void ObserveHotkeyState(bool overlayAvailable, bool leagueFocused, bool captureActive,
+        Keys modifiers, Func<int, bool> isDown)
+    {
+        if (_disposed) return;
+        if (_holding && (captureActive || !IsHotkeyHeld(_holdingKey, isDown) ||
+            (_holdingOverlay ? !overlayAvailable : _onlyWhenLeagueFocused && !leagueFocused)))
+            EndHold();
+        if (_holding || captureActive || !_overlayEnabled || !overlayAvailable ||
+            modifiers != (_overlayKey & Keys.Modifiers) || !IsHotkeyHeld(_overlayKey, isDown)) return;
+
+        _holdingOverlay = true;
+        _holdingKey = _overlayKey;
+        _holding = true;
+        BeginHold();
+    }
 
     internal static bool IsHotkeyHeld(Keys key, Func<int, bool> isDown) =>
         isDown((int)(key & Keys.KeyCode)) &&
@@ -231,7 +254,7 @@ public sealed class WindowHoldController : IDisposable
         if (_disposed || !_window.IsHandleCreated) return;
         bool overlay = ShouldUseOverlay();
         Keys key = overlay ? _overlayKey : _hotkey;
-        bool shouldRegister = !_capturePaused &&
+        bool shouldRegister = !IsCaptureActive &&
             (!_onlyWhenLeagueFocused || IsLeagueForeground());
         if (!shouldRegister)
         {
@@ -241,7 +264,7 @@ public sealed class WindowHoldController : IDisposable
             return;
         }
         if (_registeredHandle == _window.Handle && _registeredKey == key && _registeredForOverlay == overlay) return;
-        if (_holding) EndHold();
+        if (_holding && !_holdingOverlay) EndHold();
         if (Environment.TickCount64 < _nextRegisterAttempt) return;
         UnregisterHoldHotkey();
         uint modifiers = ModNoRepeat | ((key & Keys.Control) != 0 ? 2u : 0) |
@@ -274,13 +297,14 @@ public sealed class WindowHoldController : IDisposable
     public bool HandleHotkey(IntPtr wParam)
     {
         if (wParam != (IntPtr)HoldHotkeyId) return false;
-        if (_disposed || _capturePaused || _registeredHandle == IntPtr.Zero || _holding)
+        if (_disposed || IsCaptureActive || _registeredHandle == IntPtr.Zero || _holding)
             return true;
         if (_onlyWhenLeagueFocused && !IsLeagueForeground()) return true;
         if (_registeredForOverlay && !ShouldUseOverlay()) return true;
         // A queued WM_HOTKEY must not reopen the window after a quick tap has already ended.
         if (!IsHotkeyHeld(_registeredKey)) return true;
         _holdingOverlay = _registeredForOverlay;
+        _holdingKey = _registeredKey;
         _holding = true;
         BeginHold();
         return true;
@@ -297,6 +321,7 @@ public sealed class WindowHoldController : IDisposable
             if (GetWindowRect(foreground, out NativeRect rect) && rect.Right > rect.Left && rect.Bottom > rect.Top)
                 bounds = Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom);
             _showOverlay?.Invoke(bounds);
+            RuntimeDiagnostics.Report("对局信息面板", "显示中", $"按住 {FormatGameHotkey(_holdingKey)} 查看双方信息");
             return;
         }
         ShowWindow(_window.Handle, SwShownoactivate);
@@ -321,6 +346,7 @@ public sealed class WindowHoldController : IDisposable
         {
             _holdingOverlay = false;
             _hideOverlay?.Invoke();
+            RuntimeDiagnostics.Report("对局信息面板", "已隐藏", "快捷键已松开、切出游戏或正在录入快捷键");
             return;
         }
         if (_window.IsDisposed) return;
@@ -358,7 +384,7 @@ public sealed class WindowHoldController : IDisposable
         bool keyDown = wParam == (IntPtr)WmKeyDown || wParam == (IntPtr)WmSysKeyDown;
         // 忽略注入事件，避免发送文字时递归触发；录入快捷键期间不拦截。
         bool injected = (Marshal.ReadInt32(lParam, 8) & 0x10) != 0;
-        if (!_capturePaused && !injected)
+        if (!IsCaptureActive && !injected)
         {
             if (keyDown && _pressedGameHotkeys.ContainsKey(virtualKey)) return (IntPtr)1;
             // 在主键按下时确定动作，松开 Ctrl / Alt / Shift 的先后顺序不影响触发。
@@ -383,10 +409,10 @@ public sealed class WindowHoldController : IDisposable
         // 等待组合键松开，避免仍按住 Ctrl / Alt 时把聊天回车变成另一条游戏命令。
         for (int attempt = 0; attempt < 50 && CurrentGameModifiers() != Keys.None; attempt++)
         {
-            if (_disposed || _capturePaused || !IsLeagueGameForeground()) return;
+            if (_disposed || IsCaptureActive || !IsLeagueGameForeground()) return;
             await Task.Delay(40);
         }
-        if (!_disposed && !_capturePaused && CurrentGameModifiers() == Keys.None && IsLeagueGameForeground())
+        if (!_disposed && !IsCaptureActive && CurrentGameModifiers() == Keys.None && IsLeagueGameForeground())
             RunOnWindowThread(() => _shoutAction?.Invoke(action));
     }
 

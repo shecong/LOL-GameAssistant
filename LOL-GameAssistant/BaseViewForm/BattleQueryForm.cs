@@ -744,7 +744,8 @@ namespace LOL_GameAssistant.BaseViewForm
                     lblStatus.Text = "战绩页读取失败，请稍后重试";
                     return;
                 }
-                var pageGames = page.Games?.Games?.OrderByDescending(g => g.GameCreation).ToList();
+                var pageGames = page.Games?.Games?.OrderByDescending(g => g.GameCreation)
+                    .Take(requestedPageSize).ToList();
                 if (pageGames == null || pageGames.Count == 0)
                 {
                     ClearMatchControls();

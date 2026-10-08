@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant.Helper;
 
@@ -33,8 +36,20 @@ public static class RuntimeDiagnostics
     }
 
     /// <summary>将异常信息写入运行日志。</summary>
-    public static void WriteException(Exception exception) =>
-        AppendLog($"未处理异常 | {exception.GetType().Name} | {exception.Message}\n{exception.StackTrace}");
+    public static void WriteException(Exception exception)
+    {
+        string native = "";
+        if (exception is Win32Exception error)
+        {
+            using var process = Process.GetCurrentProcess();
+            native = $" | Win32={error.NativeErrorCode} | USER={GetGuiResources(process.Handle, 1)}" +
+                $" | GDI={GetGuiResources(process.Handle, 0)}";
+        }
+        AppendLog($"异常 | {exception.GetType().Name} | {exception.Message}{native}\n{exception.StackTrace}");
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetGuiResources(IntPtr process, uint flags);
 
     /// <summary>取得运行日志文件的位置。</summary>
     public static string GetLogPath() => LogPath;

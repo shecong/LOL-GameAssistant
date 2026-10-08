@@ -23,18 +23,22 @@ public sealed class LegacyRankedStatsService : IRankedStatsService
     }
 
     /// <summary>集中吸收旧 LCU 解析器字段，避免其 DTO 穿透应用边界。</summary>
-    private static RankedOverview Map(LolRankedDataParser.RankedData source)
+    internal static RankedOverview Map(LolRankedDataParser.RankedData source)
     {
         var result = new RankedOverview();
-        IEnumerable<LolRankedDataParser.RankedEntry> entries = (source.QueueMap?.Values ?? Enumerable.Empty<LolRankedDataParser.RankedEntry>())
-            .Concat(source.Queues ?? Enumerable.Empty<LolRankedDataParser.RankedEntry>());
+        // queueMap is the parser's preferred source. The duplicate queues array must
+        // not overwrite it with a stale/empty record, and map keys identify queues
+        // even when the nested queueType is omitted.
+        var entries = (source.Queues ?? Enumerable.Empty<LolRankedDataParser.RankedEntry>())
+            .Select(entry => (QueueType: entry.QueueType, Entry: entry))
+            .Concat((source.QueueMap ?? new()).Select(pair => (QueueType: pair.Key, Entry: pair.Value)));
 
-        foreach (LolRankedDataParser.RankedEntry entry in entries)
+        foreach (var (queueType, entry) in entries)
         {
-            if (string.IsNullOrWhiteSpace(entry.QueueType)) continue;
-            result.Queues[entry.QueueType] = new RankedQueue
+            if (string.IsNullOrWhiteSpace(queueType)) continue;
+            result.Queues[queueType] = new RankedQueue
             {
-                QueueType = entry.QueueType,
+                QueueType = queueType,
                 Tier = entry.Tier,
                 Division = entry.Division,
                 LeaguePoints = entry.LeaguePoints,

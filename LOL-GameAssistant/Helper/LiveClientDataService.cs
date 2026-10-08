@@ -34,7 +34,41 @@ internal static class LocalLiveClientDataReader
                 player["scores"]?["deaths"]?.Value<int>() ?? 0,
                 player["scores"]?["assists"]?.Value<int>() ?? 0,
                 player["scores"]?["creepScore"]?.Value<int>() ?? 0,
-                player["scores"]?["wardScore"]?.Value<double>())).ToArray();
+                player["scores"]?["wardScore"]?.Value<double>())
+            {
+                ChampionName = player["championName"]?.Value<string>() ?? "",
+                IsBot = player["isBot"]?.Value<bool>() ?? false,
+                Loadout = new(
+                    ParseRune((player["runes"] as JObject)?["keystone"]),
+                    ParseRune((player["runes"] as JObject)?["primaryRuneTree"]),
+                    ParseRune((player["runes"] as JObject)?["secondaryRuneTree"]),
+                    ParseSpell((player["summonerSpells"] as JObject)?["summonerSpellOne"]),
+                    ParseSpell((player["summonerSpells"] as JObject)?["summonerSpellTwo"]))
+            }).ToArray();
+
+    private static LOL_GameAssistant.Domain.LiveGame.LiveGameAbility? ParseRune(JToken? value) =>
+        value is JObject rune ? new(rune["id"]?.Value<int>() ?? 0, rune["displayName"]?.Value<string>() ?? "") : null;
+
+    private static LOL_GameAssistant.Domain.LiveGame.LiveGameAbility? ParseSpell(JToken? value)
+    {
+        if (value is not JObject spell) return null;
+        string raw = spell["rawDisplayName"]?.Value<string>() ?? "";
+        const string prefix = "GeneratedTip_SummonerSpell_";
+        const string suffix = "_DisplayName";
+        string key = raw.StartsWith(prefix, StringComparison.Ordinal) && raw.EndsWith(suffix, StringComparison.Ordinal)
+            ? raw[prefix.Length..^suffix.Length] : raw;
+        // Match stable internal identifiers, not translated names or broad substring guesses.
+        int id = spell["id"]?.Value<int>() ?? key switch
+        {
+            "SummonerBoost" => 1, "SummonerExhaust" => 3, "SummonerFlash" => 4,
+            "SummonerHaste" => 6, "SummonerHeal" => 7, "SummonerSmite" => 11,
+            "SummonerTeleport" => 12, "SummonerMana" => 13, "SummonerDot" => 14,
+            "SummonerBarrier" => 21, "SummonerSnowball" => 32,
+            "SummonerSnowURFSnowball_Mark" => 39,
+            _ => 0
+        };
+        return new(id, spell["displayName"]?.Value<string>() ?? "");
+    }
     private static readonly HttpClient Client;
 
     /// <summary>初始化 LocalLiveClientDataReader 使用的共享状态。</summary>

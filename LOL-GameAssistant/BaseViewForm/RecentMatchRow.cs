@@ -118,9 +118,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
 
-            _hoverTimer = new System.Windows.Forms.Timer { Interval = 15 };
+            components ??= new System.ComponentModel.Container();
+            _hoverTimer = new System.Windows.Forms.Timer(components) { Interval = 15 };
             _hoverTimer.Tick += (_, _) => HoverTick();
             Disposed += (_, _) => _hoverTimer.Dispose();
+            HandleDestroyed += (_, _) => StopHover();
+            VisibleChanged += (_, _) => { if (!Visible) StopHover(); };
 
             _championTip.SetToolTip(picChampion, "双击查看对局详情");
             Disposed += (_, _) => { _championTip.Dispose(); _teamQueueTip?.Dispose(); _ownedChampionImage?.Dispose(); };
@@ -620,6 +623,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>根据鼠标位置更新战绩行的悬停状态。</summary>
         internal void UpdateHoverState(Point screenPosition)
         {
+            if (IsDisposed || Disposing) return;
             bool inside = IsHandleCreated && Visible && RectangleToScreen(ClientRectangle).Contains(screenPosition);
             if (inside)
             {
@@ -635,6 +639,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>启动战绩行悬停动画。</summary>
         private void StartHover(bool hovering)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated || !Visible) return;
             if (_isHovered == hovering) return;
             _isHovered = hovering;
             _hoverFrom = BackColor;
@@ -644,9 +649,22 @@ namespace LOL_GameAssistant.BaseViewForm
             _hoverTimer.Start();
         }
 
+        private void StopHover()
+        {
+            _hoverTimer.Stop();
+            _isHovered = false;
+            _hoverActive = false;
+            if (!IsDisposed && !Disposing) BackColor = _baseBack;
+        }
+
         /// <summary>推进悬停动画并重绘战绩行。</summary>
         private void HoverTick()
         {
+            if (IsDisposed || Disposing || !IsHandleCreated || !Visible)
+            {
+                _hoverTimer.Stop();
+                return;
+            }
             // MouseLeave can be missed when scrolling or moving across child windows.
             UpdateHoverState(Cursor.Position);
             if (!_hoverActive) return;

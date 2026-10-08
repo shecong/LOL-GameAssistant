@@ -8,8 +8,33 @@ using Xunit;
 
 namespace LOL_GameAssistant.UiTests;
 
+[Collection("Window resources")]
 public sealed class OpggBuildPickerTests
 {
+    [Fact]
+    public void RepeatedModalOpenAndCloseReleasesWindowHandles() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+        using var owner = new Form { Opacity = 0, ShowInTaskbar = false };
+        owner.Show();
+        uint baseline = 0;
+        for (int i = 0; i < 12; i++)
+        {
+            using (var picker = CreateForm())
+            {
+                picker.Shown += (_, _) => picker.BeginInvoke((Action)picker.Close);
+                Assert.Equal(DialogResult.Cancel, picker.ShowDialog(owner));
+            }
+            System.Windows.Forms.Application.DoEvents();
+            uint handles = GetGuiResources(process.Handle, 1);
+            if (i == 0) baseline = handles;
+            Assert.True(handles <= baseline + 8, $"Iteration {i}: USER={handles}, baseline={baseline}");
+        }
+    });
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetGuiResources(IntPtr process, uint flags);
+
     [Fact]
     public void RowApplyConfirmsThatRowInsteadOfSavedSelection() => MatchListScrollingTests.OnUiThread(() =>
     {
@@ -260,3 +285,6 @@ public sealed class OpggBuildPickerTests
         public Task<string?> GetSummonerSpellNameAsync(int id, CancellationToken token = default) => Task.FromResult<string?>($"技能 {id}");
     }
 }
+
+[CollectionDefinition("Window resources", DisableParallelization = true)]
+public sealed class WindowResourceCollection { }

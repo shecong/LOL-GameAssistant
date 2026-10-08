@@ -445,6 +445,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         catch (Exception ex)
         {
             if (automatic) ScheduleOpggRetry(_opggPromptedContext);
+            RuntimeDiagnostics.WriteException(ex);
             _status.ForeColor = Color.Firebrick;
             _status.Text = "OP.GG 一键配置失败：" + ex.Message;
             Program.GameMain.infoMsg.AddMsg("OP.GG 一键配置失败：" + ex.Message);

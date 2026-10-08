@@ -423,17 +423,18 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     private async Task ChooseBuildAsync()
     {
         if (!_tracking || IsDisposed || !_chooseBuild.Enabled) return;
-        _chooseBuild.Enabled = false;
-        _buildStatus.Visible = true;
-        _buildStatus.Text = UiLanguage.IsEnglish ? "Loading current build options…" : "正在获取当前模式的符文装备方案…";
-        TopMost = false;
         try
         {
+            _chooseBuild.Enabled = false;
+            _buildStatus.Visible = true;
+            _buildStatus.Text = UiLanguage.IsEnglish ? "Loading current build options…" : "正在获取当前模式的符文装备方案…";
+            TopMost = false;
             string result = await Program.GameMain.coachForm.OpenOpggBuildPickerAsync(_lifetime.Token, owner: this);
             if (!IsDisposed) _buildStatus.Text = UiLanguage.T(result);
         }
         catch (Exception ex)
         {
+            RuntimeDiagnostics.WriteException(ex);
             if (!IsDisposed) _buildStatus.Text = UiLanguage.T($"OP.GG 方案选择失败：{ex.Message}");
         }
         finally

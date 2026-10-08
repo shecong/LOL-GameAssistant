@@ -23,7 +23,7 @@ public sealed class LegacyMatchHistoryService : IMatchHistoryService
             .GetUserGame(puuid, beginIndex.ToString(), endIndex.ToString(), cancellationToken)
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return LegacyMatchReadModelMapper.ToDomain(legacy);
+        return LegacyMatchReadModelMapper.ToDomainPage(legacy, beginIndex, endIndex);
     }
 
     /// <summary>读取指定玩家的历史战绩集合。</summary>

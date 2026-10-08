@@ -9,6 +9,26 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// </summary>
 internal static class LegacyMatchReadModelMapper
 {
+    /// <summary>某些客户端忽略分页参数，按返回索引裁出请求区间，避免创建整页历史控件。</summary>
+    internal static MatchHistoryResponse? ToDomainPage(GameHeadModel.MatchHistoryResponse? source,
+        int beginIndex, int endIndex)
+    {
+        if (beginIndex < 0 || endIndex < beginIndex) throw new ArgumentOutOfRangeException(nameof(beginIndex));
+        MatchHistoryResponse? result = ToDomain(source);
+        if (result?.Games == null) return result;
+        var page = result.Games;
+        int requestedCount = endIndex - beginIndex + 1;
+        bool hasRange = page.GameIndexEnd > 0 || beginIndex == 0 || page.Games.Count > requestedCount;
+        int returnedBegin = hasRange ? page.GameIndexBegin : beginIndex;
+        // Never present a different range as the requested page when the server
+        // cannot supply it. GameCount remains the server's total, not this slice.
+        page.Games = beginIndex < returnedBegin ? [] : page.Games
+            .Skip(beginIndex - returnedBegin).Take(requestedCount).ToList();
+        page.GameIndexBegin = beginIndex;
+        page.GameIndexEnd = beginIndex + page.Games.Count - 1;
+        return result;
+    }
+
     /// <summary>将旧接口或持久化数据映射为业务层使用的领域对象。</summary>
     public static MatchHistoryResponse? ToDomain(GameHeadModel.MatchHistoryResponse? source)
     {
@@ -181,7 +201,8 @@ internal static class LegacyMatchReadModelMapper
             totalTimeCrowdControlDealt = source.TotalTimeCrowdControlDealt,
             tripleKills = source.TripleKills,
             visionScore = source.VisionScore,
-            Win = source.Win
+            Win = source.Win == true,
+            HasWinResult = source.Win.HasValue
         };
     }
 
