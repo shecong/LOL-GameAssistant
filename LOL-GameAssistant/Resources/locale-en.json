@@ -2203,5 +2203,6 @@
   "当前游戏版本尚未适配，已停止调用。": "This game version is unsupported. The call was stopped.",
   "请求结果未确认，动作可能已执行。请读取状态，勿自动重试。": "The outcome is unknown; the action may have executed. Read the state instead of retrying automatically.",
   "Windows 拒绝核心连接，未继续加载。": "Windows rejected the core connection. Loading did not continue.",
-  "对局已变化，请重新读取当前英雄。": "The game session changed. Load the current champion again."
+  "对局已变化，请重新读取当前英雄。": "The game session changed. Load the current champion again.",
+  "选择皮肤与形态": "Choose skin and form"
 }

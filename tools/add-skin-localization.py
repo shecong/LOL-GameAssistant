@@ -4,6 +4,7 @@ from pathlib import Path
 path=Path(__file__).resolve().parents[1]/'LOL-GameAssistant/Resources/locale-en.json'
 raw=path.read_bytes(); existing=json.loads(raw)
 entries={
+    '选择皮肤与形态':'Choose skin and form',
     '游戏换肤':'Game skins', '启用独立核心':'Enable skin core',
     '搜索皮肤名称或模型':'Search skin name or model',
     '请先启用并读取当前英雄':'Enable the core and load the current champion',

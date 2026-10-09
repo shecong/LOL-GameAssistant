@@ -19,13 +19,14 @@ public sealed class SkinToolsForm : UserControl, IThemeAware
     private readonly AntdUI.Button _restore = new() { Text = "恢复基础皮肤", Width = 146, Height = 42, Margin = new Padding(0, 8, 0, 4) };
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Top, Height = 60, Padding = new Padding(0, 8, 0, 0), Text = "功能已关闭。启用后可读取当前对局。" };
     private readonly AntdUI.Label _current = new() { Dock = DockStyle.Top, Height = 68, Padding = new Padding(14, 8, 14, 8), Font = new Font(UiMetrics.FontFamily, 10.5f), Text = "尚未连接游戏" };
-    private readonly AntdUI.Panel _card = new() { Dock = DockStyle.Top, Height = 456, Radius = 14, Padding = new Padding(24), BorderWidth = 1 };
+    private readonly AntdUI.Panel _card = new() { Dock = DockStyle.Top, Height = 472, Radius = 14, Padding = new Padding(24), BorderWidth = 1 };
     private readonly List<Control> _surfaceRows = [];
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 4000 };
     private CancellationTokenSource? _pageRequests;
     private SkinCoreReply? _catalog;
     private List<SkinEntry> _filtered = [];
     private bool _busy;
+    private bool _refreshing;
     private long _revision;
 
     public SkinToolsForm(ISkinCoreService core, IApplicationSettingsStore settings)
@@ -34,7 +35,7 @@ public sealed class SkinToolsForm : UserControl, IThemeAware
         var viewport = new AntdUI.Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20), Radius = 0 };
         var heading = new TableLayoutPanel { Dock = DockStyle.Top, Height = 56, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
-        heading.Controls.Add(new AntdUI.Label { Text = "游戏换肤", Dock = DockStyle.Fill, Font = new Font(UiMetrics.FontFamily, 18, FontStyle.Bold), Margin = Padding.Empty }, 0, 0);
+        heading.Controls.Add(new AntdUI.Label { Text = "游戏换肤", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(UiMetrics.FontFamily, 18, FontStyle.Bold), Margin = Padding.Empty }, 0, 0);
         var toggleRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 12, 0, 0), Margin = Padding.Empty };
         toggleRow.Controls.Add(new AntdUI.Label { Text = "启用独立核心", Width = 120, Height = 32 }); toggleRow.Controls.Add(_enabled);
         heading.Controls.Add(toggleRow, 1, 0);
@@ -108,15 +109,15 @@ public sealed class SkinToolsForm : UserControl, IThemeAware
     private void UpdateButtons()
     {
         bool ready = _core.Enabled && !_busy && Visible && _catalog != null;
-        _refresh.Enabled = _core.Enabled && !_busy && Visible;
+        _refresh.Enabled = _core.Enabled && !_busy && !_refreshing && Visible;
         _search.Enabled = _core.Enabled; _entries.Enabled = ready;
-        _apply.Enabled = ready && _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count;
-        _restore.Enabled = ready;
+        _apply.Enabled = ready && !_refreshing && _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count;
+        _restore.Enabled = ready && !_refreshing;
     }
     private async Task RefreshAsync()
     {
-        if (_busy || !Visible || !_core.Enabled || _pageRequests == null) return;
-        _busy = true; long revision = Interlocked.Read(ref _revision); CancellationToken token = _pageRequests.Token; UpdateButtons();
+        if (_busy || _refreshing || !Visible || !_core.Enabled || _pageRequests == null) return;
+        _refreshing = true; long revision = Interlocked.Read(ref _revision); CancellationToken token = _pageRequests.Token; UpdateButtons();
         try
         {
             var result = await _core.GetCatalogAsync(token);
@@ -128,11 +129,11 @@ public sealed class SkinToolsForm : UserControl, IThemeAware
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { if (!IsDisposed && revision == Interlocked.Read(ref _revision)) { ResetSession(); ShowError(ex); } }
-        finally { _busy = false; if (!IsDisposed) UpdateButtons(); }
+        finally { _refreshing = false; if (!IsDisposed) UpdateButtons(); }
     }
     private async Task ChangeAsync(bool restore)
     {
-        if (_busy || _catalog == null || _pageRequests == null || !_core.Enabled) return;
+        if (_busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
         if (!restore && (_entries.SelectedIndex < 0 || _entries.SelectedIndex >= _filtered.Count)) return;
         string session = _catalog.Session; string entry = restore ? "" : _filtered[_entries.SelectedIndex].EntryId;
         long revision = Interlocked.Read(ref _revision); CancellationToken token = _pageRequests.Token; _busy = true; UpdateButtons();
@@ -168,7 +169,7 @@ public sealed class SkinToolsForm : UserControl, IThemeAware
     public void ApplyTheme(ThemePalette palette)
     {
         BackColor = palette.Surface; ForeColor = palette.TextPrimary;
-        _card.BackColor = palette.SurfaceRaised; _card.ForeColor = palette.TextPrimary;
+        _card.Back = palette.SurfaceRaised; _card.BackColor = palette.SurfaceRaised; _card.ForeColor = palette.TextPrimary; _card.BorderColor = palette.Border;
         foreach (var row in _surfaceRows) row.BackColor = palette.SurfaceRaised;
         _status.BackColor = palette.SurfaceRaised; _status.ForeColor = palette.TextSecondary;
         _current.BackColor = palette.SurfaceMuted; _current.ForeColor = palette.TextPrimary;

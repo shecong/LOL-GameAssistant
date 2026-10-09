@@ -22,15 +22,19 @@ public sealed class SkinToolsTests
     {
         public bool Enabled { get; private set; }
         public int Reads { get; private set; }
+        public TaskCompletionSource<SkinCoreReply>? PendingRead { get; set; }
+        public SkinCoreReply? LastCatalog { get; private set; }
         public void SetEnabled(bool enabled) => Enabled = enabled;
         public void InvalidateSession() { }
         public Task<SkinCoreReply> GetCatalogAsync(CancellationToken ct = default)
         {
             Reads++;
-            return Task.FromResult(new SkinCoreReply { Ok = true, Independent = true, OriginalRequired = false,
+            if (PendingRead != null) return PendingRead.Task;
+            LastCatalog = new SkinCoreReply { Ok = true, Independent = true, OriginalRequired = false,
                 Session = "1234567890abcdef", Model = "Lux", ActiveModel = "Lux", Entries = [
                     new() { Index = 0, EntryId = "0:-1", SkinNum = 0, Name = "基础皮肤", Model = "Lux" },
-                    new() { Index = 1, EntryId = "1:-1", SkinNum = 7, Name = "大元素使 烈焰", Model = "LuxFire" }] });
+                    new() { Index = 1, EntryId = "1:-1", SkinNum = 7, Name = "大元素使 烈焰", Model = "LuxFire" }] };
+            return Task.FromResult(LastCatalog);
         }
         public Task<SkinCoreReply> ApplyAsync(string session, string entry, CancellationToken ct = default) => throw new InvalidOperationException();
         public Task<SkinCoreReply> RestoreAsync(string session, CancellationToken ct = default) => throw new InvalidOperationException();
@@ -56,6 +60,23 @@ public sealed class SkinToolsTests
         var search = Descendants(page).OfType<AntdUI.Input>().Single(c => c.GetType() == typeof(AntdUI.Input)); search.Text = "烈焰"; Assert.Single(select.Items);
         toggle.Checked = false; Assert.False(core.Enabled); Assert.False(settings.Load().SkinCoreEnabled); Assert.Empty(select.Items);
         Assert.All(Descendants(page).OfType<AntdUI.Button>(), button => Assert.False(button.Enabled));
+    });
+    [Fact]
+    public void BackgroundRefreshDoesNotDisableOrResetSkinSelector() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core(); using var host = new RenderHost { ClientSize = new Size(820, 620), ShowInTaskbar = false };
+        using var page = new SkinToolsForm(core, new Settings()); host.Controls.Add(page); host.Show(); System.Windows.Forms.Application.DoEvents();
+        Descendants(page).OfType<AntdUI.Switch>().Single().Checked = true;
+        var select = Descendants(page).OfType<AntdUI.Select>().Single(); select.SelectedIndex = 1;
+        int disabled = 0; select.EnabledChanged += (_, _) => { if (!select.Enabled) disabled++; };
+        object second = select.Items[1]!;
+        core.PendingRead = new TaskCompletionSource<SkinCoreReply>();
+        var refresh = (Task)typeof(SkinToolsForm).GetMethod("RefreshAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, null)!;
+        Assert.False(refresh.IsCompleted); Assert.True(select.Enabled); Assert.Equal(1, select.SelectedIndex);
+        core.PendingRead.SetResult(core.LastCatalog!);
+        Assert.True(SpinWait.SpinUntil(() => { System.Windows.Forms.Application.DoEvents(); return refresh.IsCompleted; }, TimeSpan.FromSeconds(5)));
+        refresh.GetAwaiter().GetResult();
+        Assert.Equal(0, disabled); Assert.True(select.Enabled); Assert.Equal(1, select.SelectedIndex); Assert.Same(second, select.Items[1]);
     });
     [Fact]
     public void ThemeAndLayoutRenderWithoutGameConnection() => MatchListScrollingTests.OnUiThread(() =>
