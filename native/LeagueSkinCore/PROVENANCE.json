@@ -1,0 +1,13 @@
+{
+  "source_project": "LeagueSkinStudio",
+  "source_version": "1.3.0",
+  "mode": "independent only",
+  "original_required": false,
+  "source_sha256": {
+    "native-bridge\\bridge.cpp": "972ceafd3f5db9ef53a3f0b57caf462c2060ec1b08c904cd22d1e33051aa6b18",
+    "engine\\legacy_service.py": "fbdeb2c7302dba498aa6b7a242bf3cdbd88895400367b1502327298c59e755cd",
+    "native-bridge\\standalone_core.h": "f0b963948616201ae1d9d48f2991e07a1ae877786010cf7c35216bebcbb5c14c",
+    "native-bridge\\game_profile.h": "d8ed65b23447ae2b99efe624d5b73edff2815bdfb47f504dea5ca7774ede658a",
+    "native-bridge\\variant_metadata.h": "cff60b55d99139b255587b091470f1d66d9882e2671234b1a1e4eb32201be5a5"
+  }
+}

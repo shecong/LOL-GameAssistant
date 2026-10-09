@@ -34,6 +34,10 @@ namespace LOL_GameAssistant.Bootstrap;
 /// </summary>
 public static class AppCompositionRoot
 {
+    public static LOL_GameAssistant.Application.Skins.ISkinCoreService SkinCoreService { get; } =
+        new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreService(
+            new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore")),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
 
     public static LcuQuickShoutService QuickShoutService { get; } = new(LcuRequestSender);

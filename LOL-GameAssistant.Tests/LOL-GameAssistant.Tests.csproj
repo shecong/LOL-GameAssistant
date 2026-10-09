@@ -6,6 +6,10 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\LOL-GameAssistant\Domain\Skins\SkinCoreModels.cs" Link="Domain\Skins\SkinCoreModels.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\Skins\ISkinCoreService.cs" Link="Application\Skins\ISkinCoreService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\NativeSkinCoreService.cs" Link="Infrastructure\Skins\NativeSkinCoreService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\NativeSkinCoreTransport.cs" Link="Infrastructure\Skins\NativeSkinCoreTransport.cs" />
     <Compile Include="..\LOL-GameAssistant\Helper\WebSocketClient.cs" Link="Helper\WebSocketClient.cs" />
     <Compile Include="..\LOL-GameAssistant\Helper\WebSocketMessagePump.cs" Link="Helper\WebSocketMessagePump.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\GameData\IAugmentInfoService.cs" Link="Application\IAugmentInfoService.cs" />

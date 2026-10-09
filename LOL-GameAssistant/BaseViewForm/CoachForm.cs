@@ -139,7 +139,6 @@ public sealed class CoachForm : UserControl, IThemeAware
         bool enabled = _settingsStore.Load().OpggBuildAssistantEnabled;
         _applyOpgg.Visible = enabled;
         _applyOpgg.Enabled = enabled && !_applyingOpgg;
-        if (!enabled) _opggPromptedContext = "";
     }
 
     /// <summary>
@@ -213,13 +212,13 @@ public sealed class CoachForm : UserControl, IThemeAware
     private async Task PromptOpggBuildIfNeededCoreAsync(CancellationToken cancellationToken)
     {
         AssistantSettings settings = _settingsStore.Load();
-        if (_opggPickerOpen || (!settings.OpggBuildAssistantEnabled && !settings.AutoApplyRuneBuild)) return;
+        if (_applyingOpgg || _opggPickerOpen || (!settings.OpggBuildAssistantEnabled && !settings.AutoApplyRuneBuild)) return;
 
         AiGameContext context = await _aiCoachingService.CollectContextAsync(cancellationToken);
         if (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0)
             return;
         string modeKey = Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(context.GameMode, context.QueueId);
-          string promptKey = $"{context.MyChampionId}:{context.QueueId}:{context.GameMode}:{context.MyRole}";
+          string promptKey = BuildOpggPromptKey(context);
           if (_opggPromptedContext == promptKey) return;
           if (_opggFailedContext == promptKey && DateTimeOffset.UtcNow < _opggRetryAfter) return;
 
@@ -231,10 +230,19 @@ public sealed class CoachForm : UserControl, IThemeAware
                 settings.PersonalRunePresets, context.MyChampionId, modeKey, context.MyRole);
             if (personal != null)
             {
-                OpggBuildApplyResult applied = await _opggBuildApplyService.ApplyPersonalRunePresetAsync(personal, cancellationToken);
-                _status.Text = applied.Message;
-                  RuntimeDiagnostics.Report("个人符文方案", applied.Succeeded ? "已应用" : "失败", applied.Message);
-                  if (!applied.Succeeded) ScheduleOpggRetry(promptKey);
+                _applyingOpgg = true;
+                try
+                {
+                    OpggBuildApplyResult applied = await _opggBuildApplyService.ApplyPersonalRunePresetAsync(personal, cancellationToken);
+                    _status.Text = applied.Message;
+                    RuntimeDiagnostics.Report("个人符文方案", applied.Succeeded ? "已应用" : "失败", applied.Message);
+                    if (!applied.Succeeded) ScheduleOpggRetry(promptKey);
+                }
+                finally
+                {
+                    _applyingOpgg = false;
+                    RefreshOpggAvailability();
+                }
                 return;
             }
         }
@@ -425,6 +433,13 @@ public sealed class CoachForm : UserControl, IThemeAware
             _status.Text = result.Message;
             RuntimeDiagnostics.Report("OP.GG 方案应用", result.Succeeded ? "成功" : "失败", result.Message);
             Program.GameMain.infoMsg.AddMsg(result.Message);
+            if (result.Succeeded)
+            {
+                // 手动应用同样满足本次选人的配置，后续轮询不能覆盖用户的选择。
+                _opggPromptedContext = BuildOpggPromptKey(latest);
+                _opggFailedContext = "";
+                _opggRetryAfter = DateTimeOffset.MinValue;
+            }
             if (result.Succeeded && manuallySelected)
             {
                 // 弹窗期间设置可能变化；只在应用成功后保存选择。
@@ -464,6 +479,14 @@ public sealed class CoachForm : UserControl, IThemeAware
         Form? owner = requested ?? host;
         return owner is { IsDisposed: false, Visible: true } && owner.WindowState != FormWindowState.Minimized
             ? owner : null;
+    }
+
+    /// <summary>使用实际模式和标准分路去重，避免客户端字段别名变化触发重复配置。</summary>
+    private static string BuildOpggPromptKey(AiGameContext context)
+    {
+        string mode = Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(context.GameMode, context.QueueId);
+        string position = mode == "ranked" ? PersonalRunePresetResolver.NormalizePosition(context.MyRole) : "none";
+        return $"{context.MyChampionId}:{mode}:{position}";
     }
 
     /// <summary>根据推荐选择上下文生成去重键。</summary>

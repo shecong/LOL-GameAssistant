@@ -13,6 +13,7 @@ public sealed class AssistantSettings
     public string LanguageMode { get; set; } = "zh-CN";
 
     public bool AutoLaunchGameClient { get; set; }
+    public bool SkinCoreEnabled { get; set; }
     public string GameClientPath { get; set; } = "";
     public int WindowOpacityPercent { get; set; } = 100;
     public string HoldToTopHotkey { get; set; } = "Oem3";

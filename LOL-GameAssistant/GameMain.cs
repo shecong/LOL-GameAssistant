@@ -76,6 +76,8 @@ namespace LOL_GameAssistant
         private const int CoachTabIndex = 6;
         private readonly AntdUI.TabPage _coachTab;
         private readonly AntdUI.TabPage _diagnosticsTab;
+        private readonly AntdUI.TabPage _skinTab;
+        private readonly SkinToolsForm _skinTools;
 
         /// <summary>判断用户当前是否停留在对局页面。</summary>
         public bool IsLiveGameTabActive => tabs1.SelectedIndex == LiveGameTabIndex;
@@ -177,10 +179,15 @@ namespace LOL_GameAssistant
             HeadContent.Icon = _headerIconImage;
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
             _diagnosticsTab = new AntdUI.TabPage { Text = "运行诊断", Dock = DockStyle.Fill };
+            _skinTab = new AntdUI.TabPage { Text = "游戏换肤", Dock = DockStyle.Fill };
+            _skinTools = new SkinToolsForm(AppCompositionRoot.SkinCoreService, _settingsStore);
+            _skinTab.Controls.Add(_skinTools);
             tabs1.Controls.Add(_coachTab);
             tabs1.Pages.Add(_coachTab);
             tabs1.Controls.Add(_diagnosticsTab);
             tabs1.Pages.Add(_diagnosticsTab);
+            tabs1.Controls.Add(_skinTab);
+            tabs1.Pages.Add(_skinTab);
             tabs1.Pages.Add(tabPage4);
             _windowHoldController = new WindowHoldController(this);
             _windowHoldController.ConfigureBattleOverlay(
@@ -366,6 +373,7 @@ namespace LOL_GameAssistant
             }
             if (expectedRevision.HasValue && expectedRevision.Value != GameFlowRevision) return;
             gameFlowPhase = parsed;
+            _skinTools.OnGamePhaseChanged(parsed == GameFlowPhase.InProgress);
             Interlocked.Increment(ref _gameFlowRevision);
             gameFlowPhaseName.Text = parsed.GetChineseName();
         }
@@ -739,6 +747,7 @@ namespace LOL_GameAssistant
             if (Enum.TryParse(statustype, true, out GameFlowPhase parsedPhase))
             {
                 gameFlowPhase = parsedPhase;
+                _skinTools.OnGamePhaseChanged(parsedPhase == GameFlowPhase.InProgress);
                 // 离开结束状态后重置“已通知”标记，保证下一局还能再次提醒
                 if (parsedPhase != GameFlowPhase.WaitingForStats && parsedPhase != GameFlowPhase.EndOfGame)
                 {
@@ -1355,6 +1364,7 @@ namespace LOL_GameAssistant
                 Cleanup(() => _windowHoldController.Dispose());
                 Cleanup(() => _quickMessageController.Dispose());
                 Cleanup(() => _recommendationCoordinator.Dispose());
+                Cleanup(() => AppCompositionRoot.SkinCoreService.SetEnabled(false));
             }
         }
 

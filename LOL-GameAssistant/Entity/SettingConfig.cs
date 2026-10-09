@@ -13,6 +13,7 @@ namespace LOL_GameAssistant.Entity
         /// <summary>是否在启动助手时直接启动已配置的国服 LOL 客户端。</summary>
         [JsonProperty("autoLaunchGameClient")]
         public bool AutoLaunchGameClient { get; set; } = false;
+        public bool SkinCoreEnabled { get; set; } = false;
 
         /// <summary>LOL 安装文件夹。启动时会自动扫描其子目录中的 LeagueClient.exe。</summary>
         [JsonProperty("gameClientPath")]
