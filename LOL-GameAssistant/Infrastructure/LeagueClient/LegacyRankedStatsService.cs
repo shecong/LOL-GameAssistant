@@ -16,7 +16,7 @@ public sealed class LegacyRankedStatsService : IRankedStatsService
     {
         cancellationToken.ThrowIfCancellationRequested();
         LolRankedDataParser.RankedData? legacy = await Game_Api
-            .GetRankedStatsAsync(puuid, isCurrentUser)
+            .GetRankedStatsAsync(puuid, isCurrentUser, cancellationToken)
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return legacy == null ? null : Map(legacy);

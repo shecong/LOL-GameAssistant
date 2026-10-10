@@ -49,7 +49,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<long, (DateTime CachedAt, Task<MatchDetail?> Value)> MatchDetailCache = new();
-        private static readonly SemaphoreSlim GlobalMatchDetailLoadGate = new(20, 20);
         private const int DetailWorkersPerPlayer = 2;
         private static readonly TimeSpan DetailRequestTimeout = TimeSpan.FromSeconds(5);
         private Image? _ownedProfileImage;
@@ -642,7 +641,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             for (int attempt = 0; attempt < 2; attempt++)
             {
-                await GlobalMatchDetailLoadGate.WaitAsync(cancellationToken);
+                await MatchDetailConcurrency.Gate.WaitAsync(cancellationToken);
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(DetailRequestTimeout);
                 try
@@ -656,7 +655,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     RuntimeDiagnostics.Report("对局详情", "重试", $"对局 {gameId}：{ex.Message}");
                 }
-                finally { GlobalMatchDetailLoadGate.Release(); }
+                finally { MatchDetailConcurrency.Gate.Release(); }
             }
             return null;
         }

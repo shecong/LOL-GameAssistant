@@ -136,9 +136,9 @@ internal static class LegacyMatchReadModelMapper
         if (source == null) return null;
         return new MatchParticipantStats
         {
-            assists = source.assists,
+            assists = source.assists ?? 0,
             champLevel = source.champLevel,
-            deaths = source.deaths,
+            deaths = source.deaths ?? 0,
             doubleKills = source.doubleKills,
             goldEarned = source.goldEarned,
             item0 = source.item0,
@@ -148,7 +148,7 @@ internal static class LegacyMatchReadModelMapper
             item4 = source.item4,
             item5 = source.item5,
             item6 = source.item6,
-            kills = source.kills,
+            kills = source.kills ?? 0,
             neutralMinionsKilled = source.neutralMinionsKilled,
             pentaKills = source.pentaKills,
             quadraKills = source.quadraKills,
@@ -160,6 +160,8 @@ internal static class LegacyMatchReadModelMapper
             tripleKills = source.tripleKills,
             visionScore = source.visionScore,
             Win = IsWin(source.win),
+            HasWinResult = HasWinResult(source.win),
+            HasKdaResult = source.kills.HasValue && source.deaths.HasValue && source.assists.HasValue,
             RuneIds = new[] { source.perk0, source.perk1, source.perk2, source.perk3, source.perk4, source.perk5 }
                 .Where(id => id > 0).ToList(),
             AugmentIds = new[]
@@ -178,9 +180,9 @@ internal static class LegacyMatchReadModelMapper
         if (source == null) return null;
         return new MatchParticipantStats
         {
-            assists = source.Assists,
+            assists = source.Assists ?? 0,
             champLevel = source.ChampLevel,
-            deaths = source.Deaths,
+            deaths = source.Deaths ?? 0,
             doubleKills = source.DoubleKills,
             goldEarned = source.GoldEarned,
             item0 = source.Item0,
@@ -190,7 +192,7 @@ internal static class LegacyMatchReadModelMapper
             item4 = source.Item4,
             item5 = source.Item5,
             item6 = source.Item6,
-            kills = source.Kills,
+            kills = source.Kills ?? 0,
             neutralMinionsKilled = source.NeutralMinionsKilled,
             pentaKills = source.PentaKills,
             quadraKills = source.QuadraKills,
@@ -202,7 +204,8 @@ internal static class LegacyMatchReadModelMapper
             tripleKills = source.TripleKills,
             visionScore = source.VisionScore,
             Win = source.Win == true,
-            HasWinResult = source.Win.HasValue
+            HasWinResult = source.Win.HasValue,
+            HasKdaResult = source.Kills.HasValue && source.Deaths.HasValue && source.Assists.HasValue
         };
     }
 
@@ -216,6 +219,11 @@ internal static class LegacyMatchReadModelMapper
             _ => false
         };
     }
+
+    private static bool HasWinResult(object? value) => value is bool ||
+        Convert.ToString(value)?.Trim().ToLowerInvariant() is
+        "true" or "1" or "win" or "won" or "victory" or "success" or "胜" or "胜利" or "赢" or
+        "false" or "0" or "loss" or "lose" or "lost" or "defeat" or "fail" or "失败" or "输";
 
     /// <summary>解析召唤师技能标识，无效值按未提供处理。</summary>
     private static int ParseSpellId(string? value) => int.TryParse(value, out int id) ? id : 0;

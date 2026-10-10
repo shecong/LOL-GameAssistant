@@ -125,6 +125,52 @@ public sealed class ChampSelectCompanionTests
         Assert.Empty(BenchIds(fixture.Form));
     });
 
+    [Fact]
+    public void CompanionIsTopMostOnlyWhileClientIsForegroundEvenWhenDataPending() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        bool focused = false;
+        using var fixture = new Fixture(() => new Rectangle(100, 100, 900, 600), clientForeground: () => focused);
+        Assert.False(fixture.Form.TopMost);
+        fixture.Form.StartTracking();
+        Assert.True(fixture.Form.Visible);
+        Assert.False(fixture.Form.TopMost);
+        focused = true;
+        fixture.Form.SyncClientVisibility();
+        Assert.True(fixture.Form.TopMost);
+        focused = false;
+        fixture.Form.SyncClientVisibility();
+        Assert.True(fixture.Form.Visible);
+        Assert.False(fixture.Form.TopMost);
+        Assert.False(fixture.Player.Task.IsCompleted);
+        focused = true;
+        fixture.Form.SyncClientVisibility();
+        Assert.True(fixture.Form.TopMost);
+        fixture.Form.StopTracking();
+        Assert.False(fixture.Form.TopMost);
+        Assert.False(fixture.Form.Visible);
+    });
+
+    [Fact]
+    public void HiddenClientAndOpenBuildPickerSuppressTopMost() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        Rectangle? bounds = new Rectangle(100, 100, 900, 600);
+        using var fixture = new Fixture(() => bounds, clientForeground: () => true);
+        fixture.Form.StartTracking();
+        Assert.True(fixture.Form.TopMost);
+        var chooseBuild = (Button)typeof(ChampSelectCompanionForm).GetField("_chooseBuild", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(fixture.Form)!;
+        chooseBuild.Enabled = false;
+        fixture.Form.SyncClientVisibility();
+        Assert.False(fixture.Form.TopMost);
+        chooseBuild.Enabled = true;
+        fixture.Form.SyncClientVisibility();
+        Assert.True(fixture.Form.TopMost);
+        bounds = null;
+        fixture.Form.SyncClientVisibility();
+        Assert.False(fixture.Form.TopMost);
+        Assert.False(fixture.Form.Visible);
+    });
+
     private static ChampionSelectionSnapshot Snapshot(params int[] ids) => new()
     {
         BenchChampionIds = ids,
@@ -146,7 +192,8 @@ public sealed class ChampSelectCompanionTests
         public TaskCompletionSource<PlayerProfile?> Player { get; } = new();
         public ChampSelectCompanionForm Form { get; }
 
-        public Fixture(Func<Rectangle?>? clientBounds = null, Func<MethodInfo, object?[], object?>? featureHandler = null)
+        public Fixture(Func<Rectangle?>? clientBounds = null, Func<MethodInfo, object?[], object?>? featureHandler = null,
+            Func<bool>? clientForeground = null)
         {
             Form = new ChampSelectCompanionForm(
                 Service<IChampionSelectService>((_, args) => Selection.Task.WaitAsync(Token(args))),
@@ -157,7 +204,7 @@ public sealed class ChampSelectCompanionTests
                 Service<IPlayerProfileService>((_, _) => Player.Task),
                 Service<IRankedStatsService>((_, _) => null),
                 Service<IMatchHistoryService>((_, _) => null),
-                Service<IApplicationSettingsStore>((_, _) => new AssistantSettings()), clientBounds);
+                Service<IApplicationSettingsStore>((_, _) => new AssistantSettings()), clientBounds, clientForeground);
         }
 
         public void Dispose()

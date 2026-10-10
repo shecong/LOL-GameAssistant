@@ -7,7 +7,6 @@ namespace LOL_GameAssistant.Application.Matches;
 public sealed class RecentModePerformanceService(IMatchHistoryService matches)
 {
     private const int PageSize = 100;
-    private static readonly SemaphoreSlim DetailGate = new(8, 8);
 
     /// <summary>收集近期同模式战绩并计算玩家表现评估。</summary>
     public async Task<RecentModePerformanceAssessment> EvaluateAsync(
@@ -42,7 +41,7 @@ public sealed class RecentModePerformanceService(IMatchHistoryService matches)
                 if (RecentKdaStatsResolver.NeedsDetail(stats))
                 {
                     // 仅为不可信摘要补查详情；跨玩家共用限流器，避免详情页同时加载时压满 LCU。
-                    await DetailGate.WaitAsync(cancellationToken);
+                    await MatchDetailConcurrency.Gate.WaitAsync(cancellationToken);
                     try
                     {
                         MatchDetail? detail = await matches.GetDetailAsync(game.GameId, cancellationToken: cancellationToken);
@@ -50,7 +49,7 @@ public sealed class RecentModePerformanceService(IMatchHistoryService matches)
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                     catch { stats = null; }
-                    finally { DetailGate.Release(); }
+                    finally { MatchDetailConcurrency.Gate.Release(); }
                 }
                 return stats;
             }));

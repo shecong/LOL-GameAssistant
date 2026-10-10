@@ -29,6 +29,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     private readonly IMatchHistoryService _matches;
     private readonly IApplicationSettingsStore _settings;
     private readonly Func<Rectangle?> _clientBounds;
+    private readonly Func<bool> _clientForeground;
     private IntPtr _clientWindow;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 150 };
     private readonly CancellationTokenSource _lifetime = new();
@@ -83,7 +84,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     internal ChampSelectCompanionForm(IChampionSelectService selection, ILobbyService lobby,
         IClientFeatureService features, IChampionCatalog champions, IPlayerProfileService players,
         IRankedStatsService ranked, IMatchHistoryService matches, IApplicationSettingsStore settings,
-        Func<Rectangle?>? clientBounds = null)
+        Func<Rectangle?>? clientBounds = null, Func<bool>? clientForeground = null)
     {
         _selection = selection;
         _lobby = lobby;
@@ -94,11 +95,12 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         _matches = matches;
         _settings = settings;
         _clientBounds = clientBounds ?? (() => TryGetClientBounds(out var bounds) ? bounds : null);
+        _clientForeground = clientForeground ?? (() => _clientWindow != IntPtr.Zero && GetForegroundWindow() == _clientWindow);
         Text = "LOL 选人伴随窗";
         AntdWindowChrome.Configure(this);
         EnableHitTest = false;
         ShowInTaskbar = false;
-        TopMost = true;
+        TopMost = false;
         StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = Color.FromArgb(22, 27, 39);
@@ -184,6 +186,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         ControlLifetime.ClearAndDispose(_benchChoices);
         _buildStatus.Visible = false;
         _lastRosterDataAt = DateTimeOffset.MinValue;
+        TopMost = false;
         Hide();
     }
 
@@ -441,8 +444,8 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         {
             if (!IsDisposed)
             {
-                TopMost = true;
                 _chooseBuild.Enabled = true;
+                SyncClientVisibility();
             }
         }
     }
@@ -512,10 +515,12 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         Rectangle? client = _clientBounds();
         if (client == null)
         {
+            TopMost = false;
             if (Visible) Hide();
             return false;
         }
         FollowClient(client.Value);
+        TopMost = _chooseBuild.Enabled && _clientForeground();
         if (!Visible) Show();
         return true;
     }
@@ -584,6 +589,8 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindow(IntPtr window);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
     /// <summary>读取 DWM 管理的窗口属性。</summary>
     [DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);

@@ -31,14 +31,14 @@
         /// <summary>LCU 对局统计字段，包括 KDA、装备、符文和强化选择。</summary>
         public class Stats
         {
-            public int assists { get; set; }
+            public int? assists { get; set; }
             public bool causedEarlySurrender { get; set; }
             public int champLevel { get; set; }
             public int combatPlayerScore { get; set; }
             public int damageDealtToObjectives { get; set; }
             public int damageDealtToTurrets { get; set; }
             public int damageSelfMitigated { get; set; }
-            public int deaths { get; set; }
+            public int? deaths { get; set; }
             public int doubleKills { get; set; }
             public bool earlySurrenderAccomplice { get; set; }
             public bool firstBloodAssist { get; set; }
@@ -60,7 +60,7 @@
             public int item5 { get; set; }
             public int item6 { get; set; }
             public int killingSprees { get; set; }
-            public int kills { get; set; }
+            public int? kills { get; set; }
             public int largestCriticalStrike { get; set; }
             public int largestKillingSpree { get; set; }
             public int largestMultiKill { get; set; }

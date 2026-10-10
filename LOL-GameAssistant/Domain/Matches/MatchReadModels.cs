@@ -180,6 +180,8 @@ public sealed class MatchParticipantStats
     public bool Win { get; set; }
     /// <summary>缺失胜负字段的摘要不能按失败计入胜率。</summary>
     public bool HasWinResult { get; set; } = true;
+    /// <summary>Missing KDA fields must not be treated as confirmed zero values.</summary>
+    public bool HasKdaResult { get; set; } = true;
     public List<int> AugmentIds { get; set; } = new();
     public List<int> RuneIds { get; set; } = new();
 }

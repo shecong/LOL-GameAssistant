@@ -323,10 +323,10 @@
         public class ParticipantStats
         {
             // KDA相关
-            [Newtonsoft.Json.JsonProperty("assists")] public int Assists { get; set; }
+            [Newtonsoft.Json.JsonProperty("assists")] public int? Assists { get; set; }
 
-            [Newtonsoft.Json.JsonProperty("deaths")] public int Deaths { get; set; }
-            [Newtonsoft.Json.JsonProperty("kills")] public int Kills { get; set; }
+            [Newtonsoft.Json.JsonProperty("deaths")] public int? Deaths { get; set; }
+            [Newtonsoft.Json.JsonProperty("kills")] public int? Kills { get; set; }
 
             // 连杀数据
             [Newtonsoft.Json.JsonProperty("doubleKills")] public int DoubleKills { get; set; }

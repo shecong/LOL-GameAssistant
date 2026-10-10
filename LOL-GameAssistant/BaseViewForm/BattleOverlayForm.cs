@@ -122,63 +122,77 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         try
         {
             // Read local loadouts independently: a slow LCU roster must not block live spells/runes.
-            var sessionTask = ReadSessionAsync(token);
-            if (Visible)
-            {
-                var liveScores = await _live.GetScoreboardAsync(token).WaitAsync(TimeSpan.FromSeconds(5), token);
-                if (token.IsCancellationRequested || IsDisposed) return;
-                _scores = liveScores;
-                if (_scores != null)
-                {
-                    EnsureLoadoutIcons(_scores, token);
-                    if (_session == null) _session = CreateLiveRoster(_scores);
-                }
-                Invalidate();
-            }
-            var session = await sessionTask;
-            if (token.IsCancellationRequested || IsDisposed) return;
-            if (session != null && session.TeamOne.Count + session.TeamTwo.Count > 0)
-            {
-                string signature = $"{session.QueueId}:{session.GameMode}:" + string.Join("|",
-                    session.TeamOne.Concat(session.TeamTwo).Select(m => $"{m.Puuid}:{m.SummonerName}:{m.ChampionId}"));
-                if (signature != _signature)
-                {
-                    _generation++;
-                    _signature = signature;
-                    _players.Clear(); _loading.Clear(); _retryAt.Clear();
-                }
-                _session = session;
-                foreach (var member in session.TeamOne.Concat(session.TeamTwo))
-                {
-                    string key = MemberKey(member);
-                    if (!_loading.Contains(key) && (!_players.ContainsKey(key) ||
-                        (_retryAt.TryGetValue(key, out var retry) && retry <= DateTimeOffset.UtcNow)))
-                    {
-                        _loading.Add(key);
-                        _ = LoadPlayerAsync(member, session, _generation, token);
-                    }
-                    if (member.ChampionId > 0 && !_icons.ContainsKey(member.ChampionId) && _loadingIcons.Add(member.ChampionId))
-                        _ = LoadIconAsync(member.ChampionId, token);
-                }
-            }
-            Invalidate();
+            await Task.WhenAll(RefreshRosterAsync(token), Visible ? RefreshScoresAsync(token) : Task.CompletedTask);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             if (!token.IsCancellationRequested && !IsDisposed)
-            {
-                _scores = null;
                 RuntimeDiagnostics.Report("对局信息面板", "等待数据", ex.Message);
-                Invalidate();
-            }
         }
         finally { _refreshing = false; }
     }
 
+    private async Task RefreshScoresAsync(CancellationToken token)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            var liveScores = await _live.GetScoreboardAsync(timeout.Token).WaitAsync(timeout.Token);
+            if (token.IsCancellationRequested || IsDisposed) return;
+            _scores = liveScores;
+            if (_scores != null)
+            {
+                EnsureLoadoutIcons(_scores, token);
+                if (string.IsNullOrEmpty(_signature)) _session = CreateLiveRoster(_scores);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (token.IsCancellationRequested || IsDisposed) return;
+            _scores = null;
+            RuntimeDiagnostics.Report("本局实时数据", "等待数据", ex.Message);
+        }
+        if (!token.IsCancellationRequested && !IsDisposed) Invalidate();
+    }
+
+    private async Task RefreshRosterAsync(CancellationToken token)
+    {
+        var session = await ReadSessionAsync(token);
+        if (token.IsCancellationRequested || IsDisposed) return;
+        if (session != null && session.TeamOne.Count + session.TeamTwo.Count > 0)
+        {
+            string signature = $"{session.QueueId}:{session.GameMode}:" + string.Join("|",
+                session.TeamOne.Concat(session.TeamTwo).Select(m => $"{m.Puuid}:{m.SummonerName}:{m.ChampionId}"));
+            if (signature != _signature)
+            {
+                _generation++;
+                _signature = signature;
+                _players.Clear(); _loading.Clear(); _retryAt.Clear();
+            }
+            _session = session;
+            foreach (var member in session.TeamOne.Concat(session.TeamTwo))
+            {
+                string key = MemberKey(member);
+                if (!_loading.Contains(key) && (!_players.ContainsKey(key) ||
+                    (_retryAt.TryGetValue(key, out var retry) && retry <= DateTimeOffset.UtcNow)))
+                {
+                    _loading.Add(key);
+                    _ = LoadPlayerAsync(member, session, _generation, token);
+                }
+                if (member.ChampionId > 0 && !_icons.ContainsKey(member.ChampionId) && _loadingIcons.Add(member.ChampionId))
+                    _ = LoadIconAsync(member.ChampionId, token);
+            }
+        }
+        Invalidate();
+    }
+
     private async Task<ActiveGameSnapshot?> ReadSessionAsync(CancellationToken token)
     {
-        try { return await _lobby.GetCurrentSessionAsync(token).WaitAsync(TimeSpan.FromSeconds(5), token); }
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try { return await _lobby.GetCurrentSessionAsync(timeout.Token).WaitAsync(timeout.Token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return null; }
         catch (Exception ex)
         {
@@ -248,9 +262,9 @@ internal sealed class BattleOverlayForm : AntdUI.Window
             BattleOverlayPlayer player = await _details.GetPlayerAsync(member, session, token);
             if (token.IsCancellationRequested || generation != _generation || IsDisposed) return;
             string key = MemberKey(member);
-            _players[key] = player;
+            _players[key] = _players.TryGetValue(key, out var previous) ? player.Merge(previous) : player;
             if (!member.IsBot && !string.IsNullOrWhiteSpace(member.Puuid) &&
-                (player.Rank == null || player.RecentResults.Count == 0))
+                player.NeedsRetry)
                 _retryAt[key] = DateTimeOffset.UtcNow.AddSeconds(30);
             else _retryAt.Remove(key);
             Invalidate();
@@ -302,9 +316,9 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         if (_session == null || _session.TeamOne.Count + _session.TeamTwo.Count == 0)
             DrawText(g, en ? "Waiting for the game roster…" : "正在等待本局阵容，进入对局后自动加载…",
                 new RectangleF(300, 250, 600, 50), 14, Color.LightGray);
-        string queue = _session?.QueueId == 440 ? (en ? "Flex" : "灵活组排") : (en ? "Solo/Duo" : "单双排");
-        DrawText(g, en ? $"Rank / season record: {queue} · Champion rate: last 100 games in this mode · Recent: up to 10 completed games"
-            : $"段位 / 赛季战绩：{queue}  ·  英雄胜率：最近100场中的同模式样本  ·  近期：最多10场有效对局",
+        string queue = RankSourceText(_session?.QueueId ?? 0, en);
+        DrawText(g, en ? $"Rank / season: {queue} · Champion rate: same queue/mode within last 100 games · Recent: up to 10 valid games"
+            : $"段位 / 赛季战绩：{queue}  ·  英雄胜率：最近100场中的同队列 / 模式样本  ·  近期：最多10场有效对局",
             new RectangleF(26, 630, 1070, 22), 9, Color.FromArgb(147, 164, 188));
         DrawText(g, en ? "Vision is vision score; ward placement counts are unavailable. Missing data is shown as —."
             : "视野为视野得分；客户端未提供实时插眼数量。缺失数据以 — 显示。",
@@ -362,9 +376,9 @@ internal sealed class BattleOverlayForm : AntdUI.Window
             DrawText(g, player?.RecentKda is double kda ? $"KDA {kda:0.00}" : "KDA —",
                 new RectangleF(x + 299, y + 36, 110, 22), 9, Color.LightGray);
             var scores = FindScore(_scores, player?.Name ?? member.SummonerName, member.SummonerName, blue ? "ORDER" : "CHAOS");
-            DrawText(g, scores == null ? "— / — / —" : $"{scores.Kills} / {scores.Deaths} / {scores.Assists}",
+            DrawText(g, LiveKdaText(scores),
                 new RectangleF(x + 422, y + 9, 103, 22), 10, Color.White);
-            DrawText(g, scores == null ? "—" : $"{(en ? "CS" : "补刀")} {scores.CreepScore} · {(en ? "VS" : "视野")} {scores.VisionScore?.ToString("0") ?? "—"}",
+            DrawText(g, scores == null ? "—" : $"{(en ? "CS" : "补刀")} {scores.CreepScore?.ToString() ?? "—"} · {(en ? "VS" : "视野")} {scores.VisionScore?.ToString("0") ?? "—"}",
                 new RectangleF(x + 422, y + 36, 103, 24), 8, Color.LightSlateGray);
             DrawLoadout(g, scores?.Loadout, x + 10, y + 72, en);
             g.Restore(rowState);
@@ -383,6 +397,16 @@ internal sealed class BattleOverlayForm : AntdUI.Window
 
     internal static string RecordCounts(int wins, int losses, bool en) => en
         ? $"{wins}W {losses}L / {wins + losses}G" : $"{wins}胜{losses}负 / {wins + losses}场";
+
+    internal static string LiveKdaText(LiveScoreboardPlayer? scores) =>
+        $"{scores?.Kills?.ToString() ?? "—"} / {scores?.Deaths?.ToString() ?? "—"} / {scores?.Assists?.ToString() ?? "—"}";
+
+    internal static string RankSourceText(int queueId, bool en) => queueId switch
+    {
+        440 => en ? "Flex" : "灵活组排",
+        420 => en ? "Solo/Duo" : "单双排",
+        _ => en ? "Solo/Duo reference" : "参考单双排"
+    };
 
     private void DrawLoadout(Graphics g, LiveGameLoadout? loadout, float x, float y, bool en)
     {
@@ -420,12 +444,18 @@ internal sealed class BattleOverlayForm : AntdUI.Window
     internal static LiveScoreboardPlayer? FindScore(IReadOnlyList<LiveScoreboardPlayer>? scores, string name, string fallback, string team)
     {
         // Exact Riot IDs first; only accept a unique legacy-name match in the expected team.
+        string identity = name.Contains('#') ? name : fallback.Contains('#') ? fallback : name;
+        bool fullIdentity = identity.Contains('#');
         var exact = scores?.Where(p => p.Team == team && !string.IsNullOrWhiteSpace(p.RiotId) &&
-            string.Equals(p.RiotId, name, StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
+            string.Equals(p.RiotId, identity, StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
         if (exact.Length == 1) return exact[0];
+        if (exact.Length > 1) return null;
         var legacy = scores?.Where(p => p.Team == team && !string.IsNullOrWhiteSpace(fallback) &&
             string.Equals(p.SummonerName, fallback, StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
-        return legacy.Length == 1 ? legacy[0] : null;
+        if (legacy.Length != 1) return null;
+        // A known full ID mismatch cannot be overridden by a shared old name.
+        return fullIdentity && legacy[0].RiotId.Contains('#') &&
+            !string.Equals(legacy[0].RiotId, identity, StringComparison.OrdinalIgnoreCase) ? null : legacy[0];
     }
 
     private static void DrawText(Graphics g, string text, RectangleF bounds, float size, Color color, bool bold = false)

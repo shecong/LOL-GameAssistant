@@ -63,7 +63,7 @@ public sealed class LegacyLobbyService : ILobbyService
     public async Task<ActiveGameSnapshot?> GetCurrentSessionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        GameSessionResponse? legacy = await Game_Api.GameLineInfoServer().ConfigureAwait(false);
+        GameSessionResponse? legacy = await Game_Api.GameLineInfoServer(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return legacy == null ? null : new ActiveGameSnapshot
         {

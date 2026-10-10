@@ -26,14 +26,14 @@ internal static class LocalLiveClientDataReader
     internal static IReadOnlyList<LOL_GameAssistant.Domain.LiveGame.LiveScoreboardPlayer> ParseScoreboard(string content) =>
         JArray.Parse(content).OfType<JObject>().Select(player =>
             new LOL_GameAssistant.Domain.LiveGame.LiveScoreboardPlayer(
-                player["riotId"]?.Value<string>() ??
+                (!string.IsNullOrWhiteSpace(player["riotId"]?.Value<string>()) ? player["riotId"]!.Value<string>() : null) ??
                     (player["riotIdGameName"]?.Value<string>() is { Length: > 0 } name
                         ? name + (player["riotIdTagLine"]?.Value<string>() is { Length: > 0 } tag ? "#" + tag : "") : ""),
                 player["summonerName"]?.Value<string>() ?? "", player["team"]?.Value<string>() ?? "",
-                player["scores"]?["kills"]?.Value<int>() ?? 0,
-                player["scores"]?["deaths"]?.Value<int>() ?? 0,
-                player["scores"]?["assists"]?.Value<int>() ?? 0,
-                player["scores"]?["creepScore"]?.Value<int>() ?? 0,
+                player["scores"]?["kills"]?.Value<int?>(),
+                player["scores"]?["deaths"]?.Value<int?>(),
+                player["scores"]?["assists"]?.Value<int?>(),
+                player["scores"]?["creepScore"]?.Value<int?>(),
                 player["scores"]?["wardScore"]?.Value<double>())
             {
                 ChampionName = player["championName"]?.Value<string>() ?? "",

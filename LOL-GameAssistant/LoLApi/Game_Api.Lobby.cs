@@ -51,12 +51,12 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 对局进行中获取实时队伍信息。
         /// </summary>
-        public static async Task<GameSessionResponse?> GameLineInfoServer()
+        public static async Task<GameSessionResponse?> GameLineInfoServer(CancellationToken cancellationToken = default)
         {
             HttpClientHelper client = new HttpClientHelper();
-            Stream? responseStream = await client.GetAsync("/lol-gameflow/v1/session").ConfigureAwait(false);
+            using Stream? responseStream = await client.GetAsync("/lol-gameflow/v1/session", cancellationToken: cancellationToken).ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsJsonAsync<GameSessionResponse>().ConfigureAwait(false);
+            return await responseStream.ReadAsJsonAsync<GameSessionResponse>().WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 }

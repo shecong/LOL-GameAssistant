@@ -7,11 +7,11 @@ public static class RecentKdaStatsResolver
 {
     /// <summary>摘要缺失或 KDA 全为零时，要求读取详情以确认真实数据。</summary>
     public static bool NeedsDetail(MatchParticipantStats? summary) =>
-        summary == null ||
+        summary == null || !summary.HasKdaResult ||
         (summary.kills == 0 && summary.deaths == 0 && summary.assists == 0);
 
     /// <summary>摘要缺失或 KDA 全零时使用详情统计，否则保留摘要数据。</summary>
     public static MatchParticipantStats? Resolve(
         MatchParticipantStats? summary, MatchParticipantStats? detail) =>
-        NeedsDetail(summary) ? detail : summary;
+        NeedsDetail(summary) ? (detail is { HasKdaResult: true } ? detail : null) : summary;
 }

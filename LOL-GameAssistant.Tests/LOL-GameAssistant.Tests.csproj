@@ -41,6 +41,7 @@
     <Compile Include="..\LOL-GameAssistant\Domain\Ranked\RankedOverview.cs" Link="Domain\Ranked\RankedOverview.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\IMatchHistoryService.cs" Link="Application\Matches\IMatchHistoryService.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\RecentModePerformanceService.cs" Link="Application\Matches\RecentModePerformanceService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\Matches\MatchDetailConcurrency.cs" Link="Application\Matches\MatchDetailConcurrency.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Settings\AiServiceErrorMessage.cs" Link="Domain\AiServiceErrorMessage.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Settings\CloudAiSettings.cs" Link="Domain\CloudAiSettings.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\GameData\ChampionReference.cs" Link="Domain\GameData\ChampionReference.cs" />

@@ -12,16 +12,17 @@ namespace LOL_GameAssistant.LoLApi
         /// 获取指定召唤师的排位数据（单双排/灵活组排等）。
         /// 优先 v1 按 puuid 查询；当前玩家查询失败时回退 current-summoner 端点。
         /// </summary>
-        public static async Task<LolRankedDataParser.RankedData?> GetRankedStatsAsync(string? puuid, bool isCurrentUser = false)
+        public static async Task<LolRankedDataParser.RankedData?> GetRankedStatsAsync(string? puuid, bool isCurrentUser = false,
+            CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(puuid)) return null;
 
-            string? json = await GetRankedStatsRawAsync(puuid).ConfigureAwait(false);
+            string? json = await GetRankedStatsRawAsync(puuid, cancellationToken).ConfigureAwait(false);
 
             // 按 puuid 查询失败时，当前玩家回退 current-summoner 端点
             if (string.IsNullOrEmpty(json) && isCurrentUser)
             {
-                json = await GetCurrentSummonerRankedStatsRawAsync().ConfigureAwait(false);
+                json = await GetCurrentSummonerRankedStatsRawAsync(cancellationToken).ConfigureAwait(false);
             }
 
             if (string.IsNullOrEmpty(json)) return null;
@@ -42,24 +43,24 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 获取排位接口原始 JSON（用于诊断“排位数据获取失败”）。
         /// </summary>
-        public static async Task<string?> GetRankedStatsRawAsync(string? puuid)
+        public static async Task<string?> GetRankedStatsRawAsync(string? puuid, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(puuid)) return null;
             HttpClientHelper client = new HttpClientHelper();
-            Stream? responseStream = await client.GetAsync($"/lol-ranked/v1/ranked-stats/{puuid}").ConfigureAwait(false);
+            using Stream? responseStream = await client.GetAsync($"/lol-ranked/v1/ranked-stats/{puuid}", cancellationToken: cancellationToken).ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsStringJsonAsync().ConfigureAwait(false);
+            return await responseStream.ReadAsStringJsonAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
         /// 获取当前召唤师的排位接口原始 JSON（备用端点）。
         /// </summary>
-        private static async Task<string?> GetCurrentSummonerRankedStatsRawAsync()
+        private static async Task<string?> GetCurrentSummonerRankedStatsRawAsync(CancellationToken cancellationToken)
         {
             HttpClientHelper client = new HttpClientHelper();
-            Stream? responseStream = await client.GetAsync("/lol-ranked/v1/current-ranked-stats").ConfigureAwait(false);
+            using Stream? responseStream = await client.GetAsync("/lol-ranked/v1/current-ranked-stats", cancellationToken: cancellationToken).ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsStringJsonAsync().ConfigureAwait(false);
+            return await responseStream.ReadAsStringJsonAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
