@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant.Helper;
 
-public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda, Player1 = 100, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10, SkinPrevious = 200, SkinNext, SkinApply }
+public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda, Player1 = 100, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10, SkinPrevious = 200, SkinNext }
 
 /// <summary>
 /// 置顶键使用 Windows 热键；局内面板同时检测按键状态，避免游戏拦截热键消息后无响应。
@@ -153,7 +153,6 @@ public sealed class WindowHoldController : IDisposable
         {
             if (TryParseGameHotkey(config.SkinPreviousHotkey, out Keys previous)) candidates.Add((previous, QuickShoutHotkeyAction.SkinPrevious));
             if (TryParseGameHotkey(config.SkinNextHotkey, out Keys next)) candidates.Add((next, QuickShoutHotkeyAction.SkinNext));
-            if (TryParseGameHotkey(config.SkinApplyHotkey, out Keys apply)) candidates.Add((apply, QuickShoutHotkeyAction.SkinApply));
         }
         if (config.QuickShoutHotkeysEnabled)
         {
@@ -191,7 +190,7 @@ public sealed class WindowHoldController : IDisposable
             }.Contains(key)) ||
             (config.GameKdaHotkeyEnabled && key == ParseGameHotkey(config.GameKdaHotkey, Keys.F9)) ||
             (config.GameKdaPlayerHotkeysEnabled && key is >= Keys.NumPad0 and <= Keys.NumPad9) ||
-            (config.SkinCoreEnabled && config.SkinHotkeysEnabled && new[] { config.SkinPreviousHotkey, config.SkinNextHotkey, config.SkinApplyHotkey }
+            (config.SkinCoreEnabled && config.SkinHotkeysEnabled && new[] { config.SkinPreviousHotkey, config.SkinNextHotkey }
                 .Any(value => TryParseGameHotkey(value, out Keys skinKey) && skinKey == key));
     }
 
@@ -443,6 +442,15 @@ public sealed class WindowHoldController : IDisposable
 
     /// <summary>判断当前前台进程是否为游戏进程。</summary>
     private static bool IsLeagueGameForeground() => IsForegroundProcess("League of Legends");
+
+    internal static bool TryGetForegroundGameBounds(out Rectangle bounds)
+    {
+        bounds = Rectangle.Empty;
+        if (!IsLeagueGameForeground()) return false;
+        if (!GetWindowRect(GetForegroundWindow(), out NativeRect rect) || rect.Right <= rect.Left || rect.Bottom <= rect.Top) return false;
+        bounds = Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom);
+        return true;
+    }
 
     /// <summary>根据进程名称判断当前前台进程。</summary>
     private static bool IsForegroundProcess(params string[] names)

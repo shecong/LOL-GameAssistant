@@ -39,10 +39,11 @@ public sealed class SkinToolsTests
             return Task.FromResult(LastCatalog);
         }
         public List<string> AppliedEntries { get; } = [];
+        public bool VerifyApply { get; set; } = true;
         public Task<SkinCoreReply> ApplyAsync(string session, string entry, CancellationToken ct = default)
         {
             AppliedEntries.Add(entry); var target = LastCatalog!.Entries.Single(e => e.EntryId == entry);
-            return Task.FromResult(LastCatalog with { Invoked = true, StateVerified = true, Skin = target.SkinNum, ActiveModel = target.Model, Gear = target.Gear });
+            return Task.FromResult(LastCatalog with { Invoked = true, StateVerified = VerifyApply, Skin = target.SkinNum, ActiveModel = target.Model, Gear = target.Gear });
         }
         public Task<SkinCoreReply> RestoreAsync(string session, CancellationToken ct = default) => throw new InvalidOperationException();
     }
@@ -93,6 +94,8 @@ public sealed class SkinToolsTests
         using var page = new SkinToolsForm(core, new Settings()); host.Controls.Add(page); host.Show(); System.Windows.Forms.Application.DoEvents();
         Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
         var select = Descendants(page).OfType<AntdUI.Select>().Single(); select.SelectedIndex = 1;
+        Assert.Equal("1:-1", Assert.Single(core.AppliedEntries));
+        Assert.DoesNotContain(Descendants(page), control => control.Name is "SkinActionApply" or "SkinApplyKey");
         int disabled = 0; select.EnabledChanged += (_, _) => { if (!select.Enabled) disabled++; };
         object second = select.Items[1]!;
         core.PendingRead = new TaskCompletionSource<SkinCoreReply>();
@@ -102,6 +105,22 @@ public sealed class SkinToolsTests
         Assert.True(SpinWait.SpinUntil(() => { System.Windows.Forms.Application.DoEvents(); return refresh.IsCompleted; }, TimeSpan.FromSeconds(5)));
         refresh.GetAwaiter().GetResult();
         Assert.Equal(0, disabled); Assert.True(select.Enabled); Assert.Equal(1, select.SelectedIndex); Assert.Same(second, select.Items[1]);
+        var search = Descendants(page).OfType<AntdUI.Input>().Single(c => c.Name == "SkinSearch");
+        search.Text = "烈焰";
+        search.Text = "";
+        Assert.Single(core.AppliedEntries);
+    });
+    [Fact]
+    public void UnverifiedHotkeyDoesNotAnnounceSuccess() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core { VerifyApply = false };
+        var settings = new Settings(); settings.Load().SkinCoreEnabled = true; settings.Load().SkinHotkeysEnabled = true;
+        using var page = new SkinToolsForm(core, settings);
+        page.Visible = false;
+        var notices = new List<string>(); page.HotkeySkinApplied += notices.Add;
+        page.ApplyHotkeyAsync(QuickShoutHotkeyAction.SkinNext).GetAwaiter().GetResult();
+        Assert.Single(core.AppliedEntries);
+        Assert.Empty(notices);
     });
     [Fact]
     public void HotkeyCanCycleWhilePageHiddenAndDropsRapidRepeats() => MatchListScrollingTests.OnUiThread(() =>
@@ -110,9 +129,13 @@ public sealed class SkinToolsTests
         using var host = new RenderHost { ClientSize = new Size(820, 620), ShowInTaskbar = false };
         using var page = new SkinToolsForm(core, settings); host.Controls.Add(page); host.Show(); System.Windows.Forms.Application.DoEvents();
         page.Visible = false;
+        var notices = new List<string>();
+        page.HotkeySkinApplied += notices.Add;
         page.ApplyHotkeyAsync(QuickShoutHotkeyAction.SkinNext).GetAwaiter().GetResult();
         Assert.Equal("1:-1", Assert.Single(core.AppliedEntries));
+        Assert.Equal("大元素使 烈焰", Assert.Single(notices));
         page.ApplyHotkeyAsync(QuickShoutHotkeyAction.SkinNext).GetAwaiter().GetResult(); Assert.Single(core.AppliedEntries);
+        Assert.Single(notices);
         core.SetEnabled(false); page.ApplyHotkeyAsync(QuickShoutHotkeyAction.SkinPrevious).GetAwaiter().GetResult(); Assert.Single(core.AppliedEntries);
     });
     [Fact]

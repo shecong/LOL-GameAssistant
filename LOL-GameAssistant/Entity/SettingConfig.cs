@@ -17,7 +17,6 @@ namespace LOL_GameAssistant.Entity
         public bool SkinHotkeysEnabled { get; set; }
         public string SkinPreviousHotkey { get; set; } = "Ctrl+Alt+Left";
         public string SkinNextHotkey { get; set; } = "Ctrl+Alt+Right";
-        public string SkinApplyHotkey { get; set; } = "Ctrl+Alt+Enter";
 
         /// <summary>LOL 安装文件夹。启动时会自动扫描其子目录中的 LeagueClient.exe。</summary>
         [JsonProperty("gameClientPath")]

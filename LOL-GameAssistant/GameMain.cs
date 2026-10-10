@@ -110,7 +110,7 @@ namespace LOL_GameAssistant
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
                 action => _ = action switch
                 {
-                    QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext or QuickShoutHotkeyAction.SkinApply => ApplySkinHotkeyAsync(action),
+                    QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext => ApplySkinHotkeyAsync(action),
                     >= QuickShoutHotkeyAction.Player1 and <= QuickShoutHotkeyAction.Player10 => liveGameForm.SendGameKdaManuallyAsync((int)action - 100),
                     QuickShoutHotkeyAction.GameKda => liveGameForm.SendGameKdaManuallyAsync(),
                     QuickShoutHotkeyAction.SelectedBatch => settingForm.SendSelectedQuickShoutToGameAsync(),

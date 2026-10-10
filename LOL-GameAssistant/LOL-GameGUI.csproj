@@ -33,7 +33,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Tools\SkinCore\league-skin-core-host.exe;Tools\SkinCore\league-skin-core.dll;Tools\SkinCore\SHA256SUMS.json;Tools\SkinCore\licenses\*">
+    <Content Include="Tools\SkinCore\league-skin-core-host.exe;Tools\SkinCore\league-skin-core.dll;Tools\SkinCore\SHA256SUMS.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
@@ -75,12 +75,6 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
     <EmbeddedResource Include="icon_16x16.ico" LogicalName="LOL_GameAssistant.AppIcon.ico" />
-    <Content Include="..\docs\licenses\SimdPaddleOCR\LICENSE.txt" Link="licenses\SimdPaddleOCR\LICENSE.txt">
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-    <Content Include="..\docs\licenses\SimdPaddleOCR\THIRD-PARTY-NOTICES.md" Link="licenses\SimdPaddleOCR\THIRD-PARTY-NOTICES.md">
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
   </ItemGroup>
 
 </Project>

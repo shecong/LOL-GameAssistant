@@ -17,7 +17,6 @@ public sealed class AssistantSettings
     public bool SkinHotkeysEnabled { get; set; }
     public string SkinPreviousHotkey { get; set; } = "Ctrl+Alt+Left";
     public string SkinNextHotkey { get; set; } = "Ctrl+Alt+Right";
-    public string SkinApplyHotkey { get; set; } = "Ctrl+Alt+Enter";
     public string GameClientPath { get; set; } = "";
     public int WindowOpacityPercent { get; set; } = 100;
     public string HoldToTopHotkey { get; set; } = "Oem3";

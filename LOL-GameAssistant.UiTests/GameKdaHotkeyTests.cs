@@ -17,7 +17,7 @@ public sealed class GameKdaHotkeyTests
         var bindings = Bindings(settings);
         Assert.Equal(QuickShoutHotkeyAction.SkinNext, bindings[Keys.Control | Keys.Alt | Keys.Right]);
         Assert.Equal(QuickShoutHotkeyAction.SkinPrevious, bindings[Keys.Control | Keys.Alt | Keys.Left]);
-        Assert.Equal(QuickShoutHotkeyAction.SkinApply, bindings[Keys.Control | Keys.Alt | Keys.Enter]);
+        Assert.DoesNotContain(Keys.Control | Keys.Alt | Keys.Enter, bindings.Keys);
         settings.SkinCoreEnabled = false; Assert.DoesNotContain(Bindings(settings).Values, value => value >= QuickShoutHotkeyAction.SkinPrevious);
         settings.SkinCoreEnabled = true; settings.SkinNextHotkey = "F9";
         Assert.True(WindowHoldController.HasGameHotkeyConflict(settings)); Assert.DoesNotContain(Bindings(settings).Values, value => value == QuickShoutHotkeyAction.SkinNext);

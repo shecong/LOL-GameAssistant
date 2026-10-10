@@ -15,7 +15,6 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private readonly AntdUI.Select _entries = new() { Dock = DockStyle.Top, Height = 56, List = true, MaxCount = 12,
         DropDownArrow = true, DropDownRadius = 10, Font = new Font(UiMetrics.FontFamily, 11), PlaceholderText = "请先启用并读取当前英雄" };
     private readonly AntdUI.Button _refresh = new() { Name = "SkinActionRefresh", Text = "读取当前英雄", Width = 146, Height = 42, Margin = new Padding(0, 8, 12, 4) };
-    private readonly AntdUI.Button _apply = new() { Name = "SkinActionApply", Text = "应用所选皮肤", Width = 146, Height = 42, Margin = new Padding(0, 8, 12, 4), Type = AntdUI.TTypeMini.Primary };
     private readonly AntdUI.Button _restore = new() { Name = "SkinActionRestore", Text = "恢复基础皮肤", Width = 146, Height = 42, Margin = new Padding(0, 8, 0, 4) };
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Top, Height = 60, Padding = new Padding(0, 8, 0, 0), Text = "功能已关闭。启用后可读取当前对局。" };
     private readonly AntdUI.Label _current = new() { Dock = DockStyle.Top, Height = 68, Padding = new Padding(14, 8, 14, 8), Font = new Font(UiMetrics.FontFamily, 10.5f), Text = "尚未连接游戏" };
@@ -27,6 +26,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private SkinCoreReply? _catalog;
     private List<SkinEntry> _filtered = [];
     private bool _busy;
+    private bool _updatingSelection;
     private bool _refreshing;
     private bool _disposing;
     private long _revision;
@@ -43,7 +43,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         toggleRow.Controls.Add(new AntdUI.Label { Text = "启用独立核心", Width = 120, Height = 32 }); toggleRow.Controls.Add(_enabled);
         heading.Controls.Add(toggleRow, 1, 0);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 64, AutoSize = false, WrapContents = true, Margin = Padding.Empty };
-        buttons.Controls.AddRange([_refresh, _apply, _restore]);
+        buttons.Controls.AddRange([_refresh, _restore]);
         var gap = new AntdUI.Label { Dock = DockStyle.Top, Height = 8, Text = "" };
         var selectionLabel = new AntdUI.Label { Dock = DockStyle.Top, Height = 28, Text = "选择皮肤与形态" };
         var stateGap = new AntdUI.Label { Dock = DockStyle.Top, Height = 16, Text = "" };
@@ -71,9 +71,12 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _core.SetEnabled(_enabled.Checked);
         _enabled.CheckedChanged += (_, _) => ToggleEnabled();
         _search.TextChanged += (_, _) => FilterEntries();
-        _entries.SelectedIndexChanged += (_, _) => UpdateButtons();
+        _entries.SelectedIndexChanged += async (_, _) =>
+        {
+            UpdateButtons();
+            if (!_updatingSelection) await ChangeAsync(false);
+        };
         _refresh.Click += async (_, _) => await RefreshAsync();
-        _apply.Click += async (_, _) => await ChangeAsync(false);
         _restore.Click += async (_, _) => await ChangeAsync(true);
         _timer.Tick += async (_, _) => await RefreshAsync();
         VisibleChanged += PageVisibleChanged;
@@ -98,7 +101,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         try { var settings = _settings.Load(); settings.SkinCoreEnabled = _enabled.Checked; _settings.Save(settings); }
         catch (Exception ex) { _status.Text = $"设置保存失败：{ex.Message}"; }
-        _core.SetEnabled(_enabled.Checked); ResetSession(); UpdateActivity();
+        _skinNotice?.Hide(); _core.SetEnabled(_enabled.Checked); ResetSession(); UpdateActivity();
         RenewHotkeyRequests(); HotkeySettingsChanged?.Invoke();
         _status.Text = UiLanguage.T(_enabled.Checked ? "功能已启用，等待读取当前对局。" : "功能已关闭；已开始的请求可能已执行，当前皮肤不会自动还原。");
     }
@@ -116,7 +119,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     public void OnGamePhaseChanged(bool inProgress)
     {
-        if (!inProgress) { ResetSession(); _core.InvalidateSession(); RenewHotkeyRequests(); }
+        if (!inProgress) { _skinNotice?.Hide(); ResetSession(); _core.InvalidateSession(); RenewHotkeyRequests(); }
     }
     private void ResetSession()
     {
@@ -128,9 +131,15 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         string? previous = _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count ? _filtered[_entries.SelectedIndex].EntryId : null;
         string query = _search.Text.Trim();
         _filtered = _catalog?.Entries.Where(e => $"{e.Name} {e.Model} {e.SkinNum} {e.GearName}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
-        _entries.Items.Clear();
-        foreach (var entry in _filtered) _entries.Items.Add($"{entry.Name}  ·  {entry.Model}  ·  #{entry.SkinNum}" + (entry.GearName == null ? "" : $"  ·  {entry.GearName}"));
-        _entries.SelectedIndex = previous == null ? -1 : _filtered.FindIndex(e => e.EntryId == previous);
+        bool wasUpdating = _updatingSelection;
+        _updatingSelection = true;
+        try
+        {
+            _entries.Items.Clear();
+            foreach (var entry in _filtered) _entries.Items.Add($"{entry.Name}  ·  {entry.Model}  ·  #{entry.SkinNum}" + (entry.GearName == null ? "" : $"  ·  {entry.GearName}"));
+            _entries.SelectedIndex = previous == null ? -1 : _filtered.FindIndex(e => e.EntryId == previous);
+        }
+        finally { _updatingSelection = wasUpdating; }
         UpdateButtons();
     }
     private void UpdateButtons()
@@ -139,7 +148,6 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         bool ready = _core.Enabled && !_busy && Visible && _catalog != null;
         _refresh.Enabled = _core.Enabled && !_busy && !_refreshing && Visible;
         _search.Enabled = _core.Enabled; _entries.Enabled = ready;
-        _apply.Enabled = ready && !_refreshing && _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count;
         _restore.Enabled = ready && !_refreshing;
     }
     private async Task RefreshAsync()
@@ -212,7 +220,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (_hotkeyCard != null) ThemeCardLabels(_hotkeyCard);
         _status.BackColor = palette.SurfaceRaised; _status.ForeColor = palette.TextSecondary;
         _current.BackColor = palette.SurfaceMuted; _current.ForeColor = palette.TextPrimary;
-        foreach (var input in new[] { _previousKey, _nextKey, _applyKey })
+        foreach (var input in new[] { _previousKey, _nextKey })
         {
             input.BackColor = palette.SurfaceMuted; input.ForeColor = palette.TextPrimary;
             input.BorderColor = palette.Border;
@@ -229,6 +237,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             UiLanguage.Changed -= LanguageChanged;
             _timer.Stop(); CancelPageRequests(); _timer.Dispose();
             CancelHotkeyRequests();
+            _skinNotice?.Dispose();
             _core.InvalidateSession();
         }
         base.Dispose(disposing);
