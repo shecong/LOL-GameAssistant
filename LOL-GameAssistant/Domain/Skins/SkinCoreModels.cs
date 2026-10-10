@@ -26,6 +26,7 @@ public sealed record SkinCoreReply
     public string Model { get; init; } = "";
     public string ActiveModel { get; init; } = "";
     public int Skin { get; init; }
+    public int? ActiveSkin { get; init; }
     public int Gear { get; init; } = -1;
     public IReadOnlyList<SkinEntry> Entries { get; init; } = [];
 }

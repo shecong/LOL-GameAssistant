@@ -13,7 +13,7 @@ public sealed class SkinCoreServiceTests
             new() { EntryId = "0:-1", Index = 0, Gear = -1, SkinNum = 0, Model = "Lux", Name = "Base" },
             new() { EntryId = "1:-1", Index = 1, Gear = -1, SkinNum = 7, Model = "Lux", Name = "Elementalist" },
             new() { EntryId = "2:-1", Index = 2, Gear = -1, SkinNum = 7, Model = "LuxFire", Name = "Fire" }] };
-    private static SkinCoreReply Applied() => Catalog() with { Invoked = true, StateVerified = true, Skin = 7, ActiveModel = "LuxFire" };
+    private static SkinCoreReply Applied() => Catalog() with { Invoked = true, StateVerified = true, Skin = 7, ActiveSkin = 7, ActiveModel = "LuxFire" };
     private sealed class Fake(Func<IReadOnlyList<string>, CancellationToken, Task<SkinCoreReply>> handler) : ISkinCoreTransport
     {
         public List<string[]> Calls { get; } = [];
@@ -31,11 +31,12 @@ public sealed class SkinCoreServiceTests
     {
         var reply = NativeSkinCoreTransport.ParseReply("""
             {"ok":true,"independent":true,"original_required":false,"session":"1234567890abcdef",
-            "reference_sha256":"profile","model":"Lux","active_model":"LuxFire","skin":7,"gear":-1,
+            "reference_sha256":"profile","model":"Lux","active_model":"LuxFire","skin":7,"active_skin":7,"gear":-1,
             "entries":[{"entry_id":"2:-1","index":2,"gear":-1,"skin_num":7,"name":"Fire","model":"LuxFire","gear_name":"Flame"}]}
             """);
         Assert.Equal("profile", reply.ReferenceSha256); Assert.False(reply.OriginalRequired);
         Assert.Equal("LuxFire", reply.ActiveModel); Assert.Equal("2:-1", Assert.Single(reply.Entries).EntryId);
+        Assert.Equal(7, reply.ActiveSkin);
         Assert.Equal("Flame", reply.Entries[0].GearName); Assert.Equal(7, reply.Entries[0].SkinNum);
         Assert.True(Assert.Throws<SkinCoreException>(() => NativeSkinCoreTransport.ParseReply("null", true)).OutcomeUnknown);
     }
@@ -63,10 +64,13 @@ public sealed class SkinCoreServiceTests
     }
     [Theory]
     [InlineData("model")][InlineData("session")][InlineData("version")][InlineData("skin")][InlineData("invoked")]
+    [InlineData("active_skin")][InlineData("missing_active_skin")]
     public async Task ReadbackMismatchIsNotSuccess(string mismatch)
     {
         var actual = mismatch switch { "model" => Applied() with { ActiveModel = "Lux" }, "session" => Applied() with { Session = "old" },
-            "version" => Applied() with { ReferenceSha256 = "new" }, "skin" => Applied() with { Skin = 0 }, _ => Applied() with { Invoked = false } };
+            "version" => Applied() with { ReferenceSha256 = "new" }, "skin" => Applied() with { Skin = 0 },
+            "active_skin" => Applied() with { ActiveSkin = 0 }, "missing_active_skin" => Applied() with { ActiveSkin = null },
+            _ => Applied() with { Invoked = false } };
         var service = new NativeSkinCoreService(new Fake((args, _) => Task.FromResult(args[0] == "catalog" ? Catalog() : actual))); service.SetEnabled(true);
         Assert.False((await service.ApplyAsync(Session, "2:-1")).StateVerified);
     }
@@ -92,7 +96,7 @@ public sealed class SkinCoreServiceTests
     [Fact]
     public async Task RestoreRequiresCurrentSessionAndVerifiesBase()
     {
-        var fake = new Fake((args, _) => Task.FromResult(args[0] == "catalog" ? Catalog() : Applied() with { Skin = 0, ActiveModel = "Lux" }));
+        var fake = new Fake((args, _) => Task.FromResult(args[0] == "catalog" ? Catalog() : Applied() with { Skin = 0, ActiveSkin = 0, ActiveModel = "Lux" }));
         var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
         Assert.True((await service.RestoreAsync(Session)).StateVerified); Assert.Equal(new[] { "restore", Session }, fake.Calls[1]);
     }

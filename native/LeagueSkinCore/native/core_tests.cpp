@@ -24,12 +24,35 @@ int main() {
     assert(skinValue(encrypted,&skin) && skin==0);
     encrypted[21]=1;assert(!skinValue(encrypted,&skin));
     encrypted[22]=0;encrypted[23]=4;assert(!skinValue(encrypted,&skin));
+    *(const char**)(stack+0x18)="Lux";
+    char model[64];int activeSkin=-1;
+    assert(independentActiveState(&context,model,sizeof(model),&activeSkin) && activeSkin==0);
     BYTE frames[0x140]{};*(BYTE**)stack=frames;*(BYTE**)(stack+8)=frames+sizeof(frames);*(BYTE**)(stack+16)=frames+sizeof(frames);
     *(const char**)frames="Lux";*(const char**)(frames+0xa0)="LuxFire";
-    char model[64];assert(independentActiveModel(&context,model,sizeof(model))&&!strcmp(model,"LuxFire"));
+    *(int*)(frames+0x20)=1;*(int*)(frames+0xa0+0x20)=2;
+    assert(independentActiveState(&context,model,sizeof(model),&activeSkin)&&!strcmp(model,"LuxFire")&&activeSkin==2);
+    // A different active model rejects the request without modifying either layer.
+    assert(!independentSyncLayers(&context,"Lux",7));
+    assert(*(int*)(frames+0x20)==1 && *(int*)(frames+0xa0+0x20)==2);
+    assert(independentSyncLayers(&context,"LuxFire",7));
+    assert(*(int*)(frames+0x20)==1 && *(int*)(frames+0xa0+0x20)==7);
+    // Same model, stale skin: synchronize both layers, including the one Update consumes.
+    *(const char**)(frames+0xa0)="Lux";
+    assert(independentSyncLayers(&context,"Lux",7));
+    assert(*(int*)(frames+0x20)==7 && *(int*)(frames+0xa0+0x20)==7);
+    assert(independentActiveState(&context,model,sizeof(model),&activeSkin)&&activeSkin==7);
+    assert(independentSyncLayers(&context,"Lux",0));
+    assert(*(int*)(frames+0x20)==0 && *(int*)(frames+0xa0+0x20)==0);
+    // Prevalidation prevents partial writes if a later layer has an invalid skin/layout.
+    *(int*)(frames+0xa0+0x20)=-1;assert(!independentSyncLayers(&context,"Lux",7));
+    assert(*(int*)(frames+0x20)==0);
+    *(int*)(frames+0xa0+0x20)=0;
     *(BYTE**)(stack+8)=frames+sizeof(frames)-1;assert(!independentActiveModel(&context,model,sizeof(model)));
+    assert(!independentSyncLayers(&context,"Lux",7));assert(*(int*)(frames+0x20)==0);
+    *(BYTE**)(stack+8)=frames;*(BYTE**)(stack+16)=frames-1;
+    assert(!independentActiveModel(&context,model,sizeof(model)));
     assert(independentDefaultGear("Morgana",80,-1)==3);
     assert(independentDefaultGear("Ahri",86,-1)==0);
     assert(independentDefaultGear("Kayn",0,2)==2);
-    puts("Independent core: command isolation, ownership, expiry, skin field and model bounds passed.");
+    puts("Independent core: ownership, expiry, skin field, layer synchronization, restore and bounds passed.");
 }

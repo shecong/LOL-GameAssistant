@@ -67,9 +67,9 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
         if (!Enabled || revision != Interlocked.Read(ref _revision)) throw new SkinCoreException("request_outcome_unknown", true);
         bool verified = result.Ok && result.Independent && !result.OriginalRequired && result.Invoked && result.StateVerified &&
             result.Session == session && result.ReferenceSha256 == catalog.ReferenceSha256 && result.Model == catalog.Model &&
-            result.Skin == selected.SkinNum && result.ActiveModel == selected.Model && (selected.Gear < 0 || result.Gear == selected.Gear);
+            result.Skin == selected.SkinNum && result.ActiveSkin == selected.SkinNum && result.ActiveModel == selected.Model && (selected.Gear < 0 || result.Gear == selected.Gear);
         result = result with { StateVerified = verified };
-        Log(new { stage = "result", result.RequestId, result.Session, result.Invoked, result.StateVerified, result.Skin, result.ActiveModel, result.Gear });
+        Log(new { stage = "result", result.RequestId, result.Session, result.Invoked, result.StateVerified, result.Skin, result.ActiveSkin, result.ActiveModel, result.Gear });
         return result;
     }
     private void Log(object value)

@@ -195,6 +195,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             "core_files_missing" => "核心文件缺失，请重新安装完整运行包。",
             "game_window_not_found" => "未检测到游戏对局，请进入游戏后刷新。",
             "independent_game_version_not_supported" => "当前游戏版本尚未适配，已停止调用。",
+            "independent_skin_layer_not_verified" => "当前皮肤层或模型不兼容，已停止换肤。请恢复正常形态后重新读取。",
             "request_outcome_unknown" => "请求结果未确认，动作可能已执行。请读取状态，勿自动重试。",
             "standard_windows_hook_rejected" => "Windows 拒绝核心连接，未继续加载。",
             "stale_session" => "对局已变化，请重新读取当前英雄。",

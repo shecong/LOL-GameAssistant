@@ -77,15 +77,52 @@ static bool independentContext(IndependentContext* c,Request* r) {
     for(int n=0;n<c->count;n++){auto entry=&c->entries[n];token=digest(token,&entry->skin,sizeof(entry->skin));token=digest(token,&entry->gear,sizeof(entry->gear));token=digest(token,entry->model,strlen(entry->model)+1);token=digest(token,entry->name,strlen(entry->name)+1);}
     sprintf_s(c->session,"%016llx",token);return true;
 }
-static bool independentActiveModel(IndependentContext* c,char* model,size_t size) {
+// Reference DLL RVA 0x55ecd..0x55ed7 synchronizes layer +0x20 from base +0x38.
+// The inspected game Update selects end-0xa0, or the base at stack+0x18.
+constexpr size_t IndependentLayerStride=0xa0,IndependentLayerSkin=0x20;
+static bool independentLayers(IndependentContext* c,BYTE** first,int* count) {
     BYTE* begin=*(BYTE**)c->stack,*end=*(BYTE**)(c->stack+8),*capacity=*(BYTE**)(c->stack+16);
-    if(begin==end)return strcpy_s(model,size,c->hero)==0;
-    int count=0;if(!span(begin,end,capacity,0xa0,256,&count))return false;
-    return cstring(*(const char**)(end-0xa0),model,size);
+    *first=begin;*count=0;
+    if(begin==end) {
+        uintptr_t a=(uintptr_t)begin,cap=(uintptr_t)capacity;
+        return (!a && !cap) || (a && cap>=a && (cap-a)%IndependentLayerStride==0 && (cap-a)/IndependentLayerStride<=256);
+    }
+    return span(begin,end,capacity,IndependentLayerStride,256,count);
+}
+static bool independentActiveState(IndependentContext* c,char* model,size_t size,int* skin) {
+    BYTE* first;int count;if(!independentLayers(c,&first,&count))return false;
+    BYTE* active=count?first+(count-1)*IndependentLayerStride:c->stack+0x18;
+    *skin=*(int*)(active+IndependentLayerSkin);
+    return *skin>=0 && *skin<=10000 && cstring(*(const char**)active,model,size);
+}
+static bool independentActiveModel(IndependentContext* c,char* model,size_t size) {
+    int skin;return independentActiveState(c,model,size,&skin);
+}
+static bool independentValidateLayers(IndependentContext* c,const char* target,bool replacesStack) {
+    BYTE* first;int count;if(!independentLayers(c,&first,&count))return false;
+    for(int n=0;n<count;n++) {
+        BYTE* layer=first+n*IndependentLayerStride;char model[64];int skin=*(int*)(layer+IndependentLayerSkin);
+        if(skin<0 || skin>10000 || !cstring(*(const char**)layer,model,sizeof(model)))return false;
+        // Do not overwrite a borrowed/transform model with another model's skin ID.
+        if(n==count-1 && !replacesStack && strcmp(model,target))return false;
+    }
+    return true;
+}
+static bool independentSyncLayers(IndependentContext* c,const char* target,int skin) {
+    if(!independentValidateLayers(c,target,false))return false;
+    BYTE* first;int count;if(!independentLayers(c,&first,&count))return false;
+    for(int n=0;n<count;n++) {
+        BYTE* layer=first+n*IndependentLayerStride;char model[64];
+        if(!cstring(*(const char**)layer,model,sizeof(model)))return false;
+        if(!strcmp(model,target))*(int*)(layer+IndependentLayerSkin)=skin;
+    }
+    return true;
 }
 static void independentState(Writer* writer,IndependentContext* c) {
-    char active[64];append(writer,"\"skin\":%d,\"gear\":%d,\"model\":",*(int*)(c->stack+0x38),(int)*(signed char*)(c->stack+0x9c));quoted(writer,c->hero);
-    append(writer,",\"active_model\":");if(independentActiveModel(c,active,sizeof(active)))quoted(writer,active);else append(writer,"null");
+    char active[64];int skin;bool valid=independentActiveState(c,active,sizeof(active),&skin);
+    append(writer,"\"skin\":%d,\"gear\":%d,\"model\":",*(int*)(c->stack+0x38),(int)*(signed char*)(c->stack+0x9c));quoted(writer,c->hero);
+    append(writer,",\"active_model\":");if(valid)quoted(writer,active);else append(writer,"null");
+    append(writer,",\"active_skin\":");if(valid)append(writer,"%d",skin);else append(writer,"null");
 }
 static bool independentWriteSkin(IndependentContext* c,int skin) {
     BYTE* field=c->player+Game_skin_offset;int previous;if(!skinValue(field,&previous))return false;
@@ -131,6 +168,8 @@ static void independentProcess(Request* r) {
                 for(int n=0;n<c.count;n++)if((r->command==9?c.entries[n].skin==0 && c.entries[n].gear==-1 && !strcmp(c.entries[n].model,c.hero):c.entries[n].index==r->index && c.entries[n].gear==r->gear)){selected=&c.entries[n];break;}
                 if(!selected){fail(r,"invalid_entry");__leave;}
                 if(GetTickCount64()>r->deadline){fail(r,"request_expired");__leave;}
+                bool replacesStack=!strcmp(c.hero,"Lux") || !strcmp(c.hero,"Sona");
+                if(!independentValidateLayers(&c,selected->model,replacesStack)){fail(r,"independent_skin_layer_not_verified","validation",false);__leave;}
                 invoked=true;if(!independentWriteSkin(&c,selected->skin)){fail(r,"independent_skin_field_not_verified","call",false);__leave;}
                 using Update=__int64(__fastcall*)(uintptr_t,bool);
                 bool special=(!strcmp(c.hero,"Lux") && selected->skin==7) || (!strcmp(c.hero,"Sona") && selected->skin==6);
@@ -144,10 +183,11 @@ static void independentProcess(Request* r) {
                     *(signed char*)(c.stack+0x9c)=(signed char)independentDefaultGear(c.hero,selected->skin,*(signed char*)(c.stack+0x9c));
                 }
                 if(selected->gear>=0)*(signed char*)(c.stack+0x9c)=(signed char)selected->gear;
+                if(!independentSyncLayers(&c,selected->model,selected->skin)){fail(r,"independent_skin_layer_not_verified","call",true);__leave;}
                 ((Update)(c.base+Game_update))((uintptr_t)c.stack,true);
-                char active[64];int skin;
+                char active[64];int skin,activeSkin;
                 bool verified=skinValue(c.player+Game_skin_offset,&skin) && skin==selected->skin && *(int*)(c.stack+0x38)==skin &&
-                    independentActiveModel(&c,active,sizeof(active)) && !strcmp(active,selected->model) && (selected->gear<0 || *(signed char*)(c.stack+0x9c)==selected->gear);
+                    independentActiveState(&c,active,sizeof(active),&activeSkin) && activeSkin==skin && !strcmp(active,selected->model) && (selected->gear<0 || *(signed char*)(c.stack+0x9c)==selected->gear);
                 append(&writer,"{\"ok\":true,\"invoked\":true,\"state_verified\":%s,",verified?"true":"false");
             } else if(r->command!=10)append(&writer,"{\"ok\":true,\"matched\":true,");
             if(r->command!=10){append(&writer,"\"independent\":true,\"original_required\":false,\"connected\":true,\"session\":\"%s\",\"pid\":%lu,\"request_id\":\"%016llx\",\"reference_sha256\":\"%s\",",c.session,GetCurrentProcessId(),r->nonce,GameProfileSha);independentState(&writer,&c);}
