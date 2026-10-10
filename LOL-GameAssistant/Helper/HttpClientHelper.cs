@@ -16,7 +16,7 @@ public class HttpClientHelper : IDisposable
     // 使用静态 HttpClient 实例避免 Socket 耗尽
     private static readonly HttpClient _httpClient;
 
-    private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(20, 20); // 限制并发数
+    private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(50, 50); // 限制并发数
 
     /// <summary>初始化 HttpClientHelper 使用的共享状态。</summary>
     static HttpClientHelper()
@@ -106,7 +106,7 @@ public class HttpClientHelper : IDisposable
             }
         }
 
-        // 401 刷新后最多重试一次；重试必须先释放并发槽，避免 20 个请求互相等待。
+        // 401 刷新后最多重试一次；重试必须先释放并发槽，避免并发请求互相等待。
         for (int attempt = 0; attempt < 2; attempt++)
         {
             await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);

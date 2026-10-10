@@ -49,7 +49,9 @@ namespace LOL_GameAssistant.BaseViewForm
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<long, (DateTime CachedAt, Task<MatchDetail?> Value)> MatchDetailCache = new();
-        private static readonly SemaphoreSlim GlobalMatchDetailLoadGate = new(8, 8);
+        private static readonly SemaphoreSlim GlobalMatchDetailLoadGate = new(20, 20);
+        private const int DetailWorkersPerPlayer = 2;
+        private static readonly TimeSpan DetailRequestTimeout = TimeSpan.FromSeconds(5);
         private Image? _ownedProfileImage;
         private Image? _ownedChampionImage;
         private ToolTip? _premadeTip;
@@ -60,6 +62,8 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private bool _recentPerformancePublished;
         private bool _loadStarted;
+        private bool _loading;
+        private bool _headerLoadStarted;
         private RecentModePerformanceAssessment? _cachedAssessment;
         private bool _layingOutMatchRows;
 
@@ -224,22 +228,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 ApplyDeferredVisibility();
                 // Reparenting a loaded card can raise Load again. Keep its existing request and rows.
                 if (_loadStarted) return;
-                _loadStarted = true;
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
-                timeout.CancelAfter(MaximumLoadDuration);
-                try
-                {
-                    await Task.WhenAll(LoadAsync(timeout.Token), LoadRankAsync(timeout.Token));
-                }
-                catch (OperationCanceledException) when (timeout.IsCancellationRequested)
-                {
-                    if (!_lifetimeCancellation.IsCancellationRequested && !IsDisposed)
-                        ShowLoadFailure("获取超时", "对局数据获取超过 1 分钟，已取消本次加载。");
-                }
-                catch (Exception ex)
-                {
-                    if (!IsDisposed) ShowLoadFailure("获取失败", $"对局数据获取失败：{ex.Message}");
-                }
+                await StartLoadAsync();
             };
             UiTheme.Apply(this);
         }
@@ -378,19 +367,57 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>展示玩家数据加载失败的状态。</summary>
         private void ShowLoadFailure(string status, string detail)
         {
-            lblSummary.Text = status;
+            bool hasRows = panelMatches.Controls.OfType<RecentMatchRow>().Any();
+            lblSummary.Text = hasRows
+                ? (lblSummary.Text?.StartsWith("战绩加载中", StringComparison.Ordinal) == true ? "部分战绩已加载" : "评分暂不可用")
+                : status;
             lblSummary.ForeColor = UiTheme.Palette.TextSecondary;
             _performanceTip.SetToolTip(lblSummary, detail);
-            ControlLifetime.ClearAndDispose(panelMatches);
-            panelMatches.Controls.Add(new AntdUI.Label
+            // 评分失败或超时时，已显示的战绩仍然可用。
+            if (!hasRows)
             {
-                Text = detail,
-                AutoSize = true,
-                ForeColor = UiTheme.Palette.TextSecondary,
-                Padding = new Padding(8)
-            });
+                ControlLifetime.ClearAndDispose(panelMatches);
+                panelMatches.Controls.Add(new AntdUI.Label
+                {
+                    Text = detail,
+                    AutoSize = true,
+                    ForeColor = UiTheme.Palette.TextSecondary,
+                    Padding = new Padding(8)
+                });
+                var retry = new AntdUI.Button
+                {
+                    Name = "btnRetryHistory", Text = "重新加载", Size = new Size(100, 32),
+                    Location = new Point(8, 64)
+                };
+                retry.Click += async (_, _) => await StartLoadAsync();
+                panelMatches.Controls.Add(retry);
+            }
             PublishRecentPerformance(null);
             RuntimeDiagnostics.Report("对局玩家战绩", status, detail);
+        }
+
+        private async Task StartLoadAsync()
+        {
+            if (_loading || IsDisposed) return;
+            _loadStarted = true;
+            _loading = true;
+            _recentPerformancePublished = false;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+            timeout.CancelAfter(MaximumLoadDuration);
+            try
+            {
+                await Task.WhenAll(LoadAsync(timeout.Token), LoadRankAsync(timeout.Token));
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                if (!_lifetimeCancellation.IsCancellationRequested && !IsDisposed)
+                    ShowLoadFailure("获取超时", "对局数据获取超过 1 分钟，可重新加载。");
+            }
+            catch (Exception ex)
+            {
+                if (!IsDisposed) ShowLoadFailure("获取失败", $"对局数据获取失败：{ex.Message}");
+            }
+            finally { _loading = false; }
         }
 
         /// <summary>
@@ -472,6 +499,23 @@ namespace LOL_GameAssistant.BaseViewForm
 
             ShowShimmer();
 
+            if (!_headerLoadStarted)
+            {
+                _headerLoadStarted = true;
+                _ = LoadPlayerHeaderAsync();
+                _ = LoadHeaderAssetsAsync(0);
+            }
+
+            await LoadHistoryAsync(cancellationToken);
+        }
+
+        /// <summary>资料和图像独立加载，不占用战绩列表的完成条件。</summary>
+        private async Task LoadPlayerHeaderAsync()
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+            timeout.CancelAfter(MaximumLoadDuration);
+            CancellationToken cancellationToken = timeout.Token;
+
             // ── 玩家信息（名称/等级/头像） ──
             string displayName = lblName.Text ?? "未知玩家";
             string? tagLine = "";
@@ -479,7 +523,7 @@ namespace LOL_GameAssistant.BaseViewForm
             int profileIconId = 0;
             try
             {
-                PlayerProfile? info = await GetPlayerProfileAsync(_playerPuuid, cancellationToken);
+                PlayerProfile? info = await GetPlayerProfileAsync(_playerPuuid!, cancellationToken);
                 if (info != null)
                 {
                     if (!string.IsNullOrEmpty(info.GameName)) displayName = info.GameName;
@@ -488,7 +532,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     profileIconId = info.ProfileIconId;
                 }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
             catch
             {
                 // 玩家信息获取失败时使用兜底名称
@@ -502,24 +546,28 @@ namespace LOL_GameAssistant.BaseViewForm
                 ? (string.IsNullOrEmpty(tagLine) ? positionText : $"#{tagLine} {positionText}")
                 : $"Lv.{level}  #{tagLine} {positionText}".Trim();
 
-            await LoadProfileIconAsync(profileIconId, cancellationToken);
-            await LoadCurrentChampionAsync(cancellationToken);
+            // 图像下载不阻塞战绩请求；其失败也不应让已获取的战绩消失。
+            try { await LoadProfileIconAsync(profileIconId, cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        }
 
+        private async Task LoadHistoryAsync(CancellationToken cancellationToken)
+        {
             // ── 近 10 场战绩 ──
             MatchHistoryResponse? matchlists;
             try
             {
-                matchlists = await GetRecentHistoryAsync(_playerPuuid, cancellationToken);
+                matchlists = await GetRecentHistoryAsync(_playerPuuid!, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-            catch
+            catch (Exception ex)
             {
-                if (!IsDisposed) PublishRecentPerformance(null);
+                if (!IsDisposed) ShowLoadFailure("获取失败", $"战绩列表获取失败：{ex.Message}");
                 return;
             }
             if (matchlists?.Games?.Games == null || IsDisposed)
             {
-                if (!IsDisposed) PublishRecentPerformance(null);
+                if (!IsDisposed) ShowLoadFailure("获取失败", "战绩接口暂未返回数据，可重新加载。");
                 return;
             }
 
@@ -528,63 +576,101 @@ namespace LOL_GameAssistant.BaseViewForm
                 .Take(RecentGamesCount)
                 .ToList();
 
-            // 并发加载每场详情
-            var tasks = games.Select(async head =>
+            // 每位玩家只排入两个请求，避免首张卡片把全部全局槽位占满。
+            var loaded = new (MatchDetail detail, MatchParticipant gamer)?[games.Count];
+            var rows = new SortedDictionary<int, RecentMatchRow>();
+            int nextIndex = 0;
+            async Task LoadWorkerAsync()
             {
-                await GlobalMatchDetailLoadGate.WaitAsync(cancellationToken);
-                try
+                while (nextIndex < games.Count)
                 {
-                    var detail = await GetMatchDetailAsync(head.GameId, cancellationToken);
-                    if (detail == null || string.IsNullOrEmpty(_playerPuuid))
-                        return (detail: (MatchDetail?)null, gamer: (MatchParticipant?)null);
-                    var gamer = detail.GetParticipant(_playerPuuid);
-                    return (detail, gamer);
+                    int index = nextIndex++;
+                    var result = await LoadRecentDetailAsync(games[index].GameId, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (IsDisposed) return;
+                    if (result == null) continue;
+                    loaded[index] = result;
+                    if (rows.Count == 0) ControlLifetime.ClearAndDispose(panelMatches);
+                    var row = new RecentMatchRow
+                    {
+                        Width = Math.Max(100, panelMatches.ClientSize.Width - 18),
+                        Height = RecentMatchRow.RowHeight
+                    };
+                    rows.Add(index, row);
+                    panelMatches.Controls.Add(row);
+                    // 返回顺序可能不同，始终按比赛时间排列，且保留现有行和滚动位置。
+                    int order = 0;
+                    foreach (var item in rows.Values) panelMatches.Controls.SetChildIndex(item, order++);
+                    UiTheme.Apply(row);
+                    _ = row.SetDataAsync(result.Value.detail, result.Value.gamer, _playerPuuid, championAndModeOnly: true);
+                    ResizeMatchRows();
+                    lblSummary.Text = $"战绩加载中 · {rows.Count}/{games.Count}";
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-                catch
-                {
-                    return (detail: (MatchDetail?)null, gamer: (MatchParticipant?)null);
-                }
-                finally
-                {
-                    GlobalMatchDetailLoadGate.Release();
-                }
-            }).ToList();
-
-            var results = (await Task.WhenAll(tasks).WaitAsync(cancellationToken))
-                .Where(r => r.detail != null && r.gamer != null)
-                .Select(r => (detail: r.detail!, gamer: r.gamer!))
-                .ToList();
+            }
+            await Task.WhenAll(Enumerable.Range(0, DetailWorkersPerPlayer).Select(_ => LoadWorkerAsync()))
+                .WaitAsync(cancellationToken);
+            var results = loaded.Where(result => result.HasValue).Select(result => result!.Value).ToList();
 
             if (IsDisposed) return;
 
             int wins = results.Count(r => r.gamer.IsWin());
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
+            if (results.Count == 0)
+            {
+                if (games.Count > 0)
+                {
+                    ShowLoadFailure("获取失败", "战绩列表已获取，但对局详情暂不可用，可重新加载。");
+                    return;
+                }
+                ControlLifetime.ClearAndDispose(panelMatches);
+                panelMatches.Controls.Add(new AntdUI.Label
+                {
+                    Text = "暂无战绩", AutoSize = true,
+                    ForeColor = UiTheme.Palette.TextSecondary, Padding = new Padding(8)
+                });
+            }
+            lblSummary.Text = "评分中";
             RecentModePerformanceAssessment assessment = await ApplyLivePerformanceTagAsync(
                 matchlists, results, wins, losses, rate, cancellationToken);
-            if (IsDisposed) return;
-            PublishRecentPerformance(assessment);
+            if (!IsDisposed) PublishRecentPerformance(assessment);
+        }
 
-            // 清掉加载微光，手工定位渲染战绩行（新→旧）
-            ControlLifetime.ClearAndDispose(panelMatches);
-            int y = 0;
-            for (int i = 0; i < results.Count; i++)
+        /// <summary>单场请求超时或失败最多重试一次，不让一场详情耗尽整张卡片的时间。</summary>
+        private async Task<(MatchDetail detail, MatchParticipant gamer)?> LoadRecentDetailAsync(
+            long gameId, CancellationToken cancellationToken)
+        {
+            for (int attempt = 0; attempt < 2; attempt++)
             {
-                var (detail, gamer) = results[i];
-                var row = new RecentMatchRow
+                await GlobalMatchDetailLoadGate.WaitAsync(cancellationToken);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(DetailRequestTimeout);
+                try
                 {
-                    Location = new Point(0, y),
-                    Width = Math.Max(100, panelMatches.ClientSize.Width - 18),
-                    Height = RecentMatchRow.RowHeight
-                };
-                panelMatches.Controls.Add(row);
-                UiTheme.Apply(row);
-                y += RecentMatchRow.RowHeight;
-                _ = row.SetDataAsync(detail, gamer, _playerPuuid, championAndModeOnly: true);
+                    var detail = await GetMatchDetailAsync(gameId, timeout.Token);
+                    var gamer = detail?.GetParticipant(_playerPuuid);
+                    if (detail != null && gamer != null) return (detail, gamer);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex)
+                {
+                    RuntimeDiagnostics.Report("对局详情", "重试", $"对局 {gameId}：{ex.Message}");
+                }
+                finally { GlobalMatchDetailLoadGate.Release(); }
             }
-            ResizeMatchRows();
-            UiTheme.Apply(this);
+            return null;
+        }
+
+        private async Task LoadHeaderAssetsAsync(int profileIconId)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+            timeout.CancelAfter(MaximumLoadDuration);
+            try
+            {
+                await Task.WhenAll(LoadProfileIconAsync(profileIconId, timeout.Token),
+                    LoadCurrentChampionAsync(timeout.Token));
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested) { }
         }
 
         /// <summary>读取指定玩家资料，供玩家卡片展示。</summary>
@@ -610,15 +696,18 @@ namespace LOL_GameAssistant.BaseViewForm
             TKey key,
             Func<Task<T?>> loader) where TKey : notnull
         {
-            if (cache.TryGetValue(key, out var cached) && DateTime.UtcNow - cached.CachedAt < PlayerCacheTtl)
+            if (cache.TryGetValue(key, out var cached) && DateTime.UtcNow - cached.CachedAt < PlayerCacheTtl &&
+                !cached.Value.IsFaulted && !cached.Value.IsCanceled &&
+                !(cached.Value.IsCompletedSuccessfully && cached.Value.Result is null))
                 return cached.Value;
 
             Task<T?> task = loader();
-            cache[key] = (DateTime.UtcNow, task);
+            DateTime cacheTime = DateTime.UtcNow;
+            cache[key] = (cacheTime, task);
             _ = task.ContinueWith(completed =>
             {
                 if (completed.IsFaulted || completed.IsCanceled || completed.Result is null)
-                    cache.TryRemove(key, out _);
+                    cache.TryRemove(new KeyValuePair<TKey, (DateTime CachedAt, Task<T?> Value)>(key, (cacheTime, task)));
             }, TaskScheduler.Default);
             return task;
         }
@@ -637,7 +726,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _playerPuuid!, _currentQueueId, _currentGameMode,
                 LolGameModeNames.GetModeText(
                     _currentQueueId > 0 ? _currentQueueId.ToString() : "", _currentGameMode),
-                firstPage, cancellationToken);
+                firstPage, cancellationToken).WaitAsync(cancellationToken);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);
             lblSummary.Text = assessment.SampleSize == 0 ? label : $"{label} · KDA {assessment.Kda:F2} · {assessment.SampleSize}场";
