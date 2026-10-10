@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant.Helper;
 
-public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda, Player1 = 100, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10 }
+public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda, Player1 = 100, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10, SkinPrevious = 200, SkinNext, SkinApply }
 
 /// <summary>
 /// 置顶键使用 Windows 热键；局内面板同时检测按键状态，避免游戏拦截热键消息后无响应。
@@ -149,6 +149,12 @@ public sealed class WindowHoldController : IDisposable
     internal static Dictionary<Keys, QuickShoutHotkeyAction> CreateGameHotkeyBindings(AssistantSettings config)
     {
         var candidates = new List<(Keys Key, QuickShoutHotkeyAction Action)>();
+        if (config.SkinCoreEnabled && config.SkinHotkeysEnabled)
+        {
+            if (TryParseGameHotkey(config.SkinPreviousHotkey, out Keys previous)) candidates.Add((previous, QuickShoutHotkeyAction.SkinPrevious));
+            if (TryParseGameHotkey(config.SkinNextHotkey, out Keys next)) candidates.Add((next, QuickShoutHotkeyAction.SkinNext));
+            if (TryParseGameHotkey(config.SkinApplyHotkey, out Keys apply)) candidates.Add((apply, QuickShoutHotkeyAction.SkinApply));
+        }
         if (config.QuickShoutHotkeysEnabled)
         {
             candidates.Add((ParseGameHotkey(config.QuickShoutBuiltInHotkey, Keys.F6), QuickShoutHotkeyAction.RandomBuiltIn));
@@ -170,7 +176,8 @@ public sealed class WindowHoldController : IDisposable
     /// <summary>检查当前热键是否与其他游戏热键冲突。</summary>
     public static bool HasGameHotkeyConflict(AssistantSettings config) =>
         CreateGameHotkeyBindings(config).Count !=
-        (config.QuickShoutHotkeysEnabled ? 3 : 0) + (config.GameKdaHotkeyEnabled ? 1 : 0) + (config.GameKdaPlayerHotkeysEnabled ? 10 : 0);
+        (config.QuickShoutHotkeysEnabled ? 3 : 0) + (config.GameKdaHotkeyEnabled ? 1 : 0) + (config.GameKdaPlayerHotkeysEnabled ? 10 : 0) +
+        (config.SkinCoreEnabled && config.SkinHotkeysEnabled ? 3 : 0);
 
     public static bool HasBattleOverlayHotkeyConflict(AssistantSettings config)
     {
@@ -183,7 +190,9 @@ public sealed class WindowHoldController : IDisposable
                 ParseGameHotkey(config.QuickShoutBatchHotkey, Keys.F8)
             }.Contains(key)) ||
             (config.GameKdaHotkeyEnabled && key == ParseGameHotkey(config.GameKdaHotkey, Keys.F9)) ||
-            (config.GameKdaPlayerHotkeysEnabled && key is >= Keys.NumPad0 and <= Keys.NumPad9);
+            (config.GameKdaPlayerHotkeysEnabled && key is >= Keys.NumPad0 and <= Keys.NumPad9) ||
+            (config.SkinCoreEnabled && config.SkinHotkeysEnabled && new[] { config.SkinPreviousHotkey, config.SkinNextHotkey, config.SkinApplyHotkey }
+                .Any(value => TryParseGameHotkey(value, out Keys skinKey) && skinKey == key));
     }
 
     /// <summary>解析游戏热键配置并返回按键组合。</summary>

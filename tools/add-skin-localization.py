@@ -4,6 +4,10 @@ from pathlib import Path
 path=Path(__file__).resolve().parents[1]/'LOL-GameAssistant/Resources/locale-en.json'
 raw=path.read_bytes(); existing=json.loads(raw)
 entries={
+    '游戏内快捷键':'In-game hotkeys', '上一款皮肤':'Previous skin', '下一款皮肤':'Next skin',
+    '保存快捷键':'Save hotkeys',
+    '仅游戏前台生效；点击输入框后按组合键录制。':'Active only while the game is in the foreground. Click a field and press a key combination.',
+    '快捷键已保存，仅游戏前台生效。':'Hotkeys saved. Active only while the game is in the foreground.',
     '选择皮肤与形态':'Choose skin and form',
     '游戏换肤':'Game skins', '启用独立核心':'Enable skin core',
     '搜索皮肤名称或模型':'Search skin name or model',

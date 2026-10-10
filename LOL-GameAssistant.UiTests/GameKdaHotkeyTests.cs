@@ -11,6 +11,18 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class GameKdaHotkeyTests
 {
     [Fact]
+    public void SkinBindingsRequireBothSwitchesAndRejectConflicts()
+    {
+        var settings = new AssistantSettings { SkinCoreEnabled = true, SkinHotkeysEnabled = true };
+        var bindings = Bindings(settings);
+        Assert.Equal(QuickShoutHotkeyAction.SkinNext, bindings[Keys.Control | Keys.Alt | Keys.Right]);
+        Assert.Equal(QuickShoutHotkeyAction.SkinPrevious, bindings[Keys.Control | Keys.Alt | Keys.Left]);
+        Assert.Equal(QuickShoutHotkeyAction.SkinApply, bindings[Keys.Control | Keys.Alt | Keys.Enter]);
+        settings.SkinCoreEnabled = false; Assert.DoesNotContain(Bindings(settings).Values, value => value >= QuickShoutHotkeyAction.SkinPrevious);
+        settings.SkinCoreEnabled = true; settings.SkinNextHotkey = "F9";
+        Assert.True(WindowHoldController.HasGameHotkeyConflict(settings)); Assert.DoesNotContain(Bindings(settings).Values, value => value == QuickShoutHotkeyAction.SkinNext);
+    }
+    [Fact]
     public void NumpadDigitsMapToTenPlayersIndependentlyOfOtherActions()
     {
         var settings = new AssistantSettings { QuickShoutHotkeysEnabled = false, GameKdaHotkeyEnabled = false };

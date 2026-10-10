@@ -20,6 +20,13 @@ public sealed class SkinCoreServiceTests
         public Task<SkinCoreReply> InvokeAsync(IReadOnlyList<string> args, CancellationToken ct) { Calls.Add(args.ToArray()); return handler(args, ct); }
     }
     [Fact]
+    public void CyclingWrapsAndUsesActualSpecialModelRatherThanSkinNumber()
+    {
+        Assert.Equal("1:-1", SkinEntryCycle.Choose(Catalog() with { Skin = 0, ActiveModel = "Lux" }, 1).EntryId);
+        Assert.Equal("0:-1", SkinEntryCycle.Choose(Catalog() with { Skin = 7, ActiveModel = "LuxFire" }, 1).EntryId);
+        Assert.Equal("2:-1", SkinEntryCycle.Choose(Catalog() with { Skin = 0, ActiveModel = "Lux" }, -1).EntryId);
+    }
+    [Fact]
     public void NativeJsonMapsSessionVersionAndVariantFields()
     {
         var reply = NativeSkinCoreTransport.ParseReply("""

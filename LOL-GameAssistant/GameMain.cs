@@ -110,11 +110,15 @@ namespace LOL_GameAssistant
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
                 action => _ = action switch
                 {
+                    QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext or QuickShoutHotkeyAction.SkinApply => ApplySkinHotkeyAsync(action),
                     >= QuickShoutHotkeyAction.Player1 and <= QuickShoutHotkeyAction.Player10 => liveGameForm.SendGameKdaManuallyAsync((int)action - 100),
                     QuickShoutHotkeyAction.GameKda => liveGameForm.SendGameKdaManuallyAsync(),
                     QuickShoutHotkeyAction.SelectedBatch => settingForm.SendSelectedQuickShoutToGameAsync(),
                     _ => settingForm.SendRandomQuickShoutToGameAsync(action == QuickShoutHotkeyAction.RandomCustom)
                 });
+
+        private Task ApplySkinHotkeyAsync(QuickShoutHotkeyAction action) =>
+            gameFlowPhase == GameFlowPhase.InProgress ? _skinTools.ApplyHotkeyAsync(action) : Task.CompletedTask;
 
         /// <summary>录制新热键时暂停已有窗口热键，避免录制按键触发旧动作。</summary>
         public void SetWindowHotkeyCapturePaused(bool paused) =>
@@ -195,6 +199,7 @@ namespace LOL_GameAssistant
                 ShowBattleOverlay,
                 () => _battleOverlay.Hide());
             _quickMessageController = new QuickMessageSenderController(this);
+            _skinTools.HotkeySettingsChanged += () => ConfigureQuickShoutHotkeys(_settingsStore.Load());
             UiTheme.Changed += UiThemeChanged;
             UiLanguage.Changed += UiLanguageChanged;
             _eventStream.EventReceived += LeagueClientEventReceived;
