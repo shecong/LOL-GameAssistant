@@ -16,6 +16,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         DropDownArrow = true, DropDownRadius = 10, Font = new Font(UiMetrics.FontFamily, 11), PlaceholderText = "请先启用并读取当前英雄" };
     private readonly AntdUI.Button _refresh = new() { Name = "SkinActionRefresh", Text = "读取当前英雄", Width = 146, Height = 42, Margin = new Padding(0, 8, 12, 4) };
     private readonly AntdUI.Button _restore = new() { Name = "SkinActionRestore", Text = "恢复基础皮肤", Width = 146, Height = 42, Margin = new Padding(0, 8, 0, 4) };
+    private readonly AntdUI.Button _stop = new() { Name = "SkinActionStop", Text = "恢复并停用", Width = 146, Height = 42, Margin = new Padding(12, 8, 0, 4) };
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Top, Height = 60, Padding = new Padding(0, 8, 0, 0), Text = "功能已关闭。启用后可读取当前对局。" };
     private readonly AntdUI.Label _current = new() { Dock = DockStyle.Top, Height = 68, Padding = new Padding(14, 8, 14, 8), Font = new Font(UiMetrics.FontFamily, 10.5f), Text = "尚未连接游戏" };
     private readonly AntdUI.Panel _card = new() { Dock = DockStyle.Top, Height = 472, Radius = 14, Padding = new Padding(24), BorderWidth = 1 };
@@ -42,8 +43,8 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         var toggleRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 12, 0, 0), Margin = Padding.Empty };
         toggleRow.Controls.Add(new AntdUI.Label { Text = "启用独立核心", Width = 120, Height = 32 }); toggleRow.Controls.Add(_enabled);
         heading.Controls.Add(toggleRow, 1, 0);
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 64, AutoSize = false, WrapContents = true, Margin = Padding.Empty };
-        buttons.Controls.AddRange([_refresh, _restore]);
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 64, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Margin = Padding.Empty };
+        buttons.Controls.AddRange([_refresh, _restore, _stop]);
         var gap = new AntdUI.Label { Dock = DockStyle.Top, Height = 8, Text = "" };
         var selectionLabel = new AntdUI.Label { Dock = DockStyle.Top, Height = 28, Text = "选择皮肤与形态" };
         var stateGap = new AntdUI.Label { Dock = DockStyle.Top, Height = 16, Text = "" };
@@ -64,7 +65,9 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         void PositionContent()
         {
             int width = Math.Max(360, Math.Min(1040, viewport.ClientSize.Width - 40));
-            content.SetBounds(Math.Max(20, (viewport.ClientSize.Width - width) / 2), 20, width, 886);
+            int skinHeight = width < 560 ? 528 : 472;
+            content.RowStyles[0].Height = skinHeight;
+            content.SetBounds(Math.Max(20, (viewport.ClientSize.Width - width) / 2), 20, width, skinHeight + 414);
         }
         viewport.Controls.Add(content); viewport.Resize += (_, _) => PositionContent(); PositionContent(); Controls.Add(viewport);
         _enabled.Checked = settings.Load().SkinCoreEnabled;
@@ -78,6 +81,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         };
         _refresh.Click += async (_, _) => await RefreshAsync();
         _restore.Click += async (_, _) => await ChangeAsync(true);
+        _stop.Click += async (_, _) => await StopAsync();
         _timer.Tick += async (_, _) => await RefreshAsync();
         VisibleChanged += PageVisibleChanged;
         UiLanguage.Changed += LanguageChanged;
@@ -149,6 +153,32 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _refresh.Enabled = _core.Enabled && !_busy && !_refreshing && Visible;
         _search.Enabled = _core.Enabled; _entries.Enabled = ready;
         _restore.Enabled = ready && !_refreshing;
+        _stop.Enabled = ready && !_refreshing;
+    }
+    private async Task StopAsync()
+    {
+        if (_disposing || _busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
+        string session = _catalog.Session; CancellationToken token = _pageRequests.Token;
+        _busy = true; _enabled.Enabled = false; _timer.Stop(); CancelHotkeyRequests(); UpdateButtons();
+        _status.Text = UiLanguage.T("正在恢复并停用…");
+        string outcome = "功能已停用，但恢复结果未确认。请退出对局释放驻留核心。";
+        try {
+            var result = await _core.StopAsync(session, token);
+            if (result.StateVerified && result.TransportHookReleased == true)
+                outcome = result.ModulePinned == true
+                    ? "基础皮肤已恢复，连接已解除，功能已停用。核心已固定驻留，请退出对局释放。"
+                    : "基础皮肤已恢复，连接已解除，功能已停用。游戏内模块卸载尚未核验。";
+        }
+        catch (Exception error) {
+            if (!_disposing && !IsDisposed) { ShowError(error); outcome = _status.Text + "\n" + UiLanguage.T("功能已停用，但恢复结果未确认。请退出对局释放驻留核心。"); }
+        }
+        finally {
+            _core.SetEnabled(false);
+            if (!_disposing && !IsDisposed) {
+                _enabled.Checked = false; _enabled.Enabled = true; _busy = false;
+                ResetSession(); UpdateButtons(); _status.Text = UiLanguage.T(outcome);
+            }
+        }
     }
     private async Task RefreshAsync()
     {

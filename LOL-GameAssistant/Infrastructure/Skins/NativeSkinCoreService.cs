@@ -11,9 +11,13 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private int _enabled;
+    private int _stopping;
     private long _revision;
     public bool Enabled => Volatile.Read(ref _enabled) == 1;
-    public void SetEnabled(bool enabled) { Interlocked.Exchange(ref _enabled, enabled ? 1 : 0); InvalidateSession(); }
+    public void SetEnabled(bool enabled) {
+        if (enabled && Volatile.Read(ref _stopping) != 0) throw new SkinCoreException("core_stopping");
+        Interlocked.Exchange(ref _enabled, enabled ? 1 : 0); InvalidateSession();
+    }
     public void InvalidateSession() => Interlocked.Increment(ref _revision);
 
     public Task<SkinCoreReply> GetCatalogAsync(CancellationToken token = default) =>
@@ -23,6 +27,22 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
     public Task<SkinCoreReply> RestoreAsync(string session, CancellationToken token = default) =>
         RunAsync((revision, ct) => ApplyInternalAsync(revision, session, "", true, ct), token);
 
+    public async Task<SkinCoreReply> StopAsync(string session, CancellationToken token = default)
+    {
+        if (Interlocked.CompareExchange(ref _stopping, 1, 0) != 0) throw new SkinCoreException("core_stopping");
+        InvalidateSession(); long revision = Interlocked.Read(ref _revision); bool acquired = false;
+        try {
+            await _gate.WaitAsync(token).ConfigureAwait(false); acquired = true; Check(revision);
+            return await ApplyInternalAsync(revision, session, "", true, token).ConfigureAwait(false);
+        }
+        catch (SkinCoreException error) { Log(new { stage = "stop_failed", error.Code, error.OutcomeUnknown }); throw; }
+        finally {
+            // Even an uncertain restore must not resume polling or queued skin changes.
+            SetEnabled(false); Volatile.Write(ref _stopping, 0);
+            if (acquired) _gate.Release();
+        }
+    }
+
     private void Check(long revision)
     {
         if (!Enabled) throw new SkinCoreException("core_disabled");
@@ -30,9 +50,10 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
     }
     private async Task<SkinCoreReply> RunAsync(Func<long, CancellationToken, Task<SkinCoreReply>> operation, CancellationToken token)
     {
+        if (Volatile.Read(ref _stopping) != 0) throw new SkinCoreException("core_stopping");
         long revision = Interlocked.Read(ref _revision); Check(revision);
         await _gate.WaitAsync(token).ConfigureAwait(false);
-        try { Check(revision); return await operation(revision, token).ConfigureAwait(false); }
+        try { Check(revision); if (Volatile.Read(ref _stopping) != 0) throw new SkinCoreException("core_stopping"); return await operation(revision, token).ConfigureAwait(false); }
         catch (SkinCoreException error) { Log(new { stage = "failed", error.Code, error.OutcomeUnknown }); throw; }
         finally { _gate.Release(); }
     }
@@ -65,11 +86,11 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
             ["entry", session, selected.Index.ToString(CultureInfo.InvariantCulture), selected.Gear.ToString(CultureInfo.InvariantCulture)], token).ConfigureAwait(false);
         // Closing/disable invalidates the presentation even if the native call completed.
         if (!Enabled || revision != Interlocked.Read(ref _revision)) throw new SkinCoreException("request_outcome_unknown", true);
-        bool verified = result.Ok && result.Independent && !result.OriginalRequired && result.Invoked && result.StateVerified &&
+        bool verified = result.Ok && result.Independent && !result.OriginalRequired && result.Invoked && result.StateVerified && result.TransportHookReleased == true &&
             result.Session == session && result.ReferenceSha256 == catalog.ReferenceSha256 && result.Model == catalog.Model &&
             result.Skin == selected.SkinNum && result.ActiveSkin == selected.SkinNum && result.ActiveModel == selected.Model && (selected.Gear < 0 || result.Gear == selected.Gear);
         result = result with { StateVerified = verified };
-        Log(new { stage = "result", result.RequestId, result.Session, result.Invoked, result.StateVerified, result.Skin, result.ActiveSkin, result.ActiveModel, result.Gear });
+        Log(new { stage = "result", result.RequestId, result.Session, result.Invoked, result.StateVerified, result.Skin, result.ActiveSkin, result.ActiveModel, result.Gear, result.TransportHookReleased, result.ModulePinned });
         return result;
     }
     private void Log(object value)

@@ -18,6 +18,8 @@ public sealed record SkinCoreReply
     public bool OriginalRequired { get; init; } = true;
     public bool Invoked { get; init; }
     public bool StateVerified { get; init; }
+    public bool? TransportHookReleased { get; init; }
+    public bool? ModulePinned { get; init; }
     public string Error { get; init; } = "";
     public string Stage { get; init; } = "";
     public string Session { get; init; } = "";

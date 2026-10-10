@@ -2,6 +2,7 @@
 #include "game_profile.h"
 #include "variant_metadata.h"
 constexpr int IndependentMaxEntries=2048;
+static bool independentModulePinned=false;
 struct IndependentEntry {int index,skin,gear;const char* stableModel;char model[64],name[1024],gearName[128];};
 struct IndependentContext {BYTE* base;BYTE* player;BYTE* stack;BYTE* champion;IndependentEntry* entries;int count;char hero[64],session[32];};
 static bool independentImage(BYTE* base) {
@@ -123,6 +124,7 @@ static void independentState(Writer* writer,IndependentContext* c) {
     append(writer,"\"skin\":%d,\"gear\":%d,\"model\":",*(int*)(c->stack+0x38),(int)*(signed char*)(c->stack+0x9c));quoted(writer,c->hero);
     append(writer,",\"active_model\":");if(valid)quoted(writer,active);else append(writer,"null");
     append(writer,",\"active_skin\":");if(valid)append(writer,"%d",skin);else append(writer,"null");
+    append(writer,",\"module_pinned\":%s",independentModulePinned?"true":"false");
 }
 static bool independentWriteSkin(IndependentContext* c,int skin) {
     BYTE* field=c->player+Game_skin_offset;int previous;if(!skinValue(field,&previous))return false;
@@ -175,6 +177,7 @@ static void independentProcess(Request* r) {
                 bool special=(!strcmp(c.hero,"Lux") && selected->skin==7) || (!strcmp(c.hero,"Sona") && selected->skin==6);
                 if(special) {
                     HMODULE pinned=nullptr;if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN,(LPCWSTR)&independentProcess,&pinned)){fail(r,"independent_model_lifetime_failed","call",true);__leave;}
+                    independentModulePinned=true;
                     *(BYTE**)(c.stack+8)=*(BYTE**)c.stack;
                     using Push=__int64(__fastcall*)(uintptr_t,const char*,int,int,bool,bool,bool,bool,bool,bool,int8_t,const char*,int,const char*,int,bool,int,const char*);
                     ((Push)(c.base+Game_push))((uintptr_t)c.stack,selected->stableModel,selected->skin,0,false,false,false,false,true,false,-1,"",0,"",0,false,1,"");

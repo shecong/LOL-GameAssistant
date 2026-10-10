@@ -10,6 +10,7 @@ public interface ISkinCoreService
     Task<SkinCoreReply> GetCatalogAsync(CancellationToken cancellationToken = default);
     Task<SkinCoreReply> ApplyAsync(string session, string entryId, CancellationToken cancellationToken = default);
     Task<SkinCoreReply> RestoreAsync(string session, CancellationToken cancellationToken = default);
+    Task<SkinCoreReply> StopAsync(string session, CancellationToken cancellationToken = default);
 }
 
 public interface ISkinCoreTransport

@@ -126,7 +126,7 @@ int main(int argc,char** argv) {
     if(!signal || !r) {DWORD code=GetLastError();if(signal) CloseHandle(signal);CloseHandle(file);return error("create_channel_failed",code);}
     r->magic=Magic;r->version=Protocol;r->command=command;r->pid=pid;r->nonce=nonce;r->deadline=GetTickCount64()+5000;
     r->index=index;r->gear=gear;strcpy_s(r->session,session);
-    wchar_t path[32768];GetModuleFileNameW(nullptr,path,32768);wchar_t* slash=wcsrchr(path,L'\\');HMODULE dll=nullptr;HHOOK hook=nullptr;int result=1;
+    wchar_t path[32768];GetModuleFileNameW(nullptr,path,32768);wchar_t* slash=wcsrchr(path,L'\\');HMODULE dll=nullptr;HHOOK hook=nullptr;int result=1;bool completed=false;
     if(slash) {wcscpy_s(slash+1,32768-(slash+1-path),L"league-skin-core.dll");dll=LoadLibraryW(path);}
     if(!dll) result=error("load_own_bridge_failed",GetLastError());
     else {
@@ -134,10 +134,19 @@ int main(int argc,char** argv) {
         if(!hook) result=error("standard_windows_hook_rejected",GetLastError());
         else {
             bool sent=PostThreadMessageW(thread,BridgeMessage,Magic,(LPARAM)nonce)!=FALSE;DWORD wait=sent?WaitForSingleObject(signal,5500):WAIT_FAILED;
-            if(wait==WAIT_OBJECT_0 && r->phase==2 && r->result[0]) {printf("%s\n",r->result);result=0;}
+            if(wait==WAIT_OBJECT_0 && r->phase==2 && r->result[0]) {completed=true;result=0;}
             else {LONG phase=InterlockedCompareExchange(&r->phase,3,0);result=error(phase==1?"request_outcome_unknown":"request_expired",ERROR_TIMEOUT);}
         }
     }
-    if(hook) UnhookWindowsHookEx(hook);if(dll) FreeLibrary(dll);UnmapViewOfFile(r);CloseHandle(signal);CloseHandle(file);return result;
+    bool released=!hook || UnhookWindowsHookEx(hook)!=FALSE;
+    if(dll) FreeLibrary(dll);
+    // Report only after removing the request's hook. This does not prove DLL unload.
+    if(completed) {
+        size_t length=strnlen_s(r->result,sizeof(r->result));
+        if(length && length<sizeof(r->result) && r->result[length-1]=='}')
+            printf("%.*s,\"transport_hook_released\":%s}\n",(int)length-1,r->result,released?"true":"false");
+        else result=error("invalid_bridge_reply",ERROR_INVALID_DATA);
+    }
+    UnmapViewOfFile(r);CloseHandle(signal);CloseHandle(file);return result;
 }
 #endif

@@ -2211,5 +2211,10 @@
   "下一款皮肤": "Next skin",
   "保存快捷键": "Save hotkeys",
   "仅游戏前台生效；点击输入框后按组合键录制。": "Active only while the game is in the foreground. Click a field and press a key combination.",
-  "快捷键已保存，仅游戏前台生效。": "Hotkeys saved. Active only while the game is in the foreground."
+  "快捷键已保存，仅游戏前台生效。": "Hotkeys saved. Active only while the game is in the foreground.",
+  "恢复并停用": "Restore and disable",
+  "正在恢复并停用…": "Restoring and disabling…",
+  "基础皮肤已恢复，连接已解除，功能已停用。核心已固定驻留，请退出对局释放。": "Base skin restored, connection released, feature disabled. The core is pinned; exit the game to release it.",
+  "基础皮肤已恢复，连接已解除，功能已停用。游戏内模块卸载尚未核验。": "Base skin restored, connection released, feature disabled. In-game module unload has not been verified.",
+  "功能已停用，但恢复结果未确认。请退出对局释放驻留核心。": "Feature disabled, but restoration is unconfirmed. Exit the game to release the resident core."
 }

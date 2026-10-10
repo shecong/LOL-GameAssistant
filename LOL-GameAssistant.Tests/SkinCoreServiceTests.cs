@@ -13,7 +13,7 @@ public sealed class SkinCoreServiceTests
             new() { EntryId = "0:-1", Index = 0, Gear = -1, SkinNum = 0, Model = "Lux", Name = "Base" },
             new() { EntryId = "1:-1", Index = 1, Gear = -1, SkinNum = 7, Model = "Lux", Name = "Elementalist" },
             new() { EntryId = "2:-1", Index = 2, Gear = -1, SkinNum = 7, Model = "LuxFire", Name = "Fire" }] };
-    private static SkinCoreReply Applied() => Catalog() with { Invoked = true, StateVerified = true, Skin = 7, ActiveSkin = 7, ActiveModel = "LuxFire" };
+    private static SkinCoreReply Applied() => Catalog() with { Invoked = true, StateVerified = true, TransportHookReleased = true, Skin = 7, ActiveSkin = 7, ActiveModel = "LuxFire" };
     private sealed class Fake(Func<IReadOnlyList<string>, CancellationToken, Task<SkinCoreReply>> handler) : ISkinCoreTransport
     {
         public List<string[]> Calls { get; } = [];
@@ -65,11 +65,13 @@ public sealed class SkinCoreServiceTests
     [Theory]
     [InlineData("model")][InlineData("session")][InlineData("version")][InlineData("skin")][InlineData("invoked")]
     [InlineData("active_skin")][InlineData("missing_active_skin")]
+    [InlineData("hook")]
     public async Task ReadbackMismatchIsNotSuccess(string mismatch)
     {
         var actual = mismatch switch { "model" => Applied() with { ActiveModel = "Lux" }, "session" => Applied() with { Session = "old" },
             "version" => Applied() with { ReferenceSha256 = "new" }, "skin" => Applied() with { Skin = 0 },
             "active_skin" => Applied() with { ActiveSkin = 0 }, "missing_active_skin" => Applied() with { ActiveSkin = null },
+            "hook" => Applied() with { TransportHookReleased = false },
             _ => Applied() with { Invoked = false } };
         var service = new NativeSkinCoreService(new Fake((args, _) => Task.FromResult(args[0] == "catalog" ? Catalog() : actual))); service.SetEnabled(true);
         Assert.False((await service.ApplyAsync(Session, "2:-1")).StateVerified);
@@ -116,5 +118,42 @@ public sealed class SkinCoreServiceTests
         var fake = new Fake((args, _) => args[0] == "catalog" ? Task.FromResult(Catalog()) : throw new SkinCoreException("request_outcome_unknown", true));
         var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
         await Assert.ThrowsAsync<SkinCoreException>(() => service.ApplyAsync(Session, "2:-1")); Assert.Equal(2, fake.Calls.Count);
+    }
+    [Theory]
+    [InlineData(true)][InlineData(false)]
+    public async Task StopRestoresThenDisablesEvenWhenReadbackFails(bool verified)
+    {
+        var fake = new Fake((args, _) => Task.FromResult(args[0] == "catalog" ? Catalog() :
+            Applied() with { Skin = 0, ActiveSkin = 0, ActiveModel = "Lux", StateVerified = verified, ModulePinned = true }));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        var result = await service.StopAsync(Session);
+        Assert.Equal(verified, result.StateVerified); Assert.True(result.ModulePinned); Assert.False(service.Enabled);
+        Assert.Equal(new[] { "restore", Session }, fake.Calls[1]);
+        await Assert.ThrowsAsync<SkinCoreException>(() => service.ApplyAsync(Session, "2:-1")); Assert.Equal(2, fake.Calls.Count);
+    }
+    [Fact]
+    public async Task StopTimeoutDisablesWithoutRetry()
+    {
+        var fake = new Fake((args, _) => args[0] == "catalog" ? Task.FromResult(Catalog()) : throw new SkinCoreException("request_outcome_unknown", true));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        Assert.True((await Assert.ThrowsAsync<SkinCoreException>(() => service.StopAsync(Session))).OutcomeUnknown);
+        Assert.False(service.Enabled); Assert.Equal(2, fake.Calls.Count);
+    }
+    [Fact]
+    public async Task StoppingInvalidatesQueuedChangesAndRejectsNewChanges()
+    {
+        var started = new TaskCompletionSource(); var release = new TaskCompletionSource(); int reads = 0;
+        var fake = new Fake(async (args, _) => {
+            if (args[0] != "catalog") return Applied() with { Skin = 0, ActiveSkin = 0, ActiveModel = "Lux" };
+            if (++reads == 1) { started.SetResult(); await release.Task; }
+            return Catalog();
+        });
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        var current = service.GetCatalogAsync(); await started.Task;
+        var queued = service.ApplyAsync(Session, "2:-1"); var stop = service.StopAsync(Session);
+        Assert.Equal("core_stopping", (await Assert.ThrowsAsync<SkinCoreException>(() => service.ApplyAsync(Session, "2:-1"))).Code);
+        release.SetResult(); await Assert.ThrowsAsync<SkinCoreException>(() => current); await Assert.ThrowsAsync<SkinCoreException>(() => queued);
+        Assert.True((await stop).StateVerified); Assert.False(service.Enabled);
+        Assert.Single(fake.Calls, c => c[0] == "restore"); Assert.DoesNotContain(fake.Calls, c => c[0] == "entry");
     }
 }

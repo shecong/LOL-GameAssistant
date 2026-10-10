@@ -46,6 +46,13 @@ public sealed class SkinToolsTests
             return Task.FromResult(LastCatalog with { Invoked = true, StateVerified = VerifyApply, Skin = target.SkinNum, ActiveModel = target.Model, Gear = target.Gear });
         }
         public Task<SkinCoreReply> RestoreAsync(string session, CancellationToken ct = default) => throw new InvalidOperationException();
+        public bool StopFails { get; set; }
+        public int Stops { get; private set; }
+        public Task<SkinCoreReply> StopAsync(string session, CancellationToken ct = default) {
+            Stops++; Enabled = false;
+            if (StopFails) throw new SkinCoreException("request_outcome_unknown", true);
+            return Task.FromResult(LastCatalog! with { StateVerified = true, TransportHookReleased = true, ModulePinned = true });
+        }
     }
     private static IEnumerable<Control> Descendants(Control control) => control.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(Descendants(c)));
     private sealed class RenderHost : Form
@@ -56,6 +63,18 @@ public sealed class SkinToolsTests
             get { var parameters = base.CreateParams; parameters.ExStyle |= 0x08000000; return parameters; }
         }
     }
+    [Theory]
+    [InlineData(true)][InlineData(false)]
+    public void StopClearsSelectionAndPersistsDisabledEvenOnFailure(bool fails) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core { StopFails = fails }; var settings = new Settings(); using var page = new SkinToolsForm(core, settings);
+        var toggle = Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled"); toggle.Checked = true;
+        var stop = (Task)typeof(SkinToolsForm).GetMethod("StopAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, null)!;
+        stop.GetAwaiter().GetResult(); Assert.Equal(1, core.Stops);
+        Assert.False(core.Enabled); Assert.False(toggle.Checked); Assert.False(settings.Load().SkinCoreEnabled);
+        Assert.Empty(Descendants(page).OfType<AntdUI.Select>().Single().Items);
+        Assert.All(Descendants(page).OfType<AntdUI.Button>().Where(b => b.Name.StartsWith("SkinAction")), button => Assert.False(button.Enabled));
+    });
     [Fact]
     public void DefaultsOffAndDoesNotConnectUntilUserEnables() => MatchListScrollingTests.OnUiThread(() =>
     {
