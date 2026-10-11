@@ -14,6 +14,9 @@ namespace LOL_GameAssistant
         [STAThread]
         private static void Main()
         {
+            // Complete elevation before acquiring the instance lock or creating any windows.
+            if (!AdminPermissionHelper.EnsureAdminPermission()) return;
+
             int replaceRequested = 0;
             using var singleInstance = SingleInstanceCoordinator.StartOrReplace(() =>
             {
@@ -67,9 +70,6 @@ namespace LOL_GameAssistant
             }
             UiLanguage.Start();
 
-            // 说明：读取 LCU lockfile / WMI 命令行并不需要管理员权限，
-            // 因此不再强制 UAC 提权，避免每次启动都弹窗。
-            // 如后续功能确实需要管理员权限，可调用 AdminPermissionHelper.EnsureAdminPermission()。
             System.Windows.Forms.Application.Run(GameMain);
         }
 

@@ -29,6 +29,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private int _currentPage = 1;
         private int _pageSize = 10;
         private const int StatsLoadLimit = 100;
+        private const int FilterLoadLimit = 5000;
+        private List<MatchHistoryGame>? _filterHistory;
+        private string _selectedMode = "全部";
+        private bool _suppressModeEvents;
+        private readonly AntdUI.Select _modeSelect = new() { Width = 180, Height = UiMetrics.ControlHeight };
         private const int DetailLoadConcurrency = 6;
         private const int MatchListHorizontalInset = 20;
 
@@ -36,6 +41,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private List<RawGameStat>? _rawGameStats;
         private bool _statsLoaded;
+        private int _statsVersion;
         private bool _searchBusy;
         private bool _resizingMatchRows;
         private TableLayoutPanel? _rootLayout;
@@ -199,6 +205,20 @@ namespace LOL_GameAssistant.BaseViewForm
             _historyHint.Text = "滚轮浏览记录 · 点击详情查看完整对局";
             historyHeader.Controls.Add(_historyHint);
             historyHeader.Controls.Add(_historyTitle);
+            var modeArea = new Panel { Dock = DockStyle.Right, Width = 190, Padding = new Padding(4, 2, 0, 0) };
+            foreach (string mode in new[] { "全部", "峡谷单双排", "峡谷灵活组排", "峡谷匹配", "峡谷匹配（盲选）",
+                "峡谷快速游戏", "深渊大乱斗", "海克斯大乱斗", "斗魂竞技场", "无限火力", "克隆大作战",
+                "终极魔典", "极限闪击", "人机对战", "自定义对局", "其他模式" })
+                _modeSelect.Items.Add(mode);
+            _modeSelect.Name = "matchModeFilter";
+            _modeSelect.SelectedIndex = 0;
+            _modeSelect.SelectedIndexChanged += async (_, _) =>
+            {
+                if (!_suppressModeEvents) await ApplyModeFilterAsync(_modeSelect.SelectedValue?.ToString() ?? "全部");
+            };
+            modeArea.Controls.Add(_modeSelect);
+            historyHeader.Controls.Add(modeArea);
+            modeArea.BringToFront();
             panelHistory.Controls.Add(historyHeader);
             historyHeader.SendToBack();
             pagination.BringToFront();
@@ -232,10 +252,13 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>更新战绩区域的标题和分页信息。</summary>
         private void UpdateHistoryHeader(int totalGames = 0)
         {
-            _historyTitle.Text = totalGames > 0 ? $"最近对局 · {totalGames} 场" : "最近对局";
+            _historyTitle.Text = _selectedMode == "全部"
+                ? totalGames > 0 ? $"最近对局 · {totalGames} 场" : "最近对局"
+                : $"{_selectedMode} · {totalGames} 场";
             _historyHint.Text = totalGames > 0
                 ? "滚轮浏览记录 · 点击详情查看完整对局；双方资料自动补齐。"
                 : "输入 Riot ID（名称#TAG）或 PUUID 查询；每局直接展示双方玩家。";
+            if (_selectedMode != "全部") _historyHint.Text = "按客户端可读取的最近记录筛选（最多 5000 场）";
         }
 
         /// <summary>
@@ -544,7 +567,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             else if (_statsLoaded)
             {
-                RebuildStatsCharts("全部");
+                RebuildStatsCharts(_selectedMode);
             }
         }
 
@@ -570,6 +593,9 @@ namespace LOL_GameAssistant.BaseViewForm
             ClearMatchControls();
             pagination.Visible = false;
             _statsLoaded = false;
+            _rawGameStats = null;
+            _filterHistory = null;
+            _statsVersion++;
             _matchHistory = null;
             _totalGameCount = 0;
             UpdateHistoryHeader();
@@ -673,41 +699,47 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>读取当前玩家的战绩列表并准备分页展示。</summary>
         private async Task LoadMatchHistoryAsync(string puuid)
         {
-            try
-            {
-                // 首屏只读取当前页；服务端总数用于分页，完整历史只在导出时读取。
-                _matchHistory = await _matchHistoryService.GetPageAsync(puuid, 0, _pageSize - 1);
-                if (_matchHistory == null)
-                {
-                    lblStatus.Text = "暂时无法读取战绩，请确认客户端连接后重试";
-                    UpdateHistoryHeader();
-                    return;
-                }
-                if (_matchHistory?.Games?.Games == null || _matchHistory.Games.Games.Count == 0)
-                {
-                    lblStatus.Text = "暂无比赛记录";
-                    UpdateHistoryHeader();
-                    return;
-                }
+            _currentPage = 1;
+            await RenderMatchPageAsync();
+        }
 
-                _totalGameCount = Math.Max(_matchHistory.Games.GameCount, _matchHistory.Games.Games.Count);
-                _currentPage = 1;
-                _suppressPaginationEvents = true;
+        internal async Task ApplyModeFilterAsync(string mode)
+        {
+            if (_selectedMode == mode) return;
+            _selectedMode = mode;
+            _suppressModeEvents = true;
+            try { _modeSelect.SelectedValue = mode; }
+            finally { _suppressModeEvents = false; }
+            _currentPage = 1;
+            _totalGameCount = 0;
+            _statsLoaded = false;
+            _rawGameStats = null;
+            _statsVersion++;
+            UpdateHistoryHeader();
+            if (_currentPlayer == null) return;
+            await RenderMatchPageAsync();
+            if (_selectedMode == mode && panelStats.Visible) await LoadAndShowStatsAsync();
+        }
+
+        private async Task<List<MatchHistoryGame>?> GetFilteredHistoryAsync(string puuid, string mode, CancellationToken token)
+        {
+            if (_filterHistory == null)
+            {
+                var history = await _matchHistoryService.GetAllAsync(puuid, FilterLoadLimit, token);
+                token.ThrowIfCancellationRequested();
+                if (_currentPlayer?.Puuid != puuid || IsDisposed) return null;
+                if (history?.Games?.Games == null) return null;
+                _filterHistory = history.Games.Games.DistinctBy(game => game.GameId)
+                    .OrderByDescending(game => game.GameCreation).ToList();
+                _suppressModeEvents = true;
                 try
                 {
-                    pagination.Total = _totalGameCount;
-                    pagination.PageSize = _pageSize;
-                    pagination.Current = 1;
-                    pagination.Visible = true;
+                    foreach (string availableMode in _filterHistory.Select(game => game.GetModeText()).Distinct())
+                        if (!_modeSelect.Items.Contains(availableMode)) _modeSelect.Items.Add(availableMode);
                 }
-                finally { _suppressPaginationEvents = false; }
-                await RenderMatchPageAsync(_matchHistory);
+                finally { _suppressModeEvents = false; }
             }
-            catch (Exception ex)
-            {
-                lblStatus.Text = $"战绩加载失败：{ex.Message}";
-                RuntimeDiagnostics.Report("战绩查询", "战绩加载失败", ex.Message);
-            }
+            return _filterHistory.Where(game => mode == "全部" || game.GetModeText() == mode).ToList();
         }
 
         /// <summary>构建当前战绩页的卡片和占位状态。</summary>
@@ -721,6 +753,7 @@ namespace LOL_GameAssistant.BaseViewForm
             string puuid = _currentPlayer.Puuid;
             int requestedPage = _currentPage;
             int requestedPageSize = _pageSize;
+            string requestedMode = _selectedMode;
             bool enrichmentStarted = false;
             try
             {
@@ -734,8 +767,21 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
                 stackMatches.Controls.Add(shimmer);
 
-                MatchHistoryResponse? page = preloadedPage ?? await _matchHistoryService.GetPageAsync(
-                    puuid, start, start + requestedPageSize - 1, token);
+                MatchHistoryResponse? page;
+                if (requestedMode == "全部")
+                    page = preloadedPage ?? await _matchHistoryService.GetPageAsync(
+                        puuid, start, start + requestedPageSize - 1, token);
+                else
+                {
+                    lblStatus.Text = "正在按模式筛选战绩…";
+                    var filtered = await GetFilteredHistoryAsync(puuid, requestedMode, token);
+                    page = filtered == null ? null : new MatchHistoryResponse { Games = new MatchHistoryGames
+                    {
+                        GameCount = filtered.Count, GameIndexBegin = start,
+                        GameIndexEnd = start + requestedPageSize - 1,
+                        Games = filtered.Skip(start).Take(requestedPageSize).ToList()
+                    }};
+                }
                 if (!IsCurrentPage(puuid, requestedPage, requestedPageSize, token)) return;
                 _matchHistory = page;
                 if (page == null)
@@ -746,16 +792,23 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
                 var pageGames = page.Games?.Games?.OrderByDescending(g => g.GameCreation)
                     .Take(requestedPageSize).ToList();
+                _totalGameCount = Math.Max(page.Games?.GameCount ?? 0, pageGames?.Count ?? 0);
+                _suppressPaginationEvents = true;
+                try
+                {
+                    pagination.Total = _totalGameCount;
+                    pagination.PageSize = requestedPageSize;
+                    pagination.Current = requestedPage;
+                    pagination.Visible = _totalGameCount > 0;
+                }
+                finally { _suppressPaginationEvents = false; }
+                UpdateHistoryHeader(_totalGameCount);
                 if (pageGames == null || pageGames.Count == 0)
                 {
                     ClearMatchControls();
-                    lblStatus.Text = "该页暂无比赛记录";
+                    lblStatus.Text = requestedMode == "全部" ? "该页暂无比赛记录" : $"{requestedMode}暂无比赛记录";
                     return;
                 }
-                _totalGameCount = Math.Max(_totalGameCount, page.Games!.GameCount);
-                _suppressPaginationEvents = true;
-                try { pagination.Total = _totalGameCount; }
-                finally { _suppressPaginationEvents = false; }
                 ClearMatchControls();
                 var previews = new List<MatchHistoryPreviewCard>(pageGames.Count);
                 for (int index = 0; index < pageGames.Count; index++)
@@ -908,7 +961,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (cboPageSize.SelectedItem is int size && size > 0)
             {
                 _pageSize = size;
-                if (_matchHistory != null && !_statsLoaded)
+                if (_matchHistory != null)
                 {
                     _currentPage = 1;
                     _suppressPaginationEvents = true;
@@ -927,72 +980,79 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private async Task LoadAndShowStatsAsync()
         {
-            if (_matchHistory?.Games?.Games == null || _matchHistory.Games.Games.Count == 0)
+            if (_currentPlayer == null) return;
+            string puuid = _currentPlayer.Puuid;
+            string requestedMode = _selectedMode;
+            int version = ++_statsVersion;
+            bool IsCurrentStats() => !IsDisposed && version == _statsVersion &&
+                _currentPlayer?.Puuid == puuid && _selectedMode == requestedMode;
+            try
             {
                 ControlLifetime.ClearAndDispose(panelStats);
-                panelStats.Controls.Add(new AntdUI.Label()
+                lblStatus.Text = "正在计算统计数据...";
+
+                List<MatchHistoryGame>? games;
+                if (requestedMode == "全部")
                 {
-                    Text = "无比赛数据可供统计",
-                    Dock = DockStyle.Fill,
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    Font = new Font("Microsoft YaHei UI", 12F)
-                });
-                return;
+                    var statsPage = await _matchHistoryService.GetPageAsync(puuid, 0, StatsLoadLimit - 1);
+                    games = statsPage?.Games?.Games;
+                }
+                else games = await GetFilteredHistoryAsync(puuid, requestedMode, CancellationToken.None);
+                if (!IsCurrentStats()) return;
+                if (games == null) throw new InvalidOperationException("近期战绩暂时不可用，请重试。");
+                var recentGames = games.OrderByDescending(game => game.GameCreation).Take(StatsLoadLimit).ToList();
+                var rawStats = new List<RawGameStat>();
+                int totalWins = 0, totalLosses = 0;
+                var championStats = new Dictionary<int, (int games, int wins)>();
+                var kdaTrend = new List<(double kda, bool win)>();
+
+                // 并行拉取对局详情，避免逐场串行等待
+                using var semaphore = new SemaphoreSlim(DetailLoadConcurrency, DetailLoadConcurrency);
+                var detailTasks = recentGames.Select(async head =>
+                {
+                    await semaphore.WaitAsync();
+                    try { return await _matchHistoryService.GetDetailAsync(head.GameId); }
+                    finally { semaphore.Release(); }
+                }).ToList();
+                var details = await Task.WhenAll(detailTasks);
+                if (!IsCurrentStats()) return;
+
+                int totalGames = 0;
+                for (int i = 0; i < recentGames.Count; i++)
+                {
+                    var detail = details[i];
+                    if (detail == null || _currentPlayer == null) continue;
+                    var gamer = detail.GetParticipant(puuid);
+                    if (gamer?.stats == null) continue;
+
+                    totalGames++;
+                    bool win = gamer.IsWin();
+                    if (win) totalWins++; else totalLosses++;
+
+                    double gameKda = gamer.GetKdaRatio();
+                    kdaTrend.Add((gameKda, win));
+                    string mode = recentGames[i].GetModeText();
+                    rawStats.Add(new RawGameStat { Mode = mode, Kda = gameKda, Win = win, ChampionId = gamer.championId });
+
+                    var cur = championStats.GetValueOrDefault(gamer.championId);
+                    championStats[gamer.championId] = (cur.games + 1, cur.wins + (win ? 1 : 0));
+
+                    if (i % 20 == 0 || i == recentGames.Count - 1)
+                        lblStatus.Text = $"正在计算统计数据... ({i + 1}/{recentGames.Count})";
+                }
+
+                _statsLoaded = true;
+                _rawGameStats = rawStats;
+                RebuildStatsCharts(requestedMode);
             }
-
-            ControlLifetime.ClearAndDispose(panelStats);
-            lblStatus.Text = "正在计算统计数据...";
-
-            MatchHistoryResponse? statsPage = await _matchHistoryService.GetPageAsync(
-                _currentPlayer!.Puuid, 0, StatsLoadLimit - 1);
-            var recentGames = statsPage?.Games?.Games?.Take(StatsLoadLimit).ToList() ?? new();
-            if (recentGames.Count == 0)
+            catch (Exception ex)
             {
-                lblStatus.Text = "无法读取近期战绩，统计未更新";
-                panelStats.Controls.Add(new AntdUI.Label { Text = "近期战绩暂时不可用", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
-                return;
+                if (!IsCurrentStats()) return;
+                _rawGameStats = new();
+                RebuildStatsCharts(requestedMode);
+                lblStatus.Text = $"统计加载失败：{ex.Message}";
+                RuntimeDiagnostics.Report("战绩查询", "统计加载失败", ex.Message);
             }
-            _rawGameStats = new List<RawGameStat>();
-            int totalWins = 0, totalLosses = 0;
-            var championStats = new Dictionary<int, (int games, int wins)>();
-            var kdaTrend = new List<(double kda, bool win)>();
-
-            // 并行拉取对局详情，避免逐场串行等待
-            var semaphore = new SemaphoreSlim(DetailLoadConcurrency, DetailLoadConcurrency);
-            var detailTasks = recentGames.Select(async head =>
-            {
-                await semaphore.WaitAsync();
-                try { return await _matchHistoryService.GetDetailAsync(head.GameId); }
-                finally { semaphore.Release(); }
-            }).ToList();
-            var details = await Task.WhenAll(detailTasks);
-
-            int totalGames = 0;
-            for (int i = 0; i < recentGames.Count; i++)
-            {
-                var detail = details[i];
-                if (detail == null || _currentPlayer == null) continue;
-                var gamer = detail.GetParticipant(_currentPlayer.Puuid);
-                if (gamer?.stats == null) continue;
-
-                totalGames++;
-                bool win = gamer.IsWin();
-                if (win) totalWins++; else totalLosses++;
-
-                double gameKda = gamer.GetKdaRatio();
-                kdaTrend.Add((gameKda, win));
-                string mode = detail.GetModeText();
-                _rawGameStats.Add(new RawGameStat { Mode = mode, Kda = gameKda, Win = win, ChampionId = gamer.championId });
-
-                var cur = championStats.GetValueOrDefault(gamer.championId);
-                championStats[gamer.championId] = (cur.games + 1, cur.wins + (win ? 1 : 0));
-
-                if (i % 20 == 0 || i == recentGames.Count - 1)
-                    lblStatus.Text = $"正在计算统计数据... ({i + 1}/{recentGames.Count})";
-            }
-
-            _statsLoaded = true;
-            RebuildStatsCharts("全部");
         }
 
         /// <summary>
@@ -1000,18 +1060,11 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void RebuildStatsCharts(string filter)
         {
-            if (_rawGameStats == null || _rawGameStats.Count == 0) return;
+            if (_rawGameStats == null) return;
 
             var filtered = string.IsNullOrEmpty(filter) || filter == "全部"
                 ? _rawGameStats
                 : _rawGameStats.Where(s => s.Mode == filter).ToList();
-
-            if (filtered.Count == 0)
-            {
-                ControlLifetime.ClearAndDispose(panelStats);
-                panelStats.Controls.Add(new AntdUI.Label { Text = "该模式暂无数据", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
-                return;
-            }
 
             int totalWins = filtered.Count(s => s.Win);
             int totalLosses = filtered.Count - totalWins;
@@ -1037,12 +1090,11 @@ namespace LOL_GameAssistant.BaseViewForm
             ThemePalette palette = UiTheme.Palette;
             var filterBar = new AntdUI.Panel { Dock = DockStyle.Top, Height = 48, Radius = 8, BorderWidth = 1, Padding = new Padding(10, 6, 10, 4), BackColor = palette.SurfaceRaised };
             var modeSelect = new AntdUI.Select { Width = 200, Height = 34 };
-            modeSelect.Items.Add("全部");
-            foreach (string mode in _rawGameStats.Select(s => s.Mode).Distinct().OrderBy(mode => mode))
+            foreach (string mode in _modeSelect.Items.OfType<string>())
                 modeSelect.Items.Add(mode);
             modeSelect.SelectedValue = filter;
-            modeSelect.SelectedIndexChanged += (_, _) =>
-                RebuildStatsCharts(modeSelect.SelectedValue?.ToString() ?? "全部");
+            modeSelect.SelectedIndexChanged += async (_, _) =>
+                await ApplyModeFilterAsync(modeSelect.SelectedValue?.ToString() ?? "全部");
             filterBar.Controls.Add(modeSelect);
 
             var chartContainer = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = palette.SurfaceMuted };
@@ -1095,7 +1147,8 @@ namespace LOL_GameAssistant.BaseViewForm
                     chart.Width = width;
             };
             content.Width = Math.Max(300, chartContainer.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
-            lblStatus.Text = "筛选: " + filter + "  " + filtered.Count + " 场 · 胜率 " + winRate + "%";
+            lblStatus.Text = filtered.Count == 0 ? $"{filter}暂无有效统计数据" :
+                "筛选: " + filter + "  最近 " + filtered.Count + " 场 · 胜率 " + winRate + "%";
         }
 
         /// <summary>创建一个战绩统计指标卡片。</summary>

@@ -72,7 +72,8 @@ internal static class LegacyMatchReadModelMapper
                                 Spell1Id = participant.Spell1Id,
                                 Spell2Id = participant.Spell2Id,
                                 teamId = participant.TeamId,
-                                stats = ToDomain(participant.Stats)
+                                stats = ResolveResult(ToDomain(participant.Stats), participant.TeamId,
+                                    item.Teams?.FirstOrDefault(team => team.TeamId == participant.TeamId)?.Win)
                             })
                             .ToList()
                     })
@@ -114,7 +115,8 @@ internal static class LegacyMatchReadModelMapper
                     Spell1Id = ParseSpellId(participant.Spell1Id),
                     Spell2Id = ParseSpellId(participant.Spell2Id),
                     teamId = participant.teamId,
-                    stats = ToDomain(participant.stats)
+                    stats = ResolveResult(ToDomain(participant.stats), participant.teamId,
+                        source.teams?.FirstOrDefault(team => team.teamId == participant.teamId)?.win)
                 })
                 .ToList(),
             teams = (source.teams ?? new List<GameDetailModel.TeamsItem>())
@@ -224,6 +226,16 @@ internal static class LegacyMatchReadModelMapper
         Convert.ToString(value)?.Trim().ToLowerInvariant() is
         "true" or "1" or "win" or "won" or "victory" or "success" or "胜" or "胜利" or "赢" or
         "false" or "0" or "loss" or "lose" or "lost" or "defeat" or "fail" or "失败" or "输";
+
+    /// <summary>缺失个人胜负时使用该玩家所属队伍的结果，不能使用另一支队伍的结果。</summary>
+    private static MatchParticipantStats? ResolveResult(MatchParticipantStats? stats, int teamId, object? teamResult)
+    {
+        if (stats?.HasWinResult == true || teamId <= 0 || !HasWinResult(teamResult)) return stats;
+        stats ??= new MatchParticipantStats { HasKdaResult = false };
+        stats.Win = IsWin(teamResult);
+        stats.HasWinResult = true;
+        return stats;
+    }
 
     /// <summary>解析召唤师技能标识，无效值按未提供处理。</summary>
     private static int ParseSpellId(string? value) => int.TryParse(value, out int id) ? id : 0;

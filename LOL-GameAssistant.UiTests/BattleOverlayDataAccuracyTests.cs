@@ -59,6 +59,39 @@ public sealed class BattleOverlayDataAccuracyTests
         Assert.Equal("same#A", score.RiotId);
     }
 
+    [Fact]
+    public async Task CompleteWinningSummaryIsCorrectedByPlayersLosingDetail()
+    {
+        var win = Sample();
+        var loss = Sample(); loss.GameId = 2;
+        var service = Service((method, args) => method.Name == "GetPageAsync"
+            ? Task.FromResult<MatchHistoryResponse?>(Page(win, loss))
+            : Task.FromResult<MatchDetail?>(Detail(new()
+            {
+                kills = 3, deaths = 1, assists = 2, Win = (long)args[0]! == 1
+            })));
+        var player = await service.GetPlayerAsync(Member, Session, CancellationToken.None);
+        Assert.Equal(50d, player.ChampionWinRate);
+        Assert.Equal(1, player.ChampionWins);
+        Assert.Equal(1, player.ChampionLosses);
+        Assert.Equal(new[] { true, false }, player.RecentResults);
+        Assert.True(player.HistoryComplete);
+        Assert.True(loss.Participants[0].stats!.Win);
+    }
+
+    [Fact]
+    public async Task AnotherPlayersDetailCannotOverridePlayersSummary()
+    {
+        var wrong = Detail(new() { Win = false });
+        wrong.participantIdentities[0].player!.Puuid = "other";
+        var service = Service((method, _) => method.Name == "GetPageAsync"
+            ? Task.FromResult<MatchHistoryResponse?>(Page(Sample()))
+            : Task.FromResult<MatchDetail?>(wrong));
+        var player = await service.GetPlayerAsync(Member, Session, CancellationToken.None);
+        Assert.Equal(new[] { true }, player.RecentResults);
+        Assert.False(player.HistoryComplete);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

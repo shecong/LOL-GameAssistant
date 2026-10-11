@@ -8,6 +8,59 @@ namespace LOL_GameAssistant.Tests;
 
 public sealed class MatchDetailsMappingTests
 {
+    [Theory]
+    [InlineData("Win", true)]
+    [InlineData("Fail", false)]
+    [InlineData("false", false)]
+    public void MissingPersonalResultUsesPlayersOwnTeamInSummaryAndDetail(string result, bool expected)
+    {
+        var detail = LegacyMatchReadModelMapper.ToDomain(new GameDetailModel.GameInfo
+        {
+            participants = [new() { participantId = 2, teamId = 200, stats = new() }],
+            teams = [new() { teamId = 100, win = "Win" }, new() { teamId = 200, win = result }]
+        })!;
+        var summary = LegacyMatchReadModelMapper.ToDomain(new GameHeadModel.MatchHistoryResponse
+        {
+            Games = new() { Games = [new()
+            {
+                Participants = [new() { ParticipantId = 2, TeamId = 200, Stats = new() }],
+                Teams = [new() { TeamId = 100, Win = "Win" }, new() { TeamId = 200, Win = result }]
+            }] }
+        })!;
+        foreach (var stats in new[] { detail.participants[0].stats!, summary.Games!.Games[0].Participants[0].stats! })
+        {
+            Assert.True(stats.HasWinResult);
+            Assert.Equal(expected, stats.Win);
+            Assert.False(stats.HasKdaResult);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, "Win")]
+    [InlineData(200, "unknown")]
+    [InlineData(300, "Fail")]
+    public void UnknownOrUnmatchedTeamCannotInventWinResult(int teamId, string result)
+    {
+        var detail = LegacyMatchReadModelMapper.ToDomain(new GameDetailModel.GameInfo
+        {
+            participants = [new() { teamId = teamId, stats = new() }],
+            teams = [new() { teamId = 200, win = result }]
+        })!;
+        Assert.False(detail.participants[0].stats!.HasWinResult);
+    }
+
+    [Fact]
+    public void ConfirmedPersonalLossIsPreserved()
+    {
+        var detail = LegacyMatchReadModelMapper.ToDomain(new GameDetailModel.GameInfo
+        {
+            participants = [new() { teamId = 200, stats = new() { win = false } }],
+            teams = [new() { teamId = 200, win = "Win" }]
+        })!;
+        Assert.True(detail.participants[0].stats!.HasWinResult);
+        Assert.False(detail.participants[0].stats!.Win);
+    }
+
     [Fact]
     public void MapsBansAndHextechAugmentsFromMatchDetail()
     {

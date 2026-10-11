@@ -45,11 +45,13 @@ public sealed class BattleOverlayService(IPlayerProfileService profiles, IRanked
             .DistinctBy(game => game.GameId > 0 ? (object)game.GameId : game).Take(100)
             .Where(game => game.IsCompletedGame() && MatchModeComparer.IsSameMode(session.QueueId, session.GameMode, game))
             .Select(game => CopySample(game, game.GetParticipant(member.Puuid))).ToArray();
-        // Win/hero samples remain available even if their KDA cannot be confirmed.
-        var needsDetail = games.Where(game =>
+        // Verify every displayed recent result and champion sample against the
+        // actual player's detail, even when the summary reports a complete win.
+        var needsDetail = games.Where((game, index) =>
         {
             var participant = game.GetParticipant(member.Puuid);
-            return participant?.stats == null || !participant.stats.HasWinResult ||
+            return index < 10 || participant?.championId == member.ChampionId ||
+                participant?.stats == null || !participant.stats.HasWinResult ||
                 !participant.stats.HasKdaResult || participant.championId <= 0;
         }).ToArray();
         int next = 0;
