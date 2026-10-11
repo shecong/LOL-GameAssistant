@@ -16,9 +16,9 @@ public sealed class NativeSkinCoreTransport(string directory) : ISkinCoreTranspo
         string host = Path.Combine(directory, "league-skin-core-host.exe");
         if (!File.Exists(host) || !File.Exists(Path.Combine(directory, "league-skin-core.dll")))
             throw new SkinCoreException("core_files_missing");
-        if (arguments.Count == 0 || arguments[0] is not ("catalog" or "status" or "entry" or "restore"))
+        if (arguments.Count == 0 || arguments[0] is not ("catalog" or "status" or "entry" or "restore" or "object-catalog" or "objects" or "objects-restore"))
             throw new SkinCoreException("invalid_request");
-        bool write = arguments[0] is "entry" or "restore";
+        bool write = arguments[0] is "entry" or "restore" or "objects" or "objects-restore";
         var info = new ProcessStartInfo(host) { UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardOutput = true, RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, WorkingDirectory = directory };

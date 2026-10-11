@@ -143,6 +143,8 @@ static int independentDefaultGear(const char* hero,int skin,int current) {
        (!strcmp(hero,"MasterYi") && skin==116) || (!strcmp(hero,"Ahri") && skin==86))return 0;
     return -1;
 }
+#include "object_probe.h"
+#include "object_core.h"
 static void independentProcess(Request* r) {
     IndependentContext c{};c.entries=(IndependentEntry*)calloc(IndependentMaxEntries,sizeof(IndependentEntry));
     if(!c.entries){fail(r,"independent_allocation_failed");return;}bool invoked=false;
@@ -150,6 +152,8 @@ static void independentProcess(Request* r) {
         __try {
             if(!independentContext(&c,r))__leave;
             Writer writer{r->result,0,sizeof(r->result),false};
+            if(r->command>=12 && r->command<=14){independentObjects(r,&writer,&c,&invoked);if(writer.failed)fail(r,"reply_too_large","serialization",invoked);__leave;}
+            if(r->command==11){independentObjectProbe(&writer,&c);if(writer.failed)fail(r,"reply_too_large");__leave;}
             if(r->command==10){
                 int count=0;independentChampionIndex(c.base,0,&count);
                 if(!count){fail(r,"independent_game_catalog_unavailable");__leave;}

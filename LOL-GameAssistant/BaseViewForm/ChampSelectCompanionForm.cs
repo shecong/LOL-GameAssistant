@@ -156,6 +156,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         if (IsDisposed || _tracking) return;
         _trackingGeneration++;
         _trackingCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _chooseBuild.Enabled = true;
         _loading = _selectionLoading = _modeLoading = _swapping = false;
         _isMayhem = null;
         _isAram = false;
@@ -426,23 +427,25 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     private async Task ChooseBuildAsync()
     {
         if (!_tracking || IsDisposed || !_chooseBuild.Enabled) return;
+        int generation = _trackingGeneration;
+        CancellationToken token = _trackingCancellation!.Token;
         try
         {
             _chooseBuild.Enabled = false;
             _buildStatus.Visible = true;
             _buildStatus.Text = UiLanguage.IsEnglish ? "Loading current build options…" : "正在获取当前模式的符文装备方案…";
             TopMost = false;
-            string result = await Program.GameMain.coachForm.OpenOpggBuildPickerAsync(_lifetime.Token, owner: this);
-            if (!IsDisposed) _buildStatus.Text = UiLanguage.T(result);
+            string result = await Program.GameMain.coachForm.OpenOpggBuildPickerAsync(token, owner: this);
+            if (IsCurrentTracking(generation)) _buildStatus.Text = UiLanguage.T(result);
         }
         catch (Exception ex)
         {
             RuntimeDiagnostics.WriteException(ex);
-            if (!IsDisposed) _buildStatus.Text = UiLanguage.T($"OP.GG 方案选择失败：{ex.Message}");
+            if (IsCurrentTracking(generation)) _buildStatus.Text = UiLanguage.T($"OP.GG 方案选择失败：{ex.Message}");
         }
         finally
         {
-            if (!IsDisposed)
+            if (!IsDisposed && generation == _trackingGeneration)
             {
                 _chooseBuild.Enabled = true;
                 SyncClientVisibility();

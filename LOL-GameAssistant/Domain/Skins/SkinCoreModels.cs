@@ -13,6 +13,13 @@ public sealed record SkinEntry
 
 public sealed record SkinCoreReply
 {
+    public int LaneCount { get; init; }
+    public int OwnWardCount { get; init; }
+    public int BaselineMinionSkin { get; init; } = -1;
+    public int BaselineWardSkin { get; init; } = -1;
+    public int ObjectTargetCount { get; init; }
+    public int ObjectChangedCount { get; init; }
+    public IReadOnlyList<SkinEntry> WardEntries { get; init; } = [];
     public bool Ok { get; init; }
     public bool Independent { get; init; }
     public bool OriginalRequired { get; init; } = true;

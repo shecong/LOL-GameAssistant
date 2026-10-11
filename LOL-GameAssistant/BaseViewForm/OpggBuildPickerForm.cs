@@ -18,6 +18,9 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private readonly OpggBuildChoices _choices;
     private readonly IOpggBuildApplyService? _buildService;
     private readonly bool _allowApply;
+    private readonly bool _hasCurrentMatch;
+    private readonly Func<OpggBuildOption, string, bool, Task<OpggBuildApplyResult>>? _applySelection;
+    private bool _applyingSelection;
     private readonly Label _heading = new();
     private readonly Label _source = new();
     private readonly AntdUI.PageHeader _windowHeader = new()
@@ -63,12 +66,16 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
 
     /// <summary>初始化 OpggBuildPickerForm 的实例状态，并保存传入的依赖或数据。</summary>
     public OpggBuildPickerForm(OpggBuildChoices choices, IGameAssetService gameAssetService,
-        int initiallySelectedOrder = 0, IOpggBuildApplyService? buildService = null, bool allowApply = true)
+        int initiallySelectedOrder = 0, IOpggBuildApplyService? buildService = null, bool allowApply = true,
+        bool hasCurrentMatch = true,
+        Func<OpggBuildOption, string, bool, Task<OpggBuildApplyResult>>? applySelection = null)
     {
         _choices = choices;
         _gameAssetService = gameAssetService;
         _buildService = buildService;
         _allowApply = allowApply;
+        _hasCurrentMatch = hasCurrentMatch;
+        _applySelection = applySelection;
         _position = choices.PositionName switch
         {
             "上路" => "TOP", "打野" => "JUNGLE", "下路" => "BOTTOM", "辅助" => "UTILITY", _ => "MIDDLE"
@@ -191,7 +198,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _note.Text = _choices.Mode == "aram_mayhem"
             ? "海克斯大乱斗专属出装与增幅推荐 · 此模式无常规符文页"
             : "选择一套方案，配置符文、装备与召唤师技能";
-        if (!_allowApply) _note.Text = "未获取当前对局，默认展示推荐；进入选人阶段后可应用。";
+        if (!_hasCurrentMatch) _note.Text = "可预先配置所示英雄的符文与装备；召唤师技能需在选人阶段应用。";
         _note.Dock = DockStyle.Fill;
         _note.ForeColor = Muted;
         _note.TextAlign = ContentAlignment.MiddleLeft;
@@ -239,7 +246,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         footer.Controls.Add(_source, 0, 1);
         _apply.Anchor = AnchorStyles.Right;
         _apply.Enabled = false;
-        _apply.Click += (_, _) => ConfirmSelection();
+        _apply.Click += async (_, _) => await ConfirmSelectionAsync();
         footer.Controls.Add(_apply, 1, 0);
         footer.SetRowSpan(_apply, 2);
         Controls.Add(_routeCards);
@@ -381,7 +388,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         root.Controls.Add(layout);
         var card = new RouteCard(option, root, itemTiles, runeTiles, spellTiles, position ?? _position, apply);
         AttachSelectionHandler(root, card);
-        apply.Click += (_, _) => { SelectCard(card); ConfirmSelection(); };
+        apply.Click += async (_, _) => { SelectCard(card); await ConfirmSelectionAsync(); };
         return card;
     }
 
@@ -478,13 +485,15 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>更新当前选中的推荐卡片及其视觉状态。</summary>
     private void SelectCard(RouteCard card)
     {
+        if (_applyingSelection) return;
         _selectedCard = card;
         _apply.Enabled = CanApply(card);
         ApplyTheme(UiTheme.Palette);
     }
 
     /// <summary>判断当前推荐是否具备应用到客户端的必要数据。</summary>
-    private bool CanApply(RouteCard card) => _allowApply && !_loading && card.Option.Mode == _choices.Mode;
+    private bool CanApply(RouteCard card) => _allowApply && !_loading && !_applyingSelection &&
+        (!_hasCurrentMatch || card.Option.Mode == _choices.Mode);
 
     private static readonly (string Key, string Name)[] Lanes =
         [("TOP", "上路"), ("JUNGLE", "打野"), ("MIDDLE", "中路"), ("BOTTOM", "下路"), ("UTILITY", "辅助")];
@@ -567,7 +576,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                     _note.Text = queryMode != _choices.Mode ? "当前浏览其他模式；请切回当前对局模式后应用方案。" :
                         queryMode == "aram_mayhem" ? "海克斯大乱斗专属出装与增幅推荐 · 此模式无常规符文页" :
                         "选择一套方案，配置符文、装备与召唤师技能";
-                    if (!_allowApply) _note.Text = "未获取当前对局，默认展示推荐；进入选人阶段后可应用。";
+                    if (!_hasCurrentMatch) _note.Text = "可预先配置所示英雄的符文与装备；召唤师技能需在选人阶段应用。";
                     if (pending.Count > 0) _note.Text += $" · 正在补充其他分路（{results.Count}/{roles.Length}）";
                     var missing = results.Where(item => !item.Choices.Succeeded).Select(item =>
                         Lanes.First(lane => lane.Key == item.Role).Name).ToArray();
@@ -782,9 +791,59 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     }
 
     /// <summary>确认当前方案并将选择结果返回调用方。</summary>
-    private void ConfirmSelection()
+    private async Task ConfirmSelectionAsync()
     {
         if (_selectedCard == null || !CanApply(_selectedCard)) return;
+        if (_applySelection != null)
+        {
+            var card = _selectedCard;
+            _queryCancellation?.Cancel();
+            _applyingSelection = true;
+            _apply.Enabled = false;
+            _apply.Text = "正在应用…";
+            _note.Text = $"正在应用方案 {card.Option.Order}，请稍候…";
+            _note.ForeColor = Gold;
+            _replaceCurrentRunePage.Enabled = false;
+            ApplyTheme(UiTheme.Palette);
+            try
+            {
+                var result = await _applySelection(card.Option, card.Position, AllowReplaceCurrentRunePage);
+                if (IsDisposed) return;
+                _note.Text = result.Message;
+                if (!result.Succeeded)
+                {
+                    _toolTip.SetToolTip(_note, result.Message);
+                    _note.ForeColor = Color.Salmon;
+                    return;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (!IsDisposed) _note.Text = "应用已取消，请重新确认当前选人状态。";
+                return;
+            }
+            catch (Exception ex)
+            {
+                if (!IsDisposed)
+                {
+                    _note.Text = "方案应用失败：" + ex.Message;
+                    _note.ForeColor = Color.Salmon;
+                    _toolTip.SetToolTip(_note, _note.Text);
+                }
+                return;
+            }
+            finally
+            {
+                _applyingSelection = false;
+                if (!IsDisposed)
+                {
+                    _apply.Text = "应用选中方案";
+                    _replaceCurrentRunePage.Enabled = true;
+                    _apply.Enabled = _selectedCard != null && CanApply(_selectedCard);
+                    ApplyTheme(UiTheme.Palette);
+                }
+            }
+        }
         DialogResult = DialogResult.OK;
         Close();
     }
@@ -822,6 +881,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
         foreach (Button tab in _tabs)
         {
+            tab.Enabled = !_applyingSelection;
             bool active = Equals(tab.Tag, _filter);
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
             tab.ForeColor = active ? Color.FromArgb(239, 221, 166) : Gold;
@@ -829,7 +889,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
         foreach (Button tab in _laneTabs)
         {
-            tab.Enabled = (_filter == "all" ? _choices.Mode : _filter) == "ranked";
+            tab.Enabled = !_applyingSelection && (_filter == "all" ? _choices.Mode : _filter) == "ranked";
             bool active = Equals(tab.Tag, _position);
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
             tab.FlatAppearance.BorderSize = active ? 1 : 0;

@@ -72,7 +72,7 @@ public sealed class SkinToolsTests
         var stop = (Task)typeof(SkinToolsForm).GetMethod("StopAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, null)!;
         stop.GetAwaiter().GetResult(); Assert.Equal(1, core.Stops);
         Assert.False(core.Enabled); Assert.False(toggle.Checked); Assert.False(settings.Load().SkinCoreEnabled);
-        Assert.Empty(Descendants(page).OfType<AntdUI.Select>().Single().Items);
+        Assert.Empty(Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").Items);
         Assert.All(Descendants(page).OfType<AntdUI.Button>().Where(b => b.Name.StartsWith("SkinAction")), button => Assert.False(button.Enabled));
     });
     [Fact]
@@ -83,7 +83,7 @@ public sealed class SkinToolsTests
         Assert.All(Descendants(page).OfType<AntdUI.Button>().Where(b => b.Name.StartsWith("SkinAction")), button => Assert.False(button.Enabled));
         var toggle = Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled"); toggle.Checked = true;
         Assert.True(core.Enabled); Assert.True(settings.Load().SkinCoreEnabled); Assert.Equal(1, core.Reads);
-        var select = Descendants(page).OfType<AntdUI.Select>().Single(); Assert.Equal(2, select.Items.Count);
+        var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries"); Assert.Equal(2, select.Items.Count);
         var search = Descendants(page).OfType<AntdUI.Input>().Single(c => c.Name == "SkinSearch"); search.Text = "烈焰"; Assert.Single(select.Items);
         toggle.Checked = false; Assert.False(core.Enabled); Assert.False(settings.Load().SkinCoreEnabled); Assert.Empty(select.Items);
         Assert.All(Descendants(page).OfType<AntdUI.Button>().Where(b => b.Name.StartsWith("SkinAction")), button => Assert.False(button.Enabled));
@@ -112,7 +112,7 @@ public sealed class SkinToolsTests
         var core = new Core(); using var host = new RenderHost { ClientSize = new Size(820, 980), ShowInTaskbar = false };
         using var page = new SkinToolsForm(core, new Settings()); host.Controls.Add(page); host.Show(); System.Windows.Forms.Application.DoEvents();
         Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
-        var select = Descendants(page).OfType<AntdUI.Select>().Single(); select.SelectedIndex = 1;
+        var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries"); select.SelectedIndex = 1;
         Assert.Equal("1:-1", Assert.Single(core.AppliedEntries));
         Assert.DoesNotContain(Descendants(page), control => control.Name is "SkinActionApply" or "SkinApplyKey");
         int disabled = 0; select.EnabledChanged += (_, _) => { if (!select.Enabled) disabled++; };
@@ -173,7 +173,7 @@ public sealed class SkinToolsTests
     [Fact]
     public void ThemeAndLayoutRenderWithoutGameConnection() => MatchListScrollingTests.OnUiThread(() =>
     {
-        var core = new Core(); using var host = new RenderHost { ClientSize = new Size(1060, 980), ShowInTaskbar = false };
+        var core = new Core(); using var host = new RenderHost { ClientSize = new Size(1060, 1480), ShowInTaskbar = false };
         using var page = new SkinToolsForm(core, new Settings()); host.Controls.Add(page); host.Show(); System.Windows.Forms.Application.DoEvents();
         string mode = UiTheme.Mode; bool wasDark = AntdUI.Config.IsDark;
         try

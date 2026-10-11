@@ -7,6 +7,60 @@ namespace LOL_GameAssistant.Tests;
 
 public sealed class SkinCoreServiceTests
 {
+    private static SkinCoreReply Objects() => Catalog() with { LaneCount = 5, OwnWardCount = 1, BaselineMinionSkin = 0, BaselineWardSkin = 220,
+        WardEntries = [new() { SkinNum = 1, Name = "Ward" }, new() { SkinNum = 220, Name = "Original" }] };
+    [Fact]
+    public async Task ObjectsRestoreCapturedBaselineAndDoNotReplaceItAfterApply()
+    {
+        bool changed = false;
+        var fake = new Fake((args, _) => {
+            if (args[0] == "object-catalog") return Task.FromResult(Objects() with { BaselineMinionSkin = changed ? 2 : 0, BaselineWardSkin = changed ? 1 : 220 });
+            changed = true; return Task.FromResult(Objects() with { ObjectTargetCount = 6, Invoked = true, StateVerified = true, TransportHookReleased = true });
+        });
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        Assert.True((await service.ApplyObjectsAsync(Session, 1, 1)).StateVerified);
+        Assert.True((await service.RestoreObjectsAsync(Session)).StateVerified);
+        Assert.Equal(new[] { "objects-restore", Session, "0", "220" }, fake.Calls.Last());
+    }
+    [Theory]
+    [InlineData("0000000000000000", 1, 1, "stale_session")]
+    [InlineData(Session, 11, 1, "invalid_object_selection")]
+    [InlineData(Session, 1, 999, "invalid_object_selection")]
+    public async Task InvalidObjectRequestsNeverWrite(string session, int minion, int ward, string error)
+    {
+        var fake = new Fake((args, _) => Task.FromResult(Objects())); var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        Assert.Equal(error, (await Assert.ThrowsAsync<SkinCoreException>(() => service.ApplyObjectsAsync(session, minion, ward))).Code);
+        Assert.DoesNotContain(fake.Calls, args => args[0] == "objects");
+    }
+    [Fact]
+    public async Task ObjectsWithNoTargetsCannotReportVerified()
+    {
+        var fake = new Fake((args, _) => Task.FromResult(args[0] == "object-catalog" ? Objects() : Objects() with { StateVerified = true, TransportHookReleased = true }));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        Assert.False((await service.ApplyObjectsAsync(Session, 1, 1)).StateVerified);
+    }
+    [Fact]
+    public async Task MissingObjectBaselineStopsBeforeWrite()
+    {
+        var fake = new Fake((args, _) => Task.FromResult(Objects() with { OwnWardCount = 0, BaselineWardSkin = -1 }));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        Assert.Equal("object_baseline_unavailable", (await Assert.ThrowsAsync<SkinCoreException>(() => service.ApplyObjectsAsync(Session, -1, 1))).Code);
+        Assert.DoesNotContain(fake.Calls, args => args[0] == "objects");
+    }
+    [Fact]
+    public async Task StopRestoresObjectsBeforeHeroAndDisables()
+    {
+        var fake = new Fake((args, _) => Task.FromResult(args[0] switch {
+            "object-catalog" => Objects(), "catalog" => Catalog(),
+            "objects" or "objects-restore" => Objects() with { ObjectTargetCount = 6, StateVerified = true, Invoked = true, TransportHookReleased = true },
+            _ => Applied() with { Skin = 0, ActiveSkin = 0, ActiveModel = "Lux" }
+        }));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        await service.ApplyObjectsAsync(Session, 1, 1); await service.StopAsync(Session);
+        Assert.False(service.Enabled);
+        int objects = fake.Calls.FindIndex(args => args[0] == "objects-restore"), hero = fake.Calls.FindIndex(args => args[0] == "restore");
+        Assert.True(objects >= 0 && hero > objects);
+    }
     private const string Session = "1234567890abcdef";
     private static SkinCoreReply Catalog() => new() { Ok = true, Independent = true, OriginalRequired = false,
         Session = Session, ReferenceSha256 = "profile", Model = "Lux", Entries = [

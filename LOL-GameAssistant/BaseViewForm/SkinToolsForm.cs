@@ -12,7 +12,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private readonly IApplicationSettingsStore _settings;
     private readonly AntdUI.Switch _enabled = new() { Name = "SkinCoreEnabled", Width = 52, Height = 30 };
     private readonly AntdUI.Input _search = new() { Name = "SkinSearch", Dock = DockStyle.Top, Height = 48, PlaceholderText = "搜索皮肤名称或模型" };
-    private readonly AntdUI.Select _entries = new() { Dock = DockStyle.Top, Height = 56, List = true, MaxCount = 12,
+    private readonly AntdUI.Select _entries = new() { Name = "HeroSkinEntries", Dock = DockStyle.Top, Height = 56, List = true, MaxCount = 12,
         DropDownArrow = true, DropDownRadius = 10, Font = new Font(UiMetrics.FontFamily, 11), PlaceholderText = "请先启用并读取当前英雄" };
     private readonly AntdUI.Button _refresh = new() { Name = "SkinActionRefresh", Text = "读取当前英雄", Width = 146, Height = 42, Margin = new Padding(0, 8, 12, 4) };
     private readonly AntdUI.Button _restore = new() { Name = "SkinActionRestore", Text = "恢复基础皮肤", Width = 146, Height = 42, Margin = new Padding(0, 8, 0, 4) };
@@ -54,20 +54,23 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _card.Controls.Add(_search); _card.Controls.Add(stateGap); _card.Controls.Add(_current); _card.Controls.Add(heading);
         _surfaceRows.AddRange([heading, toggleRow, buttons, gap, selectionLabel, stateGap, searchGap]);
         var notice = new AntdUI.Label { Dock = DockStyle.Top, Height = 96, Padding = new Padding(8, 16, 8, 8), Text = "实验性功能：游戏更新后可能需要重新适配。第三方换肤存在账号处罚风险。\n关闭开关停止新的请求，不会卸载已加载的游戏模块或自动恢复皮肤。" };
-        var content = new TableLayoutPanel { ColumnCount = 1, RowCount = 3, Margin = Padding.Empty, Padding = Padding.Empty };
+        var content = new TableLayoutPanel { ColumnCount = 1, RowCount = 4, Margin = Padding.Empty, Padding = Padding.Empty };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 472));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 314));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 400));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
         _card.Dock = DockStyle.Fill; _card.Margin = Padding.Empty;
-        content.Controls.Add(_card, 0, 0); content.Controls.Add(CreateHotkeyCard(), 0, 1); content.Controls.Add(notice, 0, 2);
+        content.Controls.Add(_card, 0, 0); content.Controls.Add(CreateHotkeyCard(), 0, 1); content.Controls.Add(CreateObjectCard(), 0, 2); content.Controls.Add(notice, 0, 3);
         _pageSurfaces.AddRange([viewport, content, notice]);
         void PositionContent()
         {
             int width = Math.Max(360, Math.Min(1040, viewport.ClientSize.Width - 40));
             int skinHeight = width < 560 ? 528 : 472;
+            int objectHeight = width < 560 ? 520 : 400;
             content.RowStyles[0].Height = skinHeight;
-            content.SetBounds(Math.Max(20, (viewport.ClientSize.Width - width) / 2), 20, width, skinHeight + 414);
+            content.RowStyles[2].Height = objectHeight;
+            content.SetBounds(Math.Max(20, (viewport.ClientSize.Width - width) / 2), 20, width, skinHeight + objectHeight + 414);
         }
         viewport.Controls.Add(content); viewport.Resize += (_, _) => PositionContent(); PositionContent(); Controls.Add(viewport);
         _enabled.Checked = settings.Load().SkinCoreEnabled;
@@ -128,6 +131,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private void ResetSession()
     {
         Interlocked.Increment(ref _revision); _catalog = null; _filtered.Clear(); _entries.Items.Clear(); _entries.SelectedIndex = -1;
+        _objectCatalog = null;
         _current.Text = UiLanguage.T("尚未连接游戏"); UpdateButtons();
     }
     private void FilterEntries()
@@ -154,6 +158,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _search.Enabled = _core.Enabled; _entries.Enabled = ready;
         _restore.Enabled = ready && !_refreshing;
         _stop.Enabled = ready && !_refreshing;
+        UpdateObjectButtons();
     }
     private async Task StopAsync()
     {
@@ -257,6 +262,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             input.BorderColor = palette.Border;
         }
         if (_hotkeyCard != null) { _hotkeyCard.Back = palette.SurfaceRaised; _hotkeyCard.BackColor = palette.SurfaceRaised; _hotkeyCard.BorderColor = palette.Border; }
+        if (_objectCard != null) { _objectCard.Back = palette.SurfaceRaised; _objectCard.BackColor = palette.SurfaceRaised; _objectCard.BorderColor = palette.Border; ThemeCardLabels(_objectCard); }
     }
     protected override void Dispose(bool disposing)
     {

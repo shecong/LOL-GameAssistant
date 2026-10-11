@@ -47,6 +47,53 @@ public sealed class OpggBuildPickerTests
     });
 
     [Fact]
+    public void ApplyingWaitsForClientShowsFailureAndAllowsRetry() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var response = new TaskCompletionSource<OpggBuildApplyResult>();
+        int applications = 0;
+        using var form = CreateForm(applySelection: (option, position, replace) =>
+        {
+            Assert.Equal(2, option.Order);
+            Assert.Equal("TOP", position);
+            Assert.True(replace);
+            applications++;
+            return applications == 1 ? response.Task : Task.FromResult(OpggBuildApplyResult.Success("已应用"));
+        });
+        form.Show();
+        var row = Children(form).OfType<Button>().Single(button => button.Name == "applyRoute2");
+        row.PerformClick();
+        Assert.True(form.Visible);
+        Assert.Equal(DialogResult.None, form.DialogResult);
+        Assert.Contains(Children(form).OfType<Label>(), label => label.Text.Contains("正在应用方案 2"));
+        Assert.False(row.Enabled);
+        row.PerformClick();
+        Assert.Equal(1, applications);
+        response.SetResult(OpggBuildApplyResult.Failure("客户端拒绝写入符文页，请检查客户端。"));
+        System.Windows.Forms.Application.DoEvents();
+        Assert.True(form.Visible);
+        Assert.True(row.Enabled);
+        Assert.Contains(Children(form).OfType<Label>(), label => label.Text.Contains("客户端拒绝写入符文页"));
+        row.PerformClick();
+        Assert.Equal(2, applications);
+        Assert.Equal(DialogResult.OK, form.DialogResult);
+    });
+
+    [Fact]
+    public void ModalApplyReturnsOkOnlyAfterWritingSelectedRow() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int appliedOrder = 0;
+        using var form = CreateForm(applySelection: (option, _, _) =>
+        {
+            appliedOrder = option.Order;
+            return Task.FromResult(OpggBuildApplyResult.Success("已应用"));
+        });
+        form.Shown += (_, _) => form.BeginInvoke((Action)(() =>
+            Children(form).OfType<Button>().Single(button => button.Name == "applyRoute2").PerformClick()));
+        Assert.Equal(DialogResult.OK, form.ShowDialog());
+        Assert.Equal(2, appliedOrder);
+    });
+
+    [Fact]
     public void EmptyModeCannotApplyAndReturningRestoresSelection() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var form = CreateForm();
@@ -249,7 +296,7 @@ public sealed class OpggBuildPickerTests
     }
 
     [Fact]
-    public void PreviewFallbackDisablesEveryApplyEntry() => MatchListScrollingTests.OnUiThread(() =>
+    public void ExplicitlyDisablingApplyDisablesEveryEntry() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var form = CreateForm(allowApply: false);
         form.Show();
@@ -260,8 +307,55 @@ public sealed class OpggBuildPickerTests
         Assert.NotEqual(DialogResult.OK, form.DialogResult);
     });
 
+    [Fact]
+    public void WithoutMatchCanApplySelectedMode() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var service = BuildService(args => Task.FromResult(Choices((string)args[1]!,
+            ((OpggBuildRequest)args[2]!).GameMode == "ARAM" ? "aram" : "ranked")));
+        using var form = CreateForm(buildService: service, hasCurrentMatch: false);
+        form.Show();
+        Assert.True(((Button)form.AcceptButton!).Enabled);
+        Children(form).OfType<Button>().Single(button => button.Text == "大乱斗").PerformClick();
+        Assert.True(((Button)form.AcceptButton!).Enabled);
+        Children(form).OfType<Button>().Single(button => button.Name == "applyRoute1").PerformClick();
+        Assert.Equal(DialogResult.OK, form.DialogResult);
+        Assert.Equal("aram", form.SelectedOption?.Mode);
+    });
+
+    [Theory]
+    [InlineData("Lobby", 0, "", "aram", true, true)]
+    [InlineData("未知", 0, "", "ranked", true, true)]
+    [InlineData("ChampSelect", 122, "CLASSIC", "ranked", true, true)]
+    [InlineData("ChampSelect", 22, "CLASSIC", "ranked", true, false)]
+    [InlineData("ChampSelect", 122, "ARAM", "ranked", true, false)]
+    [InlineData("InProgress", 122, "CLASSIC", "ranked", true, false)]
+    [InlineData("Lobby", 0, "", "ranked", false, false)]
+    public void ApplyRechecksCurrentContext(string phase, int championId, string mode,
+        string selectedMode, bool preconfiguration, bool expected)
+    {
+        var original = new AiGameContext { MyChampionId = 122, MyRole = "TOP" };
+        var latest = new AiGameContext { Phase = phase, MyChampionId = championId, GameMode = mode, MyRole = "BOTTOM" };
+        Assert.Equal(expected, CoachForm.CanApplyBuildContext(original, latest, selectedMode, preconfiguration));
+    }
+
+    [Fact]
+    public void LiveGameDataPreventsPreconfigurationWhenPhaseIsUnknown()
+    {
+        Assert.False(CoachForm.CanApplyBuildContext(new AiGameContext { MyChampionId = 122 },
+            new AiGameContext { HasLiveClientData = true }, "ranked", true));
+    }
+
+    [Fact]
+    public void PositionAliasesDoNotRejectAnUnchangedMatch()
+    {
+        Assert.True(CoachForm.CanApplyBuildContext(
+            new AiGameContext { Phase = "ChampSelect", MyChampionId = 517, MyRole = "MIDDLE" },
+            new AiGameContext { Phase = "ChampSelect", MyChampionId = 517, MyRole = "mid" }, "ranked", false));
+    }
+
     private static OpggBuildPickerForm CreateForm(string mode = "ranked", IOpggBuildApplyService? buildService = null,
-        bool allowApply = true)
+        bool allowApply = true, bool hasCurrentMatch = true,
+        Func<OpggBuildOption, string, bool, Task<OpggBuildApplyResult>>? applySelection = null)
     {
         var options = Enumerable.Range(1, 4).Select(order => new OpggBuildOption(order,
             [1054, 2003], [3078, 3053, 6333], [3143, 3065, 3071, 3026, 3047, 3082],
@@ -269,7 +363,7 @@ public sealed class OpggBuildPickerTests
             7200 / order, 3500 / order, [4, 12], Mode: mode)).ToArray();
         return new OpggBuildPickerForm(new OpggBuildChoices(true, "", "德莱厄斯", "上路", options,
             Mode: mode, ChampionId: 122), new EmptyAssets(), buildService: buildService,
-            allowApply: allowApply) { Opacity = 0 };
+            allowApply: allowApply, hasCurrentMatch: hasCurrentMatch, applySelection: applySelection) { Opacity = 0 };
     }
 
     private static IEnumerable<Control> Children(Control parent) => parent.Controls.Cast<Control>()

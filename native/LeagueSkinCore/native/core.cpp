@@ -66,7 +66,7 @@ static bool span(BYTE* first,BYTE* end,BYTE* capacity,size_t stride,size_t max,i
 #include "standalone_core.h"
 static bool claim(Request* r,DWORD pid,uint64_t nonce) {
     return r->magic==Magic && r->version==Protocol && r->pid==pid && r->nonce==nonce &&
-        (r->command>=6 && r->command<=10) && memchr(r->session,0,sizeof(r->session)) && InterlockedCompareExchange(&r->phase,1,0)==0;
+        (r->command>=6 && r->command<=14) && memchr(r->session,0,sizeof(r->session)) && InterlockedCompareExchange(&r->phase,1,0)==0;
 }
 static void process(Request* r) { independentProcess(r); }
 static void finishRequest(Request* r) {
@@ -107,11 +107,14 @@ int main(int argc,char** argv) {
     if(argc==2 && !strcmp(argv[1],"status")) command=6;
     if(argc==2 && !strcmp(argv[1],"catalog")) command=7;
     if(argc==2 && !strcmp(argv[1],"inventory")) command=10;
+    if(argc==2 && !strcmp(argv[1],"object-probe")) command=11;
+    if(argc==2 && !strcmp(argv[1],"object-catalog")) command=12;
+    if(argc==5 && (!strcmp(argv[1],"objects") || !strcmp(argv[1],"objects-restore"))){command=!strcmp(argv[1],"objects")?13:14;session=argv[2];if(!integer(argv[3],-1,command==13?10:10000,&index)||!integer(argv[4],-1,1000,&gear))return error("invalid_object_selection",ERROR_INVALID_PARAMETER);}
     if(argc==3 && !strcmp(argv[1],"inventory")){command=10;if(!integer(argv[2],0,9999,&index))return error("invalid_entry",ERROR_INVALID_PARAMETER);}
     if(argc==5 && !strcmp(argv[1],"entry")){command=8;session=argv[2];if(!integer(argv[3],0,999,&index)||!integer(argv[4],-1,127,&gear))return error("invalid_entry",ERROR_INVALID_PARAMETER);}
     if(argc==3 && !strcmp(argv[1],"restore")){command=9;session=argv[2];}
     if(command==99 || strlen(session)>=32) return error("invalid_request",ERROR_INVALID_PARAMETER);
-    if(command==8 || command==9) {
+    if(command==8 || command==9 || command==13 || command==14) {
         if(strlen(session)!=16) return error("invalid_session",ERROR_INVALID_PARAMETER);
         for(const char* p=session;*p;p++) if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='f'))) return error("invalid_session",ERROR_INVALID_PARAMETER);
     }

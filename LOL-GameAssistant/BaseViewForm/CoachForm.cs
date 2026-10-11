@@ -1,5 +1,6 @@
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
+using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.Coaching;
@@ -25,9 +26,12 @@ public sealed class CoachForm : UserControl, IThemeAware
     private readonly IRecommendationCoordinator _recommendationCoordinator;
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly IOpggBuildApplyService _opggBuildApplyService;
+    private readonly IGameAssetService? _gameAssetService;
     private readonly RecommendationOverlayForm _overlay = new();
     private bool _applyingOpgg;
     private bool _opggPickerOpen;
+    private OpggBuildPickerForm? _activeBuildPicker;
+    private TaskCompletionSource _opggStateChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private string _opggPromptedContext = "";
     private string _opggFailedContext = "";
     private DateTimeOffset _opggRetryAfter;
@@ -47,12 +51,14 @@ public sealed class CoachForm : UserControl, IThemeAware
         IAiCoachingService aiCoachingService,
         IRecommendationCoordinator recommendationCoordinator,
         IApplicationSettingsStore settingsStore,
-        IOpggBuildApplyService opggBuildApplyService)
+        IOpggBuildApplyService opggBuildApplyService,
+        IGameAssetService? gameAssetService = null)
     {
         _aiCoachingService = aiCoachingService;
         _recommendationCoordinator = recommendationCoordinator;
         _settingsStore = settingsStore;
         _opggBuildApplyService = opggBuildApplyService;
+        _gameAssetService = gameAssetService;
         Dock = DockStyle.Fill;
         BuildUi();
         ApplyTheme(UiTheme.Palette);
@@ -70,6 +76,8 @@ public sealed class CoachForm : UserControl, IThemeAware
         {
             _recommendationCoordinator.StateChanged -= OnRecommendationStateChanged;
             _overlay.Dispose();
+            _activeBuildPicker?.Close();
+            NotifyOpggStateChanged();
         };
 
         RenderState(_recommendationCoordinator.Current);
@@ -189,7 +197,28 @@ public sealed class CoachForm : UserControl, IThemeAware
     public async Task<string> OpenOpggBuildPickerAsync(CancellationToken cancellationToken = default, Form? owner = null)
     {
         if (IsDisposed) return "OP.GG 方案窗口不可用。";
-        if (_applyingOpgg || _opggPickerOpen) return "OP.GG 方案正在获取或选择中。";
+        try
+        {
+            while (_applyingOpgg || _opggPickerOpen)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_activeBuildPicker is { IsDisposed: false } picker)
+                {
+                    if (picker.WindowState == FormWindowState.Minimized) picker.WindowState = FormWindowState.Normal;
+                    picker.Activate();
+                    picker.BringToFront();
+                    return "OP.GG 方案窗口已打开，请选择方案。";
+                }
+                // 等待自动获取完成或弹窗显示，保留本次手动打开请求。
+                await _opggStateChanged.Task.WaitAsync(cancellationToken);
+                if (IsDisposed) return "OP.GG 方案窗口不可用。";
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return "已取消 OP.GG 方案选择。";
+        }
+
         _opggPickerOpen = true;
         try
         {
@@ -205,7 +234,18 @@ public sealed class CoachForm : UserControl, IThemeAware
         {
             return $"获取当前选人信息失败：{ex.Message}";
         }
-        finally { _opggPickerOpen = false; }
+        finally
+        {
+            _opggPickerOpen = false;
+            NotifyOpggStateChanged();
+        }
+    }
+
+    private void NotifyOpggStateChanged()
+    {
+        var previous = _opggStateChanged;
+        _opggStateChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        previous.TrySetResult();
     }
 
     /// <summary>根据当前英雄和上下文决定是否提示推荐方案。</summary>
@@ -214,50 +254,62 @@ public sealed class CoachForm : UserControl, IThemeAware
         AssistantSettings settings = _settingsStore.Load();
         if (_applyingOpgg || _opggPickerOpen || (!settings.OpggBuildAssistantEnabled && !settings.AutoApplyRuneBuild)) return;
 
-        AiGameContext context = await _aiCoachingService.CollectContextAsync(cancellationToken);
-        if (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0)
-            return;
-        string modeKey = Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(context.GameMode, context.QueueId);
-          string promptKey = BuildOpggPromptKey(context);
-          if (_opggPromptedContext == promptKey) return;
-          if (_opggFailedContext == promptKey && DateTimeOffset.UtcNow < _opggRetryAfter) return;
-
-        // 在请求 OP.GG 前先标记本英雄，避免 LCU 的连续选人事件重复打开同一模态框。
-        _opggPromptedContext = promptKey;
-        if (settings.AutoApplyRuneBuild && modeKey != "aram_mayhem")
+        // 采集上下文期间也占用入口，避免手动点击与自动检测交错执行。
+        _opggPickerOpen = true;
+        try
         {
-            PersonalRunePreset? personal = PersonalRunePresetResolver.Find(
-                settings.PersonalRunePresets, context.MyChampionId, modeKey, context.MyRole);
-            if (personal != null)
-            {
-                _applyingOpgg = true;
-                try
-                {
-                    OpggBuildApplyResult applied = await _opggBuildApplyService.ApplyPersonalRunePresetAsync(personal, cancellationToken);
-                    _status.Text = applied.Message;
-                    RuntimeDiagnostics.Report("个人符文方案", applied.Succeeded ? "已应用" : "失败", applied.Message);
-                    if (!applied.Succeeded) ScheduleOpggRetry(promptKey);
-                }
-                finally
-                {
-                    _applyingOpgg = false;
-                    RefreshOpggAvailability();
-                }
+            AiGameContext context = await _aiCoachingService.CollectContextAsync(cancellationToken);
+            if (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0)
                 return;
-            }
-        }
-        if (modeKey == "ranked" && PersonalRunePresetResolver.NormalizePosition(context.MyRole) == "unknown") return;
-        RuntimeDiagnostics.Report("OP.GG 选人推荐", "检测到英雄", $"英雄 {context.MyChampionId} · 位置 {context.MyRole}");
-          await ApplyOpggBuildAsync(context, automatic: true, cancellationToken, autoApply: settings.AutoApplyRuneBuild);
-      }
+            string modeKey = Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(context.GameMode, context.QueueId);
+            if (modeKey == "unknown" ||
+                (modeKey == "ranked" && PersonalRunePresetResolver.NormalizePosition(context.MyRole) == "unknown"))
+                return;
+            string promptKey = BuildOpggPromptKey(context);
+            if (_opggPromptedContext == promptKey) return;
+            if (_opggFailedContext == promptKey && DateTimeOffset.UtcNow < _opggRetryAfter) return;
 
-      /// <summary>安排推荐读取失败后的重试。</summary>
-      private void ScheduleOpggRetry(string context)
-      {
-          _opggPromptedContext = "";
-          _opggFailedContext = context;
-          _opggRetryAfter = DateTimeOffset.UtcNow.AddSeconds(10);
-      }
+            // 在请求 OP.GG 前先标记本英雄，避免 LCU 的连续选人事件重复打开同一模态框。
+            _opggPromptedContext = promptKey;
+            if (settings.AutoApplyRuneBuild && modeKey != "aram_mayhem")
+            {
+                PersonalRunePreset? personal = PersonalRunePresetResolver.Find(
+                    settings.PersonalRunePresets, context.MyChampionId, modeKey, context.MyRole);
+                if (personal != null)
+                {
+                    _applyingOpgg = true;
+                    try
+                    {
+                        OpggBuildApplyResult applied = await _opggBuildApplyService.ApplyPersonalRunePresetAsync(personal, cancellationToken);
+                        _status.Text = applied.Message;
+                        RuntimeDiagnostics.Report("个人符文方案", applied.Succeeded ? "已应用" : "失败", applied.Message);
+                        if (!applied.Succeeded) ScheduleOpggRetry(promptKey);
+                    }
+                    finally
+                    {
+                        _applyingOpgg = false;
+                        RefreshOpggAvailability();
+                    }
+                    return;
+                }
+            }
+            RuntimeDiagnostics.Report("OP.GG 选人推荐", "检测到英雄", $"英雄 {context.MyChampionId} · 位置 {context.MyRole}");
+            await ApplyOpggBuildAsync(context, automatic: true, cancellationToken, autoApply: settings.AutoApplyRuneBuild);
+        }
+        finally
+        {
+            _opggPickerOpen = false;
+            NotifyOpggStateChanged();
+        }
+    }
+
+    /// <summary>安排推荐读取失败后的重试。</summary>
+    private void ScheduleOpggRetry(string context)
+    {
+        _opggPromptedContext = "";
+        _opggFailedContext = context;
+        _opggRetryAfter = DateTimeOffset.UtcNow.AddSeconds(10);
+    }
 
     /// <summary>按当前配置决定是否展示推荐浮窗。</summary>
     private void ShowOverlayIfNeeded(RecommendationState state)
@@ -292,6 +344,20 @@ public sealed class CoachForm : UserControl, IThemeAware
         _overlay.ShowRecommendation(recommendation, ai);
     }
 
+    /// <summary>应用前重新核对对局；无对局时允许手动预配置。</summary>
+    internal static bool CanApplyBuildContext(AiGameContext original, AiGameContext latest,
+        string selectedMode, bool allowPreconfiguration)
+    {
+        if (string.Equals(latest.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
+            return latest.MyChampionId == original.MyChampionId &&
+                Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(latest.GameMode, latest.QueueId) == selectedMode &&
+                (allowPreconfiguration || PersonalRunePresetResolver.NormalizePosition(latest.MyRole) ==
+                    PersonalRunePresetResolver.NormalizePosition(original.MyRole));
+
+        return allowPreconfiguration && !latest.HasLiveClientData && (latest.Phase ?? "").ToLowerInvariant() is
+            "" or "未知" or "none" or "lobby" or "matchmaking" or "readycheck";
+    }
+
     /// <summary>将选中的推荐方案应用到客户端。</summary>
     private async Task ApplyOpggBuildAsync()
     {
@@ -302,8 +368,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             return;
         }
 
-        var context = await GetManualBuildContextAsync(CancellationToken.None);
-        await ApplyOpggBuildAsync(context, automatic: false, CancellationToken.None);
+        await OpenOpggBuildPickerAsync(owner: FindForm() ?? Program.GameMain);
     }
 
     /// <summary>为用户手动选择方案收集英雄和模式信息。</summary>
@@ -365,6 +430,8 @@ public sealed class CoachForm : UserControl, IThemeAware
                     context.MyRole,
                     new OpggBuildRequest(context.GameMode, context.QueueId, context.EnemyChampionIds),
                     cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsDisposed) return;
             if (!choices.Succeeded)
             {
                 if (automatic) ScheduleOpggRetry(_opggPromptedContext);
@@ -379,77 +446,56 @@ public sealed class CoachForm : UserControl, IThemeAware
             string selectionKey = BuildOpggSelectionKey(context.MyChampionId, choices.Mode, context.MyRole);
             AssistantSettings settings = _settingsStore.Load();
             settings.OpggManualBuildSelections.TryGetValue(selectionKey, out int savedOrder);
-            OpggBuildOption? selectedOption = automatic
+            OpggBuildOption? selectedOption = automatic && autoApply
                 ? choices.Options.FirstOrDefault(option => option.Order == savedOrder)
                 : null;
-            bool manuallySelected = false;
-            bool allowReplaceCurrentRunePage = false;
-            string selectedPosition = context.MyRole;
-
             if (autoApply && selectedOption == null)
                 selectedOption = choices.Options.FirstOrDefault();
 
             if (selectedOption == null)
             {
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "已获取方案", $"{choices.ChampionName} {choices.PositionName} · {choices.Options.Count} 套，正在等待选择");
-                using var picker = new OpggBuildPickerForm(choices, AppCompositionRoot.GameAssetService, savedOrder,
-                    _opggBuildApplyService, allowApply: !previewOnly);
+                using var pickerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                using var picker = new OpggBuildPickerForm(choices, _gameAssetService ?? AppCompositionRoot.GameAssetService, savedOrder,
+                    _opggBuildApplyService, hasCurrentMatch: !previewOnly,
+                    applySelection: (option, position, replace) => ApplySelectedBuildAsync(context, option, position,
+                        previewOnly, automatic, pickerCancellation.Token, replace, rememberSelection: true));
+                picker.FormClosing += (_, _) => pickerCancellation.Cancel();
                 // 从选人伴随窗打开时，以伴随窗为父窗口，关闭后不会激活隐藏的主窗体。
                 Form? owner = ResolveBuildDialogOwner(dialogOwner, FindForm() ?? Program.GameMain);
-                DialogResult dialogResult = picker.ShowDialog(owner);
+                _activeBuildPicker = picker;
+                picker.Shown += (_, _) =>
+                {
+                    NotifyOpggStateChanged();
+                    if (cancellationToken.IsCancellationRequested) picker.Close();
+                };
+                using var closeOnCancellation = cancellationToken.Register(() =>
+                {
+                    try
+                    {
+                        if (picker.IsHandleCreated && !picker.IsDisposed)
+                            picker.BeginInvoke((Action)(() => { if (!picker.IsDisposed) picker.Close(); }));
+                    }
+                    catch (InvalidOperationException) { /* 窗口已关闭。 */ }
+                });
+                DialogResult dialogResult;
+                try { dialogResult = picker.ShowDialog(owner); }
+                finally { _activeBuildPicker = null; }
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "弹窗已关闭",
                     picker.SelectedOption == null ? "未选择方案" : $"已选方案 {picker.SelectedOption.Order}");
                 if (dialogResult != DialogResult.OK || picker.SelectedOption == null)
                 {
                     _status.ForeColor = Color.DimGray;
-                    _status.Text = previewOnly ? "默认推荐浏览已关闭，进入选人阶段后可应用。" : "已取消 OP.GG 出装配置。";
+                    _status.Text = "已取消 OP.GG 出装配置。";
                     return;
                 }
 
-                selectedOption = picker.SelectedOption;
-                selectedPosition = picker.SelectedPosition;
-                selectionKey = BuildOpggSelectionKey(context.MyChampionId, selectedOption.Mode, selectedPosition);
-                allowReplaceCurrentRunePage = picker.AllowReplaceCurrentRunePage;
-                manuallySelected = true;
-            }
-
-            AiGameContext latest = await _aiCoachingService.CollectContextAsync(cancellationToken);
-            if (!string.Equals(latest.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
-                latest.MyChampionId != context.MyChampionId ||
-                Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(latest.GameMode, latest.QueueId) != choices.Mode ||
-                !string.Equals(latest.MyRole, context.MyRole, StringComparison.OrdinalIgnoreCase))
-            {
-                _status.ForeColor = Color.DarkGoldenrod;
-                _status.Text = "选人英雄、模式或位置已变化，请重新获取方案。";
+                // 选择窗完成写入后才返回 OK，不能再次应用同一方案。
                 return;
             }
 
-            _status.Text = automatic && savedOrder > 0
-                ? $"正在按已保存的 {choices.PositionName} 方案 {selectedOption.Order} 配置…"
-                : $"正在应用 OP.GG 方案 {selectedOption.Order}…";
-            OpggBuildApplyResult result = await _opggBuildApplyService
-                .ApplyBuildAsync(context.MyChampionId, selectedPosition, selectedOption, cancellationToken, allowReplaceCurrentRunePage);
-            _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
-            _status.Text = result.Message;
-            RuntimeDiagnostics.Report("OP.GG 方案应用", result.Succeeded ? "成功" : "失败", result.Message);
-            Program.GameMain.infoMsg.AddMsg(result.Message);
-            if (result.Succeeded)
-            {
-                // 手动应用同样满足本次选人的配置，后续轮询不能覆盖用户的选择。
-                _opggPromptedContext = BuildOpggPromptKey(latest);
-                _opggFailedContext = "";
-                _opggRetryAfter = DateTimeOffset.MinValue;
-            }
-            if (result.Succeeded && manuallySelected)
-            {
-                // 弹窗期间设置可能变化；只在应用成功后保存选择。
-                settings = _settingsStore.Load();
-                settings.OpggManualBuildSelections[selectionKey] = selectedOption.Order;
-                _settingsStore.Save(settings);
-            }
-            if (!result.Succeeded && !automatic)
-                MessageBox.Show(ResolveBuildDialogOwner(dialogOwner, FindForm() ?? Program.GameMain), result.Message, "符文装备应用失败",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            OpggBuildApplyResult result = await ApplySelectedBuildAsync(context, selectedOption, context.MyRole,
+                previewOnly, automatic, cancellationToken, allowReplaceCurrentRunePage: false, rememberSelection: false);
             if (automatic && !result.Succeeded) ScheduleOpggRetry(_opggPromptedContext);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -469,8 +515,50 @@ public sealed class CoachForm : UserControl, IThemeAware
         {
             _applyingOpgg = false;
             _opggPickerOpen = false;
+            NotifyOpggStateChanged();
             RefreshOpggAvailability();
         }
+    }
+
+    /// <summary>核对最新对局并应用方案，将结果返回给仍在显示的选择窗。</summary>
+    private async Task<OpggBuildApplyResult> ApplySelectedBuildAsync(AiGameContext context, OpggBuildOption option,
+        string position, bool previewOnly, bool automatic, CancellationToken cancellationToken,
+        bool allowReplaceCurrentRunePage, bool rememberSelection)
+    {
+        AiGameContext latest = automatic
+            ? await _aiCoachingService.CollectContextAsync(cancellationToken)
+            : await GetManualBuildContextAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        OpggBuildApplyResult result;
+        if (!CanApplyBuildContext(context, latest, option.Mode, previewOnly))
+            result = OpggBuildApplyResult.Failure("当前阶段不可配置，或英雄、模式、位置已变化，请重新获取方案。");
+        else
+        {
+            _status.Text = $"正在应用 OP.GG 方案 {option.Order}…";
+            result = await _opggBuildApplyService.ApplyBuildAsync(context.MyChampionId, position, option,
+                cancellationToken, allowReplaceCurrentRunePage,
+                applySummonerSpells: string.Equals(latest.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase));
+        }
+        _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
+        _status.Text = result.Message;
+        RuntimeDiagnostics.Report("OP.GG 方案应用", result.Succeeded ? "成功" : "失败", result.Message);
+        Program.GameMain?.infoMsg.AddMsg(result.Message);
+        if (result.Succeeded)
+        {
+            if (string.Equals(latest.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
+            {
+                _opggPromptedContext = BuildOpggPromptKey(latest);
+                _opggFailedContext = "";
+                _opggRetryAfter = DateTimeOffset.MinValue;
+            }
+            if (rememberSelection)
+            {
+                AssistantSettings settings = _settingsStore.Load();
+                settings.OpggManualBuildSelections[BuildOpggSelectionKey(context.MyChampionId, option.Mode, position)] = option.Order;
+                _settingsStore.Save(settings);
+            }
+        }
+        return result;
     }
 
     /// <summary>确定推荐弹窗的所属窗口，保证模态显示关系正确。</summary>

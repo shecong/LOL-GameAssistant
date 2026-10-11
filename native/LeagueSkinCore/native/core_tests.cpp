@@ -3,6 +3,8 @@
 #include "core.cpp"
 #undef main
 #include <cassert>
+#include <initializer_list>
+#include "object_skin_rules.h"
 int main() {
     auto request=(Request*)HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(Request));
     request->magic=Magic;request->version=Protocol;request->pid=42;request->nonce=99;
@@ -18,6 +20,15 @@ int main() {
     encrypted[20]=1;encrypted[21]=1;encrypted[22]=0;encrypted[23]=0;
     int skin=-1;assert(skinValue(encrypted,&skin) && skin==0);
     IndependentContext context{};context.player=player;context.stack=stack;
+    assert(objectLaneModel("SRU_OrderMinionMelee") && objectLaneModel("SRU_ChaosMinionSuper"));
+    assert(!objectLaneModel("SRU_Blue") && !objectLaneModel("YellowTrinket") && !objectLaneModel("Ashe"));
+    assert(objectWardModel("YellowTrinket") && !objectWardModel("TestCubeRender10Vision"));
+    BYTE wardObject[0x700]{},ownerWrapper[64]{};
+    *(BYTE**)(wardObject+0x6f8)=ownerWrapper;*(BYTE**)ownerWrapper=player;
+    assert(objectLocalWard(&context,wardObject));
+    *(BYTE**)ownerWrapper=stack;assert(!objectLocalWard(&context,wardObject));
+    *(BYTE**)(wardObject+0x6f8)=nullptr;assert(!objectLocalWard(&context,wardObject));
+    assert(!objectReadable((void*)1,64));
     assert(independentWriteSkin(&context,104));assert(skinValue(encrypted,&skin) && skin==104);
     assert(*(int*)(stack+0x38)==104);
     encrypted[21]=0;encrypted[22]=4;assert(independentWriteSkin(&context,0));
@@ -54,5 +65,24 @@ int main() {
     assert(independentDefaultGear("Morgana",80,-1)==3);
     assert(independentDefaultGear("Ahri",86,-1)==0);
     assert(independentDefaultGear("Kayn",0,2)==2);
+    ObjectSkinObservation object{true,false,false,1,0,0,"SRU_OrderMinionMelee","Ashe"};
+    ObjectSkinSelection selection{4,12};
+    auto decision=selectObjectSkin(object,selection);
+    assert(decision.action==ObjectSkinAction::LaneMinion && decision.skin==8 && decision.refresh && decision.legacyBaseReset);
+    object.playerTeam=2;assert(selectObjectSkin(object,selection).skin==9);
+    selection.minionIndex=-1;assert(selectObjectSkin(object,selection).action==ObjectSkinAction::Skip);
+    object.laneMinion=false;object.hasOwner=true;object.ownedByLocal=true;object.model="SightWard";
+    decision=selectObjectSkin(object,selection);assert(decision.action==ObjectSkinAction::Ward && decision.skin==12 && decision.refresh);
+    object.baseSkin=12;assert(!selectObjectSkin(object,selection).refresh);
+    for(const char* model:{"JammerDevice","YellowTrinket","VisionWard","BlueTrinket"}) {
+        object.model=model;assert(selectObjectSkin(object,selection).action==ObjectSkinAction::Ward);
+    }
+    object.ownedByLocal=false;assert(selectObjectSkin(object,selection).action==ObjectSkinAction::Skip);
+    object.ownedByLocal=true;selection.wardSkin=-1;assert(selectObjectSkin(object,selection).action==ObjectSkinAction::Skip);
+    object.model="TestCubeRender10Vision";object.playerModel="Yone";object.ownerSkin=93;
+    decision=selectObjectSkin(object,selection);assert(decision.action==ObjectSkinAction::OwnerShape && decision.skin==93 && !decision.legacyBaseReset);
+    object.playerModel="Ashe";assert(selectObjectSkin(object,selection).skin==0);
+    object.model="SRU_Jungle_Companions";assert(selectObjectSkin(object,selection).action==ObjectSkinAction::Skip);
+    object.model="SightWard";selection.wardSkin=10001;assert(selectObjectSkin(object,selection).action==ObjectSkinAction::Skip);
     puts("Independent core: ownership, expiry, skin field, layer synchronization, restore and bounds passed.");
 }

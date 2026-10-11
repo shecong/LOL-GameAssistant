@@ -12,6 +12,22 @@ namespace LOL_GameAssistant.Tests;
 public sealed class OpggBuildApplyServiceTests
 {
     [Fact]
+    public async Task PreconfigurationWritesRunesAndItemsWithoutPatchingSummonerSpells()
+    {
+        var lcu = new FakeLcuRequestSender(2, 0);
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        var result = await service.ApplyBuildAsync(1, "TOP",
+            CreateOption() with { SummonerSpellIds = [4, 14] }, applySummonerSpells: false);
+
+        Assert.True(result.Succeeded);
+        Assert.Single(lcu.RunePages);
+        Assert.Contains("/lol-item-sets/v1/item-sets/1/sets", lcu.PutEndpoints);
+        Assert.Empty(lcu.PatchEndpoints);
+        Assert.Contains("召唤师技能需在选人时应用", result.Message);
+    }
+
+    [Fact]
     public void MayhemBuilds_ParseSinglePanelPageWithoutPanelMarker()
     {
         const string html = "Summoner Spells summoner-spell-icons/4.png summoner-spell-icons/32.png " +

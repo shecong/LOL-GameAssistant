@@ -165,7 +165,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         string? position,
         OpggBuildOption option,
         CancellationToken cancellationToken = default,
-        bool allowReplaceCurrentRunePage = false)
+        bool allowReplaceCurrentRunePage = false,
+        bool applySummonerSpells = true)
     {
         if (championId <= 0)
             return OpggBuildApplyResult.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
@@ -195,7 +196,9 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             if (option.RunePerkIds.Count >= 6) completed.Add("符文页");
             string itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
             completed.Add("物品集");
-            string spellResult = await ApplySummonerSpellsAsync(option.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
+            string spellResult = applySummonerSpells
+                ? await ApplySummonerSpellsAsync(option.SummonerSpellIds, cancellationToken).ConfigureAwait(false)
+                : "当前未处于选人阶段，召唤师技能需在选人时应用";
             if (spellResult.StartsWith("客户端未写入", StringComparison.Ordinal))
                 return OpggBuildApplyResult.Failure($"部分已写入（{string.Join("、", completed)}），召唤师技能写入失败；请在客户端核对。");
             string source = option.Mode == "aram_mayhem" ? "海克斯大乱斗专属" : "OP.GG";

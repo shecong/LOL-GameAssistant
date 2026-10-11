@@ -13,6 +13,9 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
     private int _enabled;
     private int _stopping;
     private long _revision;
+    private string? _objectSession;
+    private int _baselineMinion = -1, _baselineWard = -1;
+    private bool _minionChanged, _wardChanged;
     public bool Enabled => Volatile.Read(ref _enabled) == 1;
     public void SetEnabled(bool enabled) {
         if (enabled && Volatile.Read(ref _stopping) != 0) throw new SkinCoreException("core_stopping");
@@ -33,6 +36,8 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
         InvalidateSession(); long revision = Interlocked.Read(ref _revision); bool acquired = false;
         try {
             await _gate.WaitAsync(token).ConfigureAwait(false); acquired = true; Check(revision);
+            if (_objectSession == session && (_minionChanged || _wardChanged))
+                await RestoreObjectsInternalAsync(revision, session, token).ConfigureAwait(false);
             return await ApplyInternalAsync(revision, session, "", true, token).ConfigureAwait(false);
         }
         catch (SkinCoreException error) { Log(new { stage = "stop_failed", error.Code, error.OutcomeUnknown }); throw; }
@@ -41,6 +46,62 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
             SetEnabled(false); Volatile.Write(ref _stopping, 0);
             if (acquired) _gate.Release();
         }
+    }
+
+    public Task<SkinCoreReply> GetObjectCatalogAsync(CancellationToken token = default) => RunAsync(ObjectCatalogAsync, token);
+    public Task<SkinCoreReply> ApplyObjectsAsync(string session, int minionIndex, int wardSkin, CancellationToken token = default) =>
+        RunAsync(async (revision, ct) => {
+            var catalog = await ObjectCatalogAsync(revision, ct).ConfigureAwait(false);
+            if (catalog.Session != session) throw new SkinCoreException("stale_session");
+            if (minionIndex is < -1 or > 10 || wardSkin < -1 || (minionIndex < 0 && wardSkin < 0) ||
+                (wardSkin >= 0 && !catalog.WardEntries.Any(e => e.SkinNum == wardSkin))) throw new SkinCoreException("invalid_object_selection");
+            if ((minionIndex >= 0 && (catalog.LaneCount == 0 || _baselineMinion < 0)) ||
+                (wardSkin >= 0 && (catalog.OwnWardCount == 0 || _baselineWard < 0))) throw new SkinCoreException("object_baseline_unavailable");
+            Check(revision); ct.ThrowIfCancellationRequested();
+            _minionChanged |= minionIndex >= 0; _wardChanged |= wardSkin >= 0;
+            var result = await transport.InvokeAsync(["objects", session, minionIndex.ToString(CultureInfo.InvariantCulture), wardSkin.ToString(CultureInfo.InvariantCulture)], ct).ConfigureAwait(false);
+            CheckObjectWriteRevision(revision); return ValidateObjectResult(result, catalog);
+        }, token);
+    public Task<SkinCoreReply> RestoreObjectsAsync(string session, CancellationToken token = default) =>
+        RunAsync((revision, ct) => RestoreObjectsInternalAsync(revision, session, ct), token);
+    private async Task<SkinCoreReply> ObjectCatalogAsync(long revision, CancellationToken token)
+    {
+        var catalog = await transport.InvokeAsync(["object-catalog"], token).ConfigureAwait(false); Check(revision);
+        if (!catalog.Ok || !catalog.Independent || catalog.OriginalRequired || !Regex.IsMatch(catalog.Session, "\\A[0-9a-f]{16}\\z") ||
+            string.IsNullOrWhiteSpace(catalog.ReferenceSha256) || catalog.LaneCount is < 0 or > 10000 || catalog.OwnWardCount is < 0 or > 10000 ||
+            catalog.BaselineMinionSkin is < -1 or > 10000 || catalog.BaselineWardSkin is < -1 or > 1000 ||
+            catalog.WardEntries.Count > 1001 || catalog.WardEntries.Any(e => e.SkinNum is < 0 or > 1000 || string.IsNullOrWhiteSpace(e.Name)) ||
+            catalog.WardEntries.Select(e => e.SkinNum).Distinct().Count() != catalog.WardEntries.Count) throw new SkinCoreException("invalid_object_catalog");
+        if (_objectSession != catalog.Session) { _objectSession = catalog.Session; _baselineMinion = _baselineWard = -1; _minionChanged = _wardChanged = false; }
+        if (_baselineMinion < 0 && !_minionChanged) _baselineMinion = catalog.BaselineMinionSkin;
+        if (_baselineWard < 0 && !_wardChanged) _baselineWard = catalog.BaselineWardSkin;
+        return catalog;
+    }
+    private async Task<SkinCoreReply> RestoreObjectsInternalAsync(long revision, string session, CancellationToken token)
+    {
+        var catalog = await ObjectCatalogAsync(revision, token).ConfigureAwait(false);
+        if (session != catalog.Session) throw new SkinCoreException("stale_session");
+        var result = await transport.InvokeAsync(["objects-restore", session, (_minionChanged ? _baselineMinion : -1).ToString(CultureInfo.InvariantCulture),
+            (_wardChanged ? _baselineWard : -1).ToString(CultureInfo.InvariantCulture)], token).ConfigureAwait(false);
+        CheckObjectWriteRevision(revision); result = ValidateObjectResult(result, catalog);
+        if (!result.StateVerified && result.ObjectTargetCount != 0) throw new SkinCoreException("object_restore_not_verified", true);
+        if (result.StateVerified || result.ObjectTargetCount == 0) { _minionChanged = _wardChanged = false; }
+        return result;
+    }
+    private SkinCoreReply ValidateObjectResult(SkinCoreReply result, SkinCoreReply catalog)
+    {
+        if (!result.Ok || !result.Independent || result.OriginalRequired || result.TransportHookReleased != true ||
+            result.Session != catalog.Session || result.ReferenceSha256 != catalog.ReferenceSha256 ||
+            result.ObjectTargetCount is < 0 or > 10000 || result.ObjectChangedCount < 0 || result.ObjectChangedCount > result.ObjectTargetCount)
+            throw new SkinCoreException("invalid_object_result", true);
+        bool verified = result.Ok && result.Independent && !result.OriginalRequired && result.StateVerified && result.ObjectTargetCount > 0 &&
+            result.TransportHookReleased == true && result.Session == catalog.Session && result.ReferenceSha256 == catalog.ReferenceSha256;
+        Log(new { stage = "objects_result", result.RequestId, result.Session, result.ObjectTargetCount, result.ObjectChangedCount, verified });
+        return result with { StateVerified = verified };
+    }
+    private void CheckObjectWriteRevision(long revision)
+    {
+        if (!Enabled || revision != Interlocked.Read(ref _revision)) throw new SkinCoreException("request_outcome_unknown", true);
     }
 
     private void Check(long revision)
