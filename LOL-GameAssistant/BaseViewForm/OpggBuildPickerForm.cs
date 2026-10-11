@@ -401,7 +401,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         root.Controls.Add(layout);
         var card = new RouteCard(option, root, itemTiles, runeTiles, spellTiles, position ?? _position, apply);
         AttachSelectionHandler(root, card);
-        apply.Click += async (_, _) => { SelectCard(card); await ConfirmSelectionAsync(); };
+        apply.Click += async (_, _) => await ApplyRouteAsync(card);
         return card;
     }
 
@@ -491,8 +491,20 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>绑定条目点击事件，使子控件点击也能选择所属方案。</summary>
     private void AttachSelectionHandler(Control control, RouteCard card)
     {
+        // 操作按钮只执行自己的处理器，不先递归触发整张卡片的重绘。
+        if (control is Button) return;
         control.Click += (_, _) => SelectCard(card);
         foreach (Control child in control.Controls) AttachSelectionHandler(child, card);
+    }
+
+    /// <summary>直接应用右侧按钮所属的方案，避免依赖卡片的通用点击事件。</summary>
+    private async Task ApplyRouteAsync(RouteCard card)
+    {
+        RuntimeDiagnostics.Report("OP.GG 手动应用", "收到点击",
+            $"方案 {card.Option.Order} · 分路 {card.Position} · 加载中 {_loading} · 应用中 {_applyingSelection}");
+        if (_applyingSelection || _selectionApplied) return;
+        _selectedCard = card;
+        await ConfirmSelectionAsync();
     }
 
     /// <summary>更新当前选中的推荐卡片及其视觉状态。</summary>
@@ -812,7 +824,17 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             Close();
             return;
         }
-        if (_selectedCard == null || !CanApply(_selectedCard)) return;
+        if (_selectedCard == null || !CanApply(_selectedCard))
+        {
+            _applyStatus.Text = _selectedCard == null ? "请先选择一套方案。"
+                : _loading ? "推荐仍在加载，请稍后重试。"
+                : !_allowApply ? "当前窗口仅供预览，无法应用方案。"
+                : _applyingSelection ? "方案正在应用，请稍候。"
+                : "所选方案与当前对局模式不一致，请切回当前模式。";
+            _applyStatus.ForeColor = Color.Salmon;
+            RuntimeDiagnostics.Report("OP.GG 手动应用", "未执行", _applyStatus.Text);
+            return;
+        }
         if (_applySelection != null)
         {
             var card = _selectedCard;
@@ -849,6 +871,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                     _note.Text = "应用已取消，请重新确认当前选人状态。";
                     _applyStatus.Text = _note.Text;
                     _applyStatus.ForeColor = Color.Salmon;
+                    RuntimeDiagnostics.Report("OP.GG 手动应用", "取消", _note.Text);
                 }
                 return;
             }
@@ -861,6 +884,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                     _applyStatus.ForeColor = Color.Salmon;
                     _note.ForeColor = Color.Salmon;
                     _toolTip.SetToolTip(_note, _note.Text);
+                    RuntimeDiagnostics.Report("OP.GG 手动应用", "异常", _note.Text);
                 }
                 return;
             }

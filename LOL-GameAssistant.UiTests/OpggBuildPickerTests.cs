@@ -35,6 +35,27 @@ public sealed class OpggBuildPickerTests
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetGuiResources(IntPtr process, uint flags);
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(120)]
+    [InlineData(220)]
+    public void FocusingVisibleRowApplyKeepsButtonUnderPointer(int offset) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = CreateForm();
+        form.ClientSize = new Size(800, 540);
+        form.Show();
+        System.Windows.Forms.Application.DoEvents();
+        var list = Children(form).OfType<FlowLayoutPanel>().Single(panel => panel.FlowDirection == FlowDirection.TopDown);
+        list.AutoScrollPosition = new Point(0, offset);
+        var viewport = list.RectangleToScreen(list.ClientRectangle);
+        var button = Children(form).OfType<Button>().First(button => button.Name.StartsWith("applyRoute") &&
+            viewport.Contains(button.RectangleToScreen(button.ClientRectangle)));
+        var before = button.RectangleToScreen(button.ClientRectangle);
+        Assert.True(button.Focus());
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Equal(before, button.RectangleToScreen(button.ClientRectangle));
+    });
+
     [Fact]
     public void RowApplyConfirmsThatRowInsteadOfSavedSelection() => MatchListScrollingTests.OnUiThread(() =>
     {
