@@ -382,8 +382,8 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         var top = AugmentRecommendationGroups.Select(_choices.Augments ?? [], _namedAugments, rarity);
         var lines = new List<string>
         {
-            UiLanguage.IsEnglish ? $"{RarityName(rarity)} augments · champion win rate"
-                : $"{RarityName(rarity)}增幅推荐（英雄样本胜率）"
+            UiLanguage.IsEnglish ? $"{RarityName(rarity)} augments · matches ↓, win rate ↓"
+                : $"{RarityName(rarity)}增幅推荐（场数↓，同场数按胜率↓）"
         };
         foreach (var augment in top)
             lines.Add($"{DisplayName(_namedAugments.GetValueOrDefault(augment.Id))}  {augment.WinRate:0.0}%  · {augment.Matches:N0} " +
@@ -464,7 +464,8 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
             var stats = (_choices?.Augments ?? Array.Empty<OpggAugmentRecommendation>())
                 .ToDictionary(item => item.Id);
             var scored = result.AugmentIds.Select(id => (Id: id, Stats: stats.GetValueOrDefault(id)))
-                .OrderByDescending(item => item.Stats?.WinRate ?? -1).ToArray();
+                .OrderByDescending(item => item.Stats?.Matches ?? -1)
+                .ThenByDescending(item => item.Stats?.WinRate ?? -1).ToArray();
             _offered.Text = (UiLanguage.IsEnglish ? "Detected offers · recommended order" : "本次识别 · 建议顺序") + Environment.NewLine +
                 string.Join(Environment.NewLine, scored.Select((item, index) =>
                     $"{index + 1}. [{RarityName(named.GetValueOrDefault(item.Id)?.Rarity ?? item.Stats?.Rarity ?? -1)}] " +

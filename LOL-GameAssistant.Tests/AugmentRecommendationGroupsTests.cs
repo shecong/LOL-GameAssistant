@@ -32,6 +32,15 @@ public sealed class AugmentRecommendationGroupsTests
     }
 
     [Fact]
+    public void MatchesTakePriorityAndEqualMatchesUseWinRateDescending()
+    {
+        OpggAugmentRecommendation[] stats =
+            [new(1, 2, 100, 90), new(2, 2, 1000, 500), new(3, 2, 1000, 600), new(4, 2, 2000, 900)];
+        var sorted = AugmentRecommendationGroups.Select(stats, new Dictionary<int, AugmentInfo>(), 2, 3);
+        Assert.Equal([4, 3, 2], sorted.Select(item => item.Id));
+    }
+
+    [Fact]
     public void RecommendationLimitIsAppliedAfterFilteringType()
     {
         var stats = Enumerable.Range(1, 30).Select(id => new OpggAugmentRecommendation(id, id <= 20 ? 2 : 0, 100, 100 - id));
