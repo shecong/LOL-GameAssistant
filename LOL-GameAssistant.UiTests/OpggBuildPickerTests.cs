@@ -65,6 +65,9 @@ public sealed class OpggBuildPickerTests
         Assert.True(form.Visible);
         Assert.Equal(DialogResult.None, form.DialogResult);
         Assert.Contains(Children(form).OfType<Label>(), label => label.Text.Contains("正在应用方案 2"));
+        var status = Children(form).OfType<Label>().Single(label => label.Name == "applyStatus");
+        Assert.True(status.Visible);
+        Assert.Contains("正在应用方案 2", status.Text);
         Assert.False(row.Enabled);
         row.PerformClick();
         Assert.Equal(1, applications);
@@ -73,7 +76,14 @@ public sealed class OpggBuildPickerTests
         Assert.True(form.Visible);
         Assert.True(row.Enabled);
         Assert.Contains(Children(form).OfType<Label>(), label => label.Text.Contains("客户端拒绝写入符文页"));
+        Assert.Contains("客户端拒绝写入符文页", status.Text);
         row.PerformClick();
+        Assert.Equal(2, applications);
+        Assert.True(form.Visible);
+        Assert.Contains(Children(form).OfType<Label>(), label => label.Name == "applyStatus" &&
+            label.Visible && label.Text.Contains("已应用"));
+        Assert.False(row.Enabled);
+        ((Button)form.AcceptButton!).PerformClick();
         Assert.Equal(2, applications);
         Assert.Equal(DialogResult.OK, form.DialogResult);
     });
@@ -88,9 +98,41 @@ public sealed class OpggBuildPickerTests
             return Task.FromResult(OpggBuildApplyResult.Success("已应用"));
         });
         form.Shown += (_, _) => form.BeginInvoke((Action)(() =>
-            Children(form).OfType<Button>().Single(button => button.Name == "applyRoute2").PerformClick()));
+        {
+            Children(form).OfType<Button>().Single(button => button.Name == "applyRoute2").PerformClick();
+            Assert.True(form.Visible);
+            Assert.Equal(DialogResult.None, form.DialogResult);
+            Assert.Equal("完成", ((Button)form.AcceptButton!).Text);
+            ((Button)form.AcceptButton!).PerformClick();
+        }));
         Assert.Equal(DialogResult.OK, form.ShowDialog());
         Assert.Equal(2, appliedOrder);
+    });
+
+    [Fact]
+    public void ApplyExceptionShowsBesideButtonAndCanRetry() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int applications = 0;
+        using var form = CreateForm(applySelection: (_, _, _) =>
+        {
+            applications++;
+            return applications == 1
+                ? Task.FromException<OpggBuildApplyResult>(new InvalidOperationException("客户端未连接"))
+                : Task.FromResult(OpggBuildApplyResult.Success("符文和装备已配置"));
+        });
+        form.Show();
+        var apply = (Button)form.AcceptButton!;
+        apply.PerformClick();
+        var status = Children(form).OfType<Label>().Single(label => label.Name == "applyStatus");
+        Assert.True(status.Visible);
+        Assert.Contains("客户端未连接", status.Text);
+        Assert.True(apply.Enabled);
+        apply.PerformClick();
+        Assert.Contains("符文和装备已配置", status.Text);
+        Assert.Equal("完成", apply.Text);
+        form.Close();
+        Assert.Equal(DialogResult.OK, form.DialogResult);
+        Assert.Equal(2, applications);
     });
 
     [Fact]

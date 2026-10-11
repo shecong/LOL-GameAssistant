@@ -14,6 +14,8 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("autoLaunchGameClient")]
         public bool AutoLaunchGameClient { get; set; } = false;
         public bool SkinCoreEnabled { get; set; } = false;
+        [JsonProperty("rememberedHeroSkins")]
+        public Dictionary<string, LOL_GameAssistant.Domain.Skins.SkinEntry> RememberedHeroSkins { get; set; } = new();
         public bool SkinHotkeysEnabled { get; set; }
         public string SkinPreviousHotkey { get; set; } = "Ctrl+Alt+Left";
         public string SkinNextHotkey { get; set; } = "Ctrl+Alt+Right";
@@ -221,6 +223,7 @@ namespace LOL_GameAssistant.Entity
             OpggManualBuildSelections ??= new Dictionary<string, int>();
             PersonalRunePresets ??= new List<LOL_GameAssistant.Domain.Builds.PersonalRunePreset>();
             AramBenchPriorityChampions ??= new List<string>();
+            RememberedHeroSkins ??= new();
         }
     }
 

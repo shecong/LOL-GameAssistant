@@ -31,6 +31,8 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private bool _refreshing;
     private bool _disposing;
     private long _revision;
+    private bool _inProgress;
+    private readonly HashSet<string> _rememberedSessions = [];
 
     public SkinToolsForm(ISkinCoreService core, IApplicationSettingsStore settings)
     {
@@ -117,7 +119,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (_disposing || Disposing || IsDisposed) return;
         _timer.Stop(); CancelPageRequests();
         Interlocked.Increment(ref _revision); _core.InvalidateSession();
-        if (Visible && _core.Enabled && !IsDisposed)
+        if ((Visible || _inProgress) && _core.Enabled && !IsDisposed)
         {
             _pageRequests = new CancellationTokenSource(); _timer.Start();
             _ = RefreshAsync();
@@ -126,7 +128,10 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     public void OnGamePhaseChanged(bool inProgress)
     {
+        if (_inProgress == inProgress) return;
+        _inProgress = inProgress;
         if (!inProgress) { _skinNotice?.Hide(); ResetSession(); _core.InvalidateSession(); RenewHotkeyRequests(); }
+        UpdateActivity();
     }
     private void ResetSession()
     {
@@ -169,6 +174,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         string outcome = "功能已停用，但恢复结果未确认。请退出对局释放驻留核心。";
         try {
             var result = await _core.StopAsync(session, token);
+            if (result.StateVerified) RememberSkin(_catalog, null);
             if (result.StateVerified && result.TransportHookReleased == true)
                 outcome = result.ModulePinned == true
                     ? "基础皮肤已恢复，连接已解除，功能已停用。核心已固定驻留，请退出对局释放。"
@@ -187,7 +193,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     private async Task RefreshAsync()
     {
-        if (_disposing || _busy || _refreshing || !Visible || !_core.Enabled || _pageRequests == null) return;
+        if (_disposing || _busy || _refreshing || (!Visible && !_inProgress) || !_core.Enabled || _pageRequests == null) return;
         _refreshing = true; long revision = Interlocked.Read(ref _revision); CancellationToken token = _pageRequests.Token; UpdateButtons();
         try
         {
@@ -197,6 +203,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             _catalog = result;
             _current.Text = $"{result.Model}  ·  {result.Entries.Count} {UiLanguage.T("个皮肤与形态")}\n{UiLanguage.T("当前状态")}: #{result.Skin}  ·  {result.ActiveModel}  ·  {UiLanguage.T("形态")} {result.Gear}";
             if (changed) { _entries.SelectedIndex = -1; FilterEntries(); _status.Text = UiLanguage.T("已连接。请选择条目；状态核验不替代画面和技能验收。"); }
+            await ApplyRememberedSkinAsync(result, revision, token);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { if (!IsDisposed && revision == Interlocked.Read(ref _revision)) { ResetSession(); ShowError(ex); } }
@@ -207,6 +214,8 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (_disposing || _busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
         if (!restore && (_entries.SelectedIndex < 0 || _entries.SelectedIndex >= _filtered.Count)) return;
         string session = _catalog.Session; string entry = restore ? "" : _filtered[_entries.SelectedIndex].EntryId;
+        var catalog = _catalog;
+        SkinEntry? selected = restore ? null : _filtered[_entries.SelectedIndex];
         long revision = Interlocked.Read(ref _revision); CancellationToken token = _pageRequests.Token; _busy = true; UpdateButtons();
         _status.Text = UiLanguage.T("请求执行中…");
         try
@@ -215,12 +224,44 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             if (IsDisposed || revision != Interlocked.Read(ref _revision)) return;
             _status.Text = UiLanguage.T(result.StateVerified ? "调用完成，实际状态已核验。画面、特效与技能仍需检查。" : "调用完成，但实际状态核验未通过。请刷新，勿连续重试。");
             _current.Text = $"{result.Model}  ·  #{result.Skin}  ·  {result.ActiveModel}  ·  {result.Gear}";
+            if (result.StateVerified) RememberSkin(catalog, selected);
             if (!result.StateVerified) { _catalog = null; _entries.SelectedIndex = -1; }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { if (!IsDisposed && revision == Interlocked.Read(ref _revision)) { ResetSession(); ShowError(ex); } }
         finally { _busy = false; if (!IsDisposed) UpdateButtons(); }
     }
+    private void RememberSkin(SkinCoreReply catalog, SkinEntry? entry)
+    {
+        _rememberedSessions.Add(catalog.Session);
+        try
+        {
+            var settings = _settings.Load();
+            if (entry == null) settings.RememberedHeroSkins.Remove(catalog.Model);
+            else settings.RememberedHeroSkins[catalog.Model] = entry;
+            _settings.Save(settings);
+        }
+        catch (Exception error) { _status.Text += $"\n皮肤记忆保存失败：{error.Message}"; }
+    }
+
+    private async Task ApplyRememberedSkinAsync(SkinCoreReply catalog, long revision, CancellationToken token)
+    {
+        // Attempt once per game, including uncertain outcomes; polling must never repeat a write.
+        if (!_rememberedSessions.Add(catalog.Session)) return;
+        if (!_settings.Load().RememberedHeroSkins.TryGetValue(catalog.Model, out var remembered) || remembered == null) return;
+        // Entry indices may change between game versions. Match the actual skin and form instead.
+        var entry = catalog.Entries.FirstOrDefault(e => e.Model == remembered.Model && e.SkinNum == remembered.SkinNum && e.Gear == remembered.Gear);
+        if (entry == null) { _status.Text = "上次选择的皮肤已不在当前目录中，请重新选择。"; return; }
+        _updatingSelection = true;
+        try { _search.Text = ""; FilterEntries(); _entries.SelectedIndex = _filtered.FindIndex(e => e.EntryId == entry.EntryId); }
+        finally { _updatingSelection = false; }
+        if (catalog.ActiveModel == entry.Model && catalog.Skin == entry.SkinNum && catalog.Gear == entry.Gear) return;
+        var result = await _core.ApplyAsync(catalog.Session, entry.EntryId, token);
+        if (_disposing || IsDisposed || token.IsCancellationRequested || revision != Interlocked.Read(ref _revision)) return;
+        _current.Text = $"{result.Model}  ·  #{result.Skin}  ·  {result.ActiveModel}  ·  {result.Gear}";
+        _status.Text = result.StateVerified ? $"已自动应用上次选择：{entry.Name}" : "上次皮肤的应用状态未核验，请读取状态后检查。";
+    }
+
     private void ShowError(Exception error)
     {
         string message = error is SkinCoreException uncertain && uncertain.OutcomeUnknown

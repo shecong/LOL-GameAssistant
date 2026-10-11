@@ -111,6 +111,7 @@ public sealed partial class SkinToolsForm
             if (!result.StateVerified) _catalog = null;
             else
             {
+                RememberSkin(catalog, target);
                 string name = target.Name + (string.IsNullOrWhiteSpace(target.GearName) ? "" : $" · {target.GearName}");
                 HotkeySkinApplied?.Invoke(name);
                 (_skinNotice ??= new SkinChangeOverlayForm()).ShowSkin(name);

@@ -25,6 +25,8 @@ public sealed class SkinToolsTests
         public TaskCompletionSource<SkinCoreReply>? PendingRead { get; set; }
         public SkinCoreReply? LastCatalog { get; private set; }
         public CancellationToken LastReadToken { get; private set; }
+        public string Session { get; set; } = "1234567890abcdef";
+        public string Model { get; set; } = "Lux";
         public void SetEnabled(bool enabled) => Enabled = enabled;
         public void InvalidateSession() { }
         public Task<SkinCoreReply> GetCatalogAsync(CancellationToken ct = default)
@@ -33,7 +35,7 @@ public sealed class SkinToolsTests
             LastReadToken = ct;
             if (PendingRead != null) return PendingRead.Task;
             LastCatalog = new SkinCoreReply { Ok = true, Independent = true, OriginalRequired = false,
-                Session = "1234567890abcdef", Model = "Lux", ActiveModel = "Lux", Entries = [
+                Session = Session, Model = Model, ActiveModel = Model, Entries = [
                     new() { Index = 0, EntryId = "0:-1", SkinNum = 0, Name = "基础皮肤", Model = "Lux" },
                     new() { Index = 1, EntryId = "1:-1", SkinNum = 7, Name = "大元素使 烈焰", Model = "LuxFire" }] };
             return Task.FromResult(LastCatalog);
@@ -45,7 +47,7 @@ public sealed class SkinToolsTests
             AppliedEntries.Add(entry); var target = LastCatalog!.Entries.Single(e => e.EntryId == entry);
             return Task.FromResult(LastCatalog with { Invoked = true, StateVerified = VerifyApply, Skin = target.SkinNum, ActiveModel = target.Model, Gear = target.Gear });
         }
-        public Task<SkinCoreReply> RestoreAsync(string session, CancellationToken ct = default) => throw new InvalidOperationException();
+        public Task<SkinCoreReply> RestoreAsync(string session, CancellationToken ct = default) => Task.FromResult(LastCatalog! with { StateVerified = true });
         public bool StopFails { get; set; }
         public int Stops { get; private set; }
         public Task<SkinCoreReply> StopAsync(string session, CancellationToken ct = default) {
@@ -190,4 +192,63 @@ public sealed class SkinToolsTests
         }
         finally { UiTheme.SetMode(mode); AntdUI.Config.IsDark = wasDark; }
     });
+
+    [Fact]
+    public void RememberedSkinSurvivesSettingsRoundTripAndAppliesInNextGameWhileHidden() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new Settings(); var core = new Core();
+        using (var page = new SkinToolsForm(core, settings))
+        {
+            Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
+            Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").SelectedIndex = 1;
+            Assert.Equal("LuxFire", settings.Load().RememberedHeroSkins["Lux"].Model);
+        }
+        var dto = LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToLegacy(settings.Load());
+        var json = Newtonsoft.Json.JsonConvert.SerializeObject(dto);
+        settings.Save(LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToDomain(
+            Newtonsoft.Json.JsonConvert.DeserializeObject<LOL_GameAssistant.Entity.SettingConfig>(json)!));
+        core = new Core { Session = "abcdef1234567890" };
+        using var nextPage = new SkinToolsForm(core, settings);
+        nextPage.Visible = false;
+        nextPage.OnGamePhaseChanged(true);
+        Assert.Equal("1:-1", Assert.Single(core.AppliedEntries));
+        Refresh(nextPage);
+        Assert.Single(core.AppliedEntries);
+        nextPage.OnGamePhaseChanged(false);
+        core.Session = "abcdef1234567891"; core.Model = "Ahri";
+        nextPage.OnGamePhaseChanged(true);
+        Assert.Single(core.AppliedEntries);
+    });
+
+    [Fact]
+    public void RestoreClearsMemoryAndPollingDoesNotReapply() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new Settings(); var core = new Core();
+        using var page = new SkinToolsForm(core, settings);
+        Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
+        Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").SelectedIndex = 1;
+        var restore = (Task)typeof(SkinToolsForm).GetMethod("ChangeAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, [true])!;
+        restore.GetAwaiter().GetResult();
+        Assert.Empty(settings.Load().RememberedHeroSkins);
+        Refresh(page);
+        Assert.Single(core.AppliedEntries);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnverifiedApplyDoesNotOverwriteMemoryOrAutomaticallyRetry(bool savedSkin) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new Settings(); var core = new Core { VerifyApply = false };
+        if (savedSkin) settings.Load().RememberedHeroSkins["Lux"] = new SkinEntry { Model = "LuxFire", SkinNum = 7, Gear = -1 };
+        using var page = new SkinToolsForm(core, settings);
+        Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
+        if (!savedSkin) Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").SelectedIndex = 1;
+        Refresh(page);
+        Assert.Single(core.AppliedEntries);
+        Assert.Equal(savedSkin ? 1 : 0, settings.Load().RememberedHeroSkins.Count);
+    });
+
+    private static void Refresh(SkinToolsForm page) => ((Task)typeof(SkinToolsForm).GetMethod("RefreshAsync",
+        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, null)!).GetAwaiter().GetResult();
 }

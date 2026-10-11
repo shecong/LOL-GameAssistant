@@ -21,6 +21,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private readonly bool _hasCurrentMatch;
     private readonly Func<OpggBuildOption, string, bool, Task<OpggBuildApplyResult>>? _applySelection;
     private bool _applyingSelection;
+    private bool _selectionApplied;
+    private readonly Label _applyStatus = new()
+    {
+        Name = "applyStatus", Dock = DockStyle.Fill, ForeColor = Muted,
+        TextAlign = ContentAlignment.MiddleLeft
+    };
     private readonly Label _heading = new();
     private readonly Label _source = new();
     private readonly AntdUI.PageHeader _windowHeader = new()
@@ -103,6 +109,10 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         ForeColor = Gold;
         BuildUi(initiallySelectedOrder);
         UiTheme.Apply(this);
+        FormClosing += (_, _) =>
+        {
+            if (_selectionApplied) DialogResult = DialogResult.OK;
+        };
         Shown += async (_, _) =>
         {
             Activate();
@@ -231,11 +241,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
 
         var footer = new TableLayoutPanel
         {
-            Dock = DockStyle.Bottom, Height = 72, ColumnCount = 2, RowCount = 2,
+            Dock = DockStyle.Bottom, Height = 142, ColumnCount = 2, RowCount = 3,
             Padding = new Padding(8, 10, 0, 8)
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        footer.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
         footer.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
         footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         _replaceCurrentRunePage.Visible = _choices.Options.Any(option => option.RunePerkIds.Count >= 6);
@@ -244,6 +255,8 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _source.Dock = DockStyle.Fill;
         _source.ForeColor = Muted;
         footer.Controls.Add(_source, 0, 1);
+        footer.Controls.Add(_applyStatus, 0, 2);
+        footer.SetColumnSpan(_applyStatus, 2);
         _apply.Anchor = AnchorStyles.Right;
         _apply.Enabled = false;
         _apply.Click += async (_, _) => await ConfirmSelectionAsync();
@@ -485,14 +498,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>更新当前选中的推荐卡片及其视觉状态。</summary>
     private void SelectCard(RouteCard card)
     {
-        if (_applyingSelection) return;
+        if (_applyingSelection || _selectionApplied) return;
         _selectedCard = card;
         _apply.Enabled = CanApply(card);
         ApplyTheme(UiTheme.Palette);
     }
 
     /// <summary>判断当前推荐是否具备应用到客户端的必要数据。</summary>
-    private bool CanApply(RouteCard card) => _allowApply && !_loading && !_applyingSelection &&
+    private bool CanApply(RouteCard card) => _allowApply && !_loading && !_applyingSelection && !_selectionApplied &&
         (!_hasCurrentMatch || card.Option.Mode == _choices.Mode);
 
     private static readonly (string Key, string Name)[] Lanes =
@@ -793,6 +806,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>确认当前方案并将选择结果返回调用方。</summary>
     private async Task ConfirmSelectionAsync()
     {
+        if (_selectionApplied)
+        {
+            DialogResult = DialogResult.OK;
+            Close();
+            return;
+        }
         if (_selectedCard == null || !CanApply(_selectedCard)) return;
         if (_applySelection != null)
         {
@@ -802,6 +821,8 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             _apply.Enabled = false;
             _apply.Text = "正在应用…";
             _note.Text = $"正在应用方案 {card.Option.Order}，请稍候…";
+            _applyStatus.Text = _note.Text;
+            _applyStatus.ForeColor = Gold;
             _note.ForeColor = Gold;
             _replaceCurrentRunePage.Enabled = false;
             ApplyTheme(UiTheme.Palette);
@@ -810,16 +831,25 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                 var result = await _applySelection(card.Option, card.Position, AllowReplaceCurrentRunePage);
                 if (IsDisposed) return;
                 _note.Text = result.Message;
+                _applyStatus.Text = result.Message;
+                _applyStatus.ForeColor = result.Succeeded ? Color.LightGreen : Color.Salmon;
                 if (!result.Succeeded)
                 {
                     _toolTip.SetToolTip(_note, result.Message);
                     _note.ForeColor = Color.Salmon;
                     return;
                 }
+                _selectionApplied = true;
+                _applyStatus.Text += " 点击“完成”关闭窗口。";
             }
             catch (OperationCanceledException)
             {
-                if (!IsDisposed) _note.Text = "应用已取消，请重新确认当前选人状态。";
+                if (!IsDisposed)
+                {
+                    _note.Text = "应用已取消，请重新确认当前选人状态。";
+                    _applyStatus.Text = _note.Text;
+                    _applyStatus.ForeColor = Color.Salmon;
+                }
                 return;
             }
             catch (Exception ex)
@@ -827,6 +857,8 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                 if (!IsDisposed)
                 {
                     _note.Text = "方案应用失败：" + ex.Message;
+                    _applyStatus.Text = _note.Text;
+                    _applyStatus.ForeColor = Color.Salmon;
                     _note.ForeColor = Color.Salmon;
                     _toolTip.SetToolTip(_note, _note.Text);
                 }
@@ -837,12 +869,13 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                 _applyingSelection = false;
                 if (!IsDisposed)
                 {
-                    _apply.Text = "应用选中方案";
-                    _replaceCurrentRunePage.Enabled = true;
-                    _apply.Enabled = _selectedCard != null && CanApply(_selectedCard);
+                    _apply.Text = _selectionApplied ? "完成" : "应用选中方案";
+                    _replaceCurrentRunePage.Enabled = !_selectionApplied;
+                    _apply.Enabled = _selectionApplied || (_selectedCard != null && CanApply(_selectedCard));
                     ApplyTheme(UiTheme.Palette);
                 }
             }
+            return;
         }
         DialogResult = DialogResult.OK;
         Close();
@@ -881,7 +914,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
         foreach (Button tab in _tabs)
         {
-            tab.Enabled = !_applyingSelection;
+            tab.Enabled = !_applyingSelection && !_selectionApplied;
             bool active = Equals(tab.Tag, _filter);
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
             tab.ForeColor = active ? Color.FromArgb(239, 221, 166) : Gold;
@@ -889,7 +922,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
         foreach (Button tab in _laneTabs)
         {
-            tab.Enabled = !_applyingSelection && (_filter == "all" ? _choices.Mode : _filter) == "ranked";
+            tab.Enabled = !_applyingSelection && !_selectionApplied && (_filter == "all" ? _choices.Mode : _filter) == "ranked";
             bool active = Equals(tab.Tag, _position);
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
             tab.FlatAppearance.BorderSize = active ? 1 : 0;

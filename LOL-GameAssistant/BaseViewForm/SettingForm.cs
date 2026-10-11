@@ -339,6 +339,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AssistantSettings latest = _settingsStore.Load();
             _config.PersonalRunePresets = latest.PersonalRunePresets;
             _config.OpggManualBuildSelections = latest.OpggManualBuildSelections;
+            _config.RememberedHeroSkins = latest.RememberedHeroSkins;
             _settingsStore.Save(_config);
         }
 
