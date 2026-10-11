@@ -86,8 +86,8 @@ public sealed class AssistantSettings
     public Dictionary<string, int> OpggManualBuildSelections { get; set; } = new();
     public List<PersonalRunePreset> PersonalRunePresets { get; set; } = new();
     public bool AutoApplyRuneBuild { get; set; }
-    public bool MayhemOverlayEnabled { get; set; }
-    public bool ChampSelectCompanionEnabled { get; set; }
+    public bool MayhemOverlayEnabled { get; set; } = true;
+    public bool ChampSelectCompanionEnabled { get; set; } = true;
     public bool LaunchOnStartup { get; set; }
 
     /// <summary>统一修正旧配置缺失或异常时的安全默认值。</summary>

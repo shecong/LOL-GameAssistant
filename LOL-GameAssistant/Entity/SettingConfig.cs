@@ -180,10 +180,10 @@ namespace LOL_GameAssistant.Entity
         public bool AutoApplyRuneBuild { get; set; }
 
         [JsonProperty("mayhemOverlayEnabled")]
-        public bool MayhemOverlayEnabled { get; set; }
+        public bool MayhemOverlayEnabled { get; set; } = true;
 
         [JsonProperty("champSelectCompanionEnabled")]
-        public bool ChampSelectCompanionEnabled { get; set; }
+        public bool ChampSelectCompanionEnabled { get; set; } = true;
 
         [JsonProperty("languageMode")]
         public string LanguageMode { get; set; } = "zh-CN";

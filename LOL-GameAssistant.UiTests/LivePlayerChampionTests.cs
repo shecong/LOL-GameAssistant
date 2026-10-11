@@ -163,6 +163,7 @@ public sealed class LivePlayerChampionTests
             Assert.Equal(expected, rank.Text);
             Assert.Equal("对手", name.Text);
             Assert.True(rank.Left > name.Left);
+            Assert.False(rank.Bounds.IntersectsWith(name.Bounds));
             Assert.True(rank.Right <= Child(card, "picCurrent").Left);
             Assert.Equal(1, requests);
             var another = CreateCard(22, profile, _ => Task.FromResult<GameAsset?>(null), true, ranked, puuid);
@@ -180,10 +181,13 @@ public sealed class LivePlayerChampionTests
     }
 
     [Theory]
-    [InlineData(320)]
-    [InlineData(360)]
-    [InlineData(450)]
-    public void HeaderReservesSpaceForRankAndChampionWithoutActionButtons(int width) =>
+    [InlineData(320, "提莫的父亲")]
+    [InlineData(360, "青春无罪CU")]
+    [InlineData(450, "对手")]
+    [InlineData(320, "名称比较长的召唤师玩家")]
+    [InlineData(360, "名称比较长的召唤师玩家")]
+    [InlineData(450, "名称比较长的召唤师玩家")]
+    public void HeaderReservesSpaceForRankAndChampionWithoutActionButtons(int width, string playerName) =>
         MatchListScrollingTests.OnUiThread(() =>
         {
             var overview = new RankedOverview();
@@ -192,7 +196,7 @@ public sealed class LivePlayerChampionTests
             var ranked = Service<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(overview));
             var card = CreateCard(122, new TaskCompletionSource<PlayerProfile?>().Task,
                 _ => Task.FromResult<GameAsset?>(null), true, ranked, Guid.NewGuid().ToString());
-            Child(card, "lblName").Text = "名称比较长的召唤师玩家";
+            Child(card, "lblName").Text = playerName;
             Child(card, "lblSummary").Text = "10场 · 胜率 100%";
             card.Width = width;
             using var form = Mount(card);
@@ -204,6 +208,13 @@ public sealed class LivePlayerChampionTests
             Assert.True(rank.Width >= TextRenderer.MeasureText(rank.Text, rank.Font).Width);
             Assert.True(rank.Right <= icon.Left);
             Assert.False(rank.Bounds.IntersectsWith(Child(card, "lblName").Bounds));
+            var summary = Child(card, "lblSummary");
+            if (summary.Visible)
+            {
+                Assert.False(rank.Bounds.IntersectsWith(summary.Bounds));
+                Assert.False(Child(card, "lblName").Bounds.IntersectsWith(summary.Bounds));
+            }
+            Assert.True(rank.Parent!.ClientRectangle.Contains(rank.Bounds));
             Assert.False(icon.Bounds.IntersectsWith(Child(card, "lblTeamTag").Bounds));
             Assert.False(icon.Bounds.IntersectsWith(Child(card, "lblPremadeTag").Bounds));
             Assert.True(icon.Parent.ClientRectangle.Contains(icon.Bounds));

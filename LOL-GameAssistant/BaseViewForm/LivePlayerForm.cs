@@ -311,8 +311,8 @@ namespace LOL_GameAssistant.BaseViewForm
             lblName.Width = Math.Max(0, availableNameWidth - (rankWidth > 0 ? rankWidth + gap : 0));
             if (rankWidth > 0)
             {
-                int actualNameWidth = Math.Min(lblName.Width, TextRenderer.MeasureText(lblName.Text, lblName.Font).Width);
-                _rankLabel.Bounds = new Rectangle(textLeft + actualNameWidth + gap, 8, rankWidth, lblName.Height);
+                // Reserve a separate control region: transparent labels can still paint over siblings.
+                _rankLabel.Bounds = new Rectangle(lblName.Right + gap, 8, rankWidth, lblName.Height);
             }
 
             // 第二行将玩家信息、当前英雄和队伍标签按可用空间从左到右分配。
