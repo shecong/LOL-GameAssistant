@@ -6,6 +6,39 @@ namespace LOL_GameAssistant.Tests;
 public sealed class ChampionSelectActionResolverTests
 {
     [Fact]
+    public void TeammatePickIntents_ExcludeLocalPlayerOpponentsAndEmptyIntents()
+    {
+        var session = new ChampSelectSession
+        {
+            LocalPlayerCellId = 2,
+            MyTeam =
+            [
+                new ChampSelectTeamMember { CellId = 1, ChampionPickIntent = 103 },
+                new ChampSelectTeamMember { CellId = 2, ChampionPickIntent = 22 },
+                new ChampSelectTeamMember { CellId = 3, ChampionPickIntent = 103 },
+                new ChampSelectTeamMember { CellId = 4, ChampionPickIntent = 0 },
+                new ChampSelectTeamMember { CellId = 5, ChampionPickIntent = -1 }
+            ],
+            TheirTeam = [new ChampSelectTeamMember { CellId = 6, ChampionPickIntent = 99 }]
+        };
+
+        Assert.Equal(new[] { 103 }, ChampionSelectActionResolver.CollectTeammatePickIntentIds(session));
+    }
+
+    [Fact]
+    public void TeammatePickIntents_ReflectChangedAndCancelledPreselection()
+    {
+        var teammate = new ChampSelectTeamMember { CellId = 1, ChampionPickIntent = 103 };
+        var session = new ChampSelectSession { LocalPlayerCellId = 2, MyTeam = [teammate] };
+
+        Assert.Contains(103, ChampionSelectActionResolver.CollectTeammatePickIntentIds(session));
+        teammate.ChampionPickIntent = 99;
+        Assert.Equal(new[] { 99 }, ChampionSelectActionResolver.CollectTeammatePickIntentIds(session));
+        teammate.ChampionPickIntent = 0;
+        Assert.Empty(ChampionSelectActionResolver.CollectTeammatePickIntentIds(session));
+    }
+
+    [Fact]
     public void FindsLocalAction_WhenTeammateActsInSameRound()
     {
         var session = new ChampSelectSession

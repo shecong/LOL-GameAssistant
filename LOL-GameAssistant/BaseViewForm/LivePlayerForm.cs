@@ -478,7 +478,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 lock (CacheSync)
                 {
                     if (!RankedCache.TryGetValue(_playerPuuid, out cached) ||
-                        DateTime.UtcNow - cached.CachedAt > PlayerCacheTtl || cached.Value.IsFaulted || cached.Value.IsCanceled)
+                        DateTime.UtcNow - cached.CachedAt > PlayerCacheTtl || cached.Value.IsFaulted || cached.Value.IsCanceled ||
+                        (cached.Value.IsCompletedSuccessfully && (cached.Value.Result == null || cached.Value.Result.Queues.Count == 0)))
                     {
                         cached = (DateTime.UtcNow, _rankedStatsService.GetAsync(_playerPuuid));
                         RankedCache[_playerPuuid] = cached;
@@ -697,26 +698,29 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>读取指定玩家的近期战绩。</summary>
         private Task<MatchHistoryResponse?> GetRecentHistoryAsync(string puuid, CancellationToken cancellationToken) =>
             GetCachedAsync(RecentHistoryCache, puuid,
-                () => _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1, cancellationToken))
+                () => _matchHistoryService.GetPageAsync(puuid, 0, HistoryFetchCount - 1, cancellationToken),
+                value => value.Games?.Games?.Count > 0)
                 .WaitAsync(cancellationToken);
 
         /// <summary>读取指定对局的完整详情。</summary>
         private Task<MatchDetail?> GetMatchDetailAsync(long gameId, CancellationToken cancellationToken) =>
             GetCachedAsync(MatchDetailCache, gameId,
-                () => _matchHistoryService.GetDetailAsync(gameId, cancellationToken: cancellationToken))
+                () => _matchHistoryService.GetDetailAsync(gameId, cancellationToken: cancellationToken),
+                value => value.participants?.Count > 0)
                 .WaitAsync(cancellationToken);
 
         /// <summary>优先使用缓存，并按需读取缺失数据。</summary>
         private static Task<T?> GetCachedAsync<TKey, T>(
             ConcurrentDictionary<TKey, (DateTime CachedAt, Task<T?> Value)> cache,
             TKey key,
-            Func<Task<T?>> loader) where TKey : notnull
+            Func<Task<T?>> loader, Func<T, bool>? valid = null) where TKey : notnull
         {
             lock (CacheSync)
             {
             if (cache.TryGetValue(key, out var cached) && DateTime.UtcNow - cached.CachedAt < PlayerCacheTtl &&
                 !cached.Value.IsFaulted && !cached.Value.IsCanceled &&
-                !(cached.Value.IsCompletedSuccessfully && cached.Value.Result is null))
+                !(cached.Value.IsCompletedSuccessfully && (cached.Value.Result is null ||
+                    (valid != null && !valid(cached.Value.Result)))))
                 return cached.Value;
 
             Task<T?> task = loader();
@@ -724,7 +728,8 @@ namespace LOL_GameAssistant.BaseViewForm
             cache[key] = (cacheTime, task);
             _ = task.ContinueWith(completed =>
             {
-                if (completed.IsFaulted || completed.IsCanceled || completed.Result is null)
+                if (completed.IsFaulted || completed.IsCanceled || completed.Result is null ||
+                    (valid != null && !valid(completed.Result)))
                     cache.TryRemove(new KeyValuePair<TKey, (DateTime CachedAt, Task<T?> Value)>(key, (cacheTime, task)));
             }, TaskScheduler.Default);
             return task;

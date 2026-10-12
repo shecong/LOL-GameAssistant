@@ -25,8 +25,12 @@ internal sealed class LocalCacheManagementService(string? root = null,
             }
             var matches = Game_Api.MeasureGameDetailCache();
             var additional = (matchCaches ?? []).Select(cache => cache.Measure()).ToArray();
-            result.Add(new(LocalCacheCategory.MatchDetails, "对局战绩与玩家资料", "仅内存，退出助手后释放", 0, 0,
-                matches.Bytes + additional.Sum(cache => cache.Bytes), matches.Entries + additional.Sum(cache => cache.Entries)));
+            string playerDirectory = Path.Combine(_root, "player-data");
+            var playerDisk = CacheFiles.Measure(playerDirectory, cancellationToken);
+            var playerMemory = LocalCacheRegistry.Find(playerDirectory).Select(store => store.MeasureMemory()).ToArray();
+            result.Add(new(LocalCacheCategory.MatchDetails, "对局战绩与玩家资料", playerDirectory, playerDisk.Bytes, playerDisk.Files,
+                matches.Bytes + additional.Sum(cache => cache.Bytes) + playerMemory.Sum(cache => cache.Bytes),
+                matches.Entries + additional.Sum(cache => cache.Entries) + playerMemory.Sum(cache => cache.Entries), playerDisk.Errors));
             var augments = AugmentCatalog.MeasureIconCache();
             result.Add(new(LocalCacheCategory.AugmentIcons, "强化图标", "仅内存，退出助手后释放", 0, 0, augments.Bytes, augments.Entries));
             return result;
@@ -40,7 +44,6 @@ internal sealed class LocalCacheManagementService(string? root = null,
             {
                 Game_Api.ClearGameDetailCache();
                 foreach (var cache in matchCaches ?? []) cache.Clear();
-                return new LocalCacheClearResult(0, 0, "对局战绩与玩家资料缓存已清除，后续查询将重新获取。");
             }
             if (category == LocalCacheCategory.AugmentIcons)
             {
@@ -51,6 +54,7 @@ internal sealed class LocalCacheManagementService(string? root = null,
             {
                 LocalCacheCategory.GameAssets => "assets",
                 LocalCacheCategory.OpggBuilds => "builds",
+                LocalCacheCategory.MatchDetails => "player-data",
                 _ => throw new ArgumentOutOfRangeException(nameof(category))
             };
             string directory = Path.Combine(_root, folder);

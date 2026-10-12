@@ -78,6 +78,9 @@ namespace LOL_GameAssistant.LoLApi
 
             // 收集所有已被禁用/选用的英雄ID（不可用）
             var unavailableIds = CollectUnavailableChampionIds(session);
+            var teammatePickIntentIds = actionType.Equals("ban", StringComparison.OrdinalIgnoreCase)
+                ? ChampionSelectActionResolver.CollectTeammatePickIntentIds(session)
+                : new HashSet<int>();
 
             // 同一轮可能有多个我方动作；只允许修改本地玩家自己的动作。
             var currentAction = ChampionSelectActionResolver.FindCurrentLocalAction(session, actionType);
@@ -96,7 +99,7 @@ namespace LOL_GameAssistant.LoLApi
 
             // 玩家已经在客户端中点选了英雄时，不再用优先级列表覆盖它。
             // 锁定模式仅完成该玩家已经选择的动作；预选模式则保持原状。
-            if (currentAction.ChampionId > 0)
+            if (currentAction.ChampionId > 0 && !teammatePickIntentIds.Contains(currentAction.ChampionId))
             {
                 return completed && await PerformActionAsync(
                     currentAction.Id,
@@ -119,6 +122,7 @@ namespace LOL_GameAssistant.LoLApi
             {
                 if (cid > 0 &&
                     !unavailableIds.Contains(cid) &&
+                    !teammatePickIntentIds.Contains(cid) &&
                     !disabledIds.Contains(cid) &&
                     (allowedIds == null || allowedIds.Contains(cid)))
                 {

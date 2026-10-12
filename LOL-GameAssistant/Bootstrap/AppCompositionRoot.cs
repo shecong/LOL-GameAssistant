@@ -74,7 +74,7 @@ public static class AppCompositionRoot
 
     /// <summary>召唤师资料查询服务。</summary>
     public static IPlayerProfileService PlayerProfileService { get; } =
-        new LcuPlayerProfileService(LcuRequestSender);
+        new CachedPlayerProfileService(new LcuPlayerProfileService(LcuRequestSender));
 
     /// <summary>收藏召唤师列表存储。</summary>
     public static IFavoritePlayerStore FavoritePlayerStore { get; } = new LegacyFavoritePlayerStore();
@@ -85,10 +85,10 @@ public static class AppCompositionRoot
     public static ISettingsSecretProtector SettingsSecretProtector { get; } = new DpapiSettingsSecretProtector();
 
     /// <summary>战绩列表和单局详情查询服务。</summary>
-    public static IMatchHistoryService MatchHistoryService { get; } = new LegacyMatchHistoryService();
+    public static IMatchHistoryService MatchHistoryService { get; } = new CachedMatchHistoryService(new LegacyMatchHistoryService());
 
     /// <summary>单双排、灵活组排查询服务。</summary>
-    public static IRankedStatsService RankedStatsService { get; } = new LegacyRankedStatsService();
+    public static IRankedStatsService RankedStatsService { get; } = new CachedRankedStatsService(new LegacyRankedStatsService());
 
     /// <summary>游戏数据版本初始化服务。</summary>
     public static IGameDataVersionService GameDataVersionService { get; } = new LegacyGameDataVersionService();

@@ -2,7 +2,6 @@ using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.LeagueClient;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.Globalization;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
@@ -391,7 +390,7 @@ public sealed class LcuClientFeatureService : IClientFeatureService
     public Task<ClientFeatureResult> SetProfileIconAsync(int profileIconId, CancellationToken cancellationToken = default) =>
         profileIconId <= 0
             ? Task.FromResult(ClientFeatureResult.Failure("头像 ID 无效。"))
-            : PutResultAsync("/lol-summoner/v1/current-summoner/icon", profileIconId.ToString(CultureInfo.InvariantCulture), "已更新召唤师头像。", "更新头像失败", cancellationToken);
+            : PutResultAsync("/lol-summoner/v1/current-summoner/icon", JsonConvert.SerializeObject(new { profileIconId }), "已更新召唤师头像。", "更新头像失败", cancellationToken);
 
     /// <summary>清除当前生涯展示的挑战徽章。</summary>
     public Task<ClientFeatureResult> ClearChallengeBadgesAsync(CancellationToken cancellationToken = default) =>

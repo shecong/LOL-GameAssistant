@@ -48,17 +48,33 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
         return pending.Value.WaitAsync(cancellationToken);
     }
 
+    /// <summary>动态玩家数据优先请求接口；空响应使用最近有效缓存，不覆盖原缓存。</summary>
+    public Task<T?> GetLatestOrCachedAsync(string key, Func<Task<T?>> load, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        int generation;
+        lock (_sync) generation = _generation;
+        return ReadOrLoadAsync(key, load, generation, networkFirst: true, cancellationToken);
+    }
+
     /// <summary>检查缓存时间和数据有效性，排除过期或时间异常的条目。</summary>
     private bool Fresh(Entry entry) => entry.SavedAt <= _clock.GetUtcNow() &&
         _clock.GetUtcNow() - entry.SavedAt < _ttl && entry.Value != null && _valid(entry.Value);
 
     /// <summary>优先读取有效磁盘缓存，缺失时加载数据并以临时文件方式保存。</summary>
-    private async Task<T?> ReadOrLoadAsync(string key, Func<Task<T?>> load, int generation)
+    private async Task<T?> ReadOrLoadAsync(string key, Func<Task<T?>> load, int generation,
+        bool networkFirst = false, CancellationToken cancellationToken = default)
     {
         // 缓存键可能包含 URL 或版本分隔符；使用摘要作为文件名，避免非法字符及路径嵌套。
         string file = Path.Combine(_directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) + ".json");
         try
         {
+            T? fallback = null;
+            if (networkFirst)
+            {
+                lock (_sync)
+                    if (_memory.TryGetValue(key, out var memory) && Fresh(memory)) fallback = memory.Value;
+            }
             try
             {
                 await using var stream = File.OpenRead(file);
@@ -69,15 +85,23 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
                     if (entry != null && Fresh(entry))
                     {
                         lock (_sync) { if (generation == _generation) Remember(key, entry); }
-                        return entry.Value;
+                        if (!networkFirst) return entry.Value;
+                        fallback ??= entry.Value;
                     }
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
 
-            T? value = await load().ConfigureAwait(false);
+            T? value;
+            try { value = await load().ConfigureAwait(false); }
+            catch (Exception ex) when (networkFirst && fallback != null && ex is HttpRequestException or IOException)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return fallback;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
             // 不缓存空响应或不完整结果，防止一次网络失败影响后续窗口查询。
-            if (value == null || !_valid(value)) return value;
+            if (value == null || !_valid(value)) return fallback ?? value;
             var saved = new Entry(_clock.GetUtcNow(), value);
             lock (_sync) { if (generation == _generation) Remember(key, saved); }
             string temporary = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -105,7 +129,7 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
             return value;
         }
         // 无论读取成功、失败还是抛出异常，都允许同一键后续重新发起加载。
-        finally { _pending.TryRemove((generation, key), out _); }
+        finally { if (!networkFirst) _pending.TryRemove((generation, key), out _); }
     }
 
     public (int Entries, long Bytes) MeasureMemory()

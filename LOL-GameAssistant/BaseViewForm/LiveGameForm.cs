@@ -54,6 +54,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private CurrentPartyDetectionResult? _currentPartyDetection;
         private PremadeDetectionResult _historyParties = new([]);
         private readonly CurrentPartySnapshotCache _partySnapshots = new();
+        private readonly CurrentRosterSnapshotCache _rosterSnapshots = new();
         private int _partySnapshotGeneration;
         private bool _partyRecoveryAttempted;
 
@@ -232,6 +233,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         public void ResetRosterCache(bool clearPartySnapshots = true)
         {
+            _rosterSnapshots.Clear();
             if (clearPartySnapshots) ClearPartySnapshots();
             _lastSignature = "";
             ResetChampSelectAssessments();
@@ -296,10 +298,11 @@ namespace LOL_GameAssistant.BaseViewForm
                     phase = Program.GameMain.gameFlowPhase;
                 }
 
+                _rosterSnapshots.ObservePhase(phase);
                 if (phase == GameFlowPhase.ChampSelect)
                 {
-                    LobbySnapshot? gameInfo = await ReadPartyLobbyAsync();
-                    ChampionSelectionSnapshot? selection = await _championSelectService.GetSessionAsync();
+                    LobbySnapshot? gameInfo = _rosterSnapshots.ResolveLobby(await ReadPartyLobbyAsync());
+                    ChampionSelectionSnapshot? selection = _rosterSnapshots.ResolveSelection(await _championSelectService.GetSessionAsync());
                     if (selection != null)
                     {
                         string? selectionMyPuuid = selection.MyTeam
@@ -346,7 +349,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
                 else if (phase == GameFlowPhase.Lobby)
                 {
-                    LobbySnapshot? gameInfo = await ReadPartyLobbyAsync();
+                    LobbySnapshot? gameInfo = _rosterSnapshots.ResolveLobby(await ReadPartyLobbyAsync());
                     if (gameInfo == null)
                     {
                         lblGameInfo.Text = "未获取到大厅信息";
@@ -367,7 +370,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
                 else if (phase == GameFlowPhase.InProgress)
                 {
-                    ActiveGameSnapshot? session = await _lobbyService.GetCurrentSessionAsync();
+                    ActiveGameSnapshot? session = _rosterSnapshots.ResolveSession(await _lobbyService.GetCurrentSessionAsync());
                     if (session == null)
                     {
                         lblGameInfo.Text = "未获取到对局信息";
