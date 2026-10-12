@@ -17,7 +17,10 @@ namespace LOL_GameAssistant.LoLApi
         {
             if (string.IsNullOrEmpty(puuid)) return null;
 
-            string? json = await GetRankedStatsRawAsync(puuid, cancellationToken).ConfigureAwait(false);
+            string? json;
+            try { json = await GetRankedStatsRawAsync(puuid, cancellationToken).ConfigureAwait(false); }
+            catch (Application.LeagueClient.LcuRequestException) when (isCurrentUser)
+            { json = await GetCurrentSummonerRankedStatsRawAsync(cancellationToken).ConfigureAwait(false); }
 
             // 按 puuid 查询失败时，当前玩家回退 current-summoner 端点
             if (string.IsNullOrEmpty(json) && isCurrentUser)
@@ -29,6 +32,7 @@ namespace LOL_GameAssistant.LoLApi
 
             LolRankedDataParser parser = new LolRankedDataParser();
             var data = parser.ParseRankedData(json);
+            if (data == null) throw new Application.LeagueClient.LcuRequestException(Application.LeagueClient.LcuFailure.InvalidJson, System.Net.HttpStatusCode.OK);
 
             // 解析失败或缺少主要排位队列时写诊断日志，便于定位客户端返回结构变化
             bool hasSolo = data != null && parser.GetQueueData(data, LolRankedDataParser.QueueTypes.RANKED_SOLO_5x5) != null;
@@ -47,9 +51,9 @@ namespace LOL_GameAssistant.LoLApi
         {
             if (string.IsNullOrEmpty(puuid)) return null;
             HttpClientHelper client = new HttpClientHelper();
-            using Stream? responseStream = await client.GetAsync($"/lol-ranked/v1/ranked-stats/{puuid}", cancellationToken: cancellationToken).ConfigureAwait(false);
+            using Stream? responseStream = await client.GetRequiredAsync($"/lol-ranked/v1/ranked-stats/{puuid}", cancellationToken: cancellationToken).ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsStringJsonAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await responseStream.ReadAsStringJsonAsync(cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -58,9 +62,9 @@ namespace LOL_GameAssistant.LoLApi
         private static async Task<string?> GetCurrentSummonerRankedStatsRawAsync(CancellationToken cancellationToken)
         {
             HttpClientHelper client = new HttpClientHelper();
-            using Stream? responseStream = await client.GetAsync("/lol-ranked/v1/current-ranked-stats", cancellationToken: cancellationToken).ConfigureAwait(false);
+            using Stream? responseStream = await client.GetRequiredAsync("/lol-ranked/v1/current-ranked-stats", cancellationToken: cancellationToken).ConfigureAwait(false);
             if (responseStream == null) return null;
-            return await responseStream.ReadAsStringJsonAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await responseStream.ReadAsStringJsonAsync(cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>

@@ -97,7 +97,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         _clientBounds = clientBounds ?? (() => TryGetClientBounds(out var bounds) ? bounds : null);
         _clientForeground = clientForeground ?? (() => _clientWindow != IntPtr.Zero && GetForegroundWindow() == _clientWindow);
         Text = "LOL 选人伴随窗";
-        AntdWindowChrome.Configure(this);
+        AntdWindowChrome.Configure(this, fitWorkingArea: false);
         EnableHitTest = false;
         ShowInTaskbar = false;
         TopMost = false;

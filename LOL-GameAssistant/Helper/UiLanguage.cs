@@ -23,6 +23,7 @@ internal static class UiLanguage
     private static readonly ConditionalWeakTable<Control, Dictionary<string, TextState>> PropertyOriginals = new();
     private static readonly ConditionalWeakTable<ListViewItem, TextState[]> ListOriginals = new();
     private static readonly ConditionalWeakTable<ColumnHeader, TextState> ColumnOriginals = new();
+    private static readonly ConditionalWeakTable<AntdUI.SegmentedItem, TextState> SegmentOriginals = new();
     private static readonly string[] LocalizedProperties =
         ["PlaceholderText", "CheckedText", "UnCheckedText", "PrefixText", "SuffixText", "AccessibleName"];
     private static readonly Dictionary<string, string> Overrides = new(StringComparer.Ordinal)
@@ -45,6 +46,8 @@ internal static class UiLanguage
         ["灵活组排"] = "Flex Queue", ["负场 -"] = "Losses -", ["胜场 -"] = "Wins -",
         ["近期战绩"] = "Recent Matches", ["排位信息"] = "Ranked Stats",
         ["玩家信息"] = "Player Profile", ["数据状态与当前局势"] = "Data & Current Game",
+        ["返回当前玩家"] = "My Profile", ["我的战绩"] = "My Matches", ["查询玩家"] = "Search Player",
+        ["单双排 未排位"] = "Solo/Duo · Unranked", ["灵活组排 未排位"] = "Flex · Unranked",
         ["窗口行为"] = "Window Behavior", ["置顶说明："] = "Pinning note:",
         ["英雄选择"] = "Champion Select", ["匹配与对局"] = "Matchmaking & Games",
         ["我的符文方案"] = "My Rune Presets", ["AI 时间线建议"] = "AI Timeline Advice",
@@ -61,7 +64,7 @@ internal static class UiLanguage
     private static bool _english;
     private static bool _updating;
     private static bool _started;
-    private static System.Windows.Forms.Timer? _refreshTimer;
+    private static readonly HashSet<Control> Dirty = new();
     public static event EventHandler? Changed;
 
     /// <summary>判断当前界面语言是否为英文。</summary>
@@ -74,11 +77,29 @@ internal static class UiLanguage
     {
         if (_started) return;
         _started = true;
-        System.Windows.Forms.Application.Idle += (_, _) => ApplyOpenForms(false);
-        _refreshTimer = new System.Windows.Forms.Timer { Interval = 2000 };
-        _refreshTimer.Tick += (_, _) => Refresh();
-        _refreshTimer.Start();
-        System.Windows.Forms.Application.ApplicationExit += (_, _) => _refreshTimer?.Dispose();
+        System.Windows.Forms.Application.Idle += ProcessIdle;
+        System.Windows.Forms.Application.ApplicationExit += Stop;
+    }
+
+    private static void ProcessIdle(object? sender, EventArgs args)
+    {
+        ApplyOpenForms(false);
+        foreach (Control control in Dirty.ToArray())
+        {
+            Dirty.Remove(control);
+            if (control.IsDisposed) continue;
+            ApplyProperties(control);
+            if (control is ComboBox box) ApplyCombo(box);
+            if (control is ListView list) ApplyList(list);
+        }
+    }
+
+    private static void Stop(object? sender, EventArgs args)
+    {
+        System.Windows.Forms.Application.Idle -= ProcessIdle;
+        System.Windows.Forms.Application.ApplicationExit -= Stop;
+        Dirty.Clear();
+        _started = false;
     }
 
     /// <summary>切换当前显示模式并通知相关订阅者。</summary>
@@ -145,10 +166,13 @@ internal static class UiLanguage
         {
             Originals[control] = RecoverOriginal(control.Text);
             control.TextChanged += ControlTextChanged;
+            if (control is ComboBox or ListView || LocalizedProperties.Any(name => control.GetType().GetProperty(name) != null))
+                control.Invalidated += (_, _) => { if (!_updating && !control.IsDisposed) Dirty.Add(control); };
             control.ControlAdded += (_, args) => { if (args.Control is { } added) Attach(added); };
             control.Disposed += (_, _) =>
             {
                 Originals.Remove(control);
+                Dirty.Remove(control);
                 if (control is ComboBox combo) ComboOriginals.Remove(combo);
             };
         }
@@ -186,7 +210,7 @@ internal static class UiLanguage
     /// <summary>翻译下拉选择控件中的条目。</summary>
     private static void ApplyCombo(ComboBox box)
     {
-        if (!ComboOriginals.TryGetValue(box, out string[]? original))
+        if (!ComboOriginals.TryGetValue(box, out string[]? original) || original.Length != box.Items.Count)
         {
             original = box.Items.Cast<object>().Select(item => RecoverOriginal(item.ToString() ?? "")).ToArray();
             ComboOriginals[box] = original;
@@ -207,6 +231,20 @@ internal static class UiLanguage
     /// <summary>翻译控件中除主文本外的相关文字属性。</summary>
     private static void ApplyProperties(Control control)
     {
+        if (control is AntdUI.Segmented segmented)
+        {
+            _updating = true;
+            try
+            {
+                foreach (AntdUI.SegmentedItem item in segmented.Items)
+                {
+                    var state = SegmentOriginals.GetValue(item, value => new TextState(RecoverOriginal(value.Text ?? ""), value.Text ?? ""));
+                    if (item.Text != state.Applied) state.Source = RecoverOriginal(item.Text ?? "");
+                    item.Text = state.Applied = T(state.Source);
+                }
+            }
+            finally { _updating = false; }
+        }
         Dictionary<string, TextState> originals = PropertyOriginals.GetOrCreateValue(control);
         foreach (string name in LocalizedProperties)
         {

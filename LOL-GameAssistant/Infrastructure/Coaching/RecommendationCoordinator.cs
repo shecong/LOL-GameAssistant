@@ -58,8 +58,26 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
     public void UpdateSettings(AssistantSettings settings)
     {
         if (_disposed) return;
-        CancelActiveRefresh();
+        CloudAiSettings previous = _settings.Ai;
+        CloudAiSettings next = settings.Ai;
+        bool requestChanged = previous.RecommendationEnabled != next.RecommendationEnabled ||
+            previous.Provider != next.Provider || previous.Model != next.Model ||
+            previous.BaseUrl != next.BaseUrl || previous.EncryptedApiKey != next.EncryptedApiKey;
+        bool scheduleChanged = previous.DynamicRefreshEnabled != next.DynamicRefreshEnabled ||
+            previous.DynamicRefreshSeconds != next.DynamicRefreshSeconds;
+        bool presentationChanged = previous.ShowRecommendationPopup != next.ShowRecommendationPopup ||
+            previous.RecommendationOverlayEnabled != next.RecommendationOverlayEnabled ||
+            previous.RecommendationOverlayPosition != next.RecommendationOverlayPosition ||
+            previous.RecommendationOverlayOffsetX != next.RecommendationOverlayOffsetX ||
+            previous.RecommendationOverlayOffsetY != next.RecommendationOverlayOffsetY ||
+            previous.RecommendationOverlayDurationSeconds != next.RecommendationOverlayDurationSeconds;
         _settings = Clone(settings);
+        if (!requestChanged && !scheduleChanged)
+        {
+            if (presentationChanged) Publish(Current, force: true);
+            return;
+        }
+        if (requestChanged) CancelActiveRefresh();
         ConfigureTimer();
         if (!_settings.Ai.RecommendationEnabled)
         {
@@ -73,7 +91,8 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
             return;
         }
 
-        if (_started) _ = RefreshAsync(force: true, _lifetime.Token);
+        if (_started && requestChanged) _ = RefreshAsync(force: true, _lifetime.Token);
+        else Publish(Current with { NextRefreshAt = GetNextRefreshAt(_settings) }, force: true);
     }
 
     /// <summary>通知服务游戏阶段已变化，以更新后续处理。</summary>

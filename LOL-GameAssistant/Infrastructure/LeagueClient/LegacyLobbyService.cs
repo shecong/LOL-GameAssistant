@@ -12,21 +12,21 @@ public sealed class LegacyLobbyService : ILobbyService
     public Task StartMatchmakingAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Game_Api.OpenGameServer();
+        return Game_Api.OpenGameServer(cancellationToken);
     }
 
     /// <summary>向客户端提交接受匹配确认的请求。</summary>
     public Task AcceptReadyCheckAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Game_Api.GameTrueServer();
+        return Game_Api.GameTrueServer(cancellationToken);
     }
 
     /// <summary>读取当前大厅及成员信息。</summary>
     public async Task<LobbySnapshot?> GetLobbyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        LobbyGameInfo? legacy = await Game_Api.GameNowServer().ConfigureAwait(false);
+        LobbyGameInfo? legacy = await Game_Api.GameNowServer(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         if (legacy == null) return null;
 
@@ -56,7 +56,7 @@ public sealed class LegacyLobbyService : ILobbyService
     public Task<string?> GetGameFlowPhaseAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Game_Api.GameFlowPhaseServer();
+        return Game_Api.GameFlowPhaseServer(cancellationToken);
     }
 
     /// <summary>读取当前游戏会话的队伍和英雄信息。</summary>

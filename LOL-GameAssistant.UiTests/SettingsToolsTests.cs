@@ -13,6 +13,34 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SettingsToolsTests
 {
     [Fact]
+    public void SavingOpenSettingsPageKeepsNewerSkinSettings() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var latest = new AssistantSettings();
+        var store = Service<IApplicationSettingsStore>((method, args) => method.Name switch
+        {
+            "Load" => Newtonsoft.Json.JsonConvert.DeserializeObject<AssistantSettings>(Newtonsoft.Json.JsonConvert.SerializeObject(latest)),
+            "Save" => Save((AssistantSettings)args[0]!),
+            "GetStoragePath" => "test-settings.json",
+            _ => null
+        });
+        object? Save(AssistantSettings value) { latest = value; return null; }
+        using var form = new SettingForm(Service<IGameClientLauncher>((_, _) => null), store,
+            Service<ISettingsSecretProtector>((_, _) => null), Service<IClientFeatureService>((_, _) => null));
+        ((Task)Invoke(form, "LoadCachedSettings")!).GetAwaiter().GetResult();
+        latest.SkinCoreEnabled = true;
+        latest.SkinHotkeysEnabled = true;
+        latest.SkinPreviousHotkey = "F7";
+        latest.SkinNextHotkey = "F8";
+        typeof(SettingForm).GetField("_isLoading", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(form, false);
+        Field<AntdUI.Switch>(form, "swi_gametrue").Checked = true;
+        Assert.True(latest.AutoAccept);
+        Assert.True(latest.SkinCoreEnabled);
+        Assert.True(latest.SkinHotkeysEnabled);
+        Assert.Equal("F7", latest.SkinPreviousHotkey);
+        Assert.Equal("F8", latest.SkinNextHotkey);
+    });
+
+    [Fact]
     public void KdaSwitchesPersistImmediatelyWithoutSavingAiSettings() => MatchListScrollingTests.OnUiThread(() =>
     {
         var settings = new AssistantSettings { ChampSelectKdaAnnouncementEnabled = true, QuickLobbyQueueId = 450 };

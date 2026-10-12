@@ -57,7 +57,7 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     {
         _scanner = scanner;
         Text = "海克斯增幅推荐";
-        AntdWindowChrome.Configure(this);
+        AntdWindowChrome.Configure(this, fitWorkingArea: false);
         EnableHitTest = false;
         ShowInTaskbar = false;
         TopMost = true;

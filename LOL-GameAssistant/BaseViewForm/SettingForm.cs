@@ -15,6 +15,7 @@ namespace LOL_GameAssistant.BaseViewForm
         public DateTime? lastOpenGameTime = null;
         private AssistantSettings _config;
         private bool _isLoading;
+        private readonly UiRequestScope _lifetime = new();
         private ToolTip toolTip1 = new ToolTip();
 
         private readonly ToolTip _featureTip = new()
@@ -158,6 +159,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _settingsSecretProtector = settingsSecretProtector;
             _matchFeatures = clientFeatures ?? AppCompositionRoot.ClientFeatureService;
             InitializeComponent();
+            WindowLayout.ConfigureDpi(this);
             _config = new AssistantSettings();
             _featureTip.Popup += (_, e) => _activeFeatureTipControl = e.AssociatedControl;
             toolTip1.Popup += (_, e) => _activeDesignerTipControl = e.AssociatedControl;
@@ -165,14 +167,30 @@ namespace LOL_GameAssistant.BaseViewForm
             MouseLeave += (_, _) => HideSettingTips();
             AttachCommonSegmentTips();
             InitializeSegmentedSettings();
-            Disposed += (_, _) => { toolTip1.Dispose(); _featureTip.Dispose(); };
+            VisibleChanged += (_, _) => { if (Visible) SizeInteractiveControls(this); };
+            DpiChangedAfterParent += (_, _) => SizeInteractiveControls(this);
+            Disposed += (_, _) => { _lifetime.Dispose(); toolTip1.Dispose(); _featureTip.Dispose(); };
+        }
+
+        private void SizeInteractiveControls(Control root)
+        {
+            foreach (Control child in root.Controls)
+            {
+                if (child is AntdUI.Input or AntdUI.InputNumber or AntdUI.Select or AntdUI.SelectMultiple or AntdUI.Button)
+                    child.Height = Math.Max(child.Height, (child is AntdUI.SelectMultiple ? 48 : UiMetrics.ControlHeight) * DeviceDpi / 96);
+                SizeInteractiveControls(child);
+                if (child is FlowLayoutPanel flow && flow.Controls.Cast<Control>().Any(c => c is AntdUI.Input or AntdUI.InputNumber or AntdUI.Button))
+                    flow.Height = Math.Max(flow.Height, flow.Controls.Cast<Control>().Max(c => c.Bottom + c.Margin.Bottom) + flow.Padding.Bottom);
+            }
         }
 
         /// <summary>加载设置页配置并同步到各设置区域。</summary>
         private async void SettingForm_Load(object sender, EventArgs e)
         {
             await LoadCachedSettings();
+            if (IsDisposed) return;
             await LoadBase();
+            if (IsDisposed) return;
             _isLoading = false;
             _languageMode.SelectedIndexChanged += (_, _) => SwitchLanguage();
             ApplySideEffects(_config);
@@ -340,6 +358,10 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.PersonalRunePresets = latest.PersonalRunePresets;
             _config.OpggManualBuildSelections = latest.OpggManualBuildSelections;
             _config.RememberedHeroSkins = latest.RememberedHeroSkins;
+            _config.SkinCoreEnabled = latest.SkinCoreEnabled;
+            _config.SkinHotkeysEnabled = latest.SkinHotkeysEnabled;
+            _config.SkinPreviousHotkey = latest.SkinPreviousHotkey;
+            _config.SkinNextHotkey = latest.SkinNextHotkey;
             _settingsStore.Save(_config);
         }
 
@@ -353,7 +375,6 @@ namespace LOL_GameAssistant.BaseViewForm
             if (main is null || main.IsDisposed) return;
 
             main.ApplyWindowSettings(config);
-            main.ApplyTheme();
             if (Program.GameMain?.liveGameForm is { IsDisposed: false } liveGameForm)
             {
                 liveGameForm.ConfigureAutoRefresh(config.AutoRefresh,
@@ -731,7 +752,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 Padding = new Padding(UiMetrics.SpaceMedium),
                 ColumnCount = 2
             };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 118));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             return layout;
         }
@@ -960,7 +981,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _clientStatus.Text = "正在查找安装目录并启动客户端，请稍候…";
             try
             {
-                result = await _gameClientLauncher.StartAndVerifyAsync(_clientPath.Text.Trim());
+                result = await _gameClientLauncher.StartAndVerifyAsync(_clientPath.Text.Trim(), _lifetime.Token);
             }
             catch (OperationCanceledException)
             {
@@ -972,8 +993,9 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             finally
             {
-                _launchClientButton.Enabled = true;
+                if (!IsDisposed) _launchClientButton.Enabled = true;
             }
+            if (IsDisposed) return;
             SetClientStatus(result);
             if (result.Started && !string.IsNullOrWhiteSpace(result.ExecutablePath))
             {
@@ -1041,7 +1063,7 @@ namespace LOL_GameAssistant.BaseViewForm
             SetAiTestStatus("正在测试连接…", Color.DimGray);
             try
             {
-                string reply = await AppCompositionRoot.AiRecommendationProvider.TestAsync(BuildAiSettingsFromUi());
+                string reply = await AppCompositionRoot.AiRecommendationProvider.TestAsync(BuildAiSettingsFromUi(), _lifetime.Token);
                 SetAiTestStatus($"连接正常，模型回复：{reply}", Color.ForestGreen);
             }
             catch (Exception ex)
@@ -1050,7 +1072,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             finally
             {
-                _testAi.Enabled = true;
+                if (!IsDisposed) _testAi.Enabled = true;
             }
         }
 
@@ -1065,7 +1087,8 @@ namespace LOL_GameAssistant.BaseViewForm
             SetAiTestStatus("正在读取可用模型…", Color.DimGray);
             try
             {
-                IReadOnlyList<string> models = await AppCompositionRoot.AiRecommendationProvider.ListModelsAsync(BuildAiSettingsFromUi());
+                IReadOnlyList<string> models = await AppCompositionRoot.AiRecommendationProvider.ListModelsAsync(BuildAiSettingsFromUi(), _lifetime.Token);
+                if (IsDisposed) return;
                 if (models.Count == 0)
                 {
                     SetAiTestStatus("服务没有返回任何模型。", Color.DarkGoldenrod);
@@ -1095,13 +1118,14 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             finally
             {
-                _fetchModels.Enabled = true;
+                if (!IsDisposed) _fetchModels.Enabled = true;
             }
         }
 
         /// <summary>更新 AI 服务测试的状态提示。</summary>
         private void SetAiTestStatus(string text, Color color)
         {
+            if (IsDisposed) return;
             _aiTestStatus.ForeColor = color;
             _aiTestStatus.Text = text;
         }
@@ -1249,34 +1273,27 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        private static readonly Dictionary<int, Image> _championIconCache = new();
-        private static readonly object _iconCacheLock = new();
+        private readonly Dictionary<FlowLayoutPanel, int> _previewRevisions = new();
 
         /// <summary>
-        /// 获取英雄头像（带缓存）
+        /// 从共享字节缓存创建当前控件独占的图片。
         /// </summary>
-        private static async Task<Image?> GetChampionIconAsync(int championId)
+        private async Task<Image?> GetChampionIconAsync(int championId)
         {
-            lock (_iconCacheLock)
-            {
-                if (_championIconCache.TryGetValue(championId, out var cached))
-                    return cached;
-            }
             try
             {
-                var asset = await AppCompositionRoot.GameAssetService.GetChampionIconAsync(championId);
-                if (asset == null || asset.IsEmpty) return null;
-                using var stream = new MemoryStream(asset.Content);
-                using var source = Image.FromStream(stream);
-                var img = new Bitmap(source);
-                lock (_iconCacheLock)
-                {
-                    if (!_championIconCache.ContainsKey(championId))
-                        _championIconCache[championId] = img;
-                }
-                return img;
+                var asset = await AppCompositionRoot.GameAssetService.GetChampionIconAsync(championId, _lifetime.Token);
+                return DecodePreviewImage(asset?.Content);
             }
             catch { return null; }
+        }
+
+        internal static Image? DecodePreviewImage(byte[]? bytes)
+        {
+            if (bytes is not { Length: > 0 }) return null;
+            using var stream = new MemoryStream(bytes);
+            using var source = Image.FromStream(stream);
+            return new Bitmap(source);
         }
 
         /// <summary>
@@ -1300,6 +1317,8 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private async Task UpdatePreviewPanelAsync(FlowLayoutPanel panel, AntdUI.SelectMultiple select, List<int> championIds)
         {
+            int revision = _previewRevisions.GetValueOrDefault(panel) + 1;
+            _previewRevisions[panel] = revision;
             ControlLifetime.ClearAndDispose(panel);
             if (championIds.Count == 0) return;
 
@@ -1310,7 +1329,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }).ToList();
 
             var results = await Task.WhenAll(tasks);
-            if (IsDisposed || panel.IsDisposed)
+            if (IsDisposed || panel.IsDisposed || _previewRevisions.GetValueOrDefault(panel) != revision)
             {
                 foreach (var (_, image) in results) image?.Dispose();
                 return;
@@ -1346,17 +1365,19 @@ namespace LOL_GameAssistant.BaseViewForm
             if ((lastOpen == null || (now - lastOpen.Value).TotalSeconds >= 10) &&
                 AppCompositionRoot.ApplicationSettingsStore.Load().AutoMatch)
             {
-                _ = AppCompositionRoot.LobbyService.StartMatchmakingAsync();
+                _ = RunLobbyActionAsync(() => AppCompositionRoot.LobbyService.StartMatchmakingAsync());
                 form.lastOpenGameTime = now;
             }
         }
 
         /// <summary>启用自动接受时向客户端提交接受匹配请求。</summary>
-        public static void GameTrue(SettingForm form)
+        private static async Task RunLobbyActionAsync(Func<Task> action)
         {
-            if (AppCompositionRoot.ApplicationSettingsStore.Load().AutoAccept)
+            try { await action().ConfigureAwait(false); }
+            catch (Exception ex)
             {
-                _ = AppCompositionRoot.LobbyService.AcceptReadyCheckAsync();
+                RuntimeDiagnostics.WriteException(ex);
+                RuntimeDiagnostics.Report("大厅操作", "失败", ex.Message);
             }
         }
 

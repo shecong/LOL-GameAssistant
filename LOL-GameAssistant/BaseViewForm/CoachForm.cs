@@ -335,7 +335,12 @@ public sealed class CoachForm : UserControl, IThemeAware
             return;
 
         CloudAiSettings ai = _settingsStore.Load().Ai;
-        if (!ai.RecommendationOverlayEnabled && !ai.ShowRecommendationPopup) return;
+        if (!ai.RecommendationOverlayEnabled && !ai.ShowRecommendationPopup)
+        {
+            _lastOverlaySignature = "";
+            if (_overlay.Visible) _overlay.Hide();
+            return;
+        }
         CoachRecommendation recommendation = state.Recommendations[0];
         string signature = $"{recommendation.Id}|{recommendation.Body}";
         if (signature == _lastOverlaySignature) return;

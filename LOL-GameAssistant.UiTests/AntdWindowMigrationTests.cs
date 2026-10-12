@@ -10,12 +10,30 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class AntdWindowMigrationTests
 {
     [Fact]
+    public void NativeSkinOverlayKeepsTransparencyPassthroughAndNoActivation() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var window = new SkinChangeOverlayForm { Opacity = 0 };
+        window.Show();
+        Assert.Equal(Color.Fuchsia, window.TransparencyKey);
+        Assert.False(window.ShowInTaskbar);
+        Assert.True(window.TopMost);
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            Assert.Equal(0x080000A0, GetWindowLong(window.Handle, -20) & 0x080000A0);
+            Assert.Equal((nint)(-1), SendMessage(window.Handle, 0x0084, 0, 0));
+            Assert.Equal((nint)3, SendMessage(window.Handle, 0x0021, 0, 0));
+            typeof(Control).GetMethod("RecreateHandle", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+        }
+    });
+
+    [Fact]
     public void EveryApplicationWindowUsesAntdUI()
     {
         Type[] windows = typeof(GameMain).Assembly.GetTypes()
             .Where(type => !type.IsAbstract && typeof(Form).IsAssignableFrom(type)).ToArray();
         Assert.NotEmpty(windows);
-        Assert.All(windows, type => Assert.Equal(typeof(AntdUI.Window), type.BaseType));
+        Assert.All(windows.Where(type => type != typeof(SkinChangeOverlayForm)),
+            type => Assert.Equal(typeof(AntdUI.Window), type.BaseType));
     }
 
     [Fact]

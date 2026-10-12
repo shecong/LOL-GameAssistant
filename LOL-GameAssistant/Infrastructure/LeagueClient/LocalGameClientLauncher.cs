@@ -166,8 +166,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
             {
                 string lockfile = Path.Combine(directory, "lockfile");
                 if (!File.Exists(lockfile)) continue;
-                string[] parts = File.ReadAllText(lockfile).Trim().Split(':');
-                if (parts.Length >= 4 && int.TryParse(parts[1], out _) && !string.IsNullOrWhiteSpace(parts[2])) return true;
+                if (LcuLockfileParser.TryParse(File.ReadAllText(lockfile), out _, out _)) return true;
             }
             catch (IOException)
             {

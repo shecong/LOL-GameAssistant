@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <SimdPaddleOcrVersion>2.0.0</SimdPaddleOcrVersion>
+    <SimdPaddleOcrModelsVersion>1.0.0</SimdPaddleOcrModelsVersion>
+  </PropertyGroup>
+</Project>

@@ -12,7 +12,7 @@ namespace LOL_GameAssistant.LoLApi
 
         /// <summary>
         /// 从 LCU lockfile 读取端口和 token（比 WMI 命令行解析更可靠）
-        /// 格式: LeagueClient:port:token:protocol:PID
+        /// 格式: LeagueClient:PID:port:token:protocol
         /// </summary>
         public static (string? port, string? token) GetFromLockfile()
         {
@@ -33,17 +33,10 @@ namespace LOL_GameAssistant.LoLApi
                     if (!File.Exists(lockfile)) continue;
 
                     string content = File.ReadAllText(lockfile).Trim();
-                    var parts = content.Split(':');
-                    // Format: LeagueClient:port:token:protocol:PID
-                    if (parts.Length >= 4)
+                    if (Infrastructure.LeagueClient.LcuLockfileParser.TryParse(content, out var port, out var token))
                     {
-                        string? port = parts[1];
-                        string? token = parts[2];
-                        if (!string.IsNullOrEmpty(port) && !string.IsNullOrEmpty(token))
-                        {
-                            _infoMsgForm?.AddMsg($"lockfile 连接成功: {port}");
-                            return (port, token);
-                        }
+                        _infoMsgForm?.AddMsg($"lockfile 连接成功: {port}");
+                        return (port, token);
                     }
                 }
             }

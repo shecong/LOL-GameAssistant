@@ -16,7 +16,8 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
     private const string JsonApiSubscription = "[5, \"OnJsonApiEvent\"]";
     private readonly LeagueClientConnection _connection;
     private WebSocketClient? _client;
-    private bool _disposed;
+    private volatile bool _disposed;
+    private readonly SemaphoreSlim _lifecycle = new(1, 1);
 
     /// <summary>初始化 LcuGameFlowEventStream 的实例状态，并保存传入的依赖或数据。</summary>
     public LcuGameFlowEventStream(LeagueClientConnection connection) => _connection = connection;
@@ -31,6 +32,13 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
 
     /// <summary>建立客户端 WebSocket 事件连接。</summary>
     public async Task<bool> ConnectAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
+    {
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await ConnectCoreAsync(forceRefresh, cancellationToken).ConfigureAwait(false); }
+        finally { _lifecycle.Release(); }
+    }
+
+    private async Task<bool> ConnectCoreAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
@@ -48,16 +56,18 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
 
         if (credentials == null) return false;
 
-        await DisconnectAsync().ConfigureAwait(false);
+        await DisconnectCoreAsync().ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfDisposed();
 
         var client = new WebSocketClient(
             $"wss://127.0.0.1:{credentials.Port}",
-            Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{credentials.Token}")));
+            Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{credentials.Token}")))
+        { ReconnectEnabled = false }; // 由应用的唯一探测循环负责重新读取凭据和重连。
         client.OnMessageAsync += HandleRawMessageAsync;
-        client.OnError += error => ErrorOccurred?.Invoke(error.Message);
-        client.OnConnectChanged += connected => ConnectionChanged?.Invoke(connected);
-        client.OnReconnecting += message => Reconnecting?.Invoke(message);
+        client.OnError += error => { if (!_disposed && ReferenceEquals(_client, client)) ErrorOccurred?.Invoke(error.Message); };
+        client.OnConnectChanged += connected => { if (!_disposed && ReferenceEquals(_client, client)) ConnectionChanged?.Invoke(connected); };
+        client.OnReconnecting += message => { if (!_disposed && ReferenceEquals(_client, client)) Reconnecting?.Invoke(message); };
         _client = client;
 
         try
@@ -74,14 +84,26 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
     }
 
     /// <summary>订阅客户端 JSON API 事件通知。</summary>
-    public Task SubscribeToJsonApiEventsAsync(CancellationToken cancellationToken = default)
+    public async Task SubscribeToJsonApiEventsAsync(CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return _client?.SendAsync(JsonApiSubscription) ?? Task.CompletedTask;
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            if (_client != null) await _client.SendAsync(JsonApiSubscription).WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally { _lifecycle.Release(); }
     }
 
     /// <summary>断开客户端事件连接并停止相关接收工作。</summary>
     public async Task DisconnectAsync()
+    {
+        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        try { await DisconnectCoreAsync().ConfigureAwait(false); }
+        finally { _lifecycle.Release(); }
+    }
+
+    private async Task DisconnectCoreAsync()
     {
         WebSocketClient? client = _client;
         _client = null;

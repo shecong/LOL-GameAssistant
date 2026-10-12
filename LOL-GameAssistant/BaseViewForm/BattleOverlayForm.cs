@@ -45,7 +45,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
     {
         _lobby = lobby; _details = details; _live = live; _assets = assets; _champions = champions;
         Text = "对局详情";
-        AntdWindowChrome.Configure(this);
+        AntdWindowChrome.Configure(this, fitWorkingArea: false);
         EnableHitTest = false;
         ShowInTaskbar = false;
         TopMost = true;
@@ -259,10 +259,11 @@ internal sealed class BattleOverlayForm : AntdUI.Window
     {
         try
         {
-            BattleOverlayPlayer player = await _details.GetPlayerAsync(member, session, token);
+            BattleOverlayPlayer player = await _details.GetPlayerAsync(member, session, token,
+                updated => StorePlayer(updated, generation, token));
             if (token.IsCancellationRequested || generation != _generation || IsDisposed) return;
             string key = MemberKey(member);
-            _players[key] = _players.TryGetValue(key, out var previous) ? player.Merge(previous) : player;
+            StorePlayer(player, generation, token);
             if (!member.IsBot && !string.IsNullOrWhiteSpace(member.Puuid) &&
                 player.NeedsRetry)
                 _retryAt[key] = DateTimeOffset.UtcNow.AddSeconds(30);
@@ -272,6 +273,14 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         catch (OperationCanceledException) { }
         catch (Exception ex) { RuntimeDiagnostics.Report("对局玩家资料", "等待数据", ex.Message); }
         finally { if (generation == _generation) _loading.Remove(MemberKey(member)); }
+    }
+
+    private void StorePlayer(BattleOverlayPlayer player, int generation, CancellationToken token)
+    {
+        if (token.IsCancellationRequested || generation != _generation || IsDisposed) return;
+        string key = MemberKey(player.Member);
+        _players[key] = _players.TryGetValue(key, out var previous) ? player.Merge(previous) : player;
+        Invalidate();
     }
 
     private async Task LoadIconAsync(int championId, CancellationToken token)
@@ -320,8 +329,12 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         DrawText(g, en ? $"Rank / season: {queue} · Champion rate: same queue/mode within last 100 games · Recent: up to 10 valid games"
             : $"段位 / 赛季战绩：{queue}  ·  英雄胜率：最近100场中的同队列 / 模式样本  ·  近期：最多10场有效对局",
             new RectangleF(26, 630, 1070, 22), 9, Color.FromArgb(147, 164, 188));
-        DrawText(g, en ? "Vision is vision score; ward placement counts are unavailable. Missing data is shown as —."
-            : "视野为视野得分；客户端未提供实时插眼数量。缺失数据以 — 显示。",
+        int ready = _players.Values.Count(player => !player.Member.IsBot &&
+            !string.IsNullOrWhiteSpace(player.Member.Puuid) && player.HistoryLoaded && player.HistoryComplete);
+        int total = (_session?.TeamOne ?? []).Concat(_session?.TeamTwo ?? [])
+            .Count(member => !member.IsBot && !string.IsNullOrWhiteSpace(member.Puuid));
+        DrawText(g, en ? $"History verified: {ready}/{total} · Aggregate KDA · Vision score, not wards placed · Missing values: —"
+            : $"战绩已核验 {ready}/{total} 人 · KDA 按总击杀助攻 / 总死亡计算 · 视野为得分，非插眼数 · 缺失显示 —",
             new RectangleF(26, 654, 1070, 20), 9, Color.FromArgb(127, 143, 165));
     }
 
@@ -360,7 +373,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
                 new RectangleF(x + 61, y + 49, 119, 12), 7, Color.LightSlateGray);
             DrawText(g, player is { ChampionGames: > 0 } ? RecordCounts(player.ChampionWins, player.ChampionLosses, en) : "—",
                 new RectangleF(x + 61, y + 61, 119, 11), 7, Color.LightSlateGray);
-            DrawText(g, member.IsBot ? (en ? "Bot" : "机器人") : player?.Rank == null ? "—" : RankedDisplayFormatter.FormatCompact(player.Rank, en),
+            DrawText(g, member.IsBot ? (en ? "Bot" : "机器人") : RankText(player?.Rank, en),
                 new RectangleF(x + 186, y + 9, 111, 24), 10, Color.FromArgb(234, 205, 145));
             DrawText(g, RankRateText(player?.Rank, en),
                 new RectangleF(x + 186, y + 35, 111, 18), 8, Color.LightSlateGray);
@@ -374,19 +387,46 @@ internal sealed class BattleOverlayForm : AntdUI.Window
                 }
             else DrawText(g, "—", new RectangleF(x + 299, y + 9, 110, 22), 10, Color.LightSlateGray);
             DrawText(g, player?.RecentKda is double kda ? $"KDA {kda:0.00}" : "KDA —",
-                new RectangleF(x + 299, y + 36, 110, 22), 9, Color.LightGray);
+                new RectangleF(x + 299, y + 32, 110, 20), 9, Color.LightGray);
+            DrawText(g, RecentRecordText(player, en), new RectangleF(x + 299, y + 51, 110, 13), 7,
+                player is { HistoryLoaded: true, HistoryComplete: false } ? Color.FromArgb(234, 205, 145) : Color.LightSlateGray);
+            DrawText(g, RecentAverageText(player, en), new RectangleF(x + 299, y + 64, 110, 11), 6,
+                Color.LightSlateGray);
             var scores = FindScore(_scores, player?.Name ?? member.SummonerName, member.SummonerName, blue ? "ORDER" : "CHAOS");
             DrawText(g, LiveKdaText(scores),
                 new RectangleF(x + 422, y + 9, 103, 22), 10, Color.White);
             DrawText(g, scores == null ? "—" : $"{(en ? "CS" : "补刀")} {scores.CreepScore?.ToString() ?? "—"} · {(en ? "VS" : "视野")} {scores.VisionScore?.ToString("0") ?? "—"}",
                 new RectangleF(x + 422, y + 36, 103, 24), 8, Color.LightSlateGray);
-            DrawLoadout(g, scores?.Loadout, x + 10, y + 72, en);
+            DrawLoadout(g, scores?.Loadout, x + 10, y + 76, en);
             g.Restore(rowState);
         }
     }
 
     internal static string ChampionRateText(BattleOverlayPlayer? player, bool en) =>
         player?.ChampionWinRate is double rate ? $"{(en ? "Sample" : "样本")} {rate:0.#}%" : "—";
+
+    internal static string RankText(RankedQueue? rank, bool en) => rank == null ? "—" :
+        RankedDisplayFormatter.FormatCompact(rank, en) +
+        (RankedDisplayRules.HasRank(rank) ? $" {rank.LeaguePoints}LP" : "");
+
+    internal static string RecentRecordText(BattleOverlayPlayer? player, bool en)
+    {
+        if (player?.HistoryLoaded != true) return en ? "Loading history…" : "战绩读取中…";
+        var history = player.History;
+        string status = player.HistoryComplete ? "" : en ? " · partial" : " · 待核验";
+        if (history.RecentGames == 0) return (en ? "No samples" : "暂无样本") + status;
+        if (!player.HistoryComplete) return en ? $"Partial · {history.RecentWins}W {history.RecentLosses}L"
+            : $"待核验 · {history.RecentWins}胜{history.RecentLosses}负";
+        return (en ? $"{history.RecentWins}W {history.RecentLosses}L · {history.RecentWinRate:0.#}%"
+            : $"{history.RecentWins}胜{history.RecentLosses}负 · {history.RecentWinRate:0.#}%");
+    }
+
+    internal static string RecentAverageText(BattleOverlayPlayer? player, bool en)
+    {
+        var history = player?.History;
+        if (history?.AverageKills is not double kills) return en ? "Average K/D/A —" : "场均 K/D/A —";
+        return $"{(en ? "Avg" : "场均")} {kills:0.#}/{history.AverageDeaths:0.#}/{history.AverageAssists:0.#}";
+    }
 
     internal static string RankRateText(RankedQueue? rank, bool en)
     {
@@ -443,19 +483,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
 
     internal static LiveScoreboardPlayer? FindScore(IReadOnlyList<LiveScoreboardPlayer>? scores, string name, string fallback, string team)
     {
-        // Exact Riot IDs first; only accept a unique legacy-name match in the expected team.
-        string identity = name.Contains('#') ? name : fallback.Contains('#') ? fallback : name;
-        bool fullIdentity = identity.Contains('#');
-        var exact = scores?.Where(p => p.Team == team && !string.IsNullOrWhiteSpace(p.RiotId) &&
-            string.Equals(p.RiotId, identity, StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
-        if (exact.Length == 1) return exact[0];
-        if (exact.Length > 1) return null;
-        var legacy = scores?.Where(p => p.Team == team && !string.IsNullOrWhiteSpace(fallback) &&
-            string.Equals(p.SummonerName, fallback, StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
-        if (legacy.Length != 1) return null;
-        // A known full ID mismatch cannot be overridden by a shared old name.
-        return fullIdentity && legacy[0].RiotId.Contains('#') &&
-            !string.Equals(legacy[0].RiotId, identity, StringComparison.OrdinalIgnoreCase) ? null : legacy[0];
+        return BattleScoreboardMatcher.Find(scores, name, fallback, team);
     }
 
     private static void DrawText(Graphics g, string text, RectangleF bounds, float size, Color color, bool bold = false)

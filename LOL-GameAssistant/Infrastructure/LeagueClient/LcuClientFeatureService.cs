@@ -398,16 +398,33 @@ public sealed class LcuClientFeatureService : IClientFeatureService
         PostResultAsync("/lol-challenges/v1/update-player-preferences", JsonConvert.SerializeObject(new { challengeIds = Array.Empty<long>() }), "已清空身份徽章。", "清空身份徽章失败", cancellationToken);
 
     /// <summary>发送 POST 操作并转换为统一的客户端功能结果。</summary>
-    private async Task<ClientFeatureResult> PostResultAsync(string endpoint, string body, string success, string failed, CancellationToken cancellationToken) =>
-        await _lcu.PostAsync(endpoint, body, cancellationToken).ConfigureAwait(false)
-            ? ClientFeatureResult.Success(success)
-            : ClientFeatureResult.Failure(failed);
+    private async Task<ClientFeatureResult> PostResultAsync(string endpoint, string body, string success, string failed, CancellationToken cancellationToken)
+    {
+        if (_lcu is ILcuResultRequestSender classified)
+        {
+            var result = await classified.SendAsync("POST", endpoint, body, cancellationToken).ConfigureAwait(false);
+            return result.Succeeded ? ClientFeatureResult.Success(success) :
+                ClientFeatureResult.Failure($"{failed}：{result.Failure}" + (result.StatusCode == null ? "" : $" (HTTP {(int)result.StatusCode})"))
+                with { FailureKind = result.Failure, StatusCode = result.StatusCode };
+        }
+        return await _lcu.PostAsync(endpoint, body, cancellationToken).ConfigureAwait(false)
+            ? ClientFeatureResult.Success(success) : ClientFeatureResult.Failure(failed);
+    }
 
     /// <summary>发送 PUT 操作并转换为统一的客户端功能结果。</summary>
-    private async Task<ClientFeatureResult> PutResultAsync(string endpoint, string body, string success, string failed, CancellationToken cancellationToken) =>
-        await _lcu.PutAsync(endpoint, body, cancellationToken).ConfigureAwait(false)
+    private async Task<ClientFeatureResult> PutResultAsync(string endpoint, string body, string success, string failed, CancellationToken cancellationToken)
+    {
+        if (_lcu is ILcuResultRequestSender classified)
+        {
+            var result = await classified.SendAsync("PUT", endpoint, body, cancellationToken).ConfigureAwait(false);
+            return result.Succeeded ? ClientFeatureResult.Success(success) :
+                ClientFeatureResult.Failure($"{failed}：{result.Failure}" + (result.StatusCode == null ? "" : $" (HTTP {(int)result.StatusCode})"))
+                with { FailureKind = result.Failure, StatusCode = result.StatusCode };
+        }
+        return await _lcu.PutAsync(endpoint, body, cancellationToken).ConfigureAwait(false)
             ? ClientFeatureResult.Success(success)
             : ClientFeatureResult.Failure(failed);
+    }
 
     /// <summary>将奖励 JSON 转换为界面使用的奖励条目。</summary>
     private static ClientRewardGrant ToRewardGrant(JObject grant)

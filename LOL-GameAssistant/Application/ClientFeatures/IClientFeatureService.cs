@@ -73,6 +73,8 @@ public interface IClientFeatureService
 /// <summary>客户端功能操作的成功状态及说明。</summary>
 public sealed record ClientFeatureResult(bool Succeeded, string Message)
 {
+    public LOL_GameAssistant.Application.LeagueClient.LcuFailure? FailureKind { get; init; }
+    public System.Net.HttpStatusCode? StatusCode { get; init; }
     /// <summary>构建成功结果，向调用方返回操作状态。</summary>
     public static ClientFeatureResult Success(string message) => new(true, message);
     /// <summary>构建失败结果，向调用方保留可展示的原因。</summary>

@@ -49,6 +49,8 @@
     <Compile Include="..\LOL-GameAssistant\Application\Builds\IOpggBuildApplyService.cs" Link="Application\Builds\IOpggBuildApplyService.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\GameData\IChampionCatalog.cs" Link="Application\GameData\IChampionCatalog.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\LeagueClient\ILcuRequestSender.cs" Link="Application\LeagueClient\ILcuRequestSender.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\LeagueClient\LcuResponse.cs" Link="Application\LeagueClient\LcuResponse.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\GameData\AsyncByteCache.cs" Link="Infrastructure\GameData\AsyncByteCache.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\OpggBuildApplyService.cs" Link="Infrastructure\LeagueClient\OpggBuildApplyService.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\LcuQuickShoutService.cs" Link="Infrastructure\LeagueClient\LcuQuickShoutService.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\GameClientExecutablePaths.cs" Link="Infrastructure\LeagueClient\GameClientExecutablePaths.cs" />

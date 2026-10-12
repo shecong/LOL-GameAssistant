@@ -17,7 +17,7 @@ internal static class AugmentCatalog
 
     /// <summary>按强化标识读取内置作用说明。</summary>
     internal static string? GetDescription(int id) => Descriptions.Value.GetValueOrDefault(id.ToString());
-    private static readonly ConcurrentDictionary<string, Task<byte[]?>> IconCache = new(StringComparer.Ordinal);
+    private static readonly AsyncByteCache IconCache = new(LoadIconAsync);
 
     /// <summary>内置强化目录中的名称、图标和稀有度条目。</summary>
     internal sealed record AugmentDisplay(int Id, string Name, string? IconUrl, string? EnglishName = null, int? Rarity = null);
@@ -38,10 +38,10 @@ internal static class AugmentCatalog
     public static IReadOnlyList<AugmentDisplay> GetAll() => Catalog.Value.Values.ToArray();
 
     /// <summary>读取指定地址的图标并复用已缓存的下载任务。</summary>
-    public static Task<byte[]?> GetIconAsync(string? url) =>
+    public static Task<byte[]?> GetIconAsync(string? url, CancellationToken cancellationToken = default) =>
         string.IsNullOrWhiteSpace(url)
             ? Task.FromResult<byte[]?>(null)
-            : IconCache.GetOrAdd(url, static value => LoadIconAsync(value));
+            : IconCache.GetAsync(url, cancellationToken);
 
     /// <summary>读取内嵌强化目录并过滤无效标识或缺失名称的条目。</summary>
     private static IReadOnlyDictionary<int, AugmentDisplay> Load()

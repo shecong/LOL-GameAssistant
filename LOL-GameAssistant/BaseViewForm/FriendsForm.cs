@@ -12,12 +12,14 @@ namespace LOL_GameAssistant.BaseViewForm
     public sealed class FriendsForm : UserControl
     {
         private readonly AntdUI.Label _statusLabel;
+        private readonly AntdUI.Panel _header;
         private readonly AntdUI.Label _emptyLabel;
         private readonly FlowLayoutPanel _friendList;
         private readonly AntdUI.Button _refreshButton;
         private readonly IFriendDirectoryService _friendDirectoryService;
         private readonly IFriendSpectateService _friendSpectateService;
         private readonly IProfileIconService _profileIconService;
+        private readonly UiRequestScope _lifetime = new();
         private bool _loading;
 
         /// <summary>初始化 FriendsForm 的实例状态。</summary>
@@ -42,7 +44,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Dock = DockStyle.Fill;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
 
-            var header = new AntdUI.Panel
+            var header = _header = new AntdUI.Panel
             {
                 Dock = DockStyle.Top,
                 Height = 72,
@@ -106,6 +108,10 @@ namespace LOL_GameAssistant.BaseViewForm
             Controls.Add(_emptyLabel);
             Controls.Add(header);
 
+            WindowLayout.ConfigureDpi(this);
+            DpiChangedAfterParent += (_, _) => OnResize(EventArgs.Empty);
+
+            Disposed += (_, _) => _lifetime.Dispose();
             Load += async (_, _) => await RefreshAsync();
         }
 
@@ -121,11 +127,12 @@ namespace LOL_GameAssistant.BaseViewForm
 
             try
             {
-                var friends = await _friendDirectoryService.GetFriendsAsync();
-                RenderFriends(friends);
+                var friends = await _friendDirectoryService.GetFriendsAsync(_lifetime.Token);
+                if (!IsDisposed) RenderFriends(friends);
             }
             catch (Exception ex)
             {
+                if (IsDisposed || _lifetime.Token.IsCancellationRequested) return;
                 ClearFriendCards();
                 _emptyLabel.Visible = true;
                 _emptyLabel.Text = "好友列表加载失败，请确认 LOL 客户端已启动并登录";
@@ -133,7 +140,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             finally
             {
-                _refreshButton.Enabled = true;
+                if (!IsDisposed) _refreshButton.Enabled = true;
                 _loading = false;
             }
         }
@@ -192,13 +199,15 @@ namespace LOL_GameAssistant.BaseViewForm
         private int GetCardWidth()
         {
             int availableWidth = _friendList.ClientSize.Width - _friendList.Padding.Horizontal - 8;
-            return Math.Max(320, Math.Min(520, availableWidth));
+            return Math.Max(1, Math.Min(520 * DeviceDpi / 96, availableWidth));
         }
 
         /// <summary>窗口或控件尺寸变化时重新计算内容布局。</summary>
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
+            if (_header == null || _friendList == null) return;
+            _header.Height = 72 * DeviceDpi / 96;
             int width = GetCardWidth();
             foreach (Control control in _friendList.Controls)
             {
@@ -212,6 +221,7 @@ namespace LOL_GameAssistant.BaseViewForm
             private readonly FriendProfile _friend;
             private readonly IFriendSpectateService _spectateService;
             private readonly IProfileIconService _profileIconService;
+            private readonly UiRequestScope _lifetime = new();
             private bool _querying;
             private bool _spectating;
             private bool _hovered;
@@ -241,7 +251,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     Cursor = Cursor
                 };
                 Controls.Add(avatar);
-                Disposed += (_, _) => avatar.Image?.Dispose();
+                Disposed += (_, _) => { _lifetime.Dispose(); avatar.Image?.Dispose(); };
                 _ = LoadAvatarAsync(avatar, friend.ProfileIconId, _profileIconService);
 
                 string displayName = friend.DisplayName;
@@ -294,6 +304,22 @@ namespace LOL_GameAssistant.BaseViewForm
                 spectateButton.Enabled = canQuery;
                 spectateButton.Click += async (_, _) => await StartSpectateAsync(gameId, spectateButton, actionLabel);
                 Controls.Add(spectateButton);
+
+                void LayoutCard()
+                {
+                    int Scale(int value) => value * DeviceDpi / 96;
+                    Height = Scale(96);
+                    avatar.Bounds = new Rectangle(Scale(8), Scale(10), Scale(54), Scale(54));
+                    int textLeft = Scale(74), right = Math.Max(textLeft, ClientSize.Width - Scale(12));
+                    spectateButton.Bounds = new Rectangle(Math.Max(textLeft, right - Scale(70)), Scale(14), Scale(70), Scale(28));
+                    int textWidth = Math.Max(1, spectateButton.Left - textLeft - Scale(8));
+                    nameLabel.Bounds = new Rectangle(textLeft, Scale(9), textWidth, Scale(24));
+                    statusLabel.Bounds = new Rectangle(textLeft, Scale(36), textWidth, Scale(21));
+                    actionLabel.Bounds = new Rectangle(textLeft, Scale(66), Math.Max(1, right - textLeft), Scale(20));
+                }
+                SizeChanged += (_, _) => LayoutCard();
+                DpiChangedAfterParent += (_, _) => LayoutCard();
+                LayoutCard();
 
                 string? note = friend.StatusMessage;
                 var toolTip = new ToolTip();
@@ -359,15 +385,18 @@ namespace LOL_GameAssistant.BaseViewForm
                 actionLabel.Text = "正在向客户端发起观战...";
                 try
                 {
-                    SpectateResult result = await _spectateService.LaunchAsync(new SpectateRequest(_friend.Puuid, gameId));
+                    SpectateResult result = await _spectateService.LaunchAsync(new SpectateRequest(_friend.Puuid, gameId), _lifetime.Token);
+                    if (IsDisposed) return;
                     actionLabel.Text = result.Message;
                     if (result.Succeeded) LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain, result.Message);
                     else LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, result.Message);
                 }
+                catch (OperationCanceledException) when (_lifetime.Token.IsCancellationRequested) { }
+                catch (Exception ex) { if (!IsDisposed) actionLabel.Text = ex.Message; }
                 finally
                 {
                     _spectating = false;
-                    button.Enabled = _friend.CanSpectate;
+                    if (!IsDisposed) button.Enabled = _friend.CanSpectate;
                 }
             }
 
@@ -429,12 +458,12 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             /// <summary>异步加载英雄或玩家头像并更新控件。</summary>
-            private static async Task LoadAvatarAsync(RoundPictureBox box, int iconId, IProfileIconService profileIconService)
+            private async Task LoadAvatarAsync(RoundPictureBox box, int iconId, IProfileIconService profileIconService)
             {
                 if (iconId <= 0) return;
                 try
                 {
-                    byte[]? bytes = await profileIconService.GetProfileIconAsync(iconId);
+                    byte[]? bytes = await profileIconService.GetProfileIconAsync(iconId, _lifetime.Token);
                     if (bytes == null || bytes.Length == 0) return;
                     using var memory = new MemoryStream(bytes);
                     using var temp = Image.FromStream(memory);

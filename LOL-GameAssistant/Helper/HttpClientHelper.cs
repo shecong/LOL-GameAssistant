@@ -1,4 +1,5 @@
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Domain.LeagueClient;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Security;
@@ -10,8 +11,12 @@ using System.Web;
 /// </summary>
 public class HttpClientHelper : IDisposable
 {
-    public static string? Port;
-    public static string? Token;
+    private static LeagueClientCredentials? _credentials;
+    public static string? Port => Credentials?.Port;
+    public static string? Token => Credentials?.Token;
+    internal static LeagueClientCredentials? Credentials => Volatile.Read(ref _credentials);
+    internal static void SetCredentials(LeagueClientCredentials credentials) =>
+        Interlocked.Exchange(ref _credentials, credentials);
 
     // 使用静态 HttpClient 实例避免 Socket 耗尽
     private static readonly HttpClient _httpClient;
@@ -66,6 +71,22 @@ public class HttpClientHelper : IDisposable
         return SendRequestStreamAsync("GET", endpoint, queryParams, null, cancellationToken);
     }
 
+    public async Task<Stream?> GetRequiredAsync(string endpoint, CancellationToken cancellationToken = default)
+    {
+        var result = await SendRequestResultAsync("GET", endpoint, cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (result.Failure == LcuHttpFailure.None) return result.Content;
+        result.Content?.Dispose();
+        var failure = result.Failure switch
+        {
+            LcuHttpFailure.NoCredentials => LOL_GameAssistant.Application.LeagueClient.LcuFailure.NoCredentials,
+            LcuHttpFailure.Timeout => LOL_GameAssistant.Application.LeagueClient.LcuFailure.Timeout,
+            LcuHttpFailure.Network => LOL_GameAssistant.Application.LeagueClient.LcuFailure.Network,
+            LcuHttpFailure.HttpStatus => LOL_GameAssistant.Application.LeagueClient.LcuFailure.HttpStatus,
+            _ => LOL_GameAssistant.Application.LeagueClient.LcuFailure.Unexpected
+        };
+        throw new LOL_GameAssistant.Application.LeagueClient.LcuRequestException(failure, result.StatusCode);
+    }
+
     /// <summary>发送 POST 请求，将操作数据提交到目标接口。</summary>
     public Task<Stream?> PostAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
     {
@@ -112,8 +133,9 @@ public class HttpClientHelper : IDisposable
             await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                LeagueClientCredentials? credentials = Credentials;
                 // 构建基础URL
-                var baseUrl = $"https://127.0.0.1:{Port}";
+                var baseUrl = $"https://127.0.0.1:{credentials?.Port}";
                 if (endpoint.StartsWith("http") || endpoint.StartsWith("https"))
                 {
                     baseUrl = "";
@@ -126,11 +148,13 @@ public class HttpClientHelper : IDisposable
                 using var request = new HttpRequestMessage(new HttpMethod(httpMethod), requestUrl);
 
                 // LCU 凭据仅可发送给当前检测到的本机 LCU 端点。
-                if (IsLcuUri(request.RequestUri))
+                if (request.RequestUri?.Host == "127.0.0.1" &&
+                    request.RequestUri.Scheme == Uri.UriSchemeHttps &&
+                    int.TryParse(credentials?.Port, out int credentialPort) && request.RequestUri.Port == credentialPort)
                 {
                     request.Headers.Authorization = new AuthenticationHeaderValue(
                         "Basic",
-                        Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{Token}")));
+                        Convert.ToBase64String(Encoding.UTF8.GetBytes($"riot:{credentials!.Token}")));
                 }
 
                 // 设置Accept头
@@ -170,7 +194,7 @@ public class HttpClientHelper : IDisposable
                         System.Diagnostics.Debug.WriteLine($"请求失败: {response.StatusCode} {requestUrl}");
                         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                         {
-                            string? previousToken = Token;
+                            string? previousToken = credentials?.Token;
                             if (attempt == 0 && await TryRefreshLcuCredentialsAsync(cancellationToken).ConfigureAwait(false) &&
                                 !string.Equals(previousToken, Token, StringComparison.Ordinal))
                             {
@@ -223,41 +247,43 @@ public class HttpClientHelper : IDisposable
         int maxConcurrency = 5,
         CancellationToken cancellationToken = default)
     {
-        var results = new List<Stream?>();
-        var tasks = new List<Task<Stream?>>();
+        return await SendBatchCoreAsync(requests.Select(request =>
+            new Func<CancellationToken, Task<Stream?>>(token => SendRequestStreamAsync(
+                request.method, request.endpoint, request.queryParams, request.body, token))),
+            maxConcurrency, cancellationToken).ConfigureAwait(false);
+    }
 
-        // 使用 SemaphoreSlim 控制并发数
-        using var batchSemaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
-
-        foreach (var request in requests)
+    internal static async Task<List<Stream?>> SendBatchCoreAsync(
+        IEnumerable<Func<CancellationToken, Task<Stream?>>> operations, int maxConcurrency,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
+        var factories = operations.ToArray();
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var gate = new SemaphoreSlim(maxConcurrency);
+        var tasks = factories.Select(async operation =>
         {
-            await batchSemaphore.WaitAsync(cancellationToken);
-
-            var task = Task.Run(async () =>
+            await gate.WaitAsync(lifetime.Token).ConfigureAwait(false);
+            try
             {
-                try
-                {
-                    return await SendRequestStreamAsync(
-                        request.method,
-                        request.endpoint,
-                        request.queryParams,
-                        request.body,
-                        cancellationToken);
-                }
-                finally
-                {
-                    batchSemaphore.Release();
-                }
-            }, cancellationToken);
-
-            tasks.Add(task);
+                lifetime.Token.ThrowIfCancellationRequested();
+                return await operation(lifetime.Token).ConfigureAwait(false);
+            }
+            catch { lifetime.Cancel(); throw; }
+            finally { gate.Release(); }
+        }).ToArray();
+        try
+        {
+            var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return results.ToList();
         }
-
-        // 等待所有任务完成
-        var completedTasks = await Task.WhenAll(tasks);
-        results.AddRange(completedTasks);
-
-        return results;
+        catch
+        {
+            foreach (var task in tasks)
+                if (task.IsCompletedSuccessfully) task.Result?.Dispose();
+            throw;
+        }
     }
 
     /// <summary>保留共享 HTTP 客户端的生命周期，不随单次请求包装器释放。</summary>
@@ -273,8 +299,7 @@ public class HttpClientHelper : IDisposable
         (string? port, string? token) = await Task.Run(
             () => LOL_GameAssistant.LoLApi.GetlolLcu.GetAuth(), cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(port) || string.IsNullOrWhiteSpace(token)) return false;
-        Port = port;
-        Token = token;
+        SetCredentials(new LeagueClientCredentials(port, token));
         return true;
     }
 }

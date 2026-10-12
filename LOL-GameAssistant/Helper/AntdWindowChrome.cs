@@ -9,11 +9,11 @@ internal static class AntdWindowChrome
     private static readonly ConditionalWeakTable<AntdUI.Window, WindowRegistration> Registrations = new();
 
     /// <summary>配置无边框窗口及其绘制恢复、任务栏行为。</summary>
-    internal static void Configure(AntdUI.Window window)
+    internal static void Configure(AntdUI.Window window, bool fitWorkingArea = true)
     {
         window.FormBorderStyle = FormBorderStyle.None;
         // 同一窗体只注册一次；重复配置不会叠加句柄事件，也不会重复安装原生消息处理。
-        Registrations.GetValue(window, static owner => new WindowRegistration(owner));
+        Registrations.GetValue(window, owner => new WindowRegistration(owner, fitWorkingArea));
     }
 
     /// <summary>为普通 AntdUI 弹窗添加支持拖动和窗口按钮的标题栏。</summary>
@@ -41,12 +41,17 @@ internal static class AntdWindowChrome
         private bool _hasCreatedHandle;
 
         /// <summary>初始化 WindowRegistration 的实例状态，并保存传入的依赖或数据。</summary>
-        internal WindowRegistration(AntdUI.Window window)
+        internal WindowRegistration(AntdUI.Window window, bool fitWorkingArea)
         {
             _window = window;
             window.HandleCreated += HandleCreated;
             window.HandleDestroyed += HandleDestroyed;
             window.Disposed += WindowDisposed;
+            if (fitWorkingArea)
+            {
+                window.Shown += FitWindow;
+                window.DpiChanged += DpiChanged;
+            }
             if (window.IsHandleCreated) HandleCreated(window, EventArgs.Empty);
         }
 
@@ -69,7 +74,21 @@ internal static class AntdWindowChrome
             _window.HandleCreated -= HandleCreated;
             _window.HandleDestroyed -= HandleDestroyed;
             _window.Disposed -= WindowDisposed;
+            _window.Shown -= FitWindow;
+            _window.DpiChanged -= DpiChanged;
             ReleaseHandle();
+        }
+
+        private void FitWindow(object? sender, EventArgs args)
+        {
+            WindowLayout.FitToWorkingArea(_window);
+            if (!_window.IsDisposed && _window.IsHandleCreated)
+                _window.BeginInvoke(() => WindowLayout.FitToWorkingArea(_window));
+        }
+        private void DpiChanged(object? sender, DpiChangedEventArgs args)
+        {
+            if (!_window.IsDisposed && _window.IsHandleCreated)
+                _window.BeginInvoke(() => WindowLayout.FitToWorkingArea(_window));
         }
 
         /// <summary>处理当前窗口关注的原生消息，其余消息继续交给基类。</summary>

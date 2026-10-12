@@ -17,13 +17,13 @@ namespace LOL_GameAssistant.LoLApi
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrEmpty(puuid)) return null;
             HttpClientHelper client = new HttpClientHelper();
-            using Stream? responseStream = await client.GetAsync(
+            using Stream? responseStream = await client.GetRequiredAsync(
                 $"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex ?? "0"}&endIndex={endIndex ?? "9999"}",
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (responseStream == null) return null;
-            return await responseStream.ReadAsJsonAsync<GameHeadModel.MatchHistoryResponse>()
-                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await responseStream.ReadAsJsonAsync<GameHeadModel.MatchHistoryResponse>(cancellationToken)
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -91,12 +91,12 @@ namespace LOL_GameAssistant.LoLApi
             cancellationToken.ThrowIfCancellationRequested();
             if (useCache && DetailCache.TryGetValue(gameId, out var cached)) return cached;
             HttpClientHelper client = new HttpClientHelper();
-            using Stream? responseStream = await client.GetAsync($"/lol-match-history/v1/games/{gameId}",
+            using Stream? responseStream = await client.GetRequiredAsync($"/lol-match-history/v1/games/{gameId}",
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (responseStream == null) return null;
-            GameDetailModel.GameInfo? game = await responseStream.ReadAsJsonAsync<GameDetailModel.GameInfo>()
-                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            GameDetailModel.GameInfo? game = await responseStream.ReadAsJsonAsync<GameDetailModel.GameInfo>(cancellationToken)
+                .ConfigureAwait(false);
             if (game != null)
             {
                 if (DetailCache.Count >= DetailCacheMax) DetailCache.Clear();

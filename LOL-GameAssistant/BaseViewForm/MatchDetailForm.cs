@@ -17,6 +17,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// </summary>
     public partial class MatchDetailForm : AntdUI.Window, IThemeAware
     {
+        private readonly UiRequestScope _lifetime = new();
         private readonly MatchDetail _gameInfo;
         private readonly string _puuid;
         private readonly IGameAssetService _gameAssetService;
@@ -36,16 +37,18 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>对局详情只经由资源应用服务读取装备名与英雄头像。</summary>
-        internal MatchDetailForm(MatchDetail? gameInfo, string? puuid, IGameAssetService gameAssetService)
+        internal MatchDetailForm(MatchDetail? gameInfo, string? puuid, IGameAssetService gameAssetService,
+            IMatchHistoryService? matchHistoryService = null, IPremadeDetectionService? premadeDetectionService = null)
         {
             if (gameInfo == null) throw new ArgumentNullException(nameof(gameInfo));
             if (string.IsNullOrEmpty(puuid)) throw new ArgumentNullException(nameof(puuid));
             _gameInfo = gameInfo;
             _puuid = puuid;
             _gameAssetService = gameAssetService;
-            _matchHistoryService = AppCompositionRoot.MatchHistoryService;
-            _premadeDetectionService = AppCompositionRoot.PremadeDetectionService;
+            _matchHistoryService = matchHistoryService ?? AppCompositionRoot.MatchHistoryService;
+            _premadeDetectionService = premadeDetectionService ?? AppCompositionRoot.PremadeDetectionService;
             InitializeComponent();
+            WindowLayout.ConfigureDpi(this);
             AntdWindowChrome.Configure(this);
             Text = $"对局详情 · {_gameInfo.GetModeText()}";
             lblTitle.Text = Text;
@@ -54,7 +57,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => detailIcon.Dispose();
             UiTheme.Apply(this);
             this.Load += async (_, _) => await LoadDataAsync();
-            Disposed += (_, _) => _assetToolTip.Dispose();
+            Disposed += (_, _) => { _lifetime.Dispose(); _assetToolTip.Dispose(); };
             Disposed += (_, _) => _detailToolTip.Dispose();
         }
 
@@ -93,6 +96,13 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>异步读取详情展示所需的数据并更新界面。</summary>
+        private static async Task ObserveAsync(Task task)
+        {
+            try { await task; }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
+        }
+
         private async Task LoadDataAsync()
         {
             try
@@ -122,8 +132,9 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 int[] items = { s?.item0 ?? 0, s?.item1 ?? 0, s?.item2 ?? 0,
                                 s?.item3 ?? 0, s?.item4 ?? 0, s?.item5 ?? 0, s?.item6 ?? 0 };
-                var nameTasks = items.Where(i => i > 0).Select(itemId => _gameAssetService.GetItemNameAsync(itemId)).ToList();
+                var nameTasks = items.Where(i => i > 0).Select(itemId => _gameAssetService.GetItemNameAsync(itemId, _lifetime.Token)).ToList();
                 var resolvedNames = nameTasks.Count > 0 ? await Task.WhenAll(nameTasks) : Array.Empty<string?>();
+                if (IsDisposed || _lifetime.Token.IsCancellationRequested) return;
                 int nameIndex = 0;
                 var itemNames = items.Select(itemId =>
                 {
@@ -137,6 +148,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             catch (Exception ex)
             {
+                if (IsDisposed || _lifetime.Token.IsCancellationRequested) return;
                 lblTitle.Text = "加载失败";
                 lblStats.Text = $"错误: {ex.Message}";
             }
@@ -172,8 +184,8 @@ namespace LOL_GameAssistant.BaseViewForm
             int enemyTeamId = participants.FirstOrDefault(p => p.teamId != myTeamId)?.teamId ?? 200;
             AddBanRow(flowEnemy, _gameInfo.GetBannedChampionIds(enemyTeamId));
 
-            _ = DetectPremadesAsync(myTeamId);
-            _ = ApplyRecentModePerformanceTagsAsync();
+            _ = ObserveAsync(DetectPremadesAsync(myTeamId));
+            _ = ObserveAsync(ApplyRecentModePerformanceTagsAsync());
         }
 
         /// <summary>
@@ -186,7 +198,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             bool win = p.IsWin();
             ThemePalette palette = UiTheme.Palette;
-            var panel = new AntdUI.Panel
+            var panel = new MatchPlayerCard(isMe)
             {
                 Size = new Size(455, (_gameInfo.IsAugmentAram() ? 166 : 118) + (p.stats?.RuneIds.Count > 0 ? 30 : 0)),
                 Margin = new Padding(0, 0, 0, 6),
@@ -203,7 +215,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 BorderColor = isMe ? Color.FromArgb(255, 193, 7) : Color.FromArgb(120, 255, 255, 255)
             };
             avatar.Disposed += (_, _) => avatar.Image?.Dispose();
-            _ = LoadAvatarAsync(avatar, p.championId);
+            _ = ObserveAsync(LoadAvatarAsync(avatar, p.championId));
             panel.Controls.Add(avatar);
 
             string displayName = (isMe ? "★ " : "") + (identity?.gameName ?? $"玩家{p.participantId}");
@@ -221,7 +233,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
             }
 
-            panel.Controls.Add(new AntdUI.Label
+            var nameLabel = new AntdUI.Label
             {
                 Text = displayName,
                 Location = new Point(70, 8),
@@ -229,7 +241,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold),
                 BackColor = Color.Transparent,
                 ForeColor = palette.TextPrimary
-            });
+            };
+            panel.Controls.Add(nameLabel);
+            panel.TrackLabel(nameLabel, primary: true);
             var championLabel = new AntdUI.Label
             {
                 Text = $"{GetChampionDisplayName(p.championId)} · KDA {p.GetKdaText()} ({p.GetKdaRatio()})",
@@ -249,6 +263,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
             }
             panel.Controls.Add(championLabel);
+            panel.TrackLabel(championLabel, primary: false);
             if (!string.IsNullOrWhiteSpace(playerPuuid))
             {
                 var performanceTag = new AntdUI.Label
@@ -276,7 +291,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     : (palette.IsDark ? Color.FromArgb(239, 154, 154) : Color.FromArgb(198, 40, 40)),
                 BackColor = Color.Transparent
             });
-            panel.Controls.Add(new AntdUI.Label
+            var damageLabel = new AntdUI.Label
             {
                 Text = $"伤害 {p.stats?.totalDamageDealtToChampions ?? 0:N0} · 补刀 {(p.stats?.totalMinionsKilled ?? 0) + (p.stats?.neutralMinionsKilled ?? 0)}",
                 Location = new Point(70, 54),
@@ -284,14 +299,16 @@ namespace LOL_GameAssistant.BaseViewForm
                 Font = new Font("Microsoft YaHei UI", 8.5F),
                 ForeColor = palette.TextSecondary,
                 BackColor = Color.Transparent
-            });
+            };
+            panel.Controls.Add(damageLabel);
+            panel.TrackLabel(damageLabel, primary: false);
             AddSummonerSpellIcons(panel, p, 300, 30);
             AddItemIcons(panel, p, 70, 78);
             AddRuneIcons(panel, p);
 
             if (_gameInfo.IsAugmentAram() && p.stats?.AugmentIds.Count > 0)
             {
-                _ = LoadAugmentTagsAsync(panel, p.stats.AugmentIds);
+                _ = ObserveAsync(LoadAugmentTagsAsync(panel, p.stats.AugmentIds));
             }
 
             if (!string.IsNullOrWhiteSpace(playerPuuid))
@@ -310,6 +327,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 panel.Controls.Add(premadeTag);
                 _premadeTagsByPuuid[playerPuuid] = premadeTag;
             }
+            panel.Scale(new SizeF(DeviceDpi / 96f, DeviceDpi / 96f));
             return panel;
         }
 
@@ -336,7 +354,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     Margin = new Padding(0, 0, 4, 0)
                 };
                 row.Controls.Add(tag);
-                _ = LoadChampionTagIconAsync(tag, championId);
+                _ = ObserveAsync(LoadChampionTagIconAsync(tag, championId));
             }
             target.Controls.Add(row);
         }
@@ -370,14 +388,14 @@ namespace LOL_GameAssistant.BaseViewForm
                 tag.Text = UiLanguage.IsEnglish && !string.IsNullOrWhiteSpace(augment.EnglishName)
                     ? augment.EnglishName : augment.Name;
                 _detailToolTip.SetDetails(tag, tag.Text, AugmentCatalog.GetDescription(augment.Id));
-                if (augment.IconUrl != null) _ = LoadAugmentTagIconAsync(tag, augment.IconUrl);
+                if (augment.IconUrl != null) _ = ObserveAsync(LoadAugmentTagIconAsync(tag, augment.IconUrl));
             }
         }
 
         /// <summary>异步加载强化标签图标，并处理控件已释放的情况。</summary>
-        private static async Task LoadAugmentTagIconAsync(AntdUI.Tag tag, string url)
+        private async Task LoadAugmentTagIconAsync(AntdUI.Tag tag, string url)
         {
-            byte[]? bytes = await AugmentCatalog.GetIconAsync(url);
+            byte[]? bytes = await AugmentCatalog.GetIconAsync(url, _lifetime.Token);
             if (bytes == null || tag.IsDisposed) return;
             try
             {
@@ -396,7 +414,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             try
             {
-                Image? image = ToImage(await _gameAssetService.GetChampionIconAsync(championId));
+                Image? image = ToImage(await _gameAssetService.GetChampionIconAsync(championId, _lifetime.Token));
                 if (image == null) return;
                 if (tag.IsDisposed) { image.Dispose(); return; }
                 tag.Image = image;
@@ -421,7 +439,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 icon.Disposed += (_, _) => icon.Image?.Dispose();
                 panel.Controls.Add(icon);
                 int spellId = spells[index];
-                _ = LoadSpellIconAsync(icon, spellId);
+                _ = ObserveAsync(LoadSpellIconAsync(icon, spellId));
             }
         }
 
@@ -446,7 +464,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 icon.Disposed += (_, _) => icon.Image?.Dispose();
                 panel.Controls.Add(icon);
                 int itemId = items[index];
-                _ = LoadItemIconAsync(icon, itemId);
+                _ = ObserveAsync(LoadItemIconAsync(icon, itemId));
             }
         }
 
@@ -454,10 +472,10 @@ namespace LOL_GameAssistant.BaseViewForm
         private async Task LoadSpellIconAsync(PictureBox box, int spellId)
         {
             if (spellId <= 0) return;
-            Image? image = ToImage(await _gameAssetService.GetSummonerSpellIconAsync(spellId));
+            Image? image = ToImage(await _gameAssetService.GetSummonerSpellIconAsync(spellId, _lifetime.Token));
             if (image != null && !box.IsDisposed) box.Image = image;
             else image?.Dispose();
-            string? name = await _gameAssetService.GetSummonerSpellNameAsync(spellId);
+            string? name = await _gameAssetService.GetSummonerSpellNameAsync(spellId, _lifetime.Token);
             if (!box.IsDisposed) _assetToolTip.SetToolTip(box, name ?? $"召唤师技能 {spellId}");
         }
 
@@ -470,8 +488,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 return;
             }
             _detailToolTip.SetDetails(box, $"装备 {itemId}", "正在加载作用说明…");
-            _ = LoadItemDetailsAsync(box, itemId);
-            Image? image = ToImage(await _gameAssetService.GetItemIconAsync(itemId));
+            _ = ObserveAsync(LoadItemDetailsAsync(box, itemId));
+            Image? image = ToImage(await _gameAssetService.GetItemIconAsync(itemId, _lifetime.Token));
             if (image != null && !box.IsDisposed) box.Image = image;
             else image?.Dispose();
         }
@@ -481,8 +499,8 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             try
             {
-                var nameTask = _gameAssetService.GetItemNameAsync(itemId);
-                var descriptionTask = _gameAssetService.GetItemDescriptionAsync(itemId);
+                var nameTask = _gameAssetService.GetItemNameAsync(itemId, _lifetime.Token);
+                var descriptionTask = _gameAssetService.GetItemDescriptionAsync(itemId, _lifetime.Token);
                 await Task.WhenAll(nameTask, descriptionTask);
                 if (!IsDisposed) _detailToolTip.SetDetails(box, await nameTask ?? $"装备 {itemId}", await descriptionTask);
             }
@@ -504,7 +522,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 panel.Controls.Add(icon);
                 icon.Disposed += (_, _) => icon.Image?.Dispose();
                 _detailToolTip.SetDetails(icon, $"符文 {id}", "正在加载作用说明…");
-                _ = LoadRuneAsync(icon, id);
+                _ = ObserveAsync(LoadRuneAsync(icon, id));
             }
         }
 
@@ -513,11 +531,11 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             try
             {
-                string? details = await _gameAssetService.GetRuneDetailsAsync(id);
+                string? details = await _gameAssetService.GetRuneDetailsAsync(id, _lifetime.Token);
                 if (IsDisposed || box.IsDisposed) return;
                 string[] parts = (details ?? $"符文 {id}").Split('\n', 2);
                 _detailToolTip.SetDetails(box, parts[0], parts.Length > 1 ? parts[1] : null);
-                Image? image = ToImage(await _gameAssetService.GetRuneIconAsync(id));
+                Image? image = ToImage(await _gameAssetService.GetRuneIconAsync(id, _lifetime.Token));
                 if (!box.IsDisposed) box.Image = image;
                 else image?.Dispose();
             }
@@ -532,7 +550,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 var teamOne = BuildTeamIdentities(myTeamId);
                 var teamTwo = BuildTeamIdentities(_gameInfo.participants.FirstOrDefault(participant => participant.teamId != myTeamId)?.teamId ?? 0);
                 if (teamOne.Count < 2 || teamTwo.Count < 2) return;
-                var result = await _premadeDetectionService.DetectAsync(teamOne, teamTwo);
+                var result = await _premadeDetectionService.DetectAsync(teamOne, teamTwo, _lifetime.Token);
                 if (IsDisposed) return;
                 ApplyPremadeResult(result);
             }
@@ -566,7 +584,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 int.TryParse(queueText, out int queueId);
                 var service = new RecentModePerformanceService(_matchHistoryService);
                 RecentModePerformanceAssessment assessment = await service.EvaluateAsync(
-                    puuid, queueId, _gameInfo.gameMode, _gameInfo.GetModeText());
+                    puuid, queueId, _gameInfo.gameMode, _gameInfo.GetModeText(), cancellationToken: _lifetime.Token);
                 SetPerformanceTag(puuid, assessment);
             }
             catch
@@ -632,7 +650,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private async Task LoadAvatarAsync(RoundPictureBox box, int championId)
         {
-            Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(championId));
+            Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(championId, _lifetime.Token));
             if (icon != null && !box.IsDisposed)
             {
                 box.Image = icon;

@@ -11,12 +11,60 @@ using Sdcb.SimdPaddleOCR.Models.ChineseV6Small;
 string root = Path.GetFullPath(args.ElementAtOrDefault(0) ?? ".");
 string output = Path.Combine(root, "tools/SimdOcrBenchmark/results");
 Directory.CreateDirectory(output);
-var samples = JsonSerializer.Deserialize<Sample[]>(File.ReadAllText(Path.Combine(root,"tools/OcrBenchmark/samples.json")))!;
 using var catalog = JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"LOL-GameAssistant/Resources/augment-names.json")));
 var entries = catalog.RootElement.EnumerateObject().Where(p=>int.Parse(p.Name)>=1000).ToArray();
 var names = entries.SelectMany(p=>new[] {(int.Parse(p.Name),p.Value.GetProperty("name").GetString()!),
     (int.Parse(p.Name),p.Value.TryGetProperty("englishName",out var en)?en.GetString()??"":"")}).ToArray();
 var labels=entries.ToDictionary(p=>int.Parse(p.Name),p=>p.Value.GetProperty("name").GetString()!);
+if (args.Contains("--self-test"))
+{
+    using var engine = AugmentOcrEngine.Create();
+    var gameSize = new Size(2544, 1353);
+    using var region = new Bitmap(gameSize.Width * 2 / 3, gameSize.Height * 32 / 100);
+    using (var graphics = Graphics.FromImage(region)) graphics.Clear(Color.Black);
+    using var cancellation = new CancellationTokenSource();
+    cancellation.Cancel();
+    bool cancelled = false;
+    try { AugmentImageRecognizer.Recognize(region, gameSize, engine, names, cancellation.Token); }
+    catch (OperationCanceledException) { cancelled = true; }
+    bool empty = AugmentImageRecognizer.Recognize(region, gameSize, engine, names).AugmentIds.Count == 0;
+    string[] expected = ["火上浇油", "急急小子", "关键暴击"];
+    using (var graphics = Graphics.FromImage(region))
+    using (var font = new Font("Microsoft YaHei UI", 26, GraphicsUnit.Pixel))
+    {
+        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        for (int index = 0; index < 3; index++)
+        {
+            float center = gameSize.Width * new[] {31,50,69}[index] / 100f - gameSize.Width / 6f;
+            var width = graphics.MeasureString(expected[index], font).Width;
+            graphics.DrawString(expected[index], font, Brushes.White, center - width / 2, gameSize.Height * 12 / 100 + 2);
+        }
+    }
+    region.Save(Path.Combine(output, "synthetic-titles.png"));
+    var scan = AugmentImageRecognizer.Recognize(region, gameSize, engine, names);
+    var actual = scan.AugmentIds.Select(id => labels[id]).ToArray();
+    bool passed = cancelled && empty && actual.SequenceEqual(expected);
+    File.WriteAllText(Path.Combine(output, "self-test.json"), JsonSerializer.Serialize(new
+    {
+        EngineVersion = typeof(PaddleOcrAll).Assembly.GetName().Version?.ToString(),
+        ModelVersion = typeof(ChineseV6SmallModels).Assembly.GetName().Version?.ToString(),
+        Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+        Expected = expected, Actual = actual, Cancelled = cancelled, Empty = empty, Passed = passed,
+        Scope = "Synthetic images; does not validate historical game screenshots"
+    }, new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine($"OCR self-test: {passed}; cancellation={cancelled}, empty={empty}, titles={string.Join(',',actual)}");
+    if (!passed) Environment.ExitCode = 1;
+    return;
+}
+int samplesIndex = Array.IndexOf(args, "--samples");
+string samplesFile = samplesIndex >= 0 && samplesIndex + 1 < args.Length
+    ? Path.GetFullPath(args[samplesIndex + 1]) : Path.Combine(root, "tools/OcrBenchmark/samples.json");
+var samples = JsonSerializer.Deserialize<Sample[]>(File.ReadAllText(samplesFile))!;
+foreach (var sample in samples)
+{
+    string samplePath = Path.IsPathRooted(sample.Path) ? sample.Path : Path.Combine(Path.GetDirectoryName(samplesFile)!, sample.Path);
+    if (!File.Exists(samplePath)) throw new FileNotFoundException("OCR sample missing. Supply a portable sample manifest using --samples, or run --self-test.", samplePath);
+}
 var rows = new List<object>();
 foreach (string model in args.Contains("--production-only") ? Array.Empty<string>() : new[] {"tiny","small"})
 {
@@ -28,7 +76,7 @@ foreach (string model in args.Contains("--production-only") ? Array.Empty<string
     Console.WriteLine($"Loaded {model}: {loading.ElapsedMilliseconds}ms");
     foreach(var sample in samples)
     {
-        using var source=new Bitmap(sample.Path);
+        using var source=new Bitmap(Path.IsPathRooted(sample.Path) ? sample.Path : Path.Combine(Path.GetDirectoryName(samplesFile)!, sample.Path));
         using var client=source.Clone(new Rectangle(sample.X,sample.Y,sample.Width,sample.Height),PixelFormat.Format24bppRgb);
         for(int card=0;card<3;card++)
         {
@@ -57,7 +105,7 @@ using (var production = AugmentOcrEngine.Create())
     bool passed=true;
     foreach(var sample in samples)
     {
-        using var source=new Bitmap(sample.Path);
+        using var source=new Bitmap(Path.IsPathRooted(sample.Path) ? sample.Path : Path.Combine(Path.GetDirectoryName(samplesFile)!, sample.Path));
         using var client=source.Clone(new Rectangle(sample.X,sample.Y,sample.Width,sample.Height),PixelFormat.Format24bppRgb);
         using var region=client.Clone(new Rectangle(client.Width/6,client.Height*28/100,client.Width*2/3,client.Height*32/100),PixelFormat.Format24bppRgb);
         var timer=Stopwatch.StartNew();

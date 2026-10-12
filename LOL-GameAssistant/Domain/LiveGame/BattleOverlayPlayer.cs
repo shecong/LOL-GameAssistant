@@ -5,8 +5,12 @@ using LOL_GameAssistant.Domain.Ranked;
 namespace LOL_GameAssistant.Domain.LiveGame;
 
 public sealed record BattleOverlayPlayer(GameTeamMember Member, string Name, RankedQueue? Rank,
-    IReadOnlyList<bool> RecentResults, double? RecentKda, int ChampionGames, double? ChampionWinRate)
+    BattleHistoryStatistics History)
 {
+    public IReadOnlyList<bool> RecentResults => History.RecentResults;
+    public double? RecentKda => History.RecentKda;
+    public int ChampionGames => History.ChampionGames;
+    public double? ChampionWinRate => History.ChampionWinRate;
     public bool ProfileLoaded { get; init; }
     public bool RankLoaded { get; init; }
     public bool HistoryLoaded { get; init; }
@@ -22,34 +26,21 @@ public sealed record BattleOverlayPlayer(GameTeamMember Member, string Name, Ran
         {
             Name = ProfileLoaded ? Name : previous.Name,
             Rank = RankLoaded ? Rank : previous.Rank,
-            RecentResults = keepHistory ? previous.RecentResults : RecentResults,
-            RecentKda = keepHistory ? previous.RecentKda : RecentKda,
-            ChampionGames = keepHistory ? previous.ChampionGames : ChampionGames,
-            ChampionWinRate = keepHistory ? previous.ChampionWinRate : ChampionWinRate,
+            History = keepHistory ? previous.History : History,
             ProfileLoaded = ProfileLoaded || previous.ProfileLoaded,
             RankLoaded = RankLoaded || previous.RankLoaded,
             HistoryLoaded = keepHistory ? previous.HistoryLoaded : HistoryLoaded,
             HistoryComplete = keepHistory ? previous.HistoryComplete : HistoryComplete
         };
     }
-    public int ChampionWins => (int)Math.Round(ChampionGames * (ChampionWinRate ?? 0) / 100);
-    public int ChampionLosses => ChampionGames - ChampionWins;
+    public int ChampionWins => History.ChampionWins;
+    public int ChampionLosses => History.ChampionLosses;
     // Only completed games in the current queue/mode count. Missing statistics are not losses.
     public static BattleOverlayPlayer Create(GameTeamMember member, string name, RankedQueue? rank,
         IEnumerable<MatchHistoryGame> history, int queueId, string mode)
     {
-        var samples = history.OrderByDescending(g => g.GameCreation)
-            .DistinctBy(g => g.GameId > 0 ? (object)g.GameId : g).Take(100)
-            .Where(g => g.IsCompletedGame() && MatchModeComparer.IsSameMode(queueId, mode, g))
-            .Select(g => g.GetParticipant(member.Puuid))
-            .Where(p => p?.stats is { HasWinResult: true }).Cast<MatchParticipant>().ToArray();
-        var recent = samples.Take(10).ToArray();
-        var kdaSamples = recent.Where(p => p.stats!.HasKdaResult).ToArray();
-        var champion = samples.Where(p => member.ChampionId > 0 && p.championId == member.ChampionId).ToArray();
-        return new(member, name, rank, recent.Select(p => p.stats!.Win).ToArray(),
-            kdaSamples.Length != recent.Length || recent.Length == 0 ? null : (double)recent.Sum(p => p.stats!.kills + p.stats!.assists) /
-                Math.Max(1, recent.Sum(p => p.stats!.deaths)),
-            champion.Length, champion.Length == 0 ? null : 100d * champion.Count(p => p.stats!.Win) / champion.Length)
+        return new(member, name, rank, BattleHistoryStatistics.Analyze(history,
+            member.Puuid, member.ChampionId, queueId, mode))
         { ProfileLoaded = !string.IsNullOrWhiteSpace(name), RankLoaded = rank != null, HistoryLoaded = true, HistoryComplete = true };
     }
 }

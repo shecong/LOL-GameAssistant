@@ -19,6 +19,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Label _performanceTag = new();
         private readonly ToolTip _performanceTip = new();
         private readonly Dictionary<Control, Image> _ownedImages = new();
+        private readonly UiRequestScope _lifetime = new();
         private bool? _isWin;
         private RecentModePerformanceAssessment? _performanceAssessment;
 
@@ -33,6 +34,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _matchHistoryService = matchHistoryService;
             _gameAssetService = gameAssetService;
             InitializeComponent();
+            WindowLayout.ConfigureDpi(this);
             _performanceTag.AutoSize = false;
             _performanceTag.Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold);
             _performanceTag.TextAlign = ContentAlignment.MiddleCenter;
@@ -43,6 +45,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AttachDoubleClickToAllControls(this);
             Disposed += (_, _) =>
             {
+                _lifetime.Dispose();
                 _performanceTip.Dispose();
                 foreach (Image image in _ownedImages.Values) image.Dispose();
                 _ownedImages.Clear();
@@ -57,13 +60,16 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 加载单场战绩信息（支持传入已缓存的对局详情，避免重复请求）。
         /// </summary>
-        public async Task setInfo(MatchHistoryGame? head, String? puuid, MatchDetail? detail = null)
+        public async Task setInfo(MatchHistoryGame? head, String? puuid, MatchDetail? detail = null, CancellationToken cancellationToken = default)
         {
+            using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+            cancellationToken = operation.Token;
             if (head == null || string.IsNullOrEmpty(puuid)) return;
             _playerPuuid = puuid;
 
-            _gameDetail = detail ?? await _matchHistoryService.GetDetailAsync(head.GameId);
-            if (_gameDetail == null) return;
+            _gameDetail = detail ?? await _matchHistoryService.GetDetailAsync(head.GameId, cancellationToken: cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_gameDetail == null || IsDisposed) return;
 
             var gamer = _gameDetail.GetParticipant(puuid);
             if (gamer == null) return;
@@ -74,7 +80,9 @@ namespace LOL_GameAssistant.BaseViewForm
             try
             {
                 //头像
-                ReplaceImage(game_pic, await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(gamer.championId)));
+                ReplaceImage(game_pic, await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(gamer.championId, cancellationToken)));
+                cancellationToken.ThrowIfCancellationRequested();
+                if (IsDisposed) return;
                 this.game_win.Text = win ? "胜利" : "失败";
                 this.game_win.ForeColor = win ? System.Drawing.Color.FromArgb(76, 175, 80) : System.Drawing.Color.FromArgb(244, 67, 54);
                 this.game_type.Text = _gameDetail.GetModeText();
@@ -88,9 +96,11 @@ namespace LOL_GameAssistant.BaseViewForm
                 this.game_cs.Text = $"补刀 {cs}";
                 this.game_damage.Text = $"伤害 {stats?.totalDamageDealtToChampions ?? 0}";
                 this.game_gold.Text = $"金币 {stats?.goldEarned ?? 0}";
-                await ApplyRecentModePerformanceTagAsync(_gameDetail, puuid);
-                ReplaceImage(pic_D, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell1Id)));
-                ReplaceImage(pic_F, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell2Id)));
+                await ApplyRecentModePerformanceTagAsync(_gameDetail, puuid, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (IsDisposed) return;
+                ReplaceImage(pic_D, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell1Id, cancellationToken)));
+                ReplaceImage(pic_F, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell2Id, cancellationToken)));
                 //游戏装备
                 if (gamer.stats != null)
                 {
@@ -99,11 +109,13 @@ namespace LOL_GameAssistant.BaseViewForm
                     for (int i = 0; i < boxes.Length; i++)
                     {
                         int itemId = items[i];
-                        ReplaceImage(boxes[i], await LoadImageAsync(() => _gameAssetService.GetItemIconAsync(itemId)));
+                        ReplaceImage(boxes[i], await LoadImageAsync(() => _gameAssetService.GetItemIconAsync(itemId, cancellationToken)));
                     }
                 }
-                BuildTeamAvatars(_gameDetail, puuid);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!IsDisposed) BuildTeamAvatars(_gameDetail, puuid);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"\u52a0\u8f7d\u56fe\u7247\u5931\u8d25: {ex.Message}");
@@ -111,14 +123,16 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>最近 30 天同模式全部有效对局共用统一评分逻辑。</summary>
-        private async Task ApplyRecentModePerformanceTagAsync(MatchDetail currentGame, string puuid)
+        private async Task ApplyRecentModePerformanceTagAsync(MatchDetail currentGame, string puuid, CancellationToken token)
         {
             string queueText = string.IsNullOrWhiteSpace(currentGame.queueId)
                 ? currentGame._queueId : currentGame.queueId;
             int.TryParse(queueText, out int queueId);
             var service = new RecentModePerformanceService(_matchHistoryService);
             RecentModePerformanceAssessment assessment = await service.EvaluateAsync(
-                puuid, queueId, currentGame.gameMode, currentGame.GetModeText());
+                puuid, queueId, currentGame.gameMode, currentGame.GetModeText(), cancellationToken: token);
+            token.ThrowIfCancellationRequested();
+            if (IsDisposed) return;
             ApplyPostGamePerformanceTag(assessment);
         }
 
@@ -220,7 +234,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private async Task LoadAvatarAsync(RoundPictureBox box, int championId)
         {
-            Image? icon = await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(championId));
+            Image? icon = await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(championId, _lifetime.Token));
             if (icon != null && !box.IsDisposed)
             {
                 box.Image = icon;
@@ -256,6 +270,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void ReplaceImage(PictureBox box, Image? image)
         {
+            if (IsDisposed || box.IsDisposed) { image?.Dispose(); return; }
             if (_ownedImages.Remove(box, out Image? old)) old.Dispose();
             box.Image = image;
             if (image != null) _ownedImages[box] = image;
@@ -264,6 +279,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>替换控件图像并释放旧图像资源。</summary>
         private void ReplaceImage(AntdUI.Avatar box, Image? image)
         {
+            if (IsDisposed || box.IsDisposed) { image?.Dispose(); return; }
             if (_ownedImages.Remove(box, out Image? old)) old.Dispose();
             box.Image = image;
             if (image != null) _ownedImages[box] = image;

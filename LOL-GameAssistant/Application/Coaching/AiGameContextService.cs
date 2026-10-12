@@ -21,7 +21,6 @@ public sealed class AiGameContextService : IAiGameContextService
     private readonly ILiveClientGameStateService _liveClientGameStateService;
     private readonly ILaneKnowledgeService _laneKnowledgeService;
     private readonly IChampionCatalog _championCatalog;
-    private string? _cachedMyPuuid;
 
     /// <summary>初始化 AiGameContextService 的实例状态，并保存传入的依赖或数据。</summary>
     public AiGameContextService(
@@ -131,7 +130,11 @@ public sealed class AiGameContextService : IAiGameContextService
         Domain.LiveGame.LiveClientGameSnapshot? liveSnapshot = await liveSnapshotTask.ConfigureAwait(false);
         var teamOne = session?.TeamOne ?? Array.Empty<GameTeamMember>();
         var teamTwo = session?.TeamTwo ?? Array.Empty<GameTeamMember>();
-        GameTeamMember? me = teamOne.Concat(teamTwo).FirstOrDefault(member => member.Puuid == myPuuid);
+        GameTeamMember? me = string.IsNullOrWhiteSpace(myPuuid) ? null :
+            teamOne.Concat(teamTwo).FirstOrDefault(member => member.Puuid == myPuuid);
+        if (me == null)
+            return new AiGameContext { Phase = phase, HasLiveClientData = false,
+                LaneKnowledge = _laneKnowledgeService.GetAdvice("通用", "通用") };
         bool mineIsTeamOne = me != null && teamOne.Any(member => member.Puuid == me.Puuid);
         var allies = (mineIsTeamOne ? teamOne : teamTwo).Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         var enemies = (mineIsTeamOne ? teamTwo : teamOne).Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
@@ -188,16 +191,17 @@ public sealed class AiGameContextService : IAiGameContextService
     /// <summary>读取当前召唤师的唯一标识。</summary>
     private async Task<string?> GetMyPuuidAsync(CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(_cachedMyPuuid)) return _cachedMyPuuid;
         try
         {
-            _cachedMyPuuid = (await _playerProfileService.GetCurrentAsync(cancellationToken).ConfigureAwait(false))?.Puuid;
+            // 身份随客户端账号变化；不能在服务生命周期内永久缓存。
+            return (await _playerProfileService.GetCurrentAsync(cancellationToken).ConfigureAwait(false))?.Puuid;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch
         {
             // 本地资料端点短暂不可用时保留空身份；AI 时间线会等待下一次完整上下文刷新。
         }
-        return _cachedMyPuuid;
+        return null;
     }
 
     /// <summary>判断英雄标识是否存在于当前英雄目录。</summary>

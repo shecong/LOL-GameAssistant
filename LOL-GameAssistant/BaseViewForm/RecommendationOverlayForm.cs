@@ -57,7 +57,7 @@ internal sealed class RecommendationOverlayForm : AntdUI.Window
     /// <summary>初始化 RecommendationOverlayForm 的实例状态。</summary>
     public RecommendationOverlayForm()
     {
-        AntdWindowChrome.Configure(this);
+        AntdWindowChrome.Configure(this, fitWorkingArea: false);
         EnableHitTest = false;
         ShowInTaskbar = false;
         TopMost = true;

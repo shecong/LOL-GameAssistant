@@ -1,5 +1,5 @@
-﻿using LOL_GameAssistant.Helper;
-using System.Runtime.InteropServices;
+using LOL_GameAssistant.Helper;
+
 
 namespace LOL_GameAssistant
 {
@@ -16,6 +16,7 @@ namespace LOL_GameAssistant
         {
             // Complete elevation before acquiring the instance lock or creating any windows.
             if (!AdminPermissionHelper.EnsureAdminPermission()) return;
+            ApplicationConfiguration.Initialize();
 
             int replaceRequested = 0;
             using var singleInstance = SingleInstanceCoordinator.StartOrReplace(() =>
@@ -35,27 +36,12 @@ namespace LOL_GameAssistant
             }
             if (Volatile.Read(ref replaceRequested) != 0) return;
 
-            // Set DPI awareness before any controls are created.  shcore is unavailable on
-            // some Windows 7 builds, so retain a safe system-DPI fallback.
-            try
-            {
-                SetProcessDpiAwareness(_Process_DPI_Awareness.Process_Per_Monitor_DPI_Aware);
-            }
-            catch (DllNotFoundException)
-            {
-                SetProcessDPIAware();
-            }
-            catch (EntryPointNotFoundException)
-            {
-                SetProcessDPIAware();
-            }
-
             // 设置全局异常处理
             System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             System.Windows.Forms.Application.ThreadException += Application_ThreadException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
-            ApplicationConfiguration.Initialize();
+
             GameMain = new GameMain();
             // A replacement request may arrive while the main window is being created.
             GameMain.Shown += (_, _) =>
@@ -129,19 +115,5 @@ namespace LOL_GameAssistant
             // Application.Exit();
         }
 
-        // DPI 感知 API
-        [DllImport("user32.dll")]
-        private static extern bool SetProcessDPIAware();
-
-        /// <summary>设置进程 DPI 感知方式，使窗口在高分屏上正确缩放。</summary>
-        [DllImport("shcore.dll")]
-        private static extern int SetProcessDpiAwareness(_Process_DPI_Awareness value);
-
-        private enum _Process_DPI_Awareness
-        {
-            Process_DPI_Unaware = 0,
-            Process_System_DPI_Aware = 1,
-            Process_Per_Monitor_DPI_Aware = 2
-        }
     }
 }

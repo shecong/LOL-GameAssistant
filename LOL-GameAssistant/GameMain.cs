@@ -38,7 +38,7 @@ namespace LOL_GameAssistant
         private readonly IApplicationSettingsStore _settingsStore;
         private readonly IGameClientLauncher _gameClientLauncher;
         private readonly IRecommendationCoordinator _recommendationCoordinator;
-        private CancellationTokenSource? _lcuRetryCts;
+        private readonly LeagueClientConnectionMonitor _connectionMonitor;
         private NotifyIcon? _trayIcon;
         private ContextMenuStrip? _trayMenu;
         private Image? _headerIconImage;
@@ -168,6 +168,7 @@ namespace LOL_GameAssistant
         {
             home = new HomeForm(infoMsg);
             _eventStream = eventStream;
+            _connectionMonitor = new LeagueClientConnectionMonitor(eventStream, RuntimeDiagnostics.WriteException);
             _lobbyService = lobbyService;
             _championSelectService = championSelectService;
             _clientFeatureService = clientFeatureService;
@@ -491,56 +492,7 @@ namespace LOL_GameAssistant
         /// LCU 探测内部是 WMI 查询（Win32_Process），同步跑在 UI 线程上会让窗口白屏假死，
         /// 因此探测与连接整体放到后台线程；需要更新界面的地方都会自己切回 UI 线程。
         /// </summary>
-        public void ConnectWebSocket() => _ = Task.Run(ConnectWebSocketCoreAsync);
-
-        /// <summary>建立客户端事件连接，使游戏阶段变化能够驱动界面刷新。</summary>
-        private async Task ConnectWebSocketCoreAsync()
-        {
-            // 认证发现、协议连接和订阅都由基础设施层完成；主窗体只处理事件结果。
-            if (!await _eventStream.ConnectAsync().ConfigureAwait(false))
-            {
-                AddInfoMessage("未检测到 LOL 客户端，每 10 秒重试获取 LCU 端口...");
-                _ = RetryLcuDetectionAsync();
-            }
-        }
-
-        /// <summary>
-        /// 周期性检测 LOL 客户端是否启动，直到获取到有效 LCU 端口
-        /// </summary>
-        private async Task RetryLcuDetectionAsync()
-        {
-            if (_lcuRetryCts != null) _lcuRetryCts.Cancel();
-            _lcuRetryCts = new CancellationTokenSource();
-            var token = _lcuRetryCts.Token;
-
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-
-                bool connected;
-                try
-                {
-                    connected = await _eventStream.ConnectAsync(forceRefresh: true, cancellationToken: token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-
-                if (connected)
-                {
-                    AddInfoMessage("检测到 LOL 客户端已启动，正在连接 WebSocket...");
-                    break;
-                }
-            }
-        }
+        public void ConnectWebSocket() => _connectionMonitor.Start();
 
         /// <summary>
         /// LCU WebSocket 订阅不会补发“当前阶段”。客户端晚于助手启动、或连接重建时，
@@ -660,7 +612,6 @@ namespace LOL_GameAssistant
             {
                 RuntimeDiagnostics.Report("LCU WebSocket", "已断开", "正在重新检测 lockfile 与客户端端口");
                 infoMsg.AddMsg("WebSocket已断开，正在检测 LCU 端口变化...");
-                _ = Task.Run(() => RetryLcuDetectionAsync());
             }
         }
 
@@ -1351,7 +1302,7 @@ namespace LOL_GameAssistant
                 Cleanup(() => _battleOverlay.Dispose());
                 Cleanup(() => _champSelectCompanion.Dispose());
                 Cleanup(StopPhaseDataLoad);
-                Cleanup(() => _lcuRetryCts?.Cancel());
+                Cleanup(() => _connectionMonitor.Dispose());
                 NotifyIcon? trayIcon = _trayIcon;
                 _trayIcon = null;
                 Cleanup(() => trayIcon?.Dispose());

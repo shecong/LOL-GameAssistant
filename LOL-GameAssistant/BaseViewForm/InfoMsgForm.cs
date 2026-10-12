@@ -3,6 +3,8 @@
     /// <summary>消息区域：追加并清理运行中的状态提示。</summary>
     public partial class InfoMsgForm : UserControl, InfoMsgForm.IInfoMsgForm
     {
+        internal const int MaximumMessages = 500;
+        internal const int MaximumMessageLength = 4000;
         /// <summary>初始化 InfoMsgForm 的实例状态。</summary>
         public InfoMsgForm()
         {
@@ -35,7 +37,9 @@
                 }
                 else
                 {
+                    if (msg.Length > MaximumMessageLength) msg = msg[..MaximumMessageLength] + "…";
                     chat_msg.AddToBottom(new AntdUI.Chat.TextChatItem($"{msg}", Properties.Resources.下载, $"Info:{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")}"));
+                    while (chat_msg.Items.Count > MaximumMessages) chat_msg.Items.RemoveAt(0);
                 }
             }
             catch
@@ -50,7 +54,7 @@
             //清空消息
             if (chat_msg.InvokeRequired)
             {
-                this.Invoke(new Action<object, EventArgs>(清空消息ToolStripMenuItem_Click));
+                if (!IsDisposed && IsHandleCreated) BeginInvoke(() => 清空消息ToolStripMenuItem_Click(sender, e));
             }
             else
             {

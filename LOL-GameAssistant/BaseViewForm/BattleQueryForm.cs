@@ -42,11 +42,18 @@ namespace LOL_GameAssistant.BaseViewForm
         private List<RawGameStat>? _rawGameStats;
         private bool _statsLoaded;
         private int _statsVersion;
-        private bool _searchBusy;
+
         private bool _resizingMatchRows;
         private TableLayoutPanel? _rootLayout;
+        private AntdUI.Button? _myHistoryButton;
+        private FlowLayoutPanel? _pageSizeArea;
+        private AntdUI.Button? _backToTopButton;
+        private AntdUI.Panel? _historyHeader;
 
         private CancellationTokenSource? _pageLoadCts;
+        private readonly UiRequestScope _searchScope = new();
+        private readonly UiRequestScope _statsScope = new();
+        private readonly UiRequestScope _exportScope = new();
         private bool _suppressPaginationEvents;
         private readonly ToolTip _playerIdentityTip = new();
         private readonly AntdUI.Label _historyTitle = new();
@@ -105,13 +112,18 @@ namespace LOL_GameAssistant.BaseViewForm
             _textExportService = textExportService;
             _favorites = _favoritePlayerStore.Load();
             InitializeComponent();
+            WindowLayout.ConfigureDpi(this);
             Resize += (_, _) => UpdateResponsiveLayout();
+            DpiChangedAfterParent += (_, _) => UpdateResponsiveLayout();
             stackMatches.SizeChanged += (_, _) => ResizeMatchRows();
             panelPlayer.SizeChanged += (_, _) => LayoutPlayerPanel();
             ConfigureCopyablePlayerIdentity();
             InitializeModernLayout();
             Disposed += (_, _) =>
             {
+                _searchScope.Dispose();
+                _statsScope.Dispose();
+                _exportScope.Dispose();
                 CancelPageLoad();
                 _playerIdentityTip.Dispose();
                 _ownedPlayerImage?.Dispose();
@@ -137,10 +149,18 @@ namespace LOL_GameAssistant.BaseViewForm
             _searchActions.Controls.Add(inpSearch);
             _searchActions.Controls.Add(btnSearch);
             var myHistory = new AntdUI.Button { Text = "我的战绩", Size = new Size(92, UiMetrics.ControlHeight), Margin = new Padding(6, 1, 0, 0) };
+            _myHistoryButton = myHistory;
             myHistory.Click += async (_, _) =>
             {
-                PlayerProfile? self = await _playerProfileService.GetCurrentAsync();
-                if (!string.IsNullOrWhiteSpace(self?.Puuid)) await PerformSearchAsync(self.Puuid);
+                if (IsDisposed) return;
+                using var request = _searchScope.Begin();
+                try
+                {
+                    PlayerProfile? self = await _playerProfileService.GetCurrentAsync(request.Token);
+                    if (request.IsCurrent && !string.IsNullOrWhiteSpace(self?.Puuid)) await PerformSearchAsync(self.Puuid);
+                }
+                catch (OperationCanceledException) when (request.Token.IsCancellationRequested) { }
+                catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
             };
             _searchActions.Controls.Add(myHistory);
 
@@ -179,10 +199,12 @@ namespace LOL_GameAssistant.BaseViewForm
             _viewSwitch.Dock = DockStyle.Left;
             viewBar.Controls.Add(_viewSwitch);
             var pageSizeArea = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 145, WrapContents = false };
+            _pageSizeArea = pageSizeArea;
             pageSizeArea.Controls.Add(new AntdUI.Label { Text = "每页", Width = 42, Height = 34 });
             pageSizeArea.Controls.Add(_pageSizeSelect);
             viewBar.Controls.Add(pageSizeArea);
             var backToTop = new AntdUI.Button { Text = "回到顶部", Dock = DockStyle.Right, Width = 96 };
+            _backToTopButton = backToTop;
             backToTop.Click += (_, _) => stackMatches.AutoScrollPosition = Point.Empty;
             viewBar.Controls.Add(backToTop);
 
@@ -197,6 +219,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Controls.Add(root);
 
             var historyHeader = new AntdUI.Panel { Dock = DockStyle.Top, Height = 46, Radius = 0, Padding = new Padding(10, 3, 10, 0) };
+            _historyHeader = historyHeader;
             _historyTitle.Dock = DockStyle.Top;
             _historyTitle.Height = 23;
             _historyTitle.Text = "最近对局";
@@ -218,7 +241,8 @@ namespace LOL_GameAssistant.BaseViewForm
             };
             modeArea.Controls.Add(_modeSelect);
             historyHeader.Controls.Add(modeArea);
-            modeArea.BringToFront();
+            // 先为右侧筛选器分配空间，再让标题与提示填充余下区域。
+            modeArea.SendToBack();
             panelHistory.Controls.Add(historyHeader);
             historyHeader.SendToBack();
             pagination.BringToFront();
@@ -311,7 +335,30 @@ namespace LOL_GameAssistant.BaseViewForm
         private void UpdateResponsiveLayout()
         {
             if (IsDisposed) return;
-            _viewSwitch.Width = ClientSize.Width < 550 ? 195 : 250;
+            int Scale(int value) => value * DeviceDpi / 96;
+            _viewSwitch.Width = Scale(ClientSize.Width < Scale(550) ? 195 : 250);
+            _viewSwitch.Height = Scale(37);
+            _favoriteSelect.Width = Scale(245);
+            _pageSizeSelect.Width = Scale(90);
+            _pageSizeSelect.Height = Scale(UiMetrics.ControlHeight);
+            if (_myHistoryButton != null) _myHistoryButton.Width = Scale(120);
+            if (_backToTopButton != null) _backToTopButton.Width = Scale(110);
+            if (_pageSizeArea != null)
+            {
+                _pageSizeArea.Width = Scale(155);
+                _pageSizeArea.Controls[0].Size = new Size(Scale(48), Scale(34));
+            }
+            if (_historyHeader != null) _historyHeader.Height = Scale(46);
+            _historyTitle.Height = Scale(23);
+            _modeSelect.Size = new Size(Scale(180), Scale(UiMetrics.ControlHeight));
+            if (_modeSelect.Parent != null) _modeSelect.Parent.Width = Scale(190);
+            if (_rootLayout != null)
+            {
+                _rootLayout.RowStyles[2].Height = Scale(52);
+                _rootLayout.RowStyles[4].Height = Scale(33);
+            }
+            foreach (Control control in _searchActions.Controls.Cast<Control>().Concat(_favoriteActions.Controls.Cast<Control>()))
+                control.Height = Math.Max(control.Height, Scale(UiMetrics.ControlHeight));
             LayoutSearchPanel();
             LayoutPlayerPanel();
             ResizeMatchRows();
@@ -324,14 +371,15 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             int width = _searchActions.ClientSize.Width;
             if (width <= 0) return;
-            bool narrow = width < 620;
-            _searchActions.WrapContents = width < 430;
-            _searchActions.Height = width < 430 ? 78 : 42;
-            _favoriteActions.Height = narrow ? 76 : 42;
+            int Scale(int value) => value * DeviceDpi / 96;
+            bool narrow = width < Scale(620);
+            _searchActions.WrapContents = width < Scale(430);
+            _searchActions.Height = Scale(width < Scale(430) ? 78 : 42);
+            _favoriteActions.Height = Scale(narrow ? 76 : 42);
             if (_rootLayout != null)
-                _rootLayout.RowStyles[0].Height = width < 430 ? 202 : narrow ? 166 : 120;
-            int available = width - btnSearch.Width - 118;
-            inpSearch.Width = Math.Clamp(available, 160, 620);
+                _rootLayout.RowStyles[0].Height = Scale(width < Scale(430) ? 202 : narrow ? 166 : 120);
+            int available = width - _searchActions.Controls.Cast<Control>().Where(c => c != inpSearch).Sum(c => c.Width + c.Margin.Horizontal) - Scale(12);
+            inpSearch.Width = Math.Clamp(available, Scale(160), Scale(620));
         }
 
         /// <summary>
@@ -340,9 +388,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private void LayoutPlayerPanel()
         {
             if (panelPlayer.ClientSize.Width <= 0) return;
+            int Scale(int value) => value * DeviceDpi / 96;
+            void Bounds(Control control, int x, int y, int width, int height) => control.SetBounds(x, Scale(y), width, Scale(height));
             if (_currentPlayer == null)
             {
-                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 64;
+                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = Scale(64);
                 return;
             }
             panelRanked.Dock = DockStyle.None;
@@ -356,29 +406,29 @@ namespace LOL_GameAssistant.BaseViewForm
             lblFlexTitle.Dock = DockStyle.None;
             lblFlexStats.Dock = DockStyle.None;
             int width = panelPlayer.ClientSize.Width;
-            avatarPlayer.SetBounds(8, 4, 84, 88);
-            if (width < 650)
+            Bounds(avatarPlayer, Scale(8), 4, Scale(84), 88);
+            if (width < Scale(650))
             {
-                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 226;
-                panelPlayerInfo.SetBounds(104, 4, Math.Max(120, width - 112), 88);
-                panelRanked.SetBounds(8, 100, Math.Max(200, width - 16), 88);
+                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = Scale(226);
+                Bounds(panelPlayerInfo, Scale(104), 4, Math.Max(Scale(120), width - Scale(112)), 88);
+                Bounds(panelRanked, Scale(8), 100, Math.Max(Scale(200), width - Scale(16)), 88);
             }
             else
             {
-                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = 118;
-                int rankedWidth = Math.Clamp(width - 112 - 245, 240, 472);
-                panelPlayerInfo.SetBounds(104, 4, Math.Max(160, width - 112 - rankedWidth), 88);
-                panelRanked.SetBounds(width - rankedWidth - 8, 4, rankedWidth, 88);
+                if (_rootLayout != null) _rootLayout.RowStyles[1].Height = Scale(118);
+                int rankedWidth = Math.Clamp(width - Scale(112 + 245), Scale(240), Scale(472));
+                Bounds(panelPlayerInfo, Scale(104), 4, Math.Max(Scale(160), width - Scale(112) - rankedWidth), 88);
+                Bounds(panelRanked, width - rankedWidth - Scale(8), 4, rankedWidth, 88);
             }
             int identityWidth = panelPlayerInfo.ClientSize.Width;
-            lblPlayerName.SetBounds(0, 0, identityWidth, 32);
-            lblPlayerTag.SetBounds(0, 32, identityWidth, 26);
-            lblPlayerLevel.SetBounds(0, 58, identityWidth, 26);
+            Bounds(lblPlayerName, 0, 0, identityWidth, 32);
+            Bounds(lblPlayerTag, 0, 32, identityWidth, 26);
+            Bounds(lblPlayerLevel, 0, 58, identityWidth, 26);
             int rankedTextWidth = panelRanked.ClientSize.Width;
-            lblSoloTitle.SetBounds(0, 0, rankedTextWidth, 22);
-            lblSoloStats.SetBounds(0, 22, rankedTextWidth, 22);
-            lblFlexTitle.SetBounds(0, 44, rankedTextWidth, 22);
-            lblFlexStats.SetBounds(0, 66, rankedTextWidth, 22);
+            Bounds(lblSoloTitle, 0, 0, rankedTextWidth, 22);
+            Bounds(lblSoloStats, 0, 22, rankedTextWidth, 22);
+            Bounds(lblFlexTitle, 0, 44, rankedTextWidth, 22);
+            Bounds(lblFlexStats, 0, 66, rankedTextWidth, 22);
         }
 
         /// <summary>
@@ -405,10 +455,11 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private async Task InitializeDefaultSearchAsync()
         {
+            string initial = inpSearch.Text;
             try
             {
-                PlayerProfile? self = await _playerProfileService.GetCurrentAsync();
-                if (!string.IsNullOrEmpty(self?.Puuid) && !IsDisposed)
+                PlayerProfile? self = await _playerProfileService.GetCurrentAsync(_searchScope.Token);
+                if (!string.IsNullOrEmpty(self?.Puuid) && !IsDisposed && inpSearch.Text == initial && string.IsNullOrWhiteSpace(initial))
                 {
                     inpSearch.Text = self.Puuid;
                 }
@@ -441,7 +492,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         public async Task PerformSearchAsync(string? input = null)
         {
-            if (_searchBusy) return;
+            if (IsDisposed) return;
             input = (input ?? inpSearch.Text).Trim();
             if (string.IsNullOrEmpty(input))
             {
@@ -450,12 +501,18 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             inpSearch.Text = input;
 
-            _searchBusy = true;
+            using var request = _searchScope.Begin();
+            var token = request.Token;
+            _statsScope.Cancel();
+            _exportScope.Cancel();
+            CancelPageLoad();
+
             lblStatus.Text = "正在搜索...";
             btnSearch.Enabled = false;
             try
             {
-                string? puuid = await ResolvePuuidAsync(input);
+                string? puuid = await ResolvePuuidAsync(input, token);
+                if (!request.IsCurrent) return;
                 if (string.IsNullOrEmpty(puuid))
                 {
                     lblStatus.Text = "未找到该玩家";
@@ -464,17 +521,17 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
 
                 _statsLoaded = false;
-                await LoadPlayerDataAsync(puuid);
+                await LoadPlayerDataAsync(puuid, token);
             }
             catch (Exception ex)
             {
+                if (!request.IsCurrent) return;
                 lblStatus.Text = $"查询失败：{ex.Message}";
                 RuntimeDiagnostics.Report("战绩查询", "查询失败", ex.Message);
             }
             finally
             {
-                _searchBusy = false;
-                btnSearch.Enabled = true;
+                if (request.IsCurrent) { btnSearch.Enabled = true; }
             }
         }
 
@@ -494,7 +551,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 解析输入为 puuid：支持 名称#TAG、长字符串 puuid，最后回退到当前玩家历史战绩模糊匹配。
         /// </summary>
-        private async Task<string?> ResolvePuuidAsync(string input)
+        private async Task<string?> ResolvePuuidAsync(string input, CancellationToken token)
         {
             if (input.Contains('#'))
             {
@@ -503,7 +560,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 string tag = parts[1].Trim();
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(tag))
                 {
-                    PlayerProfile? player = await _playerProfileService.FindByRiotIdAsync(name, tag);
+                    PlayerProfile? player = await _playerProfileService.FindByRiotIdAsync(name, tag, token);
                     if (!string.IsNullOrEmpty(player?.Puuid)) return player.Puuid;
                 }
             }
@@ -512,18 +569,18 @@ namespace LOL_GameAssistant.BaseViewForm
                 return input;
             }
 
-            return await ScanMatchHistoryForPuuidAsync(input);
+            return await ScanMatchHistoryForPuuidAsync(input, token);
         }
 
         /// <summary>扫描战绩信息以定位目标玩家的唯一标识。</summary>
-        private async Task<string?> ScanMatchHistoryForPuuidAsync(string keyword)
+        private async Task<string?> ScanMatchHistoryForPuuidAsync(string keyword, CancellationToken token)
         {
             try
             {
-                PlayerProfile? self = await _playerProfileService.GetCurrentAsync();
+                PlayerProfile? self = await _playerProfileService.GetCurrentAsync(token);
                 if (string.IsNullOrEmpty(self?.Puuid)) return null;
 
-                var history = await _matchHistoryService.GetPageAsync(self.Puuid, 0, 199);
+                var history = await _matchHistoryService.GetPageAsync(self.Puuid, 0, 199, token);
                 if (history?.Games?.Games == null) return null;
 
                 foreach (var game in history.Games.Games)
@@ -538,6 +595,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     }
                 }
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch
             {
                 // 兜底失败不影响主流程
@@ -582,11 +640,13 @@ namespace LOL_GameAssistant.BaseViewForm
 
         // ── 加载玩家数据 ──
 
-        private async Task LoadPlayerDataAsync(string puuid)
+        private async Task LoadPlayerDataAsync(string puuid, CancellationToken token)
         {
             lblStatus.Text = "正在加载玩家数据...";
 
-            _currentPlayer = await _playerProfileService.GetByPuuidAsync(puuid);
+            var player = await _playerProfileService.GetByPuuidAsync(puuid, token);
+            if (IsDisposed || token.IsCancellationRequested) return;
+            _currentPlayer = player;
             if (_currentPlayer == null) { lblStatus.Text = "获取玩家信息失败，请确认客户端已启动并登录。"; return; }
 
             CancelPageLoad();
@@ -602,13 +662,14 @@ namespace LOL_GameAssistant.BaseViewForm
 
             solo = null;
             flex = null;
-            var rankedTask = LoadRankedDataAsync(puuid);
+            var rankedTask = LoadRankedDataAsync(puuid, token);
             var matchTask = LoadMatchHistoryAsync(puuid);
 
             avatarPlayer.Visible = true;
             try
             {
-                byte[]? iconBytes = await _profileIconService.GetProfileIconAsync(_currentPlayer.ProfileIconId);
+                byte[]? iconBytes = await _profileIconService.GetProfileIconAsync(player!.ProfileIconId, token);
+                if (IsDisposed || token.IsCancellationRequested) { await Task.WhenAll(rankedTask, matchTask); return; }
                 Image? profileImage = CopyToImage(iconBytes);
                 if (profileImage != null)
                 {
@@ -619,6 +680,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             catch { }
 
+            if (IsDisposed || token.IsCancellationRequested) { await Task.WhenAll(rankedTask, matchTask); return; }
             lblPlayerName.Text = _currentPlayer.GameName;
             lblPlayerName.Visible = true;
             lblPlayerTag.Text = $"#{_currentPlayer.TagLine}";
@@ -631,7 +693,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             await Task.WhenAll(rankedTask, matchTask);
 
-            RefreshFavoriteState();
+            if (!IsDisposed && !token.IsCancellationRequested) RefreshFavoriteState();
         }
 
         /// <summary>头像字节由应用服务提供，窗体只负责解码为 WinForms 图片。</summary>
@@ -651,12 +713,12 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>异步读取玩家排位数据并更新显示。</summary>
-        private async Task LoadRankedDataAsync(string puuid)
+        private async Task LoadRankedDataAsync(string puuid, CancellationToken token)
         {
             try
             {
-                var rankedData = await _rankedStatsService.GetAsync(puuid);
-                if (rankedData == null) return;
+                var rankedData = await _rankedStatsService.GetAsync(puuid, cancellationToken: token);
+                if (rankedData == null || IsDisposed || token.IsCancellationRequested) return;
                 solo = rankedData.GetQueue(RankedQueues.Solo5x5);
                 flex = rankedData.GetQueue(RankedQueues.Flex5x5);
 
@@ -747,7 +809,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (_currentPlayer == null) return;
             CancelPageLoad();
-            var pageLoad = new CancellationTokenSource();
+            var pageLoad = CancellationTokenSource.CreateLinkedTokenSource(_searchScope.Token);
             _pageLoadCts = pageLoad;
             CancellationToken token = pageLoad.Token;
             string puuid = _currentPlayer.Puuid;
@@ -983,8 +1045,10 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_currentPlayer == null) return;
             string puuid = _currentPlayer.Puuid;
             string requestedMode = _selectedMode;
+            using var request = _statsScope.Begin();
+            var token = request.Token;
             int version = ++_statsVersion;
-            bool IsCurrentStats() => !IsDisposed && version == _statsVersion &&
+            bool IsCurrentStats() => request.IsCurrent && !IsDisposed && version == _statsVersion &&
                 _currentPlayer?.Puuid == puuid && _selectedMode == requestedMode;
             try
             {
@@ -994,10 +1058,10 @@ namespace LOL_GameAssistant.BaseViewForm
                 List<MatchHistoryGame>? games;
                 if (requestedMode == "全部")
                 {
-                    var statsPage = await _matchHistoryService.GetPageAsync(puuid, 0, StatsLoadLimit - 1);
+                    var statsPage = await _matchHistoryService.GetPageAsync(puuid, 0, StatsLoadLimit - 1, token);
                     games = statsPage?.Games?.Games;
                 }
-                else games = await GetFilteredHistoryAsync(puuid, requestedMode, CancellationToken.None);
+                else games = await GetFilteredHistoryAsync(puuid, requestedMode, token);
                 if (!IsCurrentStats()) return;
                 if (games == null) throw new InvalidOperationException("近期战绩暂时不可用，请重试。");
                 var recentGames = games.OrderByDescending(game => game.GameCreation).Take(StatsLoadLimit).ToList();
@@ -1010,8 +1074,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 using var semaphore = new SemaphoreSlim(DetailLoadConcurrency, DetailLoadConcurrency);
                 var detailTasks = recentGames.Select(async head =>
                 {
-                    await semaphore.WaitAsync();
-                    try { return await _matchHistoryService.GetDetailAsync(head.GameId); }
+                    await semaphore.WaitAsync(token);
+                    try { return await _matchHistoryService.GetDetailAsync(head.GameId, cancellationToken: token); }
                     finally { semaphore.Release(); }
                 }).ToList();
                 var details = await Task.WhenAll(detailTasks);
@@ -1295,31 +1359,35 @@ namespace LOL_GameAssistant.BaseViewForm
             };
             if (dialog.ShowDialog(ParentForm ?? FindForm()) != DialogResult.OK) return;
 
+            using var export = _exportScope.Begin();
             btnExport.Enabled = false;
             try
             {
                 lblStatus.Text = "正在导出战绩...";
-                int exported = await ExportMatchHistoryAsync(dialog.FileName);
+                int exported = await ExportMatchHistoryAsync(dialog.FileName, export.Token);
+                if (!export.IsCurrent) return;
                 lblStatus.Text = $"已导出 {exported} 场战绩";
                 LOL_GameAssistant.Helper.UiMessage.success(ParentForm!, "导出完成");
             }
             catch (Exception ex)
             {
+                if (!export.IsCurrent) return;
                 lblStatus.Text = "导出失败";
                 LOL_GameAssistant.Helper.UiMessage.error(ParentForm!, $"导出失败: {ex.Message}");
             }
             finally
             {
-                btnExport.Enabled = true;
+                if (!IsDisposed) btnExport.Enabled = true;
             }
         }
 
         /// <summary>将战绩数据组织成导出文本并保存。</summary>
-        private async Task<int> ExportMatchHistoryAsync(string path)
+        private async Task<int> ExportMatchHistoryAsync(string path, CancellationToken token)
         {
+            var player = _currentPlayer ?? throw new InvalidOperationException("没有可导出的玩家。");
             var sb = new StringBuilder();
             sb.AppendLine("GameId,模式,日期,时长,英雄,结果,KDA,击杀,死亡,助攻,补刀,伤害,金币,视野,装备");
-            MatchHistoryResponse? complete = await _matchHistoryService.GetAllAsync(_currentPlayer!.Puuid, int.MaxValue);
+            MatchHistoryResponse? complete = await _matchHistoryService.GetAllAsync(player.Puuid, int.MaxValue, token);
             var games = complete?.Games?.Games;
             if (games == null) throw new InvalidOperationException("无法读取完整战绩，未写入导出文件。");
 
@@ -1329,8 +1397,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 using var semaphore = new SemaphoreSlim(DetailLoadConcurrency, DetailLoadConcurrency);
                 var details = await Task.WhenAll(batch.Select(async head =>
                 {
-                    await semaphore.WaitAsync();
-                    try { return await _matchHistoryService.GetDetailAsync(head.GameId); }
+                    await semaphore.WaitAsync(token);
+                    try { return await _matchHistoryService.GetDetailAsync(head.GameId, cancellationToken: token); }
                     finally { semaphore.Release(); }
                 }));
                 for (int i = 0; i < batch.Count; i++)
@@ -1339,7 +1407,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     var detail = details[i];
                     if (detail == null || _currentPlayer == null)
                         throw new InvalidOperationException($"第 {offset + i + 1} 场详情不可用，未写入不完整的导出文件。");
-                    var gamer = detail.GetParticipant(_currentPlayer.Puuid);
+                    var gamer = detail.GetParticipant(player.Puuid);
                     if (gamer?.stats == null)
                         throw new InvalidOperationException($"第 {offset + i + 1} 场缺少玩家统计，未写入不完整的导出文件。");
 
@@ -1370,11 +1438,13 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
                     sb.AppendLine(string.Join(",", fields));
                 }
+                token.ThrowIfCancellationRequested();
+                if (IsDisposed) return 0;
                 lblStatus.Text = $"正在导出战绩... ({Math.Min(offset + batch.Count, games.Count)}/{games.Count})";
             }
 
             // 带 BOM 的 UTF-8，方便 Excel 直接打开中文
-            await _textExportService.SaveUtf8WithBomAsync(path, sb.ToString());
+            await _textExportService.SaveUtf8WithBomAsync(path, sb.ToString(), token);
             return games.Count;
         }
 

@@ -16,17 +16,16 @@ public sealed class LeagueClientConnection : ILeagueClientConnection
     /// <summary>仅供基础设施内部的 LCU HTTP/WebSocket 适配器读取认证信息。</summary>
     public LeagueClientCredentials? TryGetCredentials(bool forceRefresh = false)
     {
-        if (!forceRefresh &&
-            !string.IsNullOrWhiteSpace(HttpClientHelper.Port) &&
-            !string.IsNullOrWhiteSpace(HttpClientHelper.Token))
+        LeagueClientCredentials? current = HttpClientHelper.Credentials;
+        if (!forceRefresh && current != null)
         {
-            return new LeagueClientCredentials(HttpClientHelper.Port, HttpClientHelper.Token);
+            return current;
         }
 
         (string? port, string? token) = GetlolLcu.GetAuth();
         if (string.IsNullOrWhiteSpace(port) || string.IsNullOrWhiteSpace(token)) return null;
-        HttpClientHelper.Port = port;
-        HttpClientHelper.Token = token;
-        return new LeagueClientCredentials(port, token);
+        var credentials = new LeagueClientCredentials(port, token);
+        HttpClientHelper.SetCredentials(credentials);
+        return credentials;
     }
 }

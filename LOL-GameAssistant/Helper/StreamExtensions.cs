@@ -1,10 +1,9 @@
 ﻿using Newtonsoft.Json;
-using System.Text;
 
 namespace LOL_GameAssistant.Helper
 {
     /// <summary>
-    /// Stream 扩展：JSON / Base64 JSON / 纯文本异步读取。
+    /// Stream 扩展：JSON / 纯文本异步读取。
     /// </summary>
     public static class StreamExtensions
     {
@@ -13,34 +12,25 @@ namespace LOL_GameAssistant.Helper
         /// 原先标了 async 却一次 await 都没有：调用方 await 它时任务已同步完成，
         /// 于是"阻塞读取响应体 + 解析"全压在调用者线程（通常是 UI 线程）上。
         /// </summary>
-        public static Task<T?> ReadAsJsonAsync<T>(this Stream stream) => Task.Run(() =>
+        public static Task<T?> ReadAsJsonAsync<T>(this Stream stream, CancellationToken cancellationToken = default) => Task.Run(() =>
         {
             using (StreamReader reader = new StreamReader(stream))
             using (JsonTextReader jsonReader = new JsonTextReader(reader))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 JsonSerializer serializer = new JsonSerializer();
-                return serializer.Deserialize<T>(jsonReader);
+                T? result = serializer.Deserialize<T>(jsonReader);
+                cancellationToken.ThrowIfCancellationRequested();
+                return result;
             }
         });
 
-        /// <summary>读取 Base64 编码的流内容并解析为 JSON 数据。</summary>
-        public static async Task<T?> ReadAsBase64JsonAsync<T>(this Stream stream)
-        {
-            using (StreamReader reader = new StreamReader(stream))
-            {
-                string base64String = await reader.ReadToEndAsync().ConfigureAwait(false);
-                byte[] dataBytes = Convert.FromBase64String(base64String);
-                string jsonString = Encoding.UTF8.GetString(dataBytes);
-                return JsonConvert.DeserializeObject<T>(jsonString);
-            }
-        }
-
         /// <summary>异步读取响应流中的原始文本，并在读取结束后关闭流。</summary>
-        public static async Task<string> ReadAsStringJsonAsync(this Stream stream)
+        public static async Task<string> ReadAsStringJsonAsync(this Stream stream, CancellationToken cancellationToken = default)
         {
             using (StreamReader reader = new StreamReader(stream))
             {
-                string content = await reader.ReadToEndAsync().ConfigureAwait(false);
+                string content = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
                 return content;
             }
         }
