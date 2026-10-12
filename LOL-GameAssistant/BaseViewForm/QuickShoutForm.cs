@@ -28,6 +28,9 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly Func<IReadOnlyList<string>, bool, bool, bool, int, Task<GameShoutSendResult>> _sendGameBatch;
     private readonly Func<Task<GameShoutSendResult>> _testGameChatOpen;
     private readonly Action _saveSettings;
+    private readonly Func<Action<AssistantSettings>, bool>? _saveOption;
+    private bool _loadingSettings = true;
+    private int _updatingSelection;
     private readonly ListBox _phrases = new() { Dock = DockStyle.Fill, IntegralHeight = false };
     private readonly AntdUI.Input _selectedPhrase = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true };
     private readonly AntdUI.Input _customPhrases = new() { Dock = DockStyle.Fill, Multiline = true };
@@ -55,13 +58,15 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     public QuickShoutForm(LcuQuickShoutService clientChat,
         Func<string, bool, bool, bool, int, Task<GameShoutSendResult>> sendGameMessage,
         Func<IReadOnlyList<string>, bool, bool, bool, int, Task<GameShoutSendResult>> sendGameBatch,
-        Func<Task<GameShoutSendResult>> testGameChatOpen, Action saveSettings)
+        Func<Task<GameShoutSendResult>> testGameChatOpen, Action saveSettings,
+        Func<Action<AssistantSettings>, bool>? saveOption = null)
     {
         _clientChat = clientChat;
         _sendGameMessage = sendGameMessage;
         _sendGameBatch = sendGameBatch;
         _testGameChatOpen = testGameChatOpen;
         _saveSettings = saveSettings;
+        _saveOption = saveOption;
         Dock = DockStyle.Fill;
 
         var header = new AntdUI.Label
@@ -114,8 +119,18 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         Controls.Add(_status);
         Controls.Add(header);
 
-        _phrases.SelectedIndexChanged += (_, _) => UpdateSelectionPreview();
-        _multiSelect.Click += (_, _) => SetMultiSelect(_phrases.SelectionMode == SelectionMode.One);
+        _phrases.SelectedIndexChanged += (_, _) =>
+        {
+            UpdateSelectionPreview();
+            if (_updatingSelection == 0 && !_loadingSettings && SelectedItems().Length <= 10)
+                AutoSave(s => s.QuickShoutSelectedPhrases = SelectedItems().Select(PhraseKey).ToList());
+        };
+        _multiSelect.Click += (_, _) =>
+        {
+            bool previous = _phrases.SelectionMode == SelectionMode.MultiSimple;
+            SetMultiSelect(!previous);
+            if (!AutoSave(s => s.QuickShoutMultiSelectEnabled = !previous)) SetMultiSelect(previous);
+        };
         _customPhrases.TextChanged += (_, _) => RefreshPhrases();
         _clientSend.Click += async (_, _) => await SendClientAsync();
         _gameSend.Click += async (_, _) => await SendGameAsync();
@@ -124,14 +139,38 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _customHotkey.KeyDown += (_, e) => CaptureHotkey(_customHotkey, e);
         _batchHotkey.KeyDown += (_, e) => CaptureHotkey(_batchHotkey, e);
         _kdaHotkey.KeyDown += (_, e) => CaptureHotkey(_kdaHotkey, e);
+        void Bind(AntdUI.Checkbox control, Action<AssistantSettings, bool> update)
+        {
+            control.CheckedChanged += (_, _) =>
+            {
+                if (_loadingSettings) return;
+                bool value = control.Checked;
+                if (AutoSave(s => update(s, value))) return;
+                _loadingSettings = true;
+                try { control.Checked = !value; }
+                finally { _loadingSettings = false; }
+            };
+        }
+        Bind(_perCharacter, (s, v) => s.QuickShoutPerCharacter = v);
+        Bind(_sendToAll, (s, v) => s.QuickShoutSendToAll = v);
+        Bind(_useClipboard, (s, v) => s.QuickShoutUseClipboard = v);
+        Bind(_hotkeysEnabled, (s, v) => s.QuickShoutHotkeysEnabled = v);
+        Bind(_kdaHotkeyEnabled, (s, v) => s.GameKdaHotkeyEnabled = v);
+        Bind(_playerHotkeysEnabled, (s, v) => s.GameKdaPlayerHotkeysEnabled = v);
+        _minimumInterval.ValueChanged += (_, _) => AutoSave(s => s.QuickMessageSendIntervalSeconds = (int)_minimumInterval.Value);
+        _customPhrases.Leave += (_, _) => SaveOptions();
         _status.Text = "从词库选句；多选发送会逐条发送到客户端群聊或游戏内。";
         RefreshPhrases();
         ApplyTheme(UiTheme.Palette);
+        _loadingSettings = false;
     }
 
     /// <summary>读取配置并同步到当前界面。</summary>
     public void LoadSettings(AssistantSettings settings)
     {
+        _loadingSettings = true;
+        try
+        {
         _customPhrases.Text = settings.QuickMessageCustomPhrases ?? "";
         _perCharacter.Checked = settings.QuickShoutPerCharacter;
         _sendToAll.Checked = settings.QuickShoutSendToAll;
@@ -148,6 +187,24 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         SetMultiSelect(settings.QuickShoutMultiSelectEnabled);
         RefreshPhrases();
         RestoreSelection(settings.QuickShoutSelectedPhrases);
+        }
+        finally { _loadingSettings = false; }
+    }
+
+    private bool AutoSave(Action<AssistantSettings> update)
+    {
+        if (_loadingSettings || IsDisposed) return false;
+        try
+        {
+            if (_saveOption != null && !_saveOption(update))
+            {
+                _status.Text = "设置未保存，请检查快捷键冲突或本地写入权限。";
+                return false;
+            }
+            else if (_saveOption == null) _saveSettings();
+            return true;
+        }
+        catch (Exception ex) { _status.Text = $"保存失败：{ex.Message}"; return false; }
     }
 
     /// <summary>将当前界面选项写入配置对象。</summary>
@@ -208,8 +265,15 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
             _status.Text = "请按一个按键，或按 Ctrl / Alt / Shift 与按键的组合。";
             return;
         }
+        string previous = target.Text;
         target.Text = WindowHoldController.FormatGameHotkey(key);
-        _status.Text = $"快捷键已录入：{target.Text}，点击“保存设置”后生效。";
+        if (!AutoSave(s =>
+        {
+            if (target == _builtInHotkey) s.QuickShoutBuiltInHotkey = target.Text;
+            else if (target == _customHotkey) s.QuickShoutCustomHotkey = target.Text;
+            else if (target == _batchHotkey) s.QuickShoutBatchHotkey = target.Text;
+            else s.GameKdaHotkey = target.Text;
+        })) target.Text = previous;
     }
 
     /// <summary>创建快捷喊话选项区域。</summary>
@@ -303,8 +367,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private Control CreateActionBar()
     {
         var bar = new Panel { Dock = DockStyle.Bottom, Height = 48, Padding = new Padding(12, 4, 12, 4) };
-        var save = new AntdUI.Button { Text = "保存设置", Dock = DockStyle.Right, Width = 130 };
-        save.Click += (_, _) => SaveOptions();
+        var save = new AntdUI.Label { Text = "开关自动保存", Dock = DockStyle.Right, Width = 130 };
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
         actions.Controls.Add(_clientSend);
         actions.Controls.Add(_gameSend);
@@ -348,13 +411,14 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
                 .Select(text => new PhraseItem(text, true)))
             .ToArray();
         _phrases.BeginUpdate();
+        _updatingSelection++;
         try
         {
             _phrases.Items.Clear();
             _phrases.Items.AddRange(items);
             RestoreSelection(selected);
         }
-        finally { _phrases.EndUpdate(); }
+        finally { _phrases.EndUpdate(); _updatingSelection--; }
     }
 
     /// <summary>为喊话条目生成稳定的选择标识。</summary>
@@ -366,6 +430,9 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     /// <summary>刷新列表后恢复仍然有效的选择。</summary>
     private void RestoreSelection(IReadOnlyCollection<string>? keys)
     {
+        _updatingSelection++;
+        try
+        {
         var wanted = new HashSet<string>(keys ?? Array.Empty<string>(), StringComparer.Ordinal);
         _phrases.ClearSelected();
         for (int index = 0; index < _phrases.Items.Count; index++)
@@ -379,15 +446,22 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         if (_phrases.SelectedItems.Count == 0 && _phrases.Items.Count > 0)
             _phrases.SetSelected(0, true);
         UpdateSelectionPreview();
+        }
+        finally { _updatingSelection--; }
     }
 
     /// <summary>切换列表的多选模式。</summary>
     private void SetMultiSelect(bool enabled)
     {
+        _updatingSelection++;
+        try
+        {
         string[] selected = SelectedItems().Select(PhraseKey).ToArray();
         _phrases.SelectionMode = enabled ? SelectionMode.MultiSimple : SelectionMode.One;
         _multiSelect.Text = enabled ? "多选：开" : "多选：关";
         RestoreSelection(selected);
+        }
+        finally { _updatingSelection--; }
     }
 
     /// <summary>将当前选择的喊话文案显示到预览区域。</summary>

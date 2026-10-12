@@ -199,6 +199,41 @@ public sealed class BattleOverlayRefactorTests
         Assert.Equal(2, requests);
     }
 
+    [Fact]
+    public async Task ClearingHistoryWhileLoadingKeepsTheNewRequestWhenOldRequestFails()
+    {
+        var oldResponse = new TaskCompletionSource<MatchDetail?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var newResponse = new TaskCompletionSource<MatchDetail?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int requests = 0;
+        var loader = new BattleOverlayHistoryLoader(Proxy<IMatchHistoryService>((method, _) =>
+        {
+            if (method.Name == "GetPageAsync")
+            {
+                var page = Page(Sample(1, true)); page.Games!.GameCount = 1;
+                return Task.FromResult<MatchHistoryResponse?>(page);
+            }
+            if (Interlocked.Increment(ref requests) == 1) { firstStarted.SetResult(); return oldResponse.Task; }
+            secondStarted.TrySetResult(); return newResponse.Task;
+        }));
+        var oldLoad = loader.LoadAsync(Member, Session, CancellationToken.None);
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        loader.ClearCache();
+        var newLoad = loader.LoadAsync(Member, Session, CancellationToken.None);
+        await secondStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        oldResponse.SetResult(null);
+        Assert.False((await oldLoad).Complete);
+        var sharedLoad = loader.LoadAsync(Member, Session, CancellationToken.None);
+        newResponse.SetResult(Detail());
+        Assert.True((await newLoad).Complete);
+        Assert.True((await sharedLoad).Complete);
+        Assert.Equal(2, requests);
+        Assert.Equal(1, loader.MeasureCache().Entries);
+        loader.ClearCache();
+        Assert.Equal(0, loader.MeasureCache().Entries);
+    }
+
     private static MatchHistoryGame Sample(long id, bool win, int kills = 3, int deaths = 1, int assists = 2) => new()
     {
         GameId = id, GameCreation = 1000 - id, QueueId = 450, GameMode = "ARAM", GameDuration = 1200,

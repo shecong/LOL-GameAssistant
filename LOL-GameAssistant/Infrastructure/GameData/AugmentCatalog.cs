@@ -18,6 +18,8 @@ internal static class AugmentCatalog
     /// <summary>按强化标识读取内置作用说明。</summary>
     internal static string? GetDescription(int id) => Descriptions.Value.GetValueOrDefault(id.ToString());
     private static readonly AsyncByteCache IconCache = new(LoadIconAsync);
+    internal static (int Entries, long Bytes) MeasureIconCache() => IconCache.MeasureMemory();
+    internal static void ClearIconCache() => IconCache.Clear();
 
     /// <summary>内置强化目录中的名称、图标和稀有度条目。</summary>
     internal sealed record AugmentDisplay(int Id, string Name, string? IconUrl, string? EnglishName = null, int? Rarity = null);

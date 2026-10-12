@@ -2,6 +2,8 @@ using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Insights;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Application.Files;
+using LOL_GameAssistant.Bootstrap;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -13,7 +15,8 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
     private readonly IClientFeatureService _features;
     private readonly IChampionInsightsService _championInsights;
     private readonly AntdUI.Segmented _toolsNavigation = new() { Dock = DockStyle.Top, Height = 42, Full = true };
-    private static readonly string[] ToolCategories = ["回放与备份", "资料与外观", "好友活动", "英雄数据"];
+    private static readonly string[] ToolCategories = ["回放与备份", "资料与外观", "好友活动", "英雄数据", "本地缓存"];
+    private readonly LocalCacheToolsControl _cacheTools;
     private readonly IProfileIconService _profileIcons;
     private readonly List<AntdUI.Panel> _cards = [];
     private readonly ToolTip _featureTip = new() { AutoPopDelay = 16000, InitialDelay = 320, ReshowDelay = 120, ShowAlways = false };
@@ -59,11 +62,12 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
     public ClientToolsForm(
         IClientFeatureService features,
         IChampionInsightsService championInsights,
-        IProfileIconService profileIcons)
+        IProfileIconService profileIcons, ILocalCacheManagementService? cacheManagement = null)
     {
         _features = features;
         _championInsights = championInsights;
         _profileIcons = profileIcons;
+        _cacheTools = new(cacheManagement ?? AppCompositionRoot.LocalCacheManagementService);
         Dock = DockStyle.Fill;
         _featureTip.Popup += (_, e) => _activeTipControl = e.AssociatedControl;
         VisibleChanged += (_, _) => { if (!Visible) HideTip(); };
@@ -88,7 +92,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         foreach (string category in ToolCategories)
             navigation.Items.Add(new AntdUI.SegmentedItem { Text = category });
         Control[][] groups = [[CreateReplayCard(), CreateRewardsCard(), CreateBackupsCard()],
-            [CreateProfileCard()], [CreateFriendsCard()], [CreateInsightsCard()]];
+            [CreateProfileCard()], [CreateFriendsCard()], [CreateInsightsCard()], [CreateCacheCard()]];
         foreach (Control[] group in groups)
             foreach (Control card in group) AddCard(content, card);
         // 切换客户端工具中当前展示的功能分类。
@@ -169,6 +173,15 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
             if (!TryParsePositive(_replayGameId, "对局 ID", out long gameId)) return;
             await RunAsync(() => _features.WatchReplayAsync(gameId));
         }));
+        return card;
+    }
+
+    private Control CreateCacheCard()
+    {
+        var card = new AntdUI.Panel { Height = 570, Dock = DockStyle.Fill, Padding = new Padding(12), Radius = 10, BorderWidth = 1 };
+        _cards.Add(card);
+        card.Controls.Add(_cacheTools);
+        card.Controls.Add(Title("本地缓存管理"));
         return card;
     }
 

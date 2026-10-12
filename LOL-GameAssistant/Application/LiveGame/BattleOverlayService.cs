@@ -14,6 +14,8 @@ public sealed class BattleOverlayService(IPlayerProfileService profiles, IRanked
     IMatchHistoryService history)
 {
     private readonly BattleOverlayHistoryLoader _history = new(history);
+    internal (int Entries, long Bytes) MeasureHistoryCache() => _history.MeasureCache();
+    internal void ClearHistoryCache() => _history.ClearCache();
 
     public async Task<BattleOverlayPlayer> GetPlayerAsync(GameTeamMember member, ActiveGameSnapshot session,
         CancellationToken cancellationToken, Action<BattleOverlayPlayer>? onUpdated = null)

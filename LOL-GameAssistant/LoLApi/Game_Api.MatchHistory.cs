@@ -8,6 +8,13 @@ namespace LOL_GameAssistant.LoLApi
     /// </summary>
     public static partial class Game_Api
     {
+        private static readonly object DetailCacheSync = new();
+        private static long _detailCacheGeneration;
+        internal static (int Entries, long Bytes) MeasureGameDetailCache()
+        {
+            lock (DetailCacheSync)
+                return (DetailCache.Count, DetailCache.Values.Sum(value => (long)System.Text.Encoding.UTF8.GetByteCount(Newtonsoft.Json.JsonConvert.SerializeObject(value))));
+        }
         /// <summary>
         /// 获取指定召唤师的比赛记录（支持本地分页区间）。
         /// </summary>
@@ -89,7 +96,12 @@ namespace LOL_GameAssistant.LoLApi
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (useCache && DetailCache.TryGetValue(gameId, out var cached)) return cached;
+            long generation;
+            lock (DetailCacheSync)
+            {
+                generation = _detailCacheGeneration;
+                if (useCache && DetailCache.TryGetValue(gameId, out var cached)) return cached;
+            }
             HttpClientHelper client = new HttpClientHelper();
             using Stream? responseStream = await client.GetRequiredAsync($"/lol-match-history/v1/games/{gameId}",
                 cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -99,8 +111,12 @@ namespace LOL_GameAssistant.LoLApi
                 .ConfigureAwait(false);
             if (game != null)
             {
+                lock (DetailCacheSync)
+                {
+                if (generation != _detailCacheGeneration) return game;
                 if (DetailCache.Count >= DetailCacheMax) DetailCache.Clear();
                 DetailCache[gameId] = game;
+                }
             }
             return game;
         }
@@ -120,7 +136,7 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         public static void ClearGameDetailCache()
         {
-            DetailCache.Clear();
+            lock (DetailCacheSync) { _detailCacheGeneration++; DetailCache.Clear(); }
         }
     }
 }

@@ -70,8 +70,7 @@ public partial class SettingForm
         _autoReturn.Checked = _config.AutoReturnToLobby;
         _returnAndSearch.Checked = _config.AutoReturnStartMatchmaking;
         _quickQueue.Value = Math.Clamp(_config.QuickLobbyQueueId, 1, 3000);
-        foreach (AntdUI.Switch toggle in new[] { _preselectOnly, _skipFill, _autoHonor, _autoReturn, _returnAndSearch })
-            toggle.CheckedChanged += (_, _) => SaveSettings();
+        if (_autoSaveEventsBound) return;
         _acceptMin.ValueChanged += (_, _) => SaveSettings();
         _acceptMax.ValueChanged += (_, _) => SaveSettings();
         _quickQueue.ValueChanged += (_, _) => SaveSettings();

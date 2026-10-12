@@ -6,6 +6,13 @@ namespace LOL_GameAssistant.Infrastructure.GameData;
 internal sealed class AsyncByteCache(Func<string, Task<byte[]?>> download)
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<byte[]?>>> _entries = new(StringComparer.Ordinal);
+    internal void Clear() => _entries.Clear();
+    internal (int Entries, long Bytes) MeasureMemory()
+    {
+        var bytes = _entries.Values.Where(entry => entry.IsValueCreated && entry.Value.IsCompletedSuccessfully)
+            .Select(entry => entry.Value.Result).Where(value => value is { Length: > 0 }).ToArray();
+        return (bytes.Length, bytes.Sum(value => (long)value!.Length));
+    }
     internal async Task<byte[]?> GetAsync(string key, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

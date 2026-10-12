@@ -12,9 +12,13 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// <summary>单局记录直接展示双方玩家、KDA、开黑标记、禁用英雄与强化。</summary>
 public sealed class MatchHistoryCard : UserControl
 {
-    private const int HeaderHeight = 78;
+    private const int HeaderHeight = 114;
     private static readonly SemaphoreSlim PremadeGate = new(2);
     private static readonly ConcurrentDictionary<(long GameId, int OwnTeamId), Task<PremadeDetectionResult>> PremadeCache = new();
+    private static readonly object CacheSync = new();
+    internal static (int Entries, long Bytes) MeasureSharedCache() =>
+        CacheDataSize.Measure(PremadeCache.Values.Select(task => task.IsCompletedSuccessfully ? task.Result : null));
+    internal static void ClearSharedCache() { lock (CacheSync) PremadeCache.Clear(); }
 
     private readonly MatchDetail _match;
     private readonly string _viewerPuuid;
@@ -37,6 +41,7 @@ public sealed class MatchHistoryCard : UserControl
     private readonly AntdUI.Label _result;
     private readonly AntdUI.Avatar _champion;
     private readonly AntdUI.Button _details;
+    private readonly MatchReplayActions _replay;
     private bool _layoutBusy;
 
     /// <summary>战绩卡片中的玩家行及其状态控件集合。</summary>
@@ -79,7 +84,8 @@ public sealed class MatchHistoryCard : UserControl
         _duration = MakeLabel(match.GetDurationText(), false, UiTheme.Palette.TextSecondary);
         _details = new AntdUI.Button { Text = "完整详情", Size = new Size(80, 32) };
         _details.Click += (_, _) => MatchDetailForm.OpenAndHandle(_match, _viewerPuuid, this);
-        foreach (Control control in new Control[] { _result, _champion, _modeTitle, _matchInfo, _kda, _duration, _details })
+        _replay = new MatchReplayActions(match.GameId);
+        foreach (Control control in new Control[] { _result, _champion, _modeTitle, _matchInfo, _kda, _duration, _details, _replay })
             _surface.Controls.Add(control);
         if (mine != null) _ = LoadChampionAsync(_champion, mine.championId);
 
@@ -230,7 +236,8 @@ public sealed class MatchHistoryCard : UserControl
             _result.SetBounds(14, 15, 48, 38);
             _champion.Location = new Point(66, 18);
             bool narrowHeader = width < 690;
-            _details.Location = new Point(Math.Max(244, width - 96), narrowHeader ? 8 : 20);
+            _details.Location = new Point(width - 96, 76);
+            _replay.Location = new Point(width - 280, 76);
             if (narrowHeader)
             {
                 _modeTitle.SetBounds(114, 3, Math.Max(100, width - 215), 23);
@@ -322,20 +329,25 @@ public sealed class MatchHistoryCard : UserControl
         IReadOnlyList<TeamMemberIdentity> own = TeamIdentities(ownTeamId);
         IReadOnlyList<TeamMemberIdentity> other = TeamIdentities(otherTeamId);
         if (own.Count < 2 || other.Count < 2) return;
+        Task<PremadeDetectionResult>? task = null;
         try
         {
+            lock (CacheSync)
+            {
             if (PremadeCache.Count > 128) PremadeCache.Clear();
             var cacheKey = (_match.GameId, ownTeamId);
-            Task<PremadeDetectionResult> task = _match.GameId > 0
+            task = _match.GameId > 0
                 ? PremadeCache.GetOrAdd(cacheKey, _ => DetectWithLimitAsync(own, other))
                 : DetectWithLimitAsync(own, other);
+            }
             PremadeDetectionResult result = await task;
             if (IsDisposed) return;
             ApplyPremadeResult(result);
         }
         catch
         {
-            if (_match.GameId > 0) PremadeCache.TryRemove((_match.GameId, ownTeamId), out _);
+            if (_match.GameId > 0 && task != null)
+                PremadeCache.TryRemove(new KeyValuePair<(long, int), Task<PremadeDetectionResult>>((_match.GameId, ownTeamId), task));
         }
     }
 

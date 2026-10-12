@@ -14,7 +14,8 @@ namespace LOL_GameAssistant.BaseViewForm
     {
         public DateTime? lastOpenGameTime = null;
         private AssistantSettings _config;
-        private bool _isLoading;
+        private bool _isLoading = true;
+        private bool _autoSaveEventsBound;
         private readonly UiRequestScope _lifetime = new();
         private ToolTip toolTip1 = new ToolTip();
 
@@ -167,6 +168,7 @@ namespace LOL_GameAssistant.BaseViewForm
             MouseLeave += (_, _) => HideSettingTips();
             AttachCommonSegmentTips();
             InitializeSegmentedSettings();
+            BindBooleanAutoSave();
             VisibleChanged += (_, _) => { if (Visible) SizeInteractiveControls(this); };
             DpiChangedAfterParent += (_, _) => SizeInteractiveControls(this);
             Disposed += (_, _) => { _lifetime.Dispose(); toolTip1.Dispose(); _featureTip.Dispose(); };
@@ -192,7 +194,6 @@ namespace LOL_GameAssistant.BaseViewForm
             await LoadBase();
             if (IsDisposed) return;
             _isLoading = false;
-            _languageMode.SelectedIndexChanged += (_, _) => SwitchLanguage();
             ApplySideEffects(_config);
             Program.GameMain?.RefreshMayhemOverlaySetting();
             Program.GameMain?.RefreshChampSelectCompanionSetting();
@@ -294,21 +295,14 @@ namespace LOL_GameAssistant.BaseViewForm
             if (resIndex >= 0)
                 select_resolution.SelectedIndex = resIndex;
 
-            // 绑定自动保存事件（在初始值设置完成之后绑定，避免首次加载触发保存）
-            swi_open.CheckedChanged += (_, _) => SaveSettings();
-            swi_gametrue.CheckedChanged += (_, _) => SaveSettings();
-            swi_jyyx.CheckedChanged += (_, _) => SaveSettings();
-            swi_xyx.CheckedChanged += (_, _) => SaveSettings();
-            swi_tray.CheckedChanged += (_, _) => SaveSettings();
-            swi_auto_refresh.CheckedChanged += (_, _) => SaveSettings();
+            if (_autoSaveEventsBound) return;
+            _autoSaveEventsBound = true;
+            // 每个实例只注册一次；初次填值由 _isLoading 抑制。
             input_auto_refresh.ValueChanged += (_, _) => SaveSettings();
-            swi_notify_end.CheckedChanged += (_, _) => SaveSettings();
-            swi_startup.CheckedChanged += (_, _) => SaveSettings();
             inputCheckInterval.ValueChanged += (_, _) => SaveSettings();
             setting_select_jyx.SelectedValueChanged += (_, _) => { SaveSettings(); _ = UpdateBanPreviewAsync(); };
             setting_select_xyx.SelectedValueChanged += (_, _) => { SaveSettings(); _ = UpdatePickPreviewAsync(); };
             _aramBenchPriority.SelectedValueChanged += (_, _) => SaveSettings();
-            _autoSwapAramBench.CheckedChanged += (_, _) => SaveSettings();
         }
 
         /// <summary>将当前设置界面的内容保存到配置存储。</summary>
@@ -368,9 +362,9 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 将需要立即生效的设置同步到系统或其它模块。
         /// </summary>
-        private static void ApplySideEffects(AssistantSettings config)
+        private static void ApplySideEffects(AssistantSettings config, bool applyStartup = true)
         {
-            ApplyStartupSetting(config.LaunchOnStartup);
+            if (applyStartup) ApplyStartupSetting(config.LaunchOnStartup);
             GameMain? main = Program.GameMain;
             if (main is null || main.IsDisposed) return;
 
@@ -510,7 +504,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSectionHeader(layout, 5, "应用启动与本地数据");
             AddSegmentRow(layout, 6, "开机自启：", swi_startup);
             AddSegmentRow(layout, 7, "本地缓存：", label_cache_status);
-            AddSaveRow(layout, 8, "保存客户端设置");
+            AddSegmentRow(layout, 8, "保存方式：", CreateNote("开关即时保存，安装路径编辑后离开输入框自动保存。"));
             return panel;
         }
 
@@ -535,6 +529,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (!WindowHoldController.TryParseGameHotkey(WindowHoldController.FormatGameHotkey(e.KeyData), out Keys key)) return;
                 _battleOverlayHotkey.Tag = key;
                 _battleOverlayHotkey.Text = key == Keys.Oem3 ? "·" : WindowHoldController.FormatGameHotkey(key);
+                PersistValue(s => s.BattleOverlayHotkey = WindowHoldController.FormatGameHotkey(key));
             };
             _battleOverlayHotkey.Click += (_, _) => _battleOverlayHotkey.Focus();
             _battleOverlayHotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
@@ -561,7 +556,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSectionHeader(layout, 10, "窗口行为");
             AddSegmentRow(layout, 11, "最小化到托盘：", swi_tray);
             AddSegmentRow(layout, 12, "游戏分辨率：", select_resolution);
-            AddSaveRow(layout, 13, "保存窗口设置");
+            AddSegmentRow(layout, 13, "保存方式：", CreateNote("开关、主题、语言、透明度与快捷键修改后自动保存。"));
             return panel;
         }
 
@@ -576,7 +571,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     Program.GameMain.SendQuickShoutBatchToGameAsync(phrases, sendToAll, useClipboard,
                         perCharacter, interval),
                 () => Program.GameMain.TestGameChatOpenAsync(),
-                SaveShoutSettings);
+                SaveShoutSettings, PersistValue);
             _quickShoutForm.LoadSettings(_settingsStore.Load());
             return _quickShoutForm;
         }
@@ -612,11 +607,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _gameKdaAnnouncementEnabled.CheckedChanged += (_, _) =>
             {
                 _gameKdaOnePlayerPerLine.Enabled = true;
-                SaveKdaAnnouncementSettings();
             };
-            _gameKdaOnePlayerPerLine.CheckedChanged += (_, _) => SaveKdaAnnouncementSettings();
-            _champSelectKdaAnnouncementEnabled.CheckedChanged += (_, _) => SaveKdaAnnouncementSettings();
-
             _provider.Items.AddRange(Enum.GetValues<LOL_GameAssistant.Domain.Settings.AiProvider>().Cast<object>().ToArray());
             _provider.SelectedIndexChanged += (_, _) => ApplyProviderDefaults();
             _apiKey.TextChanged += (_, _) =>
@@ -660,7 +651,7 @@ namespace LOL_GameAssistant.BaseViewForm
             overlayOffsetPanel.Controls.Add(new AntdUI.Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayDuration);
             var overlayNote = CreateNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
-            var privacyNote = CreateNote("隐私说明：启用 AI 时间线建议并主动保存后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商以生成建议；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据，也不会显示替代建议。");
+            var privacyNote = CreateNote("隐私说明：AI 开关修改后立即保存。启用并配置好服务后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据。");
             var opggNote = CreateNote("开启后，助手会在选人阶段弹出图文方案。只有选中并点击应用才会写入客户端。若符文页已满，只会替换本助手创建的旧页；没有可替换页时会提示先在客户端释放额度。替换失败会尝试恢复原页。");
             var kdaAnnouncementNote = CreateNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者统计最近 30 天内同模式全部有效对局，满 5 场按累计 KDA 分档；不足 5 场标“样本不足”。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
 
@@ -708,7 +699,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 "仅海克斯大乱斗时显示专用浮窗；可扫描本机屏幕识别正在展示的增幅卡片并比较胜率。");
             AddSegmentRow(layout, 23, "选人伴随窗：", _champSelectCompanionEnabled,
                 "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
-            AddSaveRow(layout, 24, "保存 AI 设置");
+            AddSaveRow(layout, 24, "保存 AI 连接与密钥");
+            AddSegmentRow(layout, 25, "保存方式：", CreateNote("所有开关立即保存；服务商、地址、模型与密钥填写完成后使用上方按钮保存。"));
             return panel;
         }
 
@@ -718,28 +710,6 @@ namespace LOL_GameAssistant.BaseViewForm
             AutoScroll = true,
             Padding = new Padding(UiMetrics.SpaceMedium)
         };
-
-        /// <summary>保存逐人 KDA 测评及发送相关配置。</summary>
-        private void SaveKdaAnnouncementSettings()
-        {
-            if (_isLoading) return;
-            try
-            {
-                AssistantSettings latest = _settingsStore.Load();
-                latest.GameKdaAnnouncementEnabled = _gameKdaAnnouncementEnabled.Checked;
-                latest.GameKdaOnePlayerPerLine = _gameKdaOnePlayerPerLine.Checked;
-                latest.ChampSelectKdaAnnouncementEnabled = _champSelectKdaAnnouncementEnabled.Checked;
-                _settingsStore.Save(latest);
-                _config.GameKdaAnnouncementEnabled = latest.GameKdaAnnouncementEnabled;
-                _config.GameKdaOnePlayerPerLine = latest.GameKdaOnePlayerPerLine;
-                _config.ChampSelectKdaAnnouncementEnabled = latest.ChampSelectKdaAnnouncementEnabled;
-                Program.GameMain?.liveGameForm?.RefreshKdaAnnouncements();
-            }
-            catch (Exception ex)
-            {
-                UiMessage.error(Program.GameMain, $"设置保存失败：{ex.Message}");
-            }
-        }
 
         /// <summary>创建统一间距的设置分区布局。</summary>
         private static TableLayoutPanel CreateSegmentLayout()
@@ -882,41 +852,13 @@ namespace LOL_GameAssistant.BaseViewForm
             _apiKeyStatus.Text = string.IsNullOrWhiteSpace(ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
         }
 
-        /// <summary>从控件收集扩展选项并保存。</summary>
+        /// <summary>只提交填写完成的 AI 连接与密钥，其他设置通过各自的自动保存路径处理。</summary>
         private void SaveExtendedSettings()
         {
             if (_isLoading) return;
 
-            AssistantSettings overlayCandidate = _settingsStore.Load();
-            overlayCandidate.BattleOverlayEnabled = _battleOverlayEnabled.Checked;
-            overlayCandidate.BattleOverlayHotkey = WindowHoldController.FormatGameHotkey(
-                _battleOverlayHotkey.Tag is Keys overlayKey ? overlayKey : Keys.Oem3);
-            if (WindowHoldController.HasBattleOverlayHotkeyConflict(overlayCandidate))
-            {
-                UiMessage.warn(Program.GameMain, "对局面板快捷键与喊话或 KDA 快捷键冲突，请更换按键后保存。");
-                return;
-            }
-
-            _config.GameClientPath = _gameClientLauncher.NormalizeConfiguredDirectory(_clientPath.Text);
-            _config.AutoLaunchGameClient = _autoLaunchClient.Checked;
-            _config.WindowOpacityPercent = (int)_opacity.Value;
-            _config.ThemeMode = _themeMode.SelectedIndex switch { 1 => "Light", 2 => "Dark", _ => "System" };
-            _config.LanguageMode = _languageMode.SelectedIndex == 1 ? "en-US" : "zh-CN";
-            _config.HoldToTopHotkey = (_hotkey.Tag is Keys holdKey ? holdKey : WindowHoldController.ParseKey(_config.HoldToTopHotkey)).ToString();
-            _config.HoldToTopOnlyWhenLeagueFocused = _onlyLeagueFocused.Checked;
-            _config.BattleOverlayEnabled = overlayCandidate.BattleOverlayEnabled;
-            _config.BattleOverlayHotkey = overlayCandidate.BattleOverlayHotkey;
-
-            CloudAiSettings ai = _config.Ai;
-            ai.RecommendationEnabled = _recommendationEnabled.Checked;
-            _config.OpggBuildAssistantEnabled = _opggBuildAssistantEnabled.Checked;
-            _config.AutoApplyRuneBuild = _autoApplyRuneBuild.Checked;
-            _config.MayhemOverlayEnabled = _mayhemOverlayEnabled.Checked;
-            _config.ChampSelectCompanionEnabled = _champSelectCompanionEnabled.Checked;
-            _config.ChampSelectKdaAnnouncementEnabled = _champSelectKdaAnnouncementEnabled.Checked;
-            _config.GameKdaAnnouncementEnabled = _gameKdaAnnouncementEnabled.Checked;
-            _config.GameKdaOnePlayerPerLine = _gameKdaOnePlayerPerLine.Checked;
-            _config.ChampSelectKdaAnnouncementTemplate = _champSelectKdaAnnouncementTemplate.Text;
+            AssistantSettings latest = _settingsStore.Load();
+            CloudAiSettings ai = latest.Ai;
             ai.Provider = _provider.SelectedValue is LOL_GameAssistant.Domain.Settings.AiProvider provider
                 ? provider
                 : LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
@@ -927,33 +869,26 @@ namespace LOL_GameAssistant.BaseViewForm
                 LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, addressError);
                 return;
             }
-            ai.DynamicRefreshEnabled = _dynamicRefresh.Checked;
-            ai.DynamicRefreshSeconds = (int)_dynamicSeconds.Value;
-            ai.ShowRecommendationPopup = _showPopup.Checked;
-            ai.RecommendationOverlayEnabled = _overlayEnabled.Checked;
-            ai.RecommendationOverlayPosition = IndexToOverlayPosition(_overlayPosition.SelectedIndex);
-            ai.RecommendationOverlayOffsetX = (int)_overlayOffsetX.Value;
-            ai.RecommendationOverlayOffsetY = (int)_overlayOffsetY.Value;
-            ai.RecommendationOverlayDurationSeconds = (int)_overlayDuration.Value;
-            if (_clearAiKey) ai.EncryptedApiKey = "";
-            else if (!string.IsNullOrWhiteSpace(_apiKey.Text)) ai.EncryptedApiKey = _settingsSecretProtector.Protect(_apiKey.Text);
-            _config.Normalize();
-
             try
             {
-                SaveConfigPreservingSelections();
+                if (_clearAiKey) ai.EncryptedApiKey = "";
+                else if (!string.IsNullOrWhiteSpace(_apiKey.Text)) ai.EncryptedApiKey = _settingsSecretProtector.Protect(_apiKey.Text);
+                latest.Normalize();
+                _settingsStore.Save(latest);
+                _config = latest;
             }
             catch (Exception ex)
             {
                 LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, $"设置保存失败：{ex.Message}");
                 return;
             }
-            ApplySideEffects(_config);
+            ApplySideEffects(_config, applyStartup: false);
             label_cache_status.Text = $"已缓存: {_settingsStore.GetStoragePath()}";
             _apiKey.Clear();
+            Program.GameMain?.RefreshChampSelectCompanionSetting();
             _clearAiKey = false;
             _apiKeyStatus.Text = string.IsNullOrWhiteSpace(ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
-            LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain,
+            if (Program.GameMain is { } mainWindow) LOL_GameAssistant.Helper.UiMessage.success(mainWindow,
                 aiUri!.Scheme == Uri.UriSchemeHttp
                     ? "设置已保存。本机 HTTP 连接未加密，请只连接可信服务。"
                     : "设置已保存");
@@ -969,7 +904,10 @@ namespace LOL_GameAssistant.BaseViewForm
                 ShowNewFolderButton = false
             };
             if (dialog.ShowDialog(FindForm()) == DialogResult.OK)
+            {
                 _clientPath.Text = dialog.SelectedPath;
+                PersistValue(s => s.GameClientPath = _gameClientLauncher.NormalizeConfiguredDirectory(_clientPath.Text));
+            }
         }
 
         /// <summary>根据设置中的路径启动客户端并展示启动结果。</summary>
@@ -1017,6 +955,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (e.KeyCode is Keys.ControlKey or Keys.ShiftKey or Keys.Menu) return;
             _hotkey.Tag = e.KeyCode;
             _hotkey.Text = WindowHoldController.DescribeKey(e.KeyCode);
+            PersistValue(s => s.HoldToTopHotkey = e.KeyCode.ToString());
             e.SuppressKeyPress = true;
             e.Handled = true;
         }

@@ -63,4 +63,7 @@
     <Compile Include="..\LOL-GameAssistant\Entity\ChampSelectSession.cs" Link="Entity\ChampSelectSession.cs" />
     <Compile Include="..\LOL-GameAssistant\Entity\ChampionSelectActionResolver.cs" Link="Entity\ChampionSelectActionResolver.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\LOL-GameAssistant\Helper\CacheDataSize.cs" Link="Helper\CacheDataSize.cs" />
+  </ItemGroup>
 </Project>

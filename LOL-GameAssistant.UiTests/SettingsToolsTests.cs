@@ -13,6 +13,35 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SettingsToolsTests
 {
     [Fact]
+    public void CompanionCheckboxPersistsImmediatelyWithoutSavingAiSettings() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new AssistantSettings { ChampSelectCompanionEnabled = false, LanguageMode = "en-US" };
+        int saves = 0;
+        var store = Service<IApplicationSettingsStore>((method, args) => method.Name switch
+        {
+            "Load" => settings,
+            "GetStoragePath" => "test-settings.json",
+            "Save" => Save((AssistantSettings)args[0]!),
+            _ => null
+        });
+        object? Save(AssistantSettings value) { settings = value; saves++; return null; }
+        using var form = new SettingForm(Service<IGameClientLauncher>((_, _) => null), store,
+            Service<ISettingsSecretProtector>((_, _) => null), Service<IClientFeatureService>((_, _) => null));
+        ((Task)Invoke(form, "LoadCachedSettings")!).GetAwaiter().GetResult();
+        Assert.Equal(0, saves);
+        typeof(SettingForm).GetField("_isLoading", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(form, false);
+        settings.AutoHonor = true; // 另一页面在此期间保存的修改必须保留。
+        Field<AntdUI.Checkbox>(form, "_champSelectCompanionEnabled").Checked = true;
+        Assert.True(settings.ChampSelectCompanionEnabled);
+        Assert.True(settings.AutoHonor);
+        Assert.Equal("en-US", settings.LanguageMode);
+        Assert.Equal(1, saves);
+        Field<AntdUI.Checkbox>(form, "_champSelectCompanionEnabled").Checked = false;
+        Assert.False(settings.ChampSelectCompanionEnabled);
+        Assert.Equal(2, saves);
+    });
+
+    [Fact]
     public void SavingOpenSettingsPageKeepsNewerSkinSettings() => MatchListScrollingTests.OnUiThread(() =>
     {
         var latest = new AssistantSettings();
@@ -147,10 +176,10 @@ public sealed class SettingsToolsTests
         host.Controls.Add(tools);
         host.Show();
         var navigation = Children(tools).OfType<AntdUI.Segmented>().Single();
-        Assert.Equal(4, navigation.Items.Count);
+        Assert.Equal(5, navigation.Items.Count);
         Assert.DoesNotContain(Children(tools).OfType<AntdUI.Button>(), button =>
             button.Text is "保存自动化设置" or "快速创建大厅" or "取消当前匹配" or "退出英雄选择" or "交换极地大乱斗备战英雄");
-        for (int index = 0; index < 4; index++)
+        for (int index = 0; index < 5; index++)
         {
             navigation.SelectIndex = index;
             System.Windows.Forms.Application.DoEvents();

@@ -11,7 +11,11 @@ namespace LOL_GameAssistant.Application.LiveGame;
 internal sealed class BattleOverlayHistoryLoader(IMatchHistoryService history)
 {
     private readonly ConcurrentDictionary<long, Lazy<Task<MatchDetail?>>> _details = new();
-    private readonly ConcurrentQueue<long> _completed = new();
+    private readonly ConcurrentQueue<KeyValuePair<long, Lazy<Task<MatchDetail?>>>> _completed = new();
+    private readonly object _cacheSync = new();
+    internal (int Entries, long Bytes) MeasureCache() => LOL_GameAssistant.Helper.CacheDataSize.Measure(
+        _details.Values.Where(entry => entry.IsValueCreated && entry.Value.IsCompletedSuccessfully).Select(entry => entry.Value.Result));
+    internal void ClearCache() { lock (_cacheSync) { _details.Clear(); _completed.Clear(); } }
 
     internal async Task<(IReadOnlyList<MatchHistoryGame> Games, bool Loaded, bool Complete, int WindowGames)> LoadAsync(
         GameTeamMember member, ActiveGameSnapshot session, CancellationToken token)
@@ -42,7 +46,9 @@ internal sealed class BattleOverlayHistoryLoader(IMatchHistoryService history)
                 var participant = detail?.GetParticipant(member.Puuid);
                 if (participant?.stats == null)
                 {
-                    _details.TryRemove(game.GameId, out _);
+                    if (detail != null && _details.TryGetValue(game.GameId, out var current) &&
+                        current.IsValueCreated && current.Value.IsCompletedSuccessfully && ReferenceEquals(current.Value.Result, detail))
+                        _details.TryRemove(new KeyValuePair<long, Lazy<Task<MatchDetail?>>>(game.GameId, current));
                     Interlocked.Increment(ref failures);
                     continue;
                 }
@@ -113,7 +119,13 @@ internal sealed class BattleOverlayHistoryLoader(IMatchHistoryService history)
     {
         if (id <= 0) return null;
         // Shared requests have their own deadline. One cancelled player must not cancel other readers.
-        var request = _details.GetOrAdd(id, key => new Lazy<Task<MatchDetail?>>(() => FetchDetailAsync(key)));
+        Lazy<Task<MatchDetail?>> request;
+        lock (_cacheSync)
+        {
+            Lazy<Task<MatchDetail?>>? candidate = null;
+            candidate = new(() => FetchDetailAsync(id, candidate!));
+            request = _details.GetOrAdd(id, candidate);
+        }
         var detail = await request.Value.WaitAsync(token);
         // An empty/incomplete response may recover on retry; don't cache it indefinitely.
         if (detail == null || detail.participants.Count == 0 ||
@@ -123,7 +135,7 @@ internal sealed class BattleOverlayHistoryLoader(IMatchHistoryService history)
         return detail;
     }
 
-    private async Task<MatchDetail?> FetchDetailAsync(long id)
+    private async Task<MatchDetail?> FetchDetailAsync(long id, Lazy<Task<MatchDetail?>> request)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
@@ -139,8 +151,12 @@ internal sealed class BattleOverlayHistoryLoader(IMatchHistoryService history)
         catch { return null; }
         finally
         {
-            _completed.Enqueue(id);
-            while (_completed.Count > 256 && _completed.TryDequeue(out long oldest)) _details.TryRemove(oldest, out _);
+            lock (_cacheSync)
+            {
+                if (_details.TryGetValue(id, out var current) && ReferenceEquals(current, request))
+                    _completed.Enqueue(new(id, request));
+                while (_completed.Count > 256 && _completed.TryDequeue(out var oldest)) _details.TryRemove(oldest);
+            }
         }
     }
 

@@ -131,6 +131,11 @@ public static class AppCompositionRoot
     public static LOL_GameAssistant.Application.LiveGame.BattleOverlayService BattleOverlayService { get; } =
         new(PlayerProfileService, RankedStatsService, MatchHistoryService);
 
+    public static ILocalCacheManagementService LocalCacheManagementService { get; } = new LocalCacheManagementService(matchCaches:
+        [(BaseViewForm.LivePlayerForm.MeasureSharedCaches, BaseViewForm.LivePlayerForm.ClearSharedCaches),
+         (BaseViewForm.MatchHistoryCard.MeasureSharedCache, BaseViewForm.MatchHistoryCard.ClearSharedCache),
+         (BattleOverlayService.MeasureHistoryCache, BattleOverlayService.ClearHistoryCache)]);
+
     private static readonly ILaneKnowledgeService LaneKnowledgeService = new FileLaneKnowledgeService();
 
     private static readonly IAiGameContextService AiGameContextService = new AiGameContextService(

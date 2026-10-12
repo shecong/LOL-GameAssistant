@@ -11,6 +11,7 @@ public sealed class MatchHistoryPreviewCard : UserControl
     private readonly AntdUI.Label _mode;
     private readonly AntdUI.Label _summary;
     private readonly AntdUI.Label _detailState;
+    private readonly MatchReplayActions _replay;
 
     /// <summary>初始化 MatchHistoryPreviewCard 的实例状态，并保存传入的依赖或数据。</summary>
     public MatchHistoryPreviewCard(MatchHistoryGame game, string viewerPuuid)
@@ -18,8 +19,8 @@ public sealed class MatchHistoryPreviewCard : UserControl
         MatchParticipant? mine = game.GetParticipant(viewerPuuid);
         ThemePalette palette = UiTheme.Palette;
         BackColor = palette.SurfaceMuted;
-        Height = 94;
-        MinimumSize = new Size(340, 94);
+        Height = 132;
+        MinimumSize = new Size(340, 132);
         _surface.BackColor = palette.SurfaceRaised;
         Controls.Add(_surface);
 
@@ -41,7 +42,8 @@ public sealed class MatchHistoryPreviewCard : UserControl
         _summary = MakeLabel($"{created} · {duration} · KDA {(mine?.stats == null ? "—" : mine.GetKdaText())}",
             false, palette.TextSecondary);
         _detailState = MakeLabel("双方详情加载中...", false, palette.TextSecondary);
-        foreach (Control control in new Control[] { _result, _mode, _summary, _detailState })
+        _replay = new MatchReplayActions(game.GameId);
+        foreach (Control control in new Control[] { _result, _mode, _summary, _detailState, _replay })
             _surface.Controls.Add(control);
         Resize += (_, _) => LayoutLabels();
         LayoutLabels();
@@ -61,6 +63,7 @@ public sealed class MatchHistoryPreviewCard : UserControl
         _mode.SetBounds(76, 8, Math.Max(100, width - 90), 28);
         _summary.SetBounds(76, 36, Math.Max(100, width - 90), 24);
         _detailState.SetBounds(76, 62, Math.Max(100, width - 90), 22);
+        _replay.Location = new Point(width - 192, 94);
     }
 
     /// <summary>创建当前卡片使用的文本标签。</summary>

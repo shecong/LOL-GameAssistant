@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace LOL_GameAssistant.Infrastructure.GameData;
 
 /// <summary>版本隔离的本地只读数据缓存；合并重复请求，失败不落盘。</summary>
-internal sealed class LocalDataCache<T> where T : class
+internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
 {
     /// <summary>缓存数据及其保存时间，供有效期检查使用。</summary>
     private sealed record Entry(DateTimeOffset SavedAt, T Value);
@@ -15,7 +15,10 @@ internal sealed class LocalDataCache<T> where T : class
     private readonly Func<T, bool> _valid;
     private readonly TimeProvider _clock;
     private readonly ConcurrentDictionary<string, Entry> _memory = new();
-    private readonly ConcurrentDictionary<string, Lazy<Task<T?>>> _pending = new();
+    private readonly ConcurrentDictionary<(int Generation, string Key), Lazy<Task<T?>>> _pending = new();
+    private readonly object _sync = new();
+    private int _generation;
+    public string DirectoryPath => _directory;
 
     /// <summary>返回当前用户用于存储游戏数据缓存的根目录。</summary>
     internal static string Root => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -24,19 +27,24 @@ internal sealed class LocalDataCache<T> where T : class
     /// <summary>初始化 LocalDataCache 的实例状态，并保存传入的依赖或数据。</summary>
     public LocalDataCache(string directory, TimeSpan ttl, Func<T, bool> valid, TimeProvider? clock = null)
     {
-        _directory = directory;
+        _directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
         _ttl = ttl;
         _valid = valid;
         _clock = clock ?? TimeProvider.System;
+        LocalCacheRegistry.Register(this);
     }
 
     /// <summary>优先返回有效内存缓存；合并同键加载请求，调用方取消只结束自己的等待。</summary>
     public Task<T?> GetAsync(string key, Func<Task<T?>> load, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (_memory.TryGetValue(key, out var entry) && Fresh(entry)) return Task.FromResult<T?>(entry.Value);
-        // 调用方取消只结束自己的等待，不会取消其他窗口共享的下载。
-        var pending = _pending.GetOrAdd(key, _ => new Lazy<Task<T?>>(() => ReadOrLoadAsync(key, load)));
+        Lazy<Task<T?>> pending;
+        lock (_sync)
+        {
+            if (_memory.TryGetValue(key, out var entry) && Fresh(entry)) return Task.FromResult<T?>(entry.Value);
+            int generation = _generation;
+            pending = _pending.GetOrAdd((generation, key), _ => new Lazy<Task<T?>>(() => ReadOrLoadAsync(key, load, generation)));
+        }
         return pending.Value.WaitAsync(cancellationToken);
     }
 
@@ -45,7 +53,7 @@ internal sealed class LocalDataCache<T> where T : class
         _clock.GetUtcNow() - entry.SavedAt < _ttl && entry.Value != null && _valid(entry.Value);
 
     /// <summary>优先读取有效磁盘缓存，缺失时加载数据并以临时文件方式保存。</summary>
-    private async Task<T?> ReadOrLoadAsync(string key, Func<Task<T?>> load)
+    private async Task<T?> ReadOrLoadAsync(string key, Func<Task<T?>> load, int generation)
     {
         // 缓存键可能包含 URL 或版本分隔符；使用摘要作为文件名，避免非法字符及路径嵌套。
         string file = Path.Combine(_directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) + ".json");
@@ -60,7 +68,7 @@ internal sealed class LocalDataCache<T> where T : class
                     var entry = await JsonSerializer.DeserializeAsync<Entry>(stream).ConfigureAwait(false);
                     if (entry != null && Fresh(entry))
                     {
-                        Remember(key, entry);
+                        lock (_sync) { if (generation == _generation) Remember(key, entry); }
                         return entry.Value;
                     }
                 }
@@ -71,14 +79,22 @@ internal sealed class LocalDataCache<T> where T : class
             // 不缓存空响应或不完整结果，防止一次网络失败影响后续窗口查询。
             if (value == null || !_valid(value)) return value;
             var saved = new Entry(_clock.GetUtcNow(), value);
-            Remember(key, saved);
+            lock (_sync) { if (generation == _generation) Remember(key, saved); }
             string temporary = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
                 Directory.CreateDirectory(_directory);
                 await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(saved)).ConfigureAwait(false);
                 // 内容完整写入临时文件后再替换正式缓存，减少进程中断留下半份 JSON 的风险。
-                File.Move(temporary, file, overwrite: true);
+                lock (_sync)
+                {
+                    // 清理前开始的下载可返回给原调用者，但不能把旧数据重新写回缓存。
+                    if (generation == _generation)
+                    {
+                        File.Move(temporary, file, overwrite: true);
+                        Remember(key, saved);
+                    }
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             finally
@@ -89,7 +105,24 @@ internal sealed class LocalDataCache<T> where T : class
             return value;
         }
         // 无论读取成功、失败还是抛出异常，都允许同一键后续重新发起加载。
-        finally { _pending.TryRemove(key, out _); }
+        finally { _pending.TryRemove((generation, key), out _); }
+    }
+
+    public (int Entries, long Bytes) MeasureMemory()
+    {
+        lock (_sync) return (_memory.Count, _memory.Values.Sum(entry => (long)JsonSerializer.SerializeToUtf8Bytes(entry.Value).Length));
+    }
+    public void Clear()
+    {
+        lock (_sync)
+        {
+            LOL_GameAssistant.Infrastructure.Files.CacheFiles.ValidateRoot(_directory);
+            _generation++;
+            _memory.Clear();
+            _pending.Clear();
+            var result = LOL_GameAssistant.Infrastructure.Files.CacheFiles.Clear(_directory, CancellationToken.None);
+            if (result.Errors > 0) throw new IOException($"{result.Errors} 个缓存文件无法清理。");
+        }
     }
 
     /// <summary>记录内存缓存条目，并在达到容量限制时清理旧集合。</summary>

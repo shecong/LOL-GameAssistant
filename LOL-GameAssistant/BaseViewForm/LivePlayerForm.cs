@@ -49,6 +49,19 @@ namespace LOL_GameAssistant.BaseViewForm
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<long, (DateTime CachedAt, Task<MatchDetail?> Value)> MatchDetailCache = new();
+        private static readonly object CacheSync = new();
+        internal static (int Entries, long Bytes) MeasureSharedCaches()
+        {
+            lock (CacheSync)
+                return CacheDataSize.Measure(RankedCache.Values.Select(value => value.Value.IsCompletedSuccessfully ? (object?)value.Value.Result : null)
+                    .Concat(PlayerProfileCache.Values.Select(value => value.Value.IsCompletedSuccessfully ? (object?)value.Value.Result : null))
+                    .Concat(RecentHistoryCache.Values.Select(value => value.Value.IsCompletedSuccessfully ? (object?)value.Value.Result : null))
+                    .Concat(MatchDetailCache.Values.Select(value => value.Value.IsCompletedSuccessfully ? (object?)value.Value.Result : null)));
+        }
+        internal static void ClearSharedCaches()
+        {
+            lock (CacheSync) { RankedCache.Clear(); PlayerProfileCache.Clear(); RecentHistoryCache.Clear(); MatchDetailCache.Clear(); }
+        }
         private const int DetailWorkersPerPlayer = 2;
         private static readonly TimeSpan DetailRequestTimeout = TimeSpan.FromSeconds(5);
         private Image? _ownedProfileImage;
@@ -461,11 +474,15 @@ namespace LOL_GameAssistant.BaseViewForm
             string tooltip = text;
             try
             {
-                if (!RankedCache.TryGetValue(_playerPuuid, out var cached) ||
-                    DateTime.UtcNow - cached.CachedAt > PlayerCacheTtl || cached.Value.IsFaulted || cached.Value.IsCanceled)
+                (DateTime CachedAt, Task<RankedOverview?> Value) cached;
+                lock (CacheSync)
                 {
-                    cached = (DateTime.UtcNow, _rankedStatsService.GetAsync(_playerPuuid));
-                    RankedCache[_playerPuuid] = cached;
+                    if (!RankedCache.TryGetValue(_playerPuuid, out cached) ||
+                        DateTime.UtcNow - cached.CachedAt > PlayerCacheTtl || cached.Value.IsFaulted || cached.Value.IsCanceled)
+                    {
+                        cached = (DateTime.UtcNow, _rankedStatsService.GetAsync(_playerPuuid));
+                        RankedCache[_playerPuuid] = cached;
+                    }
                 }
                 var overview = await cached.Value.WaitAsync(cancellationToken);
                 if (overview != null)
@@ -695,6 +712,8 @@ namespace LOL_GameAssistant.BaseViewForm
             TKey key,
             Func<Task<T?>> loader) where TKey : notnull
         {
+            lock (CacheSync)
+            {
             if (cache.TryGetValue(key, out var cached) && DateTime.UtcNow - cached.CachedAt < PlayerCacheTtl &&
                 !cached.Value.IsFaulted && !cached.Value.IsCanceled &&
                 !(cached.Value.IsCompletedSuccessfully && cached.Value.Result is null))
@@ -709,6 +728,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     cache.TryRemove(new KeyValuePair<TKey, (DateTime CachedAt, Task<T?> Value)>(key, (cacheTime, task)));
             }, TaskScheduler.Default);
             return task;
+            }
         }
 
         /// <summary>评分读取最近 30 天全部同模式有效对局。</summary>

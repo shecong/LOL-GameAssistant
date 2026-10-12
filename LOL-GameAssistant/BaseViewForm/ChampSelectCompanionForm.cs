@@ -163,6 +163,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         _lastSelection = null;
         _lastRefresh = _lastAllyRefresh = _nextModeRefresh = DateTimeOffset.MinValue;
         _tracking = true;
+        RuntimeDiagnostics.Report("选人伴随窗", "跟踪中", "开关已启用，正在定位客户端窗口");
         _timer.Start();
         _ = RefreshSelectionAsync();
         _ = ResolveBenchModeAsync();
@@ -174,6 +175,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     {
         if (IsDisposed) return;
         _tracking = false;
+        RuntimeDiagnostics.Report("选人伴随窗", "已停止", "未处于选人阶段或设置已关闭");
         _trackingGeneration++;
         _trackingCancellation?.Cancel();
         _trackingCancellation?.Dispose();
@@ -518,6 +520,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         Rectangle? client = _clientBounds();
         if (client == null)
         {
+            RuntimeDiagnostics.Report("选人伴随窗", "等待窗口", "客户端窗口未找到、已隐藏、最小化或不在当前桌面");
             TopMost = false;
             if (Visible) Hide();
             return false;
@@ -525,6 +528,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         FollowClient(client.Value);
         TopMost = _chooseBuild.Enabled && _clientForeground();
         if (!Visible) Show();
+        RuntimeDiagnostics.Report("选人伴随窗", "已显示", "已定位客户端窗口并显示队友面板");
         return true;
     }
 
@@ -532,31 +536,51 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     private bool TryGetClientBounds(out Rectangle bounds)
     {
         bounds = Rectangle.Empty;
-        // 固定跟随已找到的客户端窗口；最小化时不改找其他辅助窗口。
+        // 最小化时保持隐藏；隐藏但未销毁的 CEF 旧窗口不能永久阻止重新定位。
         if (_clientWindow != IntPtr.Zero && IsWindow(_clientWindow))
-            return TryGetVisibleClientBounds(_clientWindow, out bounds);
-        _clientWindow = IntPtr.Zero;
-        try
         {
-            foreach (Process process in Process.GetProcessesByName("LeagueClientUx"))
+            if (IsIconic(_clientWindow)) return false;
+            if (TryGetVisibleClientBounds(_clientWindow, out bounds)) return true;
+        }
+        _clientWindow = IntPtr.Zero;
+        var processIds = new HashSet<int>();
+        foreach (Process process in Process.GetProcessesByName("LeagueClientUx"))
+        {
+            using (process)
             {
-                using (process)
-                {
-                    IntPtr handle = process.MainWindowHandle;
-                    if (handle == IntPtr.Zero) continue;
-                    if (IsIconic(handle)) { _clientWindow = handle; return false; }
-                    if (!TryGetVisibleClientBounds(handle, out bounds)) continue;
-                    if (bounds.Width > 500 && bounds.Height > 400)
-                    {
-                        _clientWindow = handle;
-                        return true;
-                    }
-                }
+                try { processIds.Add(process.Id); }
+                catch (InvalidOperationException) { /* 客户端正在退出。 */ }
             }
         }
-        catch (InvalidOperationException) { /* The client exited during enumeration. */ }
-        return false;
+        return TryFindClientWindow(processIds, GetForegroundWindow(), out _clientWindow, out bounds);
     }
+
+    /// <summary>按进程身份枚举顶层窗口，不依赖语言、标题或 MainWindowHandle 的启发式结果。</summary>
+    internal static bool TryFindClientWindow(IReadOnlySet<int> processIds, IntPtr foreground,
+        out IntPtr handle, out Rectangle bounds)
+    {
+        var candidates = new List<(IntPtr Handle, Rectangle Bounds)>();
+        EnumWindows((window, _) =>
+        {
+            GetWindowThreadProcessId(window, out uint processId);
+            if (processIds.Contains((int)processId) && TryGetVisibleClientBounds(window, out var rectangle) &&
+                rectangle.Width >= 500 && rectangle.Height >= 300 && rectangle.Width >= rectangle.Height)
+                candidates.Add((window, rectangle));
+            return true;
+        }, IntPtr.Zero);
+        var selected = candidates.OrderByDescending(candidate => candidate.Handle == foreground)
+            .ThenByDescending(candidate => (long)candidate.Bounds.Width * candidate.Bounds.Height).FirstOrDefault();
+        handle = selected.Handle;
+        bounds = selected.Bounds;
+        return handle != IntPtr.Zero;
+    }
+
+    private delegate bool EnumWindowsCallback(IntPtr window, IntPtr parameter);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
     /// <summary>读取可见客户端窗口的边界，排除不可用窗口。</summary>
     internal static bool TryGetVisibleClientBounds(IntPtr handle, out Rectangle bounds)

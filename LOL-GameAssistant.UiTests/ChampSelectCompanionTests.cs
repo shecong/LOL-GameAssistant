@@ -18,6 +18,46 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class ChampSelectCompanionTests
 {
+    [Fact]
+    public void WindowEnumerationFindsVisibleClientWithoutUsingMainWindowHandle() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var hidden = new Form { Size = new Size(1400, 900), ShowInTaskbar = false, Opacity = 0 };
+        using var client = new Form { Size = new Size(900, 600), ShowInTaskbar = false, Opacity = 0 };
+        using var auxiliary = new Form { Size = new Size(100, 100), ShowInTaskbar = false, Opacity = 0 };
+        hidden.Show(); hidden.Hide(); client.Show(); auxiliary.Show();
+        var ids = new HashSet<int> { Environment.ProcessId };
+        Assert.True(ChampSelectCompanionForm.TryFindClientWindow(ids, client.Handle, out var handle, out var bounds));
+        Assert.Equal(client.Handle, handle);
+        Assert.Equal(client.Bounds, bounds);
+        client.Hide();
+        // 全套测试可能同时存在本进程的其他窗体；隐藏窗口和小型辅助窗口均不能被选中。
+        if (ChampSelectCompanionForm.TryFindClientWindow(ids, auxiliary.Handle, out handle, out _))
+        {
+            Assert.NotEqual(client.Handle, handle);
+            Assert.NotEqual(hidden.Handle, handle);
+            Assert.NotEqual(auxiliary.Handle, handle);
+        }
+        client.Show();
+        Assert.True(ChampSelectCompanionForm.TryFindClientWindow(ids, client.Handle, out handle, out _));
+        Assert.Equal(client.Handle, handle);
+        Assert.False(ChampSelectCompanionForm.TryFindClientWindow(new HashSet<int>(), client.Handle, out _, out _));
+    });
+
+    [Fact]
+    public void WindowEnumerationPrefersForegroundClientAndRejectsMinimizedClient() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var large = new Form { Size = new Size(1200, 800), ShowInTaskbar = false, Opacity = 0 };
+        using var active = new Form { Size = new Size(800, 500), ShowInTaskbar = false, Opacity = 0 };
+        large.Show(); active.Show();
+        var ids = new HashSet<int> { Environment.ProcessId };
+        Assert.True(ChampSelectCompanionForm.TryFindClientWindow(ids, active.Handle, out var handle, out _));
+        Assert.Equal(active.Handle, handle);
+        active.WindowState = FormWindowState.Minimized;
+        Assert.True(ChampSelectCompanionForm.TryFindClientWindow(ids, active.Handle, out handle, out _));
+        Assert.NotEqual(active.Handle, handle);
+        Assert.True(ChampSelectCompanionForm.TryGetVisibleClientBounds(handle, out _));
+    });
+
     [Theory]
     [InlineData(450, "")]
     [InlineData(0, "ARAM")]
