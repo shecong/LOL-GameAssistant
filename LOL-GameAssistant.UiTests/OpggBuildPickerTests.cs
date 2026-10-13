@@ -239,6 +239,8 @@ public sealed class OpggBuildPickerTests
         System.Windows.Forms.Application.DoEvents();
         Children(form).OfType<Button>().Single(button => button.Text == "大乱斗").PerformClick();
         Assert.Equal("aram", form.SelectedOption?.Mode);
+        Assert.Contains(Children(form).OfType<Label>(), label => label.Name == "applyStatus" &&
+            label.Visible && label.Text.Contains("与当前对局模式不一致"));
         Assert.False(Children(form).OfType<Button>().Single(button => button.Text == "应用选中方案").Enabled);
         Assert.All(Children(form).OfType<Button>().Where(button => button.Name.StartsWith("applyRoute")),
             button => Assert.False(button.Enabled));
@@ -246,6 +248,8 @@ public sealed class OpggBuildPickerTests
             button => Assert.False(button.Enabled));
         Children(form).OfType<Button>().Single(button => button.Text == "峡谷").PerformClick();
         Assert.Equal("ranked", form.SelectedOption?.Mode);
+        Assert.DoesNotContain(Children(form).OfType<Label>(), label => label.Name == "applyStatus" &&
+            label.Text.Contains("与当前对局模式不一致"));
         Assert.True(Children(form).OfType<Button>().Single(button => button.Text == "应用选中方案").Enabled);
     });
 
@@ -363,6 +367,8 @@ public sealed class OpggBuildPickerTests
     {
         using var form = CreateForm(allowApply: false);
         form.Show();
+        Assert.Contains(Children(form).OfType<Label>(), label => label.Name == "applyStatus" &&
+            label.Visible && label.Text.Contains("仅供预览"));
         Assert.All(Children(form).OfType<Button>().Where(button => button.Name.StartsWith("applyRoute") ||
             button.Text == "应用选中方案"), button => Assert.False(button.Enabled));
         Children(form).OfType<Button>().Single(button => button.Text == "全部").PerformClick();

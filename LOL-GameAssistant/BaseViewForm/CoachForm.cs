@@ -196,6 +196,8 @@ public sealed class CoachForm : UserControl, IThemeAware
     /// <summary>供选人伴随窗手动打开当前模式的方案选择；无需开启自动推荐。</summary>
     public async Task<string> OpenOpggBuildPickerAsync(CancellationToken cancellationToken = default, Form? owner = null)
     {
+        RuntimeDiagnostics.Report("OP.GG 手动打开", "收到请求",
+            $"正在应用 {_applyingOpgg} · 窗口打开中 {_opggPickerOpen} · 页面已释放 {IsDisposed}");
         if (IsDisposed) return "OP.GG 方案窗口不可用。";
         try
         {
@@ -222,7 +224,11 @@ public sealed class CoachForm : UserControl, IThemeAware
         _opggPickerOpen = true;
         try
         {
+            _status.Text = "正在读取当前英雄与对局模式…";
+            RuntimeDiagnostics.Report("OP.GG 手动打开", "读取对局", "正在获取当前英雄与对局模式");
             AiGameContext context = await GetManualBuildContextAsync(cancellationToken);
+            RuntimeDiagnostics.Report("OP.GG 手动打开", "已读取对局",
+                $"阶段 {context.Phase} · 英雄 {context.MyChampionId} · 模式 {context.GameMode}");
             await ApplyOpggBuildAsync(context, automatic: false, cancellationToken, dialogOwner: owner);
             return _status.Text ?? "";
         }

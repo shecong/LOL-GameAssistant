@@ -22,6 +22,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private readonly Func<OpggBuildOption, string, bool, Task<OpggBuildApplyResult>>? _applySelection;
     private bool _applyingSelection;
     private bool _selectionApplied;
+    private string _availabilityMessage = "";
     private readonly Label _applyStatus = new()
     {
         Name = "applyStatus", Dock = DockStyle.Fill, ForeColor = Muted,
@@ -930,6 +931,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         // 此推荐弹窗采用独立的游戏客户端配色，保持参考图的深蓝与金色。
         PaintControls(this);
         _windowHeader.ForeColor = Gold;
+        UpdateAvailabilityStatus();
         foreach (RouteCard card in _cards)
         {
             card.Root.BackColor = ReferenceEquals(card, _selectedCard) ? SelectedNavy : Navy;
@@ -951,6 +953,26 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
             tab.FlatAppearance.BorderSize = active ? 1 : 0;
         }
+    }
+
+    // Disabled buttons do not raise Click. Explain the blocked state before a click,
+    // and only clear our own message so application errors and results remain visible.
+    private void UpdateAvailabilityStatus()
+    {
+        if (_applyingSelection || _selectionApplied) return;
+        string reason = !_allowApply ? "当前窗口仅供预览，无法应用方案。"
+            : _loading ? "推荐仍在加载，请稍后重试。"
+            : _selectedCard == null ? "当前没有可应用的方案，请选择有推荐数据的模式或分路。"
+            : _hasCurrentMatch && _selectedCard.Option.Mode != _choices.Mode
+                ? "所选方案与当前对局模式不一致，请切回当前模式。" : "";
+        if (reason.Length > 0)
+        {
+            _applyStatus.Text = reason;
+            _applyStatus.ForeColor = Color.Salmon;
+        }
+        else if (_availabilityMessage.Length > 0 && _applyStatus.Text == _availabilityMessage)
+            _applyStatus.Text = "";
+        _availabilityMessage = reason;
     }
 
     /// <summary>按推荐选择器的配色更新各控件。</summary>
