@@ -753,6 +753,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     {
         string mode = (gameMode ?? "").Trim().ToUpperInvariant();
         if (mode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase)) return "aram_mayhem";
+        // 训练模式使用峡谷方案；其队列可能不在普通匹配队列列表中。
+        if (mode is "PRACTICETOOL" or "PRACTICE_TOOL") return "ranked";
         if (queueId > 0)
             return queueId switch
             {

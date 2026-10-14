@@ -13,4 +13,7 @@ public interface IPlayerProfileService
 
     /// <summary>按游戏名和标签查找召唤师资料。</summary>
     Task<PlayerProfile?> FindByRiotIdAsync(string gameName, string tagLine, CancellationToken cancellationToken = default);
+
+    /// <summary>通过客户端按名称查找，完整 Riot ID 优先用于消除同名歧义。</summary>
+    Task<PlayerProfile?> FindByNameAsync(string gameName, CancellationToken cancellationToken = default) => Task.FromResult<PlayerProfile?>(null);
 }

@@ -19,7 +19,6 @@ namespace LOL_GameAssistant
     {
         public readonly InfoMsgForm infoMsg = new InfoMsgForm();
         public readonly HomeForm home;
-        public readonly FriendsForm friendsForm = new FriendsForm();
         public readonly LiveGameForm liveGameForm = new LiveGameForm();
         public readonly BattleQueryForm battleQueryForm = new BattleQueryForm();
         public readonly CoachForm coachForm = new CoachForm();
@@ -69,11 +68,9 @@ namespace LOL_GameAssistant
         /// <summary>
         /// 当前是否停留在“对局”标签页。
         /// </summary>
-        private const int FriendsTabIndex = 1;
-
-        private const int LiveGameTabIndex = 2;
-        private const int BattleQueryTabIndex = 3;
-        private const int CoachTabIndex = 6;
+        private const int LiveGameTabIndex = 1;
+        private const int BattleQueryTabIndex = 2;
+        private const int CoachTabIndex = 5;
         private readonly AntdUI.TabPage _coachTab;
         private readonly AntdUI.TabPage _diagnosticsTab;
         private readonly AntdUI.TabPage _skinTab;
@@ -182,6 +179,11 @@ namespace LOL_GameAssistant
             _ = new TaskbarWindowRegistration(this);
             _headerIconImage = AppIcon.Shared.ToBitmap();
             HeadContent.Icon = _headerIconImage;
+            tabs1.Pages.Remove(tabPageFriends);
+            tabs1.Controls.Remove(tabPageFriends);
+            tabs1.Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold);
+            tabs1.ItemSize = 112;
+            tabs1.Gap = 12;
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
             _diagnosticsTab = new AntdUI.TabPage { Text = "运行诊断", Dock = DockStyle.Fill };
             _skinTab = new AntdUI.TabPage { Text = "游戏换肤", Dock = DockStyle.Fill };
@@ -346,11 +348,7 @@ namespace LOL_GameAssistant
         /// </summary>
         private void Tabs1_SelectedIndexChanged(object? sender, EventArgs e)
         {
-            if (tabs1.SelectedIndex == FriendsTabIndex)
-            {
-                _ = friendsForm.RefreshAsync();
-            }
-            else if (tabs1.SelectedIndex == LiveGameTabIndex)
+            if (tabs1.SelectedIndex == LiveGameTabIndex)
             {
                 _ = liveGameForm.AddView(force: true);
             }
@@ -435,10 +433,6 @@ namespace LOL_GameAssistant
             home.Dock = DockStyle.Fill;
             tab0_grid1.Controls.Add(home);
 
-            //加载好友
-            friendsGrid.Controls.Clear();
-            friendsGrid.Controls.Add(friendsForm);
-
             //加载对局
             tab1_grid1.Controls.Clear();
             liveGameForm.Dock = DockStyle.Fill;
@@ -472,7 +466,14 @@ namespace LOL_GameAssistant
         /// <param name="e"></param>
         private async void dj_refresh_Click(object sender, EventArgs e)
         {
-            await liveGameForm.AddView(force: true);
+            dj_refresh.Loading = true;
+            try
+            {
+                if (tabs1.SelectedIndex == 0) await home.RefreshAsync();
+                else if (tabs1.SelectedIndex == BattleQueryTabIndex) await battleQueryForm.PerformSearchAsync();
+                else await liveGameForm.FetchAllPlayersAsync();
+            }
+            finally { if (!IsDisposed) dj_refresh.Loading = false; }
         }
 
         /// <summary>标题栏快捷切换明确写入浅色/深色，不改变用户在设置中选择的“跟随系统”之外的其它配置。</summary>

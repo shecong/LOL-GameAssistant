@@ -145,6 +145,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void LayoutRow()
         {
+            if (_referenceLayout) { LayoutReferenceRow(); return; }
             int w = Math.Max(1, ClientSize.Width);
             int x = 10;
             int iconY = _showTeammateInfo ? 5 : Math.Max(3, (Height - 34) / 2);
@@ -263,7 +264,7 @@ namespace LOL_GameAssistant.BaseViewForm
                         ? playerIdentity.summonerName
                         : "本人";
                 string modeText = detail.GetModeText();
-                lblChampion.Text = championAndModeOnly ? $"{championName}\n{modeText}" : $"{playerName} · {championName}";
+                lblChampion.Text = _referenceLayout ? championName : championAndModeOnly ? $"{championName}\n{modeText}" : $"{playerName} · {championName}";
                 lblMode.Text = modeText;
                 lblDate.Text = detail.gameCreationDate?.Length >= 10 ? detail.gameCreationDate.Substring(0, 10) : "未知";
                 lblKda.Text = gamer.GetKdaText();
@@ -601,7 +602,7 @@ namespace LOL_GameAssistant.BaseViewForm
             using var accentBrush = new SolidBrush(_accent);
             g.FillRectangle(accentBrush, 3, 9, 4, Height - 18);
 
-            using var borderPen = new Pen(Color.FromArgb(28, 0, 0, 0), 1);
+            using var borderPen = new Pen(_referenceLayout ? UiTheme.Palette.Border : Color.FromArgb(28, 0, 0, 0), 1);
             g.DrawPath(borderPen, path);
 
             base.OnPaint(e);
@@ -613,11 +614,21 @@ namespace LOL_GameAssistant.BaseViewForm
             _hoverTimer.Stop();
             _hoverActive = false;
             _isHovered = false;
-            _baseBack = palette.IsDark ? palette.SurfaceRaised : _isWin
+            _baseBack = palette.IsDark ? (_referenceLayout ? Color.FromArgb(25, 38, 47) : palette.SurfaceRaised) : _isWin
                 ? Color.FromArgb(236, 247, 238) : Color.FromArgb(253, 238, 238);
             _accent = _isWin ? Color.FromArgb(76, 175, 80) : Color.FromArgb(229, 57, 53);
             _hoverBack = UiAnimation.LerpColor(_baseBack, _accent, palette.IsDark ? .14 : .08);
             BackColor = _baseBack;
+            if (_referenceLayout)
+            {
+                foreach (AntdUI.Label label in Controls.OfType<AntdUI.Label>()) label.BackColor = Color.Transparent;
+                picChampion.BackColor = _baseBack;
+                lblChampion.ForeColor = lblKda.ForeColor = palette.TextPrimary;
+                lblDuration.ForeColor = lblMode.ForeColor = palette.TextSecondary;
+                lblResult.BackColor = UiAnimation.LerpColor(_baseBack, _accent, .22);
+                lblResult.ForeColor = _accent;
+                if (_detailArrow != null) _detailArrow.ForeColor = palette.TextSecondary;
+            }
         }
 
         /// <summary>根据鼠标位置更新战绩行的悬停状态。</summary>

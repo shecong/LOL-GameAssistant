@@ -42,6 +42,11 @@ public sealed class LcuPlayerProfileService : IPlayerProfileService
     }
 
     /// <summary>读取玩家 JSON 并验证唯一标识，缺失有效身份时返回空结果。</summary>
+    public Task<PlayerProfile?> FindByNameAsync(string gameName, CancellationToken cancellationToken = default) =>
+        string.IsNullOrWhiteSpace(gameName) ? Task.FromResult<PlayerProfile?>(null)
+            : GetAsync($"/lol-summoner/v1/summoners/by-name/{Uri.EscapeDataString(gameName.Trim())}", cancellationToken);
+
+    /// <summary>读取玩家 JSON 并验证唯一标识，缺失有效身份时返回空结果。</summary>
     private async Task<PlayerProfile?> GetAsync(string endpoint, CancellationToken cancellationToken)
     {
         string? json = await _requestSender.GetStringAsync(endpoint, cancellationToken).ConfigureAwait(false);

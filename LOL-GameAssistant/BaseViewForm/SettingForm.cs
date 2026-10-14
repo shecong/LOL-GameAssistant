@@ -10,7 +10,7 @@ using System.Diagnostics;
 namespace LOL_GameAssistant.BaseViewForm
 {
     /// <summary>设置页：读取、编辑并保存助手各功能的配置。</summary>
-    public partial class SettingForm : UserControl
+    public partial class SettingForm : UserControl, IThemeAware
     {
         public DateTime? lastOpenGameTime = null;
         private AssistantSettings _config;
@@ -27,6 +27,21 @@ namespace LOL_GameAssistant.BaseViewForm
             ReshowDelay = 100,
             ShowAlways = false
         };
+
+        public void ApplyTheme(ThemePalette palette)
+        {
+            BackColor = palette.Surface;
+            _settingsSegmented.BackColor = palette.Surface;
+            _settingsSegmented.ForeColor = palette.TextPrimary;
+            _settingsSegmentHost.BackColor = palette.SurfaceRaised;
+            foreach (Control? segment in _settingsSegments)
+            {
+                if (segment == null) continue;
+                segment.BackColor = palette.SurfaceRaised;
+                foreach (TableLayoutPanel layout in segment.Controls.OfType<TableLayoutPanel>())
+                    layout.BackColor = palette.SurfaceRaised;
+            }
+        }
         private readonly Dictionary<(ToolTip Tip, Control Control), string> _originalTips = new();
         private readonly HashSet<Control> _featureTipTargets = [];
         private Control? _activeFeatureTipControl;
@@ -206,9 +221,11 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             Controls.Remove(gridPanel2);
 
-            _settingsSegmented.Dock = DockStyle.Top;
-            _settingsSegmented.Height = 42;
-            _settingsSegmented.Full = true;
+            _settingsSegmented.Dock = DockStyle.Left;
+            _settingsSegmented.Vertical = true;
+            _settingsSegmented.Width = 200 * DeviceDpi / 96;
+            _settingsSegmented.Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold);
+            _settingsSegmented.Full = false;
             _settingsSegmented.Margin = new Padding(10, 8, 10, 6);
             _settingsSegmented.Items.Add(new AntdUI.SegmentedItem { Text = "对局自动化" });
             _settingsSegmented.Items.Add(new AntdUI.SegmentedItem { Text = "客户端与数据" });
@@ -235,7 +252,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _settingsSegmentHost.Controls.Add(segment);
             }
 
-            var root = new AntdUI.Panel { Dock = DockStyle.Fill };
+            var root = new AntdUI.Panel { Dock = DockStyle.Fill, Padding = new Padding(12), Radius = 12 };
             root.Controls.Add(_settingsSegmentHost);
             root.Controls.Add(_settingsSegmented);
             Controls.Add(root);

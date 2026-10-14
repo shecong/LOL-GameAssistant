@@ -45,6 +45,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>近期战绩列表的首次请求大小；表现评分会继续读取最近 30 天。</summary>
         private const int HistoryFetchCount = 100;
         private static readonly TimeSpan MaximumLoadDuration = TimeSpan.FromMinutes(1);
+        private string _loadingStage = "战绩列表";
         private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<MatchHistoryResponse?> Value)> RecentHistoryCache = new(StringComparer.Ordinal);
@@ -251,8 +252,16 @@ namespace LOL_GameAssistant.BaseViewForm
             BackColor = palette.SurfaceRaised;
             headerPanel.BackColor = palette.SurfaceMuted;
             panelMatches.BackColor = palette.Surface;
+            Padding = new Padding(2);
+            if (palette.IsDark)
+            {
+                BackColor = headerPanel.BackColor = Color.FromArgb(21, 32, 40);
+                panelMatches.BackColor = Color.FromArgb(17, 27, 34);
+            }
             lblName.ForeColor = palette.TextPrimary;
             _rankLabel.ForeColor = palette.Accent;
+            _rankLabel.BackColor = palette.SurfaceMuted;
+            _historyHeading!.ForeColor = palette.TextPrimary;
             lblSub.ForeColor = palette.TextSecondary;
             lblChampionNow.ForeColor = palette.Accent;
             if (!string.IsNullOrWhiteSpace(lblSummary.Text))
@@ -290,78 +299,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 根据卡片宽度自适应排列头部控件（窄卡片时名称收缩、右侧控件贴边）。
         /// </summary>
-        private void RecalcHeaderLayout()
-        {
-            const int textLeft = 56;
-            const int currentIconWidth = 36;
-            const int tagWidth = 36;
-            int premadeWidth = Math.Clamp(TextRenderer.MeasureText(lblPremadeTag.Text, lblPremadeTag.Font).Width + 10, 46, 104);
-            const int gap = 6;
-
-            int right = Math.Max(textLeft, ClientSize.Width - 12);
-            int currentIconLeft = Math.Max(textLeft, right - currentIconWidth);
-            picCurrent.Location = new Point(currentIconLeft, 4);
-            picCurrent.Size = new Size(currentIconWidth, currentIconWidth);
-
-            // 顶行优先保留段位和英雄头像；战绩汇总只使用玩家名称与段位之外的剩余空间。
-            int summaryRight = picCurrent.Visible ? currentIconLeft - gap : right;
-            int availableTopWidth = Math.Max(0, summaryRight - textLeft);
-            int rankWidth = _rankLabel.Visible ? Math.Min(
-                TextRenderer.MeasureText(_rankLabel.Text, _rankLabel.Font).Width + 4,
-                Math.Max(0, availableTopWidth - 88 - gap)) : 0;
-            int summaryWidth = Math.Min(135, Math.Max(0, availableTopWidth - 88 - rankWidth - 2 * gap));
-            bool showSummary = summaryWidth >= 78;
-            lblSummary.Visible = showSummary;
-            if (showSummary)
-            {
-                lblSummary.Location = new Point(summaryRight - summaryWidth, 8);
-                lblSummary.Width = summaryWidth;
-            }
-
-            int nameRight = showSummary ? summaryRight - summaryWidth - gap : summaryRight;
-            lblName.Location = new Point(textLeft, 8);
-            int availableNameWidth = Math.Max(0, nameRight - textLeft);
-            lblName.Width = Math.Max(0, availableNameWidth - (rankWidth > 0 ? rankWidth + gap : 0));
-            if (rankWidth > 0)
-            {
-                // Reserve a separate control region: transparent labels can still paint over siblings.
-                _rankLabel.Bounds = new Rectangle(lblName.Right + gap, 8, rankWidth, lblName.Height);
-            }
-
-            // 第二行将玩家信息、当前英雄和队伍标签按可用空间从左到右分配。
-            // 第二行位于放大的英雄头像下方，可使用完整宽度展示玩家信息和队伍标签。
-            int championRight = right;
-            if (_teamKnown)
-            {
-                int teamTagLeft = championRight - tagWidth;
-                lblTeamTag.Location = new Point(teamTagLeft, 40);
-                lblTeamTag.Size = new Size(tagWidth, 20);
-                championRight = teamTagLeft - gap;
-            }
-            if (lblPremadeTag.Visible)
-            {
-                int premadeTagLeft = championRight - premadeWidth;
-                lblPremadeTag.Location = new Point(premadeTagLeft, 40);
-                lblPremadeTag.Size = new Size(premadeWidth, 20);
-                championRight = premadeTagLeft - gap;
-            }
-
-            int rowTwoSpace = Math.Max(0, championRight - textLeft);
-            int subWidth = string.IsNullOrEmpty(lblChampionNow.Text)
-                ? rowTwoSpace : Math.Min(160, Math.Max(0, rowTwoSpace - 116));
-            int championLeft = textLeft + subWidth + gap;
-            int championWidth = Math.Max(0, championRight - championLeft);
-            bool showChampion = championWidth >= 70 && !string.IsNullOrEmpty(lblChampionNow.Text);
-
-            lblSub.Location = new Point(textLeft, 40);
-            lblSub.Width = showChampion ? subWidth : rowTwoSpace;
-            lblChampionNow.Visible = showChampion;
-            if (showChampion)
-            {
-                lblChampionNow.Location = new Point(championLeft, 40);
-                lblChampionNow.Width = championWidth;
-            }
-        }
+        private void RecalcHeaderLayout() => LayoutReferenceHeader();
 
         /// <summary>按容器宽度更新近期战绩行的大小。</summary>
         private void ResizeMatchRows()
@@ -371,7 +309,7 @@ namespace LOL_GameAssistant.BaseViewForm
             try
             {
                 MatchListScrolling.LayoutRows(panelMatches,
-                    panelMatches.Controls.OfType<RecentMatchRow>().Cast<Control>().ToArray(), 4, 2);
+                    panelMatches.Controls.OfType<RecentMatchRow>().Cast<Control>().ToArray(), 8, 5);
             }
             finally { _layingOutMatchRows = false; }
         }
@@ -414,6 +352,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _loadStarted = true;
             _loading = true;
             _recentPerformancePublished = false;
+            _loadingStage = "战绩列表";
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
             timeout.CancelAfter(MaximumLoadDuration);
             try
@@ -423,7 +362,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch (OperationCanceledException) when (timeout.IsCancellationRequested)
             {
                 if (!_lifetimeCancellation.IsCancellationRequested && !IsDisposed)
-                    ShowLoadFailure("获取超时", "对局数据获取超过 1 分钟，可重新加载。");
+                    ShowLoadFailure("获取超时", $"{_loadingStage}超过 1 分钟；可重新加载。详情空闲槽 {MatchDetailConcurrency.Gate.CurrentCount}/20。");
             }
             catch (Exception ex)
             {
@@ -556,6 +495,8 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             if (IsDisposed) return;
+            PlayerLevel = level > 0 ? level : null;
+            OverviewChanged?.Invoke(this, EventArgs.Empty);
             lblName.Text = displayName;
             RecalcHeaderLayout();
             string positionText = GetPositionText(_position);
@@ -592,6 +533,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 .OrderByDescending(g => g.GameCreation)
                 .Take(RecentGamesCount)
                 .ToList();
+            _loadingStage = $"近期战绩详情（0/{games.Count}）";
 
             // 每位玩家只排入两个请求，避免首张卡片把全部全局槽位占满。
             var loaded = new (MatchDetail detail, MatchParticipant gamer)?[games.Count];
@@ -608,11 +550,12 @@ namespace LOL_GameAssistant.BaseViewForm
                     if (result == null) continue;
                     loaded[index] = result;
                     if (rows.Count == 0) ControlLifetime.ClearAndDispose(panelMatches);
-                    var row = new RecentMatchRow
+                    var row = new RecentMatchRow(_gameAssetService, AppCompositionRoot.PremadeDetectionService)
                     {
                         Width = Math.Max(100, panelMatches.ClientSize.Width - 18),
                         Height = RecentMatchRow.RowHeight
                     };
+                    row.UseReferenceLayout();
                     rows.Add(index, row);
                     panelMatches.Controls.Add(row);
                     // 返回顺序可能不同，始终按比赛时间排列，且保留现有行和滚动位置。
@@ -622,6 +565,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     _ = row.SetDataAsync(result.Value.detail, result.Value.gamer, _playerPuuid, championAndModeOnly: true);
                     ResizeMatchRows();
                     lblSummary.Text = $"战绩加载中 · {rows.Count}/{games.Count}";
+                    _loadingStage = $"近期战绩详情（{rows.Count}/{games.Count}）";
                 }
             }
             await Task.WhenAll(Enumerable.Range(0, DetailWorkersPerPlayer).Select(_ => LoadWorkerAsync()))
@@ -631,6 +575,9 @@ namespace LOL_GameAssistant.BaseViewForm
             if (IsDisposed) return;
 
             int wins = results.Count(r => r.gamer.IsWin());
+            RecentWins = results.Count(r => r.gamer.stats?.HasWinResult == true && r.gamer.IsWin());
+            RecentSampleSize = results.Count(r => r.gamer.stats?.HasWinResult == true);
+            OverviewChanged?.Invoke(this, EventArgs.Empty);
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
             if (results.Count == 0)
@@ -648,9 +595,29 @@ namespace LOL_GameAssistant.BaseViewForm
                 });
             }
             lblSummary.Text = "评分中";
-            RecentModePerformanceAssessment assessment = await ApplyLivePerformanceTagAsync(
-                matchlists, results, wins, losses, rate, cancellationToken);
-            if (!IsDisposed) PublishRecentPerformance(assessment);
+            // 近期战绩完成后独立计算 30 天评分，评分不能耗尽战绩加载的一分钟预算。
+            _ = CompleteAssessmentAsync(matchlists, results, wins, losses, rate);
+        }
+
+        private async Task CompleteAssessmentAsync(MatchHistoryResponse matchlists,
+            IReadOnlyList<(MatchDetail detail, MatchParticipant gamer)> results, int wins, int losses, double rate)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(45));
+            try
+            {
+                var assessment = await ApplyLivePerformanceTagAsync(matchlists, results, wins, losses, rate, timeout.Token);
+                if (!IsDisposed) PublishRecentPerformance(assessment);
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                if (!_lifetimeCancellation.IsCancellationRequested && !IsDisposed)
+                    ShowLoadFailure("评分暂不可用", "近期战绩已加载；30 天评分请求超时，不影响战绩查看。");
+            }
+            catch (Exception ex)
+            {
+                if (!IsDisposed) ShowLoadFailure("评分暂不可用", $"近期战绩已加载；评分请求失败：{ex.Message}");
+            }
         }
 
         /// <summary>单场请求超时或失败最多重试一次，不让一场详情耗尽整张卡片的时间。</summary>
@@ -659,7 +626,10 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             for (int attempt = 0; attempt < 2; attempt++)
             {
+                var waiting = System.Diagnostics.Stopwatch.StartNew();
                 await MatchDetailConcurrency.Gate.WaitAsync(cancellationToken);
+                waiting.Stop();
+                var requesting = System.Diagnostics.Stopwatch.StartNew();
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(DetailRequestTimeout);
                 try
@@ -669,6 +639,11 @@ namespace LOL_GameAssistant.BaseViewForm
                     if (detail != null && gamer != null) return (detail, gamer);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (OperationCanceledException)
+                {
+                    RuntimeDiagnostics.Report("对局详情", "请求超时",
+                        $"对局 {gameId}：排队 {waiting.ElapsedMilliseconds}ms，请求 {requesting.ElapsedMilliseconds}ms，第 {attempt + 1}/2 次尝试。");
+                }
                 catch (Exception ex)
                 {
                     RuntimeDiagnostics.Report("对局详情", "重试", $"对局 {gameId}：{ex.Message}");
@@ -753,7 +728,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 firstPage, cancellationToken).WaitAsync(cancellationToken);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);
-            lblSummary.Text = assessment.SampleSize == 0 ? label : $"{label} · KDA {assessment.Kda:F2} · {assessment.SampleSize}场";
+            lblSummary.Text = label;
             lblSummary.ForeColor = assessment.Label switch
             {
                 RecentPerformanceLabel.Upper => Color.FromArgb(27, 94, 32),

@@ -183,7 +183,8 @@ public sealed class SettingsToolsTests
         {
             navigation.SelectIndex = index;
             System.Windows.Forms.Application.DoEvents();
-            foreach (FlowLayoutPanel body in Children(tools).OfType<FlowLayoutPanel>().Where(p => p.Visible && p.Dock == DockStyle.Fill))
+            // 好友目录是可滚动列表，内容允许超出视口；操作工具区仍必须完整显示。
+            foreach (FlowLayoutPanel body in Children(tools).OfType<FlowLayoutPanel>().Where(p => p.Visible && p.Dock == DockStyle.Fill && !p.AutoScroll))
                 foreach (Control control in body.Controls)
                     Assert.True(body.ClientRectangle.Contains(control.Bounds), $"Category {index}: {control.Text} {control.Bounds} outside {body.ClientRectangle}");
         }

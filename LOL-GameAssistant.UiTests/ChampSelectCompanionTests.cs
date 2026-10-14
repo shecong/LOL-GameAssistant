@@ -194,22 +194,101 @@ public sealed class ChampSelectCompanionTests
     public void HiddenClientAndOpenBuildPickerSuppressTopMost() => MatchListScrollingTests.OnUiThread(() =>
     {
         Rectangle? bounds = new Rectangle(100, 100, 900, 600);
-        using var fixture = new Fixture(() => bounds, clientForeground: () => true);
+        var pending = new TaskCompletionSource<string>();
+        using var fixture = new Fixture(() => bounds, clientForeground: () => true,
+            openBuildPicker: _ => pending.Task);
         fixture.Form.StartTracking();
         Assert.True(fixture.Form.TopMost);
-        var chooseBuild = (Button)typeof(ChampSelectCompanionForm).GetField("_chooseBuild", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(fixture.Form)!;
-        chooseBuild.Enabled = false;
+        Task opened = fixture.Form.ChooseBuildAsync();
         fixture.Form.SyncClientVisibility();
         Assert.False(fixture.Form.TopMost);
-        chooseBuild.Enabled = true;
-        fixture.Form.SyncClientVisibility();
+        Assert.False(fixture.Form.Visible);
+        pending.SetResult("完成");
+        PumpUntil(() => opened.IsCompleted);
         Assert.True(fixture.Form.TopMost);
         bounds = null;
         fixture.Form.SyncClientVisibility();
         Assert.False(fixture.Form.TopMost);
         Assert.False(fixture.Form.Visible);
     });
+
+    [Fact]
+    public void BuildEntryCoalescesClicksAndDoesNotFollowClientWhileOpen() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int opens = 0;
+        Rectangle bounds = new(100, 100, 900, 600);
+        var pending = new TaskCompletionSource<string>();
+        using var fixture = new Fixture(() => bounds, openBuildPicker: _ => { opens++; return pending.Task; });
+        fixture.Form.StartTracking();
+        Rectangle initial = fixture.Form.Bounds;
+        Task first = fixture.Form.ChooseBuildAsync();
+        Assert.Same(first, fixture.Form.ChooseBuildAsync());
+        Assert.Equal(1, opens);
+        bounds = new Rectangle(400, 200, 700, 500);
+        Assert.False(fixture.Form.SyncClientVisibility());
+        Assert.Equal(initial, fixture.Form.Bounds);
+        Assert.False(fixture.Form.Visible);
+        pending.SetResult("已应用");
+        PumpUntil(() => first.IsCompleted);
+        Assert.True(fixture.Form.Visible);
+        Assert.NotEqual(initial, fixture.Form.Bounds);
+    });
+
+    [Fact]
+    public void PreviousSelectionCannotReleaseOrOverwriteNewBuildEntry() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var requests = new Queue<TaskCompletionSource<string>>();
+        var old = new TaskCompletionSource<string>();
+        var current = new TaskCompletionSource<string>();
+        requests.Enqueue(old);
+        requests.Enqueue(current);
+        CancellationToken oldToken = default;
+        using var fixture = new Fixture(() => new Rectangle(100, 100, 900, 600),
+            openBuildPicker: token => { if (oldToken == default) oldToken = token; return requests.Dequeue().Task; });
+        fixture.Form.StartTracking();
+        Task first = fixture.Form.ChooseBuildAsync();
+        fixture.Form.StopTracking();
+        Assert.True(oldToken.IsCancellationRequested);
+        fixture.Form.StartTracking();
+        Task second = fixture.Form.ChooseBuildAsync();
+        old.SetResult("旧结果");
+        PumpUntil(() => first.IsCompleted);
+        Assert.Same(second, fixture.Form.ChooseBuildAsync());
+        Assert.False(fixture.Form.Visible);
+        current.SetResult("新结果");
+        PumpUntil(() => second.IsCompleted);
+        Assert.True(fixture.Form.Visible);
+        Assert.Equal("新结果", Children(fixture.Form).OfType<Label>().Single(label => label.Text == "新结果").Text);
+    });
+
+    [Fact]
+    public void FailedBuildEntryCanBeRetriedAndStoppedEntryStaysHidden() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int opens = 0;
+        var pending = new TaskCompletionSource<string>();
+        using var fixture = new Fixture(() => new Rectangle(100, 100, 900, 600),
+            openBuildPicker: _ => ++opens == 1 ? Task.FromException<string>(new InvalidOperationException("读取失败")) : pending.Task);
+        fixture.Form.StartTracking();
+        fixture.Form.ChooseBuildAsync().GetAwaiter().GetResult();
+        Assert.True(fixture.Form.Visible);
+        Task second = fixture.Form.ChooseBuildAsync();
+        Assert.Equal(2, opens);
+        fixture.Form.StopTracking();
+        pending.SetResult("已取消");
+        PumpUntil(() => second.IsCompleted);
+        Assert.False(fixture.Form.Visible);
+    });
+
+    private static void PumpUntil(Func<bool> complete)
+    {
+        var timeout = System.Diagnostics.Stopwatch.StartNew();
+        while (!complete() && timeout.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            System.Windows.Forms.Application.DoEvents();
+            Thread.Sleep(1);
+        }
+        Assert.True(complete());
+    }
 
     private static ChampionSelectionSnapshot Snapshot(params int[] ids) => new()
     {
@@ -224,7 +303,7 @@ public sealed class ChampSelectCompanionTests
     private static IEnumerable<Control> Children(Control control) => control.Controls.Cast<Control>()
         .SelectMany(child => new[] { child }.Concat(Children(child)));
 
-    private sealed class Fixture : IDisposable
+    internal sealed class Fixture : IDisposable
     {
         public TaskCompletionSource<ChampionSelectionSnapshot?> Selection { get; } = new();
         public TaskCompletionSource<LobbySnapshot?> Lobby { get; } = new();
@@ -233,7 +312,7 @@ public sealed class ChampSelectCompanionTests
         public ChampSelectCompanionForm Form { get; }
 
         public Fixture(Func<Rectangle?>? clientBounds = null, Func<MethodInfo, object?[], object?>? featureHandler = null,
-            Func<bool>? clientForeground = null)
+            Func<bool>? clientForeground = null, Func<CancellationToken, Task<string>>? openBuildPicker = null)
         {
             Form = new ChampSelectCompanionForm(
                 Service<IChampionSelectService>((_, args) => Selection.Task.WaitAsync(Token(args))),
@@ -244,7 +323,7 @@ public sealed class ChampSelectCompanionTests
                 Service<IPlayerProfileService>((_, _) => Player.Task),
                 Service<IRankedStatsService>((_, _) => null),
                 Service<IMatchHistoryService>((_, _) => null),
-                Service<IApplicationSettingsStore>((_, _) => new AssistantSettings()), clientBounds, clientForeground);
+                Service<IApplicationSettingsStore>((_, _) => new AssistantSettings()), clientBounds, clientForeground, openBuildPicker);
         }
 
         public void Dispose()

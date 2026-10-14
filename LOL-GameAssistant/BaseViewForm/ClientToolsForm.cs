@@ -92,7 +92,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         foreach (string category in ToolCategories)
             navigation.Items.Add(new AntdUI.SegmentedItem { Text = category });
         Control[][] groups = [[CreateReplayCard(), CreateRewardsCard(), CreateBackupsCard()],
-            [CreateProfileCard()], [CreateFriendsCard()], [CreateInsightsCard()], [CreateCacheCard()]];
+            [CreateProfileCard()], [CreateFriendsCard(), CreateFriendDirectoryCard()], [CreateInsightsCard()], [CreateCacheCard()]];
         foreach (Control[] group in groups)
             foreach (Control card in group) AddCard(content, card);
         // 切换客户端工具中当前展示的功能分类。
@@ -266,6 +266,16 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         card.Controls.Add(_friendRows);
         card.Controls.Add(refresh);
         card.Controls.Add(title);
+        return card;
+    }
+
+    private Control CreateFriendDirectoryCard()
+    {
+        var card = new AntdUI.Panel { Height = 520, Dock = DockStyle.Fill, Padding = new Padding(8), Radius = 12, BorderWidth = 1 };
+        _cards.Add(card);
+        var directory = new FriendsForm();
+        card.Controls.Add(directory);
+        directory.VisibleChanged += async (_, _) => { if (directory.Visible) await directory.RefreshAsync(); };
         return card;
     }
 

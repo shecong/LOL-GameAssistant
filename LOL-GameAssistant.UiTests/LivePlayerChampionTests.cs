@@ -164,7 +164,7 @@ public sealed class LivePlayerChampionTests
             Assert.Equal("对手", name.Text);
             Assert.True(rank.Left > name.Left);
             Assert.False(rank.Bounds.IntersectsWith(name.Bounds));
-            Assert.True(rank.Right <= Child(card, "picCurrent").Left);
+            Assert.True(rank.Parent!.ClientRectangle.Contains(rank.Bounds));
             Assert.Equal(1, requests);
             var another = CreateCard(22, profile, _ => Task.FromResult<GameAsset?>(null), true, ranked, puuid);
             using var second = Mount(another);
@@ -206,7 +206,7 @@ public sealed class LivePlayerChampionTests
             Assert.Empty(icon.Parent!.Controls.OfType<AntdUI.Button>());
             Assert.Equal(new Size(36, 36), icon.Size);
             Assert.True(rank.Width >= TextRenderer.MeasureText(rank.Text, rank.Font).Width);
-            Assert.True(rank.Right <= icon.Left);
+            Assert.False(rank.Bounds.IntersectsWith(icon.Bounds));
             Assert.False(rank.Bounds.IntersectsWith(Child(card, "lblName").Bounds));
             var summary = Child(card, "lblSummary");
             if (summary.Visible)

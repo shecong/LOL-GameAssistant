@@ -12,6 +12,19 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class OpggBuildPickerTests
 {
     [Fact]
+    public void EscapeClosesIndependentPickerWithoutApplying() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = CreateForm();
+        form.Show();
+        Assert.False(form.Modal);
+        bool handled = (bool)typeof(OpggBuildPickerForm).GetMethod("ProcessDialogKey", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(form, [Keys.Escape])!;
+        Assert.True(handled);
+        Assert.True(form.IsDisposed);
+        Assert.Equal(DialogResult.Cancel, form.DialogResult);
+    });
+
+    [Fact]
     public void RepeatedModalOpenAndCloseReleasesWindowHandles() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var process = System.Diagnostics.Process.GetCurrentProcess();
@@ -454,6 +467,23 @@ public sealed class OpggBuildPickerTests
             new AiGameContext { Phase = "ChampSelect", MyChampionId = 266, MyRole = "MIDDLE" },
             new AiGameContext { Phase = "ChampSelect", MyChampionId = 266, GameMode = "CLASSIC", MyRole = "TOP" },
             "ranked", false));
+    }
+
+    [Theory]
+    [InlineData("PRACTICETOOL", 0)]
+    [InlineData("PRACTICETOOL", 2000)]
+    [InlineData("PRACTICE_TOOL", 0)]
+    public void PracticeSelectionKeepsChampionAndUsesRiftBuilds(string mode, int queueId)
+    {
+        var selected = new AiGameContext { Phase = "ChampSelect", MyChampionId = 266, GameMode = mode, QueueId = queueId };
+        var (context, previewOnly) = CoachForm.ResolveManualBuildContext(selected);
+        Assert.False(previewOnly);
+        Assert.Same(selected, context);
+        Assert.True(CoachForm.CanApplyBuildContext(context, selected, "ranked", false));
+        Assert.False(CoachForm.CanApplyBuildContext(context,
+            new AiGameContext { Phase = "InProgress", MyChampionId = 266, GameMode = mode, QueueId = queueId }, "ranked", false));
+        Assert.False(CoachForm.CanApplyBuildContext(context,
+            new AiGameContext { Phase = "ChampSelect", MyChampionId = 157, GameMode = mode, QueueId = queueId }, "ranked", false));
     }
 
     private static OpggBuildPickerForm CreateForm(string mode = "ranked", IOpggBuildApplyService? buildService = null,

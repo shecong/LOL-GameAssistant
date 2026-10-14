@@ -273,13 +273,20 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         Controls.Add(header);
         Controls.Add(_windowHeader);
         AcceptButton = _apply;
-        // Esc cancels without applying the currently highlighted route.
-        var cancel = new Button { DialogResult = DialogResult.Cancel, Visible = false };
-        Controls.Add(cancel);
-        CancelButton = cancel;
         if (_cards.Count > 0)
             SelectCard(_cards.FirstOrDefault(card => card.Option.Order == initiallySelectedOrder) ?? _cards[0]);
         FilterCards(_choices.Mode);
+    }
+
+    protected override bool ProcessDialogKey(Keys keyData)
+    {
+        if (keyData == Keys.Escape)
+        {
+            DialogResult = DialogResult.Cancel;
+            Close();
+            return true;
+        }
+        return base.ProcessDialogKey(keyData);
     }
 
     /// <summary>创建一条推荐路线的卡片。</summary>

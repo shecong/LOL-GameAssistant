@@ -31,6 +31,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     private bool _applyingOpgg;
     private bool _opggPickerOpen;
     private OpggBuildPickerForm? _activeBuildPicker;
+    private TaskCompletionSource<string>? _activeBuildPickerCompletion;
     private TaskCompletionSource _opggStateChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private string _opggPromptedContext = "";
     private string _opggFailedContext = "";
@@ -206,9 +207,22 @@ public sealed class CoachForm : UserControl, IThemeAware
                 cancellationToken.ThrowIfCancellationRequested();
                 if (_activeBuildPicker is { IsDisposed: false } picker)
                 {
+                    Task<string>? existingResult = _activeBuildPickerCompletion?.Task;
+                    if (owner is ChampSelectCompanionForm)
+                    {
+                        picker.Owner = null;
+                        picker.ShowInTaskbar = true;
+                    }
                     if (picker.WindowState == FormWindowState.Minimized) picker.WindowState = FormWindowState.Normal;
                     picker.Activate();
                     picker.BringToFront();
+                    if (owner is ChampSelectCompanionForm)
+                    {
+                        // 伴随窗入口保持占用直到现有方案窗关闭。
+                        await WaitForBuildPickerClosedAsync(picker, cancellationToken);
+                        return existingResult == null ? "已取消 OP.GG 出装配置。"
+                            : await existingResult.WaitAsync(cancellationToken);
+                    }
                     return "OP.GG 方案窗口已打开，请选择方案。";
                 }
                 // 等待自动获取完成或弹窗显示，保留本次手动打开请求。
@@ -229,8 +243,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             AiGameContext context = await GetManualBuildContextAsync(cancellationToken);
             RuntimeDiagnostics.Report("OP.GG 手动打开", "已读取对局",
                 $"阶段 {context.Phase} · 英雄 {context.MyChampionId} · 模式 {context.GameMode}");
-            await ApplyOpggBuildAsync(context, automatic: false, cancellationToken, dialogOwner: owner);
-            return _status.Text ?? "";
+            return await ApplyOpggBuildAsync(context, automatic: false, cancellationToken, dialogOwner: owner);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -409,14 +422,14 @@ public sealed class CoachForm : UserControl, IThemeAware
     }
 
     /// <summary>将选中的推荐方案应用到客户端。</summary>
-    private async Task ApplyOpggBuildAsync(
+    private async Task<string> ApplyOpggBuildAsync(
         AiGameContext context,
         bool automatic,
         CancellationToken cancellationToken,
         bool autoApply = false,
         Form? dialogOwner = null)
     {
-        if (_applyingOpgg || IsDisposed) return;
+        if (_applyingOpgg || IsDisposed) return "OP.GG 方案窗口不可用。";
         _applyingOpgg = true;
         _opggPickerOpen = true;
         RefreshOpggAvailability();
@@ -431,7 +444,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             {
                 _status.ForeColor = Color.DarkGoldenrod;
                 _status.Text = "请在英雄选择阶段选定英雄后使用 OP.GG 配置。";
-                return;
+                return _status.Text;
             }
 
             OpggBuildChoices choices = await _opggBuildApplyService
@@ -441,7 +454,7 @@ public sealed class CoachForm : UserControl, IThemeAware
                     new OpggBuildRequest(context.GameMode, context.QueueId, context.EnemyChampionIds),
                     cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (IsDisposed) return;
+            if (IsDisposed) return "OP.GG 方案窗口不可用。";
             if (!choices.Succeeded)
             {
                 if (automatic) ScheduleOpggRetry(_opggPromptedContext);
@@ -450,7 +463,7 @@ public sealed class CoachForm : UserControl, IThemeAware
                 // 取数失败时不会弹窗，只写状态栏容易被忽略；同时写进消息区，让“没弹窗”总有原因可查。
                 Program.GameMain.infoMsg.AddMsg($"OP.GG 未弹出方案：{choices.Message}");
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "取数失败", choices.Message);
-                return;
+                return choices.Message;
             }
 
             string selectionKey = BuildOpggSelectionKey(context.MyChampionId, choices.Mode, context.MyRole);
@@ -466,47 +479,59 @@ public sealed class CoachForm : UserControl, IThemeAware
             {
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "已获取方案", $"{choices.ChampionName} {choices.PositionName} · {choices.Options.Count} 套，正在等待选择");
                 using var pickerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                OpggBuildApplyResult? selectedResult = null;
                 using var picker = new OpggBuildPickerForm(choices, _gameAssetService ?? AppCompositionRoot.GameAssetService, savedOrder,
                     _opggBuildApplyService, hasCurrentMatch: !previewOnly,
-                    applySelection: (option, position, replace) => ApplySelectedBuildAsync(context, option, position,
-                        previewOnly, automatic, pickerCancellation.Token, replace, rememberSelection: true));
+                    applySelection: async (option, position, replace) =>
+                        selectedResult = await ApplySelectedBuildAsync(context, option, position,
+                            previewOnly, automatic, pickerCancellation.Token, replace, rememberSelection: true));
                 picker.FormClosing += (_, _) => pickerCancellation.Cancel();
-                // 从选人伴随窗打开时，以伴随窗为父窗口，关闭后不会激活隐藏的主窗体。
+                // 非激活浮窗不能作为输入窗口的父窗口；方案窗使用异步生命周期。
                 Form? owner = ResolveBuildDialogOwner(dialogOwner, FindForm() ?? Program.GameMain);
                 _activeBuildPicker = picker;
+                var pickerCompletion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _activeBuildPickerCompletion = pickerCompletion;
                 picker.Shown += (_, _) =>
                 {
                     NotifyOpggStateChanged();
                     if (cancellationToken.IsCancellationRequested) picker.Close();
                 };
-                using var closeOnCancellation = cancellationToken.Register(() =>
-                {
-                    try
-                    {
-                        if (picker.IsHandleCreated && !picker.IsDisposed)
-                            picker.BeginInvoke((Action)(() => { if (!picker.IsDisposed) picker.Close(); }));
-                    }
-                    catch (InvalidOperationException) { /* 窗口已关闭。 */ }
-                });
                 DialogResult dialogResult;
-                try { dialogResult = picker.ShowDialog(owner); }
-                finally { _activeBuildPicker = null; }
+                try
+                {
+                    await WaitForBuildPickerClosedAsync(picker, cancellationToken, () =>
+                    {
+                        picker.ShowInTaskbar = owner == null;
+                        if (owner == null) picker.Show();
+                        else picker.Show(owner);
+                        if (!picker.IsDisposed) picker.Activate();
+                    });
+                    dialogResult = picker.DialogResult;
+                }
+                finally
+                {
+                    pickerCompletion.TrySetResult(picker.DialogResult == DialogResult.OK
+                        ? selectedResult?.Message ?? "OP.GG 方案已应用。" : "已取消 OP.GG 出装配置。");
+                    _activeBuildPicker = null;
+                    _activeBuildPickerCompletion = null;
+                }
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "弹窗已关闭",
                     picker.SelectedOption == null ? "未选择方案" : $"已选方案 {picker.SelectedOption.Order}");
                 if (dialogResult != DialogResult.OK || picker.SelectedOption == null)
                 {
                     _status.ForeColor = Color.DimGray;
                     _status.Text = "已取消 OP.GG 出装配置。";
-                    return;
+                    return _status.Text;
                 }
 
                 // 选择窗完成写入后才返回 OK，不能再次应用同一方案。
-                return;
+                return selectedResult?.Message ?? "OP.GG 方案已应用。";
             }
 
             OpggBuildApplyResult result = await ApplySelectedBuildAsync(context, selectedOption, context.MyRole,
                 previewOnly, automatic, cancellationToken, allowReplaceCurrentRunePage: false, rememberSelection: false);
             if (automatic && !result.Succeeded) ScheduleOpggRetry(_opggPromptedContext);
+            return result.Message;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -528,6 +553,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             NotifyOpggStateChanged();
             RefreshOpggAvailability();
         }
+        return _status.Text ?? "";
     }
 
     /// <summary>核对最新对局并应用方案，将结果返回给仍在显示的选择窗。</summary>
@@ -540,7 +566,11 @@ public sealed class CoachForm : UserControl, IThemeAware
             : await GetManualBuildContextAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         OpggBuildApplyResult result;
-        if (!CanApplyBuildContext(context, latest, option.Mode, previewOnly))
+        bool canApply = CanApplyBuildContext(context, latest, option.Mode, previewOnly);
+        RuntimeDiagnostics.Report("OP.GG 应用校验", canApply ? "通过" : "拒绝",
+            $"打开时 {context.Phase}/{context.MyChampionId}/{context.GameMode}/{context.QueueId} · " +
+            $"当前 {latest.Phase}/{latest.MyChampionId}/{latest.GameMode}/{latest.QueueId} · 方案模式 {option.Mode}");
+        if (!canApply)
             result = OpggBuildApplyResult.Failure("当前阶段不可配置，或英雄、模式已变化，请重新获取方案。");
         else
         {
@@ -571,12 +601,38 @@ public sealed class CoachForm : UserControl, IThemeAware
         return result;
     }
 
-    /// <summary>确定推荐弹窗的所属窗口，保证模态显示关系正确。</summary>
+    /// <summary>仅允许稳定的普通窗口拥有方案窗；伴随浮窗入口独立显示。</summary>
     private static Form? ResolveBuildDialogOwner(Form? requested, Form? host)
     {
+        if (requested is ChampSelectCompanionForm) return null;
         Form? owner = requested ?? host;
         return owner is { IsDisposed: false, Visible: true } && owner.WindowState != FormWindowState.Minimized
             ? owner : null;
+    }
+
+    private static async Task WaitForBuildPickerClosedAsync(Form picker, CancellationToken token, Action? show = null)
+    {
+        if (picker.IsDisposed) return;
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        FormClosedEventHandler handler = (_, _) => closed.TrySetResult();
+        picker.FormClosed += handler;
+        using var registration = token.Register(() =>
+        {
+            try
+            {
+                if (picker.IsHandleCreated && !picker.IsDisposed)
+                    picker.BeginInvoke((Action)(() => { if (!picker.IsDisposed) picker.Close(); }));
+                else closed.TrySetCanceled(token);
+            }
+            catch (InvalidOperationException) { closed.TrySetResult(); }
+        });
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            show?.Invoke();
+            await closed.Task;
+        }
+        finally { picker.FormClosed -= handler; }
     }
 
     /// <summary>使用实际模式和标准分路去重，避免客户端字段别名变化触发重复配置。</summary>

@@ -128,21 +128,36 @@ namespace LOL_GameAssistant.BaseViewForm
             try
             {
                 var friends = await _friendDirectoryService.GetFriendsAsync(_lifetime.Token);
-                if (!IsDisposed) RenderFriends(friends);
+                UpdateUi(() => RenderFriends(friends));
             }
             catch (Exception ex)
             {
                 if (IsDisposed || _lifetime.Token.IsCancellationRequested) return;
-                ClearFriendCards();
-                _emptyLabel.Visible = true;
-                _emptyLabel.Text = "好友列表加载失败，请确认 LOL 客户端已启动并登录";
-                _statusLabel.Text = $"加载失败：{ex.Message}";
+                UpdateUi(() =>
+                {
+                    ClearFriendCards();
+                    _emptyLabel.Visible = true;
+                    _emptyLabel.Text = "好友列表加载失败，请确认 LOL 客户端已启动并登录";
+                    _statusLabel.Text = $"加载失败：{ex.Message}";
+                });
             }
             finally
             {
-                if (!IsDisposed) _refreshButton.Enabled = true;
+                UpdateUi(() => _refreshButton.Enabled = true);
                 _loading = false;
             }
+        }
+
+        private void UpdateUi(Action update)
+        {
+            if (IsDisposed || _lifetime.Token.IsCancellationRequested) return;
+            if (InvokeRequired)
+            {
+                if (!IsHandleCreated) return;
+                try { BeginInvoke(() => { if (!IsDisposed && !_lifetime.Token.IsCancellationRequested) update(); }); }
+                catch (InvalidOperationException) { /* 页面已关闭。 */ }
+            }
+            else update();
         }
 
         /// <summary>将好友数据转换为可交互的好友卡片。</summary>

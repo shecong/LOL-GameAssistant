@@ -63,10 +63,10 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Label _teamQueueTag1;
         private readonly AntdUI.Label _teamQueueTag2;
         private readonly ToolTip _teamQueueTip = new();
-        private const int PlayerCardHeight = 470;
-        private const int PlayerCardPreferredWidth = 450;
+        private const int PlayerCardHeight = 380;
+        private const int PlayerCardPreferredWidth = 560;
         private const int PlayerCardSingleColumnMaxWidth = 640;
-        private const int PlayerCardMinimumWidth = 360;
+        private const int PlayerCardMinimumWidth = 300;
         private const int PlayerCardHorizontalMargin = 10;
         private const int PlayerCardVerticalMargin = 10;
 
@@ -88,6 +88,13 @@ namespace LOL_GameAssistant.BaseViewForm
             _playerProfileService = playerProfileService;
             _championSelectService = championSelectService;
             InitializeComponent();
+            rootGrid.Padding = new Padding(12);
+            rootGrid.RowStyles[0].Height = 76;
+            headerTeam1.Height = headerTeam2.Height = 72;
+            infoBar.CornerRadius = headerTeam1.CornerRadius = headerTeam2.CornerRadius = 12;
+            infoBar.DrawBorder = headerTeam1.DrawBorder = headerTeam2.DrawBorder = true;
+            lblGameInfo.Font = new Font(UiMetrics.FontFamily, 12F, FontStyle.Bold);
+            lblTeamTitle1.Font = lblTeamTitle2.Font = new Font(UiMetrics.FontFamily, 13F, FontStyle.Bold);
             var backToTop = new AntdUI.Button { Text = "回到顶部", Dock = DockStyle.Right, Width = 96 };
             backToTop.Click += (_, _) =>
             {
@@ -102,14 +109,30 @@ namespace LOL_GameAssistant.BaseViewForm
             lblGameInfo.Padding = new Padding(30, 0, 0, 0);
             infoBar.Controls.Add(backToTop);
             backToTop.BringToFront();
+            var fetch = new AntdUI.Button { Name = "fetchAllPlayers", Text = "获取数据", Dock = DockStyle.Right, Width = 112, Type = AntdUI.TTypeMini.Primary };
+            fetch.Click += async (_, _) =>
+            {
+                fetch.Loading = true;
+                try { await FetchAllPlayersAsync(); }
+                finally { if (!fetch.IsDisposed) fetch.Loading = false; }
+            };
+            infoBar.Controls.Add(fetch);
+            fetch.BringToFront();
+            // Fill 控件最后分配剩余空间，给两个右侧操作按钮留出宽度。
+            lblGameInfo.BringToFront();
+            lblTeamTitle1.AutoSize = lblTeamTitle2.AutoSize = false;
             panelTeam1.SizeChanged += (_, _) => LayoutPlayerCards();
             panelTeam2.SizeChanged += (_, _) => LayoutPlayerCards();
+            // DPI 自动缩放、重挂卡片及外边距变化会触发布局，但不一定改变面板大小。
+            panelTeam1.Layout += (_, _) => LayoutPlayerCards();
+            panelTeam2.Layout += (_, _) => LayoutPlayerCards();
             _teamQueueTag1 = CreateTeamQueueTag();
             _teamQueueTag2 = CreateTeamQueueTag();
             headerTeam1.Controls.Add(_teamQueueTag1);
             headerTeam2.Controls.Add(_teamQueueTag2);
             _teamQueueTag1.BringToFront();
             _teamQueueTag2.BringToFront();
+            ConfigureReferenceOverview();
             headerTeam1.Resize += (_, _) => LayoutTeamQueueTags();
             headerTeam2.Resize += (_, _) => LayoutTeamQueueTags();
             this.Load += LiveGameForm_Load;
@@ -166,6 +189,20 @@ namespace LOL_GameAssistant.BaseViewForm
             lblTeamTitle1.ForeColor = Color.White;
             lblTeamTitle2.ForeColor = Color.White;
             lblGameInfo.ForeColor = palette.TextPrimary;
+            _teamOverview1.ForeColor = _teamOverview2.ForeColor = Color.FromArgb(190, 215, 232);
+            _gameSubtitle.ForeColor = palette.TextSecondary;
+            column1.BorderWidth = column2.BorderWidth = 1;
+            column1.Radius = column2.Radius = 12;
+            column1.BorderColor = palette.Accent;
+            column2.BorderColor = Color.FromArgb(212, 77, 99);
+            if (palette.IsDark)
+            {
+                panelTeam1.BackColor = panelTeam2.BackColor = Color.FromArgb(14, 24, 31);
+                headerTeam1.StartColor = Color.FromArgb(19, 64, 93);
+                headerTeam1.EndColor = Color.FromArgb(16, 34, 45);
+                headerTeam2.StartColor = Color.FromArgb(91, 30, 40);
+                headerTeam2.EndColor = Color.FromArgb(39, 24, 31);
+            }
         }
 
         /// <summary>重新安排双方队伍组队标签的位置。</summary>
@@ -182,7 +219,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             int width = Math.Clamp(TextRenderer.MeasureText(tag.Text, tag.Font).Width + 16, 48, 132);
             tag.Size = new Size(width, 22);
-            tag.Location = new Point(Math.Max(4, header.ClientSize.Width - width - 8), 6);
+            tag.Location = new Point(Math.Max(4, header.ClientSize.Width - width - 16), 18);
             title.Padding = new Padding(0, 0, width + 16, 0);
         }
 
@@ -226,6 +263,15 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 await AddView();
             }
+        }
+
+        public async Task FetchAllPlayersAsync()
+        {
+            if (_refreshing || IsDisposed) return;
+            // 名单一致时普通刷新会保留卡片；手动获取必须重新读取每位玩家。
+            _lastSignature = "";
+            LivePlayerForm.ClearSharedCaches();
+            await AddView(force: true);
         }
 
         /// <summary>
@@ -482,6 +528,8 @@ namespace LOL_GameAssistant.BaseViewForm
             string modeText = string.IsNullOrEmpty(modeName) ? "" : $" · 模式: {modeName}";
             string queueText = queueId > 0 ? $" · 队列: {queueId}" : "";
             lblGameInfo.Text = $"{phase}{modeText}{queueText}";
+            _modeDescription = mode switch { "CLASSIC" => $"召唤师峡谷  |  {modeName}", "ARAM" => $"嚎哭深渊  |  {modeName}", _ => modeName };
+            UpdateTeamOverview();
         }
 
         /// <summary>根据当前对局信息构建双方队伍卡片。</summary>
@@ -539,6 +587,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 UpdateCurrentChampions(panelTeam2, team2);
                 // 房间标识可能比阵容晚到达；同一阵容也要更新开黑标签。
                 ApplyPremadeResult(partyDetection);
+                LayoutPlayerCards();
                 return;
             }
             // ResetRosterCache clears the signature at the end of a match: never reuse the previous game's cards.
@@ -1106,8 +1155,11 @@ namespace LOL_GameAssistant.BaseViewForm
             panel.SuspendLayout();
             try
             {
+                panel.FlowDirection = FlowDirection.LeftToRight;
+                panel.WrapContents = true;
                 foreach (var card in cards)
                 {
+                    panel.SetFlowBreak(card, false);
                     card.Width = width;
                     card.Height = PlayerCardHeight;
                 }
@@ -1129,7 +1181,10 @@ namespace LOL_GameAssistant.BaseViewForm
             int twoColumnScrollbar = !panel.VerticalScroll.Visible && NeedsVerticalScrollbar(panel, twoColumnRows)
                 ? SystemInformation.VerticalScrollBarWidth
                 : 0;
-            int twoColumnWidth = (contentWidth - twoColumnScrollbar - 2 * PlayerCardHorizontalMargin) / 2;
+            int margin = panel.Controls.OfType<LivePlayerForm>().Select(card => card.Margin.Horizontal)
+                .DefaultIfEmpty(PlayerCardHorizontalMargin).Max();
+            // 使用控件实际外边距，留出两个像素抵消 DPI 和奇数宽度的舍入。
+            int twoColumnWidth = (contentWidth - twoColumnScrollbar - 2 * margin - 2) / 2;
             if (cardCount > 1 && twoColumnWidth >= PlayerCardMinimumWidth)
             {
                 return Math.Min(PlayerCardPreferredWidth, twoColumnWidth);
@@ -1139,7 +1194,7 @@ namespace LOL_GameAssistant.BaseViewForm
             int singleColumnScrollbar = !panel.VerticalScroll.Visible && NeedsVerticalScrollbar(panel, cardCount)
                 ? SystemInformation.VerticalScrollBarWidth
                 : 0;
-            int singleColumnWidth = contentWidth - singleColumnScrollbar - PlayerCardHorizontalMargin;
+            int singleColumnWidth = contentWidth - singleColumnScrollbar - margin - 2;
             return Math.Max(1, Math.Min(PlayerCardSingleColumnMaxWidth, singleColumnWidth));
         }
 
@@ -1227,6 +1282,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
                 UiTheme.Apply(card);
                 card.RecentPerformanceReady += OnPlayerRecentPerformanceReady;
+                card.OverviewChanged += (_, _) => UpdateTeamOverview();
                 panel.Controls.Add(card);
             }
         }

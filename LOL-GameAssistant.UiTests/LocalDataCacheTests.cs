@@ -1,6 +1,8 @@
 using System.Reflection;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Matches;
+using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Infrastructure.GameData;
 using LOL_GameAssistant.Infrastructure.LeagueClient;
@@ -10,6 +12,28 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class LocalDataCacheTests
 {
+    [Fact]
+    public async Task MatchDetailsReuseDiskCacheUnlessFreshDataIsExplicitlyRequested()
+    {
+        using var folder = new CacheFolder();
+        int requests = 0;
+        var inner = Service<IMatchHistoryService>((method, args) =>
+        {
+            Assert.Equal("GetDetailAsync", method.Name);
+            requests++;
+            return Task.FromResult<MatchDetail?>(new() { GameId = (long)args[0]!, gameDuration = requests * 100,
+                participants = [new() { participantId = 1 }] });
+        });
+        var first = new CachedMatchHistoryService(inner, folder.Path);
+        Assert.Equal(100, (await first.GetDetailAsync(42))!.gameDuration);
+        Assert.Equal(100, (await first.GetDetailAsync(42))!.gameDuration);
+        var restarted = new CachedMatchHistoryService(inner, folder.Path);
+        Assert.Equal(100, (await restarted.GetDetailAsync(42))!.gameDuration);
+        Assert.Equal(1, requests);
+        Assert.Equal(200, (await restarted.GetDetailAsync(42, useCache: false))!.gameDuration);
+        Assert.Equal(2, requests);
+    }
+
     [Fact]
     public async Task NewCacheInstanceReadsDiskWithoutDownloadingAgain()
     {

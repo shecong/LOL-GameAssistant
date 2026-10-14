@@ -101,6 +101,7 @@ namespace LOL_GameAssistant.BaseViewForm
             UiLanguage.Changed += LanguageChanged;
             Disposed += (_, _) => UiLanguage.Changed -= LanguageChanged;
             game_pagin.Click -= game_pagin_Click;
+            InitializeDashboardLayout();
             LayoutSummary();
             stackPanel1.SizeChanged += (_, _) => LayoutRecordCards();
             ApplyTheme(UiTheme.Palette);
@@ -113,16 +114,17 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (IsDisposed) return;
             int Scale(int value) => value * DeviceDpi / 96;
+            rootGrid.ColumnStyles[0].Width = Math.Clamp(ClientSize.Width * .29F, Scale(260), Scale(410));
             rootGrid.RowStyles[0].Height = Scale(70);
-            rootGrid.RowStyles[1].Height = Scale(244);
+            rootGrid.RowStyles[1].SizeType = SizeType.Percent;
+            rootGrid.RowStyles[1].Height = 100;
             historyHeader.Height = Scale(50);
             flowSearch.WrapContents = false;
             int actionWidth = flowSearch.Controls.Cast<Control>().Where(c => c != inp_playname)
                 .Sum(c => c.Width + c.Margin.Horizontal);
             inp_playname.Width = Math.Max(Scale(120), flowSearch.ClientSize.Width - actionWidth - inp_playname.Margin.Horizontal - flowSearch.Padding.Horizontal);
             historyHeader.WrapContents = false;
-            game_pagin.Width = Math.Max(Scale(100), historyHeader.ClientSize.Width - lblHistoryTitle.Width - lblPageSizeCap.Width - game_count.Width
-                - lblHistoryTitle.Margin.Horizontal - lblPageSizeCap.Margin.Horizontal - game_count.Margin.Horizontal - game_pagin.Margin.Horizontal - Scale(16));
+            game_pagin.Height = Scale(44);
             LayoutPlayerSummary();
         }
 
@@ -158,11 +160,11 @@ namespace LOL_GameAssistant.BaseViewForm
             SetCardColors(rankedCard, cardStart, cardEnd, palette.Border);
             SetCardColors(historyCard, cardStart, cardEnd, palette.Border);
             SetCardColors(soloPanel,
-                palette.IsDark ? Color.FromArgb(42, 62, 82) : Color.White,
-                palette.IsDark ? Color.FromArgb(38, 55, 74) : Color.FromArgb(245, 250, 255), palette.Border);
+                palette.IsDark ? Color.FromArgb(13, 45, 77) : Color.White,
+                palette.IsDark ? palette.SurfaceRaised : Color.FromArgb(245, 250, 255), palette.Border);
             SetCardColors(flexPanel,
-                palette.IsDark ? Color.FromArgb(72, 52, 63) : Color.White,
-                palette.IsDark ? Color.FromArgb(59, 47, 58) : Color.FromArgb(255, 247, 245), palette.Border);
+                palette.IsDark ? Color.FromArgb(40, 29, 58) : Color.White,
+                palette.IsDark ? palette.SurfaceRaised : Color.FromArgb(255, 247, 245), palette.Border);
 
             flowSearch.BackColor = cardStart;
             rankGrid.BackColor = cardStart;
@@ -243,7 +245,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         /// <returns></returns>
         private Task LoadGame() => LoadPlayerAsync(null);
-        public Task RefreshAsync() => LoadGame();
+        public Task RefreshAsync() => LoadPlayerAsync(UserStatus == 2 ? userOhterinfo?.Puuid : null);
         private Task LoadGame(string puuid) => LoadPlayerAsync(puuid);
 
         internal async Task LoadPlayerAsync(string? puuid, string? search = null)
@@ -252,6 +254,7 @@ namespace LOL_GameAssistant.BaseViewForm
             using var request = _loads.Begin();
             _pages.Cancel();
             var token = request.Token;
+            if (IsHandleCreated) Search_Player.Loading = refeash.Loading = true;
             try
             {
                 bool connected = await Task.Run(() => _leagueClientConnection.TryConnect(), token);
@@ -271,13 +274,20 @@ namespace LOL_GameAssistant.BaseViewForm
                         if (!request.IsCurrent) return;
                         puuid = found?.Puuid ?? GetUserPuuid(search);
                     }
-                    else puuid = search.Length >= 30 ? search : GetUserPuuid(search);
-                    if (string.IsNullOrWhiteSpace(puuid)) { _infoMsgForm.AddMsg("未找到该玩家，请检查输入是否正确"); return; }
+                    else if (search.Length >= 30) puuid = search;
+                    else
+                    {
+                        var found = await _playerProfileService.FindByNameAsync(search, token);
+                        if (!request.IsCurrent) return;
+                        puuid = found?.Puuid ?? GetUserPuuid(search);
+                    }
+                    if (string.IsNullOrWhiteSpace(puuid)) { _infoMsgForm.AddMsg("未找到该玩家，请输入完整的名称#TAG 或 PUUID"); return; }
                 }
                 await _gameDataVersionService.EnsureCurrentVersionAsync(token);
                 var player = puuid == null ? await _playerProfileService.GetCurrentAsync(token)
                     : await _playerProfileService.GetByPuuidAsync(puuid, token);
-                if (!request.IsCurrent || player == null) return;
+                if (!request.IsCurrent) return;
+                if (player == null) { _infoMsgForm.AddMsg("未获取到玩家资料，请检查名称#TAG 和客户端连接"); return; }
                 byte[]? icon = await _profileIconService.GetProfileIconAsync(player.ProfileIconId, token);
                 if (!request.IsCurrent) return;
                 var ranked = await _rankedStatsService.GetAsync(player.Puuid, isCurrentUser: puuid == null, cancellationToken: token);
@@ -296,6 +306,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 play_jd.Value = CalculateLevelProgress(player);
                 ApplyRankedStats(ranked);
                 matchlists = history;
+                UpdateModeOptions();
                 InitPagin(history);
                 await GetGameInfo(player, 1);
             }
@@ -304,6 +315,10 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 if (request.IsCurrent) _infoMsgForm.AddMsg($"首页加载失败：{ex.Message}");
                 RuntimeDiagnostics.WriteException(ex);
+            }
+            finally
+            {
+                if (request.IsCurrent && !IsDisposed && IsHandleCreated) Search_Player.Loading = refeash.Loading = false;
             }
         }
 
@@ -327,6 +342,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             // 使用已缓存的 matchlists 数据进行本地分页，避免重复调用 API
             var sortedList = matchlists.Games.Games
+                .Where(MatchesSelectedMode)
                 .OrderByDescending(p => p.GameCreation)
                 .ToList();
 
@@ -352,7 +368,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     if (!request.IsCurrent) return null;
                     record = _recordFactory();
                     record.Width = GetRecordCardWidth();
-                    record.Margin = new Padding(0, 0, 12, 10);
+                    record.Margin = new Padding(0, 0, 12, 16);
                     await record.setInfo(head, userinfo.Puuid, cancellationToken: token);
                     return record;
                 }
@@ -384,10 +400,10 @@ namespace LOL_GameAssistant.BaseViewForm
         private int GetRecordCardWidth()
         {
             const int gap = 12;
-            int available = Math.Max(600, stackPanel1.ClientSize.Width - stackPanel1.Padding.Horizontal - 8);
+            int available = Math.Max(280, stackPanel1.ClientSize.Width - stackPanel1.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth - 8);
             return available >= 1240
                 ? Math.Min(700, (available - gap * 2) / 2)
-                : Math.Min(700, Math.Max(600, available - gap));
+                : Math.Max(280, available - gap);
         }
 
         /// <summary>按首页容器尺寸重新排列战绩卡片。</summary>
@@ -526,12 +542,14 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <exception cref="NotImplementedException"></exception>
         private void InitPagin(MatchHistoryResponse? matchlists)
         {
-            if (matchlists != null && matchlists.Games != null && matchlists.Games.Games != null && matchlists.Games.Games.Count > 0)
+            _updatingPagination = true;
+            try
             {
-                this.game_pagin.Total = matchlists.Games.Games.Count;
+                this.game_pagin.Total = matchlists?.Games?.Games.Count(MatchesSelectedMode) ?? 0;
                 this.game_pagin.Current = 1;
-                this.game_pagin.PageSize = Convert.ToInt32(this.game_count.Text);
+                this.game_pagin.PageSize = Math.Max(1, (int)game_count.Value);
             }
+            finally { _updatingPagination = false; }
         }
 
         /// <summary>
@@ -633,7 +651,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="e"></param>
         private async void refeash_Click(object sender, EventArgs e)
         {
-            await LoadGame();
+            await RefreshAsync();
         }
 
         /// <summary>
@@ -679,6 +697,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="e"></param>
         private void game_pagin_ValueChanged(object sender, AntdUI.PagePageEventArgs e)
         {
+            if (_updatingPagination) return;
             _ = UpdateGame_paginAsync();
         }
 

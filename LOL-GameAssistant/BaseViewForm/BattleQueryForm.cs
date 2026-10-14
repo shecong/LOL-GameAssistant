@@ -259,15 +259,16 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
         public void ApplyTheme(ThemePalette palette)
         {
-            BackColor = palette.SurfaceMuted;
+            BackColor = palette.Surface;
             _searchSurface.BackColor = palette.SurfaceRaised;
+            _searchSurface.BorderColor = _profileSurface.BorderColor = palette.Border;
             _profileSurface.BackColor = palette.SurfaceRaised;
             _playerPlaceholder.ForeColor = palette.TextSecondary;
             panelPlayer.BackColor = palette.SurfaceRaised;
-            panelContent.BackColor = palette.SurfaceMuted;
-            panelHistory.BackColor = palette.SurfaceMuted;
+            panelContent.BackColor = palette.Surface;
+            panelHistory.BackColor = palette.Surface;
             panelStats.BackColor = palette.SurfaceMuted;
-            stackMatches.BackColor = palette.SurfaceMuted;
+            stackMatches.BackColor = palette.Surface;
             _historyTitle.ForeColor = palette.TextPrimary;
             _historyHint.ForeColor = palette.TextSecondary;
             lblStatus.ForeColor = palette.TextSecondary;
@@ -569,7 +570,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 return input;
             }
 
-            return await ScanMatchHistoryForPuuidAsync(input, token);
+            var byName = input.Contains('#') ? null : await _playerProfileService.FindByNameAsync(input, token);
+            return byName?.Puuid ?? await ScanMatchHistoryForPuuidAsync(input, token);
         }
 
         /// <summary>扫描战绩信息以定位目标玩家的唯一标识。</summary>

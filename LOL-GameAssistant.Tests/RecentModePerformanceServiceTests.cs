@@ -8,6 +8,39 @@ namespace LOL_GameAssistant.Tests;
 public sealed class RecentModePerformanceServiceTests
 {
     [Fact]
+    public async Task BackgroundScoringLeavesCapacityForVisibleRowsAndCancellationReleasesSlots()
+    {
+        var games = Enumerable.Range(1, 6).Select(id => Game(id, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 450)).ToList();
+        foreach (var game in games) game.Participants.Clear();
+        int active = 0;
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new FakeHistory(games) { DetailLoader = async (_, token) =>
+        {
+            if (Interlocked.Increment(ref active) == 4) started.TrySetResult();
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, token); return null; }
+            finally { Interlocked.Decrement(ref active); }
+        } };
+        using var cancellation = new CancellationTokenSource();
+        var service = new RecentModePerformanceService(source);
+        var first = service.EvaluateAsync("first", 450, "ARAM", "大乱斗", cancellationToken: cancellation.Token);
+        var second = service.EvaluateAsync("second", 450, "ARAM", "大乱斗", cancellationToken: cancellation.Token);
+        try
+        {
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(4, Volatile.Read(ref active));
+            Assert.Equal(16, MatchDetailConcurrency.Gate.CurrentCount);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.WhenAll(first, second));
+        }
+        Assert.Equal(0, active);
+        Assert.Equal(20, MatchDetailConcurrency.Gate.CurrentCount);
+        Assert.Equal(4, MatchDetailConcurrency.BackgroundGate.CurrentCount);
+    }
+
+    [Fact]
     public async Task ReadsEveryPageWithinThirtyDaysAndCountsAllSameModeGames()
     {
         long recent = DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeMilliseconds();
@@ -60,6 +93,7 @@ public sealed class RecentModePerformanceServiceTests
 
     private sealed class FakeHistory(List<MatchHistoryGame> games) : IMatchHistoryService
     {
+        public Func<long, CancellationToken, Task<MatchDetail?>>? DetailLoader { get; init; }
         public int PageRequests { get; private set; }
 
         public Task<MatchHistoryResponse?> GetPageAsync(string puuid, int beginIndex, int endIndex,
@@ -80,7 +114,7 @@ public sealed class RecentModePerformanceServiceTests
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<MatchDetail?> GetDetailAsync(long gameId, bool useCache = true,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            CancellationToken cancellationToken = default) => DetailLoader?.Invoke(gameId, cancellationToken) ?? throw new NotSupportedException();
 
         public void ClearDetailCache() { }
     }

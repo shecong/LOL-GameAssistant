@@ -35,6 +35,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _gameAssetService = gameAssetService;
             InitializeComponent();
             WindowLayout.ConfigureDpi(this);
+            game_win.Font = new Font(UiMetrics.FontFamily, 12F, FontStyle.Bold);
+            foreach (AntdUI.Label label in Controls.OfType<AntdUI.Label>()) label.AutoSize = false;
             _performanceTag.AutoSize = false;
             _performanceTag.Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold);
             _performanceTag.TextAlign = ContentAlignment.MiddleCenter;
@@ -43,6 +45,8 @@ namespace LOL_GameAssistant.BaseViewForm
             Controls.Add(_performanceTag);
             _performanceTag.BringToFront();
             AttachDoubleClickToAllControls(this);
+            Resize += (_, _) => LayoutRecord();
+            LayoutRecord();
             Disposed += (_, _) =>
             {
                 _lifetime.Dispose();
@@ -69,7 +73,25 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _gameDetail = detail ?? await _matchHistoryService.GetDetailAsync(head.GameId, cancellationToken: cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (_gameDetail == null || IsDisposed) return;
+            if (IsDisposed) return;
+            if (_gameDetail == null)
+            {
+                var summary = head.GetParticipant(puuid);
+                _isWin = summary?.stats == null ? null : summary.IsWin();
+                game_win.Text = _isWin == null ? "对局" : _isWin == true ? "胜利" : "失败";
+                game_type.Text = head.GetModeText();
+                game_name.Text = "对局摘要";
+                game_msg.Text = summary?.stats == null ? "KDA —" : summary.GetKdaText();
+                game_duration.Text = head.GameDuration > 0 ? $"{head.GameDuration / 60}:{head.GameDuration % 60:D2}" : "时长 —";
+                game_time.Text = head.GameCreation > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(head.GameCreation).ToLocalTime().ToString("yyyy-MM-dd") : "时间 —";
+                game_cs.Text = summary?.stats == null ? "补刀 —" : $"补刀 {summary.stats.totalMinionsKilled}";
+                game_damage.Text = summary?.stats == null ? "伤害 —" : $"伤害 {summary.stats.totalDamageDealtToChampions:N0}";
+                game_gold.Text = summary?.stats == null ? "金币 —" : $"金币 {summary.stats.goldEarned:N0}";
+                lblAlly.Visible = lblEnemy.Visible = flowAlly.Visible = flowEnemy.Visible = false;
+                _performanceTag.Text = "详情暂不可用";
+                ApplyTheme(UiTheme.Palette);
+                return;
+            }
 
             var gamer = _gameDetail.GetParticipant(puuid);
             if (gamer == null) return;
@@ -157,8 +179,20 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
         public void ApplyTheme(ThemePalette palette)
         {
-            BackColor = palette.IsDark ? (_isWin == false ? palette.SurfaceMuted : palette.SurfaceRaised)
-                : _isWin == false ? Color.FromArgb(242, 242, 242) : Color.FromArgb(250, 250, 250);
+            BackColor = palette.IsDark ? (_isWin == false ? Color.FromArgb(55, 30, 48) : Color.FromArgb(17, 49, 62))
+                : _isWin == false ? Color.FromArgb(255, 234, 237) : Color.FromArgb(230, 247, 245);
+            Invalidate();
+            foreach (AntdUI.Label label in Controls.OfType<AntdUI.Label>())
+            {
+                label.BackColor = Color.Transparent;
+                label.ForeColor = palette.TextSecondary;
+            }
+            game_name.ForeColor = game_msg.ForeColor = palette.TextPrimary;
+            game_win.ForeColor = _isWin == false ? Color.FromArgb(239, 102, 129) : Color.FromArgb(81, 194, 142);
+            lblAlly.ForeColor = palette.Accent;
+            lblEnemy.ForeColor = Color.FromArgb(239, 102, 129);
+            flowAlly.BackColor = flowEnemy.BackColor = Color.Transparent;
+            foreach (PictureBox picture in Controls.OfType<PictureBox>()) picture.BackColor = palette.SurfaceMuted;
             if (_performanceAssessment is not { HasEnoughSample: true } assessment)
             {
                 _performanceTag.BackColor = palette.SurfaceMuted;
@@ -176,6 +210,61 @@ namespace LOL_GameAssistant.BaseViewForm
                 (RecentPerformanceLabel.Lower, false) => (Color.FromArgb(255, 235, 238), Color.FromArgb(183, 28, 28)),
                 _ => (palette.SurfaceMuted, palette.TextSecondary)
             };
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (Width < 8 || Height < 8) return;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            Color accent = _isWin == false ? Color.FromArgb(239, 102, 129) : Color.FromArgb(81, 194, 142);
+            using var border = new Pen(Color.FromArgb(160, accent), 1.5F);
+            using var outline = GradientPanel.RoundedRect(new Rectangle(1, 1, Width - 3, Height - 3), 10);
+            e.Graphics.DrawPath(border, outline);
+            using var strip = new SolidBrush(accent);
+            e.Graphics.FillRectangle(strip, 2, 12, 4, Height - 24);
+        }
+
+        private void LayoutRecord()
+        {
+            if (IsDisposed) return;
+            int Scale(int value) => value * DeviceDpi / 96;
+            int width = ClientSize.Width;
+            Height = Scale(width < Scale(680) ? 218 : 158);
+            game_pic.SetBounds(Scale(14), Scale(16), Scale(56), Scale(56));
+            game_win.SetBounds(Scale(82), Scale(12), Scale(66), Scale(28));
+            game_type.SetBounds(Scale(155), Scale(12), Math.Max(Scale(100), width - Scale(320)), Scale(28));
+            game_name.SetBounds(Scale(82), Scale(42), Scale(160), Scale(26));
+            game_msg.SetBounds(Scale(252), Scale(42), Scale(140), Scale(26));
+            game_time.SetBounds(Math.Max(Scale(340), width - Scale(164)), Scale(12), Scale(150), Scale(26));
+            game_duration.SetBounds(Math.Max(Scale(400), width - Scale(92)), Scale(42), Scale(78), Scale(26));
+            _performanceTag.SetBounds(Math.Max(Scale(390), width - Scale(190)), Scale(44), Scale(90), Scale(22));
+            game_cs.SetBounds(Scale(14), Scale(78), Scale(120), Scale(24));
+            game_damage.SetBounds(Scale(142), Scale(78), Scale(160), Scale(24));
+            game_gold.SetBounds(Scale(310), Scale(78), Scale(140), Scale(24));
+            PictureBox[] items = [pic_1, pic_2, pic_3, pic_4, pic_5, pic_6, pic_7, pic_D, pic_F];
+            for (int index = 0; index < items.Length; index++)
+                items[index].SetBounds(Scale(14 + index * 30), Scale(110), Scale(26), Scale(26));
+            int teamLeft = Scale(302);
+            int teamWidth = Math.Max(Scale(180), (width - teamLeft - Scale(24)) / 2);
+            lblAlly.SetBounds(teamLeft, Scale(106), Scale(36), Scale(26));
+            flowAlly.SetBounds(teamLeft + Scale(40), Scale(106), teamWidth - Scale(40), Scale(34));
+            lblEnemy.SetBounds(teamLeft + teamWidth, Scale(106), Scale(36), Scale(26));
+            flowEnemy.SetBounds(teamLeft + teamWidth + Scale(40), Scale(106), teamWidth - Scale(40), Scale(34));
+            if (width < Scale(680))
+            {
+                game_type.SetBounds(Scale(155), Scale(12), Math.Max(Scale(90), width - Scale(170)), Scale(28));
+                game_time.SetBounds(Math.Max(Scale(245), width - Scale(164)), Scale(42), Scale(150), Scale(26));
+                game_msg.SetBounds(Scale(82), Scale(70), Scale(140), Scale(26));
+                game_duration.SetBounds(Scale(232), Scale(70), Scale(78), Scale(26));
+                _performanceTag.SetBounds(width - Scale(104), Scale(72), Scale(90), Scale(22));
+                game_cs.Top = game_damage.Top = game_gold.Top = Scale(102);
+                foreach (PictureBox picture in items) picture.Top = Scale(134);
+                lblAlly.SetBounds(Scale(14), Scale(173), Scale(36), Scale(26));
+                flowAlly.SetBounds(Scale(54), Scale(173), width / 2 - Scale(64), Scale(34));
+                lblEnemy.SetBounds(width / 2, Scale(173), Scale(36), Scale(26));
+                flowEnemy.SetBounds(width / 2 + Scale(40), Scale(173), width / 2 - Scale(54), Scale(34));
+            }
         }
 
         /// <summary>

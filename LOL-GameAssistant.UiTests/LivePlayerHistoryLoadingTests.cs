@@ -89,6 +89,7 @@ public sealed class LivePlayerHistoryLoadingTests
         Assert.Equal(10, panel.Controls.OfType<RecentMatchRow>().Count());
         Assert.Empty(panel.Controls.OfType<ShimmerPanel>());
         Assert.Equal("评分中", Child(card, "lblSummary").Text);
+        Assert.False((bool)typeof(LivePlayerForm).GetField("_loading", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(card)!);
         nextPage.SetException(new IOException("scoring failed"));
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal(10, panel.Controls.OfType<RecentMatchRow>().Count());

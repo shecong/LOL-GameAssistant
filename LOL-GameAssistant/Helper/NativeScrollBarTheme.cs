@@ -70,9 +70,11 @@ internal static class NativeScrollBarTheme
             if (message.Msg is 0xA0 or 0xA1 && message.WParam.ToInt64() is 6 or 7)
                 _interactionTimer.Start();
             base.WndProc(ref message);
+            // Wheel scrolling updates native scrollbars directly, without necessarily sending
+            // WM_VSCROLL/WM_HSCROLL or WM_NCPAINT. Repaint after Windows has moved the thumb.
             if (!_control.IsDisposed && Handle != IntPtr.Zero &&
                 message.Msg is 0x85 or 0x86 or 0xF or 0x114 or 0x115 or 0xA0 or 0xA1 or 0xA2
-                    or 0x2A2 or 0x200 or 0x202 or 0x215 or 0x31A)
+                    or 0x2A2 or 0x200 or 0x202 or 0x20A or 0x20E or 0x215 or 0x31A)
             {
                 _hoveredBar = GetHoveredBar();
                 PaintScrollbars();

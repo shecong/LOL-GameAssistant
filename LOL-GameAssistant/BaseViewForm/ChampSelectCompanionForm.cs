@@ -30,6 +30,8 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     private readonly IApplicationSettingsStore _settings;
     private readonly Func<Rectangle?> _clientBounds;
     private readonly Func<bool> _clientForeground;
+    private readonly Func<CancellationToken, Task<string>> _openBuildPicker;
+    private Task? _buildEntryTask;
     private IntPtr _clientWindow;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 150 };
     private readonly CancellationTokenSource _lifetime = new();
@@ -84,7 +86,8 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     internal ChampSelectCompanionForm(IChampionSelectService selection, ILobbyService lobby,
         IClientFeatureService features, IChampionCatalog champions, IPlayerProfileService players,
         IRankedStatsService ranked, IMatchHistoryService matches, IApplicationSettingsStore settings,
-        Func<Rectangle?>? clientBounds = null, Func<bool>? clientForeground = null)
+        Func<Rectangle?>? clientBounds = null, Func<bool>? clientForeground = null,
+        Func<CancellationToken, Task<string>>? openBuildPicker = null)
     {
         _selection = selection;
         _lobby = lobby;
@@ -96,6 +99,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         _settings = settings;
         _clientBounds = clientBounds ?? (() => TryGetClientBounds(out var bounds) ? bounds : null);
         _clientForeground = clientForeground ?? (() => _clientWindow != IntPtr.Zero && GetForegroundWindow() == _clientWindow);
+        _openBuildPicker = openBuildPicker ?? (token => Program.GameMain.coachForm.OpenOpggBuildPickerAsync(token, owner: this));
         Text = "LOL 选人伴随窗";
         AntdWindowChrome.Configure(this, fitWorkingArea: false);
         EnableHitTest = false;
@@ -156,7 +160,9 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         if (IsDisposed || _tracking) return;
         _trackingGeneration++;
         _trackingCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _buildEntryTask = null;
         _chooseBuild.Enabled = true;
+        _buildStatus.Visible = false;
         _loading = _selectionLoading = _modeLoading = _swapping = false;
         _isMayhem = null;
         _isAram = false;
@@ -177,6 +183,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         _tracking = false;
         RuntimeDiagnostics.Report("选人伴随窗", "已停止", "未处于选人阶段或设置已关闭");
         _trackingGeneration++;
+        _buildEntryTask = null;
         _trackingCancellation?.Cancel();
         _trackingCancellation?.Dispose();
         _trackingCancellation = null;
@@ -426,9 +433,19 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     }
 
     /// <summary>打开当前英雄的推荐方案选择界面。</summary>
-    private async Task ChooseBuildAsync()
+    internal Task ChooseBuildAsync()
     {
-        if (!_tracking || IsDisposed || !_chooseBuild.Enabled) return;
+        if (!_tracking || IsDisposed) return Task.CompletedTask;
+        if (_buildEntryTask != null) return _buildEntryTask;
+        // 先占用入口，再调用可能同步完成的服务，避免重复点击与旧请求回写。
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _buildEntryTask = completion.Task;
+        _ = RunBuildEntryAsync(completion);
+        return completion.Task;
+    }
+
+    private async Task RunBuildEntryAsync(TaskCompletionSource completion)
+    {
         int generation = _trackingGeneration;
         CancellationToken token = _trackingCancellation!.Token;
         try
@@ -437,9 +454,12 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
             _buildStatus.Visible = true;
             _buildStatus.Text = UiLanguage.IsEnglish ? "Loading current build options…" : "正在获取当前模式的符文装备方案…";
             TopMost = false;
-            string result = await Program.GameMain.coachForm.OpenOpggBuildPickerAsync(token, owner: this);
-            if (IsCurrentTracking(generation)) _buildStatus.Text = UiLanguage.T(result);
+            Hide();
+            RuntimeDiagnostics.Report("选人配置入口", "已打开", $"选人周期 {generation}");
+            string result = await _openBuildPicker(token);
+            if (IsCurrentTracking(generation) && !token.IsCancellationRequested) _buildStatus.Text = UiLanguage.T(result);
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception ex)
         {
             RuntimeDiagnostics.WriteException(ex);
@@ -447,11 +467,14 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         }
         finally
         {
-            if (!IsDisposed && generation == _trackingGeneration)
+            if (IsCurrentTracking(generation) && ReferenceEquals(_buildEntryTask, completion.Task))
             {
+                _buildEntryTask = null;
                 _chooseBuild.Enabled = true;
                 SyncClientVisibility();
             }
+            RuntimeDiagnostics.Report("选人配置入口", "已结束", $"选人周期 {generation} · 已取消 {token.IsCancellationRequested}");
+            completion.TrySetResult();
         }
     }
 
@@ -517,6 +540,8 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     internal bool SyncClientVisibility()
     {
         if (!_tracking || IsDisposed) return false;
+        // 方案窗独立接收输入；在入口请求结束前不跟随、显示或置顶伴随窗。
+        if (_buildEntryTask != null) return false;
         Rectangle? client = _clientBounds();
         if (client == null)
         {
@@ -526,7 +551,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
             return false;
         }
         FollowClient(client.Value);
-        TopMost = _chooseBuild.Enabled && _clientForeground();
+        TopMost = _clientForeground();
         if (!Visible) Show();
         RuntimeDiagnostics.Report("选人伴随窗", "已显示", "已定位客户端窗口并显示队友面板");
         return true;

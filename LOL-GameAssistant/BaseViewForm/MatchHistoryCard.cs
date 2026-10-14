@@ -10,7 +10,7 @@ using System.Collections.Concurrent;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>单局记录直接展示双方玩家、KDA、开黑标记、禁用英雄与强化。</summary>
-public sealed class MatchHistoryCard : UserControl
+public sealed class MatchHistoryCard : UserControl, IThemeAware
 {
     private const int HeaderHeight = 114;
     private static readonly SemaphoreSlim PremadeGate = new(2);
@@ -78,6 +78,7 @@ public sealed class MatchHistoryCard : UserControl
             win ? (UiTheme.Palette.IsDark ? Color.FromArgb(125, 214, 157) : Color.FromArgb(25, 125, 76))
                 : (UiTheme.Palette.IsDark ? Color.FromArgb(245, 151, 158) : Color.FromArgb(188, 64, 75)));
         _champion = new AntdUI.Avatar { Text = "?", Size = new Size(38, 38) };
+        _result.Font = new Font(UiMetrics.FontFamily, 17F, FontStyle.Bold);
         _modeTitle = MakeLabel(match.GetModeText(), true);
         _matchInfo = MakeLabel($"{GetChampionName(mine?.championId ?? 0)} · {match.gameCreationDate}", false, UiTheme.Palette.TextSecondary);
         _kda = MakeLabel($"KDA  {mine?.GetKdaText() ?? "—"}", true);
@@ -98,7 +99,28 @@ public sealed class MatchHistoryCard : UserControl
         _surface.Controls.Add(_teamHost);
         Resize += (_, _) => LayoutCard();
         LayoutCard();
+        ApplyTheme(UiTheme.Palette);
         _ = DetectPremadesAsync(ownTeamId, otherTeamId);
+    }
+
+    public void ApplyTheme(ThemePalette palette)
+    {
+        BackColor = palette.Surface;
+        _surface.BackColor = palette.SurfaceRaised;
+        _surface.BorderColor = palette.Border;
+        _blueTeam.BackColor = _redTeam.BackColor = palette.SurfaceRaised;
+        _blueTeam.BorderColor = palette.Accent;
+        _redTeam.BorderColor = palette.IsDark ? Color.FromArgb(162, 62, 87) : palette.RedHeader;
+        _teamOneTitle.ForeColor = palette.IsDark ? palette.Accent : palette.BlueHeader;
+        _teamTwoTitle.ForeColor = palette.IsDark ? Color.FromArgb(255, 122, 147) : palette.RedHeader;
+        _result.ForeColor = _match.GetParticipant(_viewerPuuid).IsWin()
+            ? Color.FromArgb(81, 194, 142) : Color.FromArgb(239, 102, 129);
+        foreach (PlayerRow row in _blueRows.Concat(_redRows))
+        {
+            row.Panel.BackColor = palette.SurfaceMuted;
+            row.Name.ForeColor = row.Score.ForeColor = palette.TextPrimary;
+            row.Detail.ForeColor = palette.TextSecondary;
+        }
     }
 
     /// <summary>创建当前卡片使用的文本标签。</summary>
@@ -106,7 +128,7 @@ public sealed class MatchHistoryCard : UserControl
     {
         Text = text,
         ForeColor = color ?? UiTheme.Palette.TextPrimary,
-        Font = new Font("Microsoft YaHei UI", 9F, bold ? FontStyle.Bold : FontStyle.Regular),
+        Font = new Font("Microsoft YaHei UI", 10F, bold ? FontStyle.Bold : FontStyle.Regular),
         AutoEllipsis = true,
         TextAlign = ContentAlignment.MiddleLeft,
         BackColor = Color.Transparent
@@ -233,6 +255,29 @@ public sealed class MatchHistoryCard : UserControl
         try
         {
             int width = ClientSize.Width;
+            if (width >= 1180)
+            {
+                // 宽屏将结果摘要放在左侧，双方阵容横向并列。
+                const int summaryWidth = 218;
+                int sideWidth = (width - summaryWidth - 36) / (_redRows.Count > 0 ? 2 : 1);
+                int ownHeight = LayoutTeam(_blueTeam, _teamOneTitle, _blueRows, sideWidth);
+                int enemyHeight = LayoutTeam(_redTeam, _teamTwoTitle, _redRows, sideWidth);
+                _redTeam.Visible = _redRows.Count > 0;
+                int contentHeight = Math.Max(310, _redRows.Count > 0 ? Math.Max(ownHeight, enemyHeight) : ownHeight);
+                _teamHost.SetBounds(summaryWidth, 12, width - summaryWidth - 12, contentHeight);
+                _blueTeam.Location = Point.Empty;
+                _redTeam.Location = new Point(sideWidth + 12, 0);
+                _result.SetBounds(16, 16, 100, 38);
+                _champion.Location = new Point(154, 16);
+                _modeTitle.SetBounds(16, 62, 186, 28);
+                _matchInfo.SetBounds(16, 94, 186, 30);
+                _kda.SetBounds(16, 136, 186, 30);
+                _duration.SetBounds(16, 170, 186, 24);
+                _details.Location = new Point(16, 211);
+                _replay.Location = new Point(16, 261);
+                Height = contentHeight + 24;
+                return;
+            }
             _result.SetBounds(14, 15, 48, 38);
             _champion.Location = new Point(66, 18);
             bool narrowHeader = width < 690;
@@ -254,12 +299,14 @@ public sealed class MatchHistoryCard : UserControl
             }
 
             int available = Math.Max(310, width - 24);
-            bool stacked = available < 850;
-            int teamWidth = stacked ? available : (available - 12) / 2;
+            bool hasEnemy = _redRows.Count > 0;
+            _redTeam.Visible = hasEnemy;
+            bool stacked = available < 740;
+            int teamWidth = stacked || !hasEnemy ? available : (available - 12) / 2;
             int blueHeight = LayoutTeam(_blueTeam, _teamOneTitle, _blueRows, teamWidth);
             int redHeight = LayoutTeam(_redTeam, _teamTwoTitle, _redRows, teamWidth);
             _teamHost.SetBounds(12, HeaderHeight, available,
-                stacked ? blueHeight + redHeight + 10 : Math.Max(blueHeight, redHeight));
+                !hasEnemy ? blueHeight : stacked ? blueHeight + redHeight + 10 : Math.Max(blueHeight, redHeight));
             _blueTeam.Location = Point.Empty;
             _redTeam.Location = stacked ? new Point(0, blueHeight + 10) : new Point(teamWidth + 12, 0);
             Height = HeaderHeight + _teamHost.Height + 12;

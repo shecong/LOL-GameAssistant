@@ -39,6 +39,10 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
     public Task<PlayerProfile?> FindByRiotIdAsync(string gameName, string tagLine, CancellationToken cancellationToken = default) =>
         _cache.GetLatestOrCachedAsync($"riot:{gameName.Trim()}#{tagLine.Trim().TrimStart('#')}",
             () => _inner.FindByRiotIdAsync(gameName, tagLine, cancellationToken), cancellationToken);
+
+    public Task<PlayerProfile?> FindByNameAsync(string gameName, CancellationToken cancellationToken = default) =>
+        _cache.GetLatestOrCachedAsync($"name:{gameName.Trim()}",
+            () => _inner.FindByNameAsync(gameName, cancellationToken), cancellationToken);
 }
 
 /// <summary>排位数据为空时复用该玩家的本地段位；无段位的非空队列仍正常更新。</summary>
@@ -97,8 +101,11 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService
         _inner.GetAllAsync(puuid, maxGames, cancellationToken);
 
     public Task<MatchDetail?> GetDetailAsync(long gameId, bool useCache = true, CancellationToken cancellationToken = default) =>
-        _details.GetLatestOrCachedAsync(gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            () => _inner.GetDetailAsync(gameId, useCache, cancellationToken), cancellationToken);
+        useCache
+            ? _details.GetAsync(gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                () => _inner.GetDetailAsync(gameId, true, cancellationToken), cancellationToken)
+            : _details.GetLatestOrCachedAsync(gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                () => _inner.GetDetailAsync(gameId, false, cancellationToken), cancellationToken);
 
     public void ClearDetailCache() => _inner.ClearDetailCache();
 }

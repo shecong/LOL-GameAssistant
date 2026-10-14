@@ -31,7 +31,7 @@ public static class UiMetrics
     public const int SpaceSmall = 8;
     public const int SpaceMedium = 12;
     public const int SpaceLarge = 16;
-    public const int ControlHeight = 34;
+    public const int ControlHeight = 40;
 }
 
 /// <summary>统一维护深浅主题配色，并将主题应用到已有和动态控件。</summary>
@@ -246,9 +246,9 @@ public static class UiTheme
     /// <summary>构建深色或浅色主题使用的语义颜色集合。</summary>
     private static ThemePalette CreatePalette(bool dark) => dark
         ? new ThemePalette(true,
-            Color.FromArgb(36, 44, 56), Color.FromArgb(48, 58, 72), Color.FromArgb(58, 70, 86),
-            Color.FromArgb(238, 242, 247), Color.FromArgb(184, 196, 210), Color.FromArgb(82, 98, 116),
-            Color.FromArgb(100, 181, 246), Color.FromArgb(25, 118, 210), Color.FromArgb(198, 40, 40))
+            Color.FromArgb(7, 17, 34), Color.FromArgb(13, 29, 50), Color.FromArgb(18, 38, 62),
+            Color.FromArgb(235, 244, 255), Color.FromArgb(149, 176, 206), Color.FromArgb(41, 75, 110),
+            Color.FromArgb(35, 193, 255), Color.FromArgb(16, 91, 154), Color.FromArgb(133, 43, 65))
         : new ThemePalette(false,
             Color.FromArgb(240, 243, 248), Color.White, Color.FromArgb(246, 248, 251),
             Color.FromArgb(35, 45, 55), Color.FromArgb(88, 99, 110), Color.FromArgb(210, 218, 228),

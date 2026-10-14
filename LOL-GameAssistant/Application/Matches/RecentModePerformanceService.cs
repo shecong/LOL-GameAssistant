@@ -18,6 +18,7 @@ public sealed class RecentModePerformanceService(IMatchHistoryService matches)
         var assessments = new List<MatchPerformanceAssessment>();
         var wins = new List<bool>();
         int offset = 0;
+        using var playerDetails = new SemaphoreSlim(2, 2);
 
         while (true)
         {
@@ -41,15 +42,28 @@ public sealed class RecentModePerformanceService(IMatchHistoryService matches)
                 if (RecentKdaStatsResolver.NeedsDetail(stats))
                 {
                     // 仅为不可信摘要补查详情；跨玩家共用限流器，避免详情页同时加载时压满 LCU。
-                    await MatchDetailConcurrency.Gate.WaitAsync(cancellationToken);
+                    await playerDetails.WaitAsync(cancellationToken);
                     try
                     {
-                        MatchDetail? detail = await matches.GetDetailAsync(game.GameId, cancellationToken: cancellationToken);
-                        stats = RecentKdaStatsResolver.Resolve(stats, detail?.GetParticipant(puuid)?.stats);
+                        await MatchDetailConcurrency.BackgroundGate.WaitAsync(cancellationToken);
+                        try
+                        {
+                            await MatchDetailConcurrency.Gate.WaitAsync(cancellationToken);
+                            try
+                            {
+                                using var request = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                                request.CancelAfter(TimeSpan.FromSeconds(5));
+                                MatchDetail? detail = await matches.GetDetailAsync(game.GameId, cancellationToken: request.Token)
+                                    .WaitAsync(request.Token);
+                                stats = RecentKdaStatsResolver.Resolve(stats, detail?.GetParticipant(puuid)?.stats);
+                            }
+                            finally { MatchDetailConcurrency.Gate.Release(); }
+                        }
+                        finally { MatchDetailConcurrency.BackgroundGate.Release(); }
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                     catch { stats = null; }
-                    finally { MatchDetailConcurrency.Gate.Release(); }
+                    finally { playerDetails.Release(); }
                 }
                 return stats;
             }));

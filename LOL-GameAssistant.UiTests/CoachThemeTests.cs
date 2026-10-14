@@ -151,7 +151,9 @@ public sealed class CoachThemeTests
             finally { if (picker.Visible) picker.Close(); }
         };
         timer.Start();
-        Assert.Equal("已配置方案 2", form.OpenOpggBuildPickerAsync().GetAwaiter().GetResult());
+        Task<string> opened = form.OpenOpggBuildPickerAsync();
+        PumpUntil(() => opened.IsCompleted);
+        Assert.Equal("已配置方案 2", opened.GetAwaiter().GetResult());
         Assert.Equal(1, applications);
         Assert.Equal(1, saves);
         Assert.Equal(2, settings.OpggManualBuildSelections["122:aram:none"]);
@@ -159,6 +161,88 @@ public sealed class CoachThemeTests
 
     private static IEnumerable<Control> Descendants(Control parent) =>
         new[] { parent }.Concat(parent.Controls.Cast<Control>().SelectMany(Descendants));
+
+    [Theory]
+    [InlineData(false, false, "CLASSIC", 420)]
+    [InlineData(true, false, "CLASSIC", 420)]
+    [InlineData(false, true, "CLASSIC", 420)]
+    [InlineData(true, true, "CLASSIC", 420)]
+    [InlineData(false, false, "PRACTICETOOL", 0)]
+    [InlineData(false, false, "PRACTICETOOL", 2000)]
+    public void CompanionRankedEntryOpensIndependentWindowAndAppliesOrCancels(bool cancel, bool reuse, string gameMode, int queueId) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int applications = 0;
+        var applied = new TaskCompletionSource<OpggBuildApplyResult>();
+        var option = new OpggBuildOption(1, [1054], [3078, 3053, 6333], [],
+            8000, 8200, [8010, 9111, 9104, 8299, 8234, 8236], 100, 50, Mode: "ranked");
+        using var coach = new CoachForm(
+            Service<IAiCoachingService>((_, _) => Task.FromResult(new AiGameContext
+                { Phase = "ChampSelect", MyChampionId = 122, MyRole = "TOP", GameMode = gameMode, QueueId = queueId })),
+            Service<IRecommendationCoordinator>((method, _) => method.Name == "get_Current" ? RecommendationState.Initial : null),
+            Service<IApplicationSettingsStore>((method, _) => method.Name == "Load" ? new AssistantSettings() : null),
+            Service<IOpggBuildApplyService>((method, _) =>
+            {
+                if (method.Name == "GetBuildChoicesAsync")
+                    return Task.FromResult(new OpggBuildChoices(true, "", "德莱厄斯", "上路", [option], Mode: "ranked", ChampionId: 122));
+                applications++;
+                return applied.Task;
+            }),
+            Service<IGameAssetService>((method, _) => method.Name.Contains("Icon")
+                ? Task.FromResult<GameAsset?>(null) : (object)Task.FromResult<string?>(null)));
+        using var host = new Form { Opacity = 0, ShowInTaskbar = false };
+        Task<string>? firstEntry = null;
+        if (reuse)
+        {
+            host.Show();
+            firstEntry = coach.OpenOpggBuildPickerAsync(owner: host);
+            Assert.Same(host, System.Windows.Forms.Application.OpenForms.OfType<OpggBuildPickerForm>().Single().Owner);
+        }
+        ChampSelectCompanionTests.Fixture? entry = null;
+        using var fixture = new ChampSelectCompanionTests.Fixture(() => new Rectangle(100, 100, 900, 600),
+            openBuildPicker: token => coach.OpenOpggBuildPickerAsync(token, owner: entry!.Form));
+        entry = fixture;
+        fixture.Form.StartTracking();
+        Task opened = fixture.Form.ChooseBuildAsync();
+        PumpUntil(() => System.Windows.Forms.Application.OpenForms.OfType<OpggBuildPickerForm>().Any());
+        var picker = System.Windows.Forms.Application.OpenForms.OfType<OpggBuildPickerForm>().Single();
+        Assert.Null(picker.Owner);
+        Assert.False(picker.Modal);
+        Assert.True(picker.ShowInTaskbar);
+        Assert.True(picker.Enabled);
+        Assert.False(fixture.Form.Visible);
+        Assert.Same(opened, fixture.Form.ChooseBuildAsync());
+        if (cancel)
+        {
+            fixture.Form.StopTracking();
+            PumpUntil(() => opened.IsCompleted);
+            Assert.True(picker.IsDisposed);
+            Assert.False(fixture.Form.Visible);
+            Assert.Equal(0, applications);
+            if (firstEntry != null) PumpUntil(() => firstEntry.IsCompleted);
+            return;
+        }
+        Button? apply = null;
+        PumpUntil(() => (apply = picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>()
+            .FirstOrDefault(button => button.Name == "applyRoute1" && button.Enabled)) != null);
+        apply!.PerformClick();
+        Assert.Equal(1, applications);
+        Assert.Contains(picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>(),
+            button => button.Text == "正在应用…");
+        applied.SetResult(OpggBuildApplyResult.Success("排位方案已配置"));
+        PumpUntil(() => picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>().Any(button => button.Text == "完成"));
+        // 返回入口的结果不能被教练页的后台刷新覆盖。
+        ((AntdUI.Label)typeof(CoachForm).GetField("_status", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(coach)!).Text = "后台刷新";
+        picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>().Single(button => button.Text == "完成").PerformClick();
+        PumpUntil(() => opened.IsCompleted);
+        Assert.True(fixture.Form.Visible);
+        Assert.Contains(Descendants(fixture.Form).OfType<Label>(), label => label.Text == "排位方案已配置");
+        Assert.Equal(1, applications);
+        if (firstEntry != null)
+        {
+            PumpUntil(() => firstEntry.IsCompleted);
+            Assert.Equal("排位方案已配置", firstEntry.GetAwaiter().GetResult());
+        }
+    });
 
     private static void PumpUntil(Func<bool> complete)
     {
