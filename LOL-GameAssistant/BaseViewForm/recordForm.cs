@@ -192,6 +192,15 @@ namespace LOL_GameAssistant.BaseViewForm
             lblAlly.ForeColor = palette.Accent;
             lblEnemy.ForeColor = Color.FromArgb(239, 102, 129);
             flowAlly.BackColor = flowEnemy.BackColor = Color.Transparent;
+            foreach (var entry in flowAlly.Controls.Cast<Control>().Concat(flowEnemy.Controls.Cast<Control>()))
+            {
+                entry.BackColor = Color.Transparent;
+                foreach (AntdUI.Label name in entry.Controls.OfType<AntdUI.Label>())
+                {
+                    name.BackColor = Color.Transparent;
+                    name.ForeColor = palette.TextPrimary;
+                }
+            }
             foreach (PictureBox picture in Controls.OfType<PictureBox>()) picture.BackColor = palette.SurfaceMuted;
             if (_performanceAssessment is not { HasEnoughSample: true } assessment)
             {
@@ -230,7 +239,8 @@ namespace LOL_GameAssistant.BaseViewForm
             if (IsDisposed) return;
             int Scale(int value) => value * DeviceDpi / 96;
             int width = ClientSize.Width;
-            Height = Scale(width < Scale(680) ? 218 : 158);
+            bool sideTeams = width >= Scale(900);
+            Height = Scale(sideTeams ? 158 : width < Scale(680) ? 252 : 224);
             game_pic.SetBounds(Scale(14), Scale(16), Scale(56), Scale(56));
             game_win.SetBounds(Scale(82), Scale(12), Scale(66), Scale(28));
             game_type.SetBounds(Scale(155), Scale(12), Math.Max(Scale(100), width - Scale(320)), Scale(28));
@@ -245,12 +255,18 @@ namespace LOL_GameAssistant.BaseViewForm
             PictureBox[] items = [pic_1, pic_2, pic_3, pic_4, pic_5, pic_6, pic_7, pic_D, pic_F];
             for (int index = 0; index < items.Length; index++)
                 items[index].SetBounds(Scale(14 + index * 30), Scale(110), Scale(26), Scale(26));
-            int teamLeft = Scale(302);
-            int teamWidth = Math.Max(Scale(180), (width - teamLeft - Scale(24)) / 2);
-            lblAlly.SetBounds(teamLeft, Scale(106), Scale(36), Scale(26));
-            flowAlly.SetBounds(teamLeft + Scale(40), Scale(106), teamWidth - Scale(40), Scale(34));
-            lblEnemy.SetBounds(teamLeft + teamWidth, Scale(106), Scale(36), Scale(26));
-            flowEnemy.SetBounds(teamLeft + teamWidth + Scale(40), Scale(106), teamWidth - Scale(40), Scale(34));
+            int teamTop = Scale(144);
+            int teamLeft = Scale(14);
+            int teamWidth = Math.Max(1, width - Scale(68));
+            if (sideTeams)
+            {
+                // 使用战绩和装备右侧空白；日期与评分仍留在右上角。
+                game_type.Width = Scale(240);
+                game_gold.Width = Scale(110);
+                teamLeft = Scale(430);
+                teamTop = Scale(70);
+                teamWidth = Math.Max(1, width - teamLeft - Scale(54));
+            }
             if (width < Scale(680))
             {
                 game_type.SetBounds(Scale(155), Scale(12), Math.Max(Scale(90), width - Scale(170)), Scale(28));
@@ -260,15 +276,37 @@ namespace LOL_GameAssistant.BaseViewForm
                 _performanceTag.SetBounds(width - Scale(104), Scale(72), Scale(90), Scale(22));
                 game_cs.Top = game_damage.Top = game_gold.Top = Scale(102);
                 foreach (PictureBox picture in items) picture.Top = Scale(134);
-                lblAlly.SetBounds(Scale(14), Scale(173), Scale(36), Scale(26));
-                flowAlly.SetBounds(Scale(54), Scale(173), width / 2 - Scale(64), Scale(34));
-                lblEnemy.SetBounds(width / 2, Scale(173), Scale(36), Scale(26));
-                flowEnemy.SetBounds(width / 2 + Scale(40), Scale(173), width / 2 - Scale(54), Scale(34));
+                teamTop = Scale(172);
+            }
+            lblAlly.SetBounds(teamLeft, teamTop, Scale(36), Scale(34));
+            flowAlly.SetBounds(teamLeft + Scale(40), teamTop, teamWidth, Scale(34));
+            lblEnemy.SetBounds(teamLeft, teamTop + Scale(38), Scale(36), Scale(34));
+            flowEnemy.SetBounds(teamLeft + Scale(40), teamTop + Scale(38), teamWidth, Scale(34));
+            LayoutTeamPlayers(flowAlly);
+            LayoutTeamPlayers(flowEnemy);
+        }
+
+        private void LayoutTeamPlayers(FlowLayoutPanel team)
+        {
+            int Scale(int value) => value * DeviceDpi / 96;
+            team.WrapContents = false;
+            team.FlowDirection = FlowDirection.LeftToRight;
+            int count = team.Controls.Count;
+            if (count == 0) return;
+            int gap = Scale(6);
+            int cellWidth = Math.Max(Scale(42), (team.ClientSize.Width - gap * (count - 1)) / count);
+            for (int index = 0; index < count; index++)
+            {
+                Control entry = team.Controls[index];
+                entry.Size = new Size(cellWidth, Scale(34));
+                entry.Margin = new Padding(0, 0, index == count - 1 ? 0 : gap, 0);
+                entry.Controls["championAvatar"]?.SetBounds(0, Scale(2), Scale(30), Scale(30));
+                entry.Controls["summonerName"]?.SetBounds(Scale(36), 0, Math.Max(1, cellWidth - Scale(36)), Scale(34));
             }
         }
 
         /// <summary>
-        /// 构建本局 10 名玩家头像：区分我方（含自己，金色描边）与敌方。
+        /// 构建上下两排阵容，每位玩家显示英雄头像和召唤师名；自己保留金色描边。
         /// </summary>
         private void BuildTeamAvatars(MatchDetail detail, string? puuid)
         {
@@ -283,10 +321,16 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 var identity = identities.FirstOrDefault(i => i.participantId == p.participantId)?.player;
                 bool isMe = identity?.puuid == puuid;
-                string name = isMe ? "我" : (identity?.gameName ?? $"玩家{p.participantId}");
+                string name = !string.IsNullOrWhiteSpace(identity?.gameName) ? identity.gameName
+                    : !string.IsNullOrWhiteSpace(identity?.summonerName) ? identity.summonerName : $"玩家{p.participantId}";
+                var entry = new Panel { Name = "teamPlayer", BackColor = Color.Transparent, AccessibleName = name };
+                var nameLabel = new AntdUI.Label { Name = "summonerName", Text = name, AutoSize = false,
+                    AutoEllipsis = true, TextMultiLine = false, BackColor = Color.Transparent, ForeColor = UiTheme.Palette.TextPrimary,
+                    Font = new Font(UiMetrics.FontFamily, 8.5F), TextAlign = ContentAlignment.MiddleLeft };
 
                 var avatar = new RoundPictureBox
                 {
+                    Name = "championAvatar",
                     Size = new Size(30, 30),
                     SizeMode = PictureBoxSizeMode.Zoom,
                     BorderWidth = isMe ? 3 : 1,
@@ -295,27 +339,33 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
                 avatar.Disposed += (_, _) => avatar.Image?.Dispose();
                 var tip = new ToolTip();
-                avatar.Disposed += (_, _) => tip.Dispose();
+                entry.Disposed += (_, _) => tip.Dispose();
                 string? playerPuuid = identity?.puuid;
                 tip.SetToolTip(avatar, string.IsNullOrEmpty(playerPuuid)
                     ? name
                     : $"{name}（点击查询该玩家战绩）");
+                tip.SetToolTip(nameLabel, tip.GetToolTip(avatar));
 
                 // 点击其他玩家头像 → 跳转到战绩查询该玩家
                 if (!string.IsNullOrEmpty(playerPuuid))
                 {
                     avatar.Cursor = Cursors.Hand;
+                    nameLabel.Cursor = Cursors.Hand;
                     avatar.Click += (_, _) => _ = BattleQueryForm.QueryPlayerAsync(playerPuuid);
+                    nameLabel.Click += (_, _) => _ = BattleQueryForm.QueryPlayerAsync(playerPuuid);
                 }
+                entry.Controls.Add(avatar);
+                entry.Controls.Add(nameLabel);
 
                 int championId = p.championId;
                 _ = LoadAvatarAsync(avatar, championId);
 
                 if (p.teamId == myTeamId)
-                    flowAlly.Controls.Add(avatar);
+                    flowAlly.Controls.Add(entry);
                 else
-                    flowEnemy.Controls.Add(avatar);
+                    flowEnemy.Controls.Add(entry);
             }
+            LayoutRecord();
         }
 
         /// <summary>
