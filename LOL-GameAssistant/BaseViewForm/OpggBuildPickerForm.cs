@@ -46,7 +46,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private readonly int _initialOrder;
     private bool _hasLoadedCategory;
     private readonly IGameAssetService _gameAssetService;
-    private readonly FlowLayoutPanel _routeCards = new();
+    private readonly FlowLayoutPanel _routeCards = new RouteListPanel();
     private readonly Button _apply = CreateGoldButton("应用选中方案");
     private readonly Label _note = new();
     private readonly Label _empty = new();
@@ -260,7 +260,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         footer.SetColumnSpan(_applyStatus, 2);
         _apply.Anchor = AnchorStyles.Right;
         _apply.Enabled = false;
-        _apply.Click += async (_, _) => await ConfirmSelectionAsync();
+        _apply.Click += async (_, _) =>
+        {
+            RuntimeDiagnostics.Report("OP.GG 手动应用", "收到底部点击",
+                $"方案 {_selectedCard?.Option.Order} · 分路 {_selectedCard?.Position} · 加载中 {_loading} · 应用中 {_applyingSelection}");
+            await ConfirmSelectionAsync();
+        };
         footer.Controls.Add(_apply, 1, 0);
         footer.SetRowSpan(_apply, 2);
         Controls.Add(_routeCards);
@@ -520,6 +525,13 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>判断当前推荐是否具备应用到客户端的必要数据。</summary>
     private bool CanApply(RouteCard card) => _allowApply && !_loading && !_applyingSelection && !_selectionApplied &&
         (!_hasCurrentMatch || card.Option.Mode == _choices.Mode);
+
+    // 禁用正在处理的按钮会让 WinForms 移动焦点。保持滚动位置，避免下一焦点把
+    // 列表自动滚到后面的方案；用户仍可通过滚轮和滚动条浏览。
+    private sealed class RouteListPanel : FlowLayoutPanel
+    {
+        protected override Point ScrollToControl(Control activeControl) => AutoScrollPosition;
+    }
 
     private static readonly (string Key, string Name)[] Lanes =
         [("TOP", "上路"), ("JUNGLE", "打野"), ("MIDDLE", "中路"), ("BOTTOM", "下路"), ("UTILITY", "辅助")];

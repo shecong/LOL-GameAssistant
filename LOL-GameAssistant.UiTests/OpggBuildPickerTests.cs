@@ -67,6 +67,31 @@ public sealed class OpggBuildPickerTests
         Assert.Equal(DialogResult.OK, form.DialogResult);
     });
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(120)]
+    [InlineData(220)]
+    public void StartingApplicationDoesNotScrollAwayFromClickedRow(int offset) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var response = new TaskCompletionSource<OpggBuildApplyResult>();
+        using var form = CreateForm(applySelection: (_, _, _) => response.Task);
+        form.ClientSize = new Size(800, 540);
+        form.Show();
+        var list = Children(form).OfType<FlowLayoutPanel>().Single(panel => panel.FlowDirection == FlowDirection.TopDown);
+        list.AutoScrollPosition = new Point(0, offset);
+        var viewport = list.RectangleToScreen(list.ClientRectangle);
+        var button = Children(form).OfType<Button>().First(button => button.Name.StartsWith("applyRoute") &&
+            viewport.Contains(button.RectangleToScreen(button.ClientRectangle)));
+        Assert.True(button.Focus());
+        var before = list.AutoScrollPosition;
+        button.PerformClick();
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Equal(before, list.AutoScrollPosition);
+        response.SetResult(OpggBuildApplyResult.Failure("模拟客户端拒绝"));
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Equal(before, list.AutoScrollPosition);
+    });
+
     [Fact]
     public void ApplyingWaitsForClientShowsFailureAndAllowsRetry() => MatchListScrollingTests.OnUiThread(() =>
     {
@@ -420,6 +445,15 @@ public sealed class OpggBuildPickerTests
         Assert.True(CoachForm.CanApplyBuildContext(
             new AiGameContext { Phase = "ChampSelect", MyChampionId = 517, MyRole = "MIDDLE" },
             new AiGameContext { Phase = "ChampSelect", MyChampionId = 517, MyRole = "mid" }, "ranked", false));
+    }
+
+    [Fact]
+    public void ChangedInferredPositionDoesNotBlockExplicitSelection()
+    {
+        Assert.True(CoachForm.CanApplyBuildContext(
+            new AiGameContext { Phase = "ChampSelect", MyChampionId = 266, MyRole = "MIDDLE" },
+            new AiGameContext { Phase = "ChampSelect", MyChampionId = 266, GameMode = "CLASSIC", MyRole = "TOP" },
+            "ranked", false));
     }
 
     private static OpggBuildPickerForm CreateForm(string mode = "ranked", IOpggBuildApplyService? buildService = null,

@@ -360,10 +360,9 @@ public sealed class CoachForm : UserControl, IThemeAware
         string selectedMode, bool allowPreconfiguration)
     {
         if (string.Equals(latest.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
+            // 分路由客户端推断，选人期间可能变化；用户可以主动选择任意分路的方案。
             return latest.MyChampionId == original.MyChampionId &&
-                Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(latest.GameMode, latest.QueueId) == selectedMode &&
-                (allowPreconfiguration || PersonalRunePresetResolver.NormalizePosition(latest.MyRole) ==
-                    PersonalRunePresetResolver.NormalizePosition(original.MyRole));
+                Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(latest.GameMode, latest.QueueId) == selectedMode;
 
         return allowPreconfiguration && !latest.HasLiveClientData && (latest.Phase ?? "").ToLowerInvariant() is
             "" or "未知" or "none" or "lobby" or "matchmaking" or "readycheck";
@@ -542,7 +541,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         cancellationToken.ThrowIfCancellationRequested();
         OpggBuildApplyResult result;
         if (!CanApplyBuildContext(context, latest, option.Mode, previewOnly))
-            result = OpggBuildApplyResult.Failure("当前阶段不可配置，或英雄、模式、位置已变化，请重新获取方案。");
+            result = OpggBuildApplyResult.Failure("当前阶段不可配置，或英雄、模式已变化，请重新获取方案。");
         else
         {
             _status.Text = $"正在应用 OP.GG 方案 {option.Order}…";

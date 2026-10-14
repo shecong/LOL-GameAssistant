@@ -34,15 +34,15 @@ public sealed partial class SkinToolsForm
     }
     private void UpdateObjectButtons()
     {
-        bool ready = _core.Enabled && Visible && !_busy && !_refreshing && !_objectsBusy && _pageRequests != null;
+        bool ready = _inProgress && _core.Enabled && Visible && !_busy && !_refreshing && !_objectsBusy && _pageRequests != null;
         _objectsRead.Enabled = ready;
         _objectsApply.Enabled = _objectsRestore.Enabled = ready && _objectCatalog != null;
-        // Hero polling must not close an open object selector.
-        _minionSkins.Enabled = _wardSkins.Enabled = _core.Enabled && Visible && !_busy && !_objectsBusy;
+        // A manual hero read must not close an open object selector.
+        _minionSkins.Enabled = _wardSkins.Enabled = _inProgress && _core.Enabled && Visible && !_busy && !_objectsBusy;
     }
     private async Task RunObjectsAsync(int action)
     {
-        if (_disposing || _objectsBusy || _busy || _refreshing || !_core.Enabled || _pageRequests == null) return;
+        if (_disposing || !_inProgress || _objectsBusy || _busy || _refreshing || !_core.Enabled || _pageRequests == null) return;
         long revision = Interlocked.Read(ref _revision); var token = _pageRequests.Token;
         _objectsBusy = _busy = true; UpdateButtons();
         try {

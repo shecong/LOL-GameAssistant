@@ -70,6 +70,7 @@ public sealed class SkinToolsTests
     public void StopClearsSelectionAndPersistsDisabledEvenOnFailure(bool fails) => MatchListScrollingTests.OnUiThread(() =>
     {
         var core = new Core { StopFails = fails }; var settings = new Settings(); using var page = new SkinToolsForm(core, settings);
+        page.OnGamePhaseChanged(true);
         var toggle = Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled"); toggle.Checked = true;
         var stop = (Task)typeof(SkinToolsForm).GetMethod("StopAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, null)!;
         stop.GetAwaiter().GetResult(); Assert.Equal(1, core.Stops);
@@ -84,7 +85,9 @@ public sealed class SkinToolsTests
         Assert.False(core.Enabled); Assert.Equal(0, core.Reads);
         Assert.All(Descendants(page).OfType<AntdUI.Button>().Where(b => b.Name.StartsWith("SkinAction")), button => Assert.False(button.Enabled));
         var toggle = Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled"); toggle.Checked = true;
-        Assert.True(core.Enabled); Assert.True(settings.Load().SkinCoreEnabled); Assert.Equal(1, core.Reads);
+        Assert.True(core.Enabled); Assert.True(settings.Load().SkinCoreEnabled); Assert.Equal(0, core.Reads);
+        page.OnGamePhaseChanged(true);
+        Assert.Equal(1, core.Reads);
         var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries"); Assert.Equal(2, select.Items.Count);
         var search = Descendants(page).OfType<AntdUI.Input>().Single(c => c.Name == "SkinSearch"); search.Text = "烈焰"; Assert.Single(select.Items);
         toggle.Checked = false; Assert.False(core.Enabled); Assert.False(settings.Load().SkinCoreEnabled); Assert.Empty(select.Items);
@@ -95,6 +98,7 @@ public sealed class SkinToolsTests
     {
         var core = new Core(); using var host = new RenderHost { ClientSize = new Size(820, 980), ShowInTaskbar = false };
         var page = new SkinToolsForm(core, new Settings()); host.Controls.Add(page); host.Show(); System.Windows.Forms.Application.DoEvents();
+        page.OnGamePhaseChanged(true);
         Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
         core.PendingRead = new TaskCompletionSource<SkinCoreReply>();
         var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
@@ -113,6 +117,7 @@ public sealed class SkinToolsTests
     {
         var core = new Core(); using var host = new RenderHost { ClientSize = new Size(820, 980), ShowInTaskbar = false };
         using var page = new SkinToolsForm(core, new Settings()); host.Controls.Add(page); host.Show(); System.Windows.Forms.Application.DoEvents();
+        page.OnGamePhaseChanged(true);
         Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
         var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries"); select.SelectedIndex = 1;
         Assert.Equal("1:-1", Assert.Single(core.AppliedEntries));
@@ -137,6 +142,7 @@ public sealed class SkinToolsTests
         var core = new Core { VerifyApply = false };
         var settings = new Settings(); settings.Load().SkinCoreEnabled = true; settings.Load().SkinHotkeysEnabled = true;
         using var page = new SkinToolsForm(core, settings);
+        page.OnGamePhaseChanged(true);
         page.Visible = false;
         var notices = new List<string>(); page.HotkeySkinApplied += notices.Add;
         page.ApplyHotkeyAsync(QuickShoutHotkeyAction.SkinNext).GetAwaiter().GetResult();
@@ -149,6 +155,7 @@ public sealed class SkinToolsTests
         var core = new Core(); var settings = new Settings(); settings.Load().SkinCoreEnabled = true; settings.Load().SkinHotkeysEnabled = true;
         using var host = new RenderHost { ClientSize = new Size(820, 620), ShowInTaskbar = false };
         using var page = new SkinToolsForm(core, settings); host.Controls.Add(page); host.Show(); System.Windows.Forms.Application.DoEvents();
+        page.OnGamePhaseChanged(true);
         page.Visible = false;
         var notices = new List<string>();
         page.HotkeySkinApplied += notices.Add;
@@ -199,6 +206,7 @@ public sealed class SkinToolsTests
         var settings = new Settings(); var core = new Core();
         using (var page = new SkinToolsForm(core, settings))
         {
+            page.OnGamePhaseChanged(true);
             Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
             Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").SelectedIndex = 1;
             Assert.Equal("LuxFire", settings.Load().RememberedHeroSkins["Lux"].Model);
@@ -225,6 +233,7 @@ public sealed class SkinToolsTests
     {
         var settings = new Settings(); var core = new Core();
         using var page = new SkinToolsForm(core, settings);
+        page.OnGamePhaseChanged(true);
         Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
         Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").SelectedIndex = 1;
         var restore = (Task)typeof(SkinToolsForm).GetMethod("ChangeAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, [true])!;
@@ -242,6 +251,7 @@ public sealed class SkinToolsTests
         var settings = new Settings(); var core = new Core { VerifyApply = false };
         if (savedSkin) settings.Load().RememberedHeroSkins["Lux"] = new SkinEntry { Model = "LuxFire", SkinNum = 7, Gear = -1 };
         using var page = new SkinToolsForm(core, settings);
+        page.OnGamePhaseChanged(true);
         Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = true;
         if (!savedSkin) Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").SelectedIndex = 1;
         Refresh(page);
@@ -251,4 +261,77 @@ public sealed class SkinToolsTests
 
     private static void Refresh(SkinToolsForm page) => ((Task)typeof(SkinToolsForm).GetMethod("RefreshAsync",
         System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, null)!).GetAwaiter().GetResult();
+
+    [Theory]
+    [InlineData(false, true, false, "已确认卸载")]
+    [InlineData(true, false, false, "仍在游戏进程内")]
+    [InlineData(true, false, true, "固定驻留")]
+    [InlineData(null, null, false, "卸载尚未核验")]
+    public void StopMessageDistinguishesModuleState(bool? loaded, bool? verified, bool pinned, string expected)
+    {
+        var reply = new SkinCoreReply { StateVerified = true, TransportHookReleased = true,
+            ModuleLoaded = loaded, ModuleUnloadVerified = verified, ModulePinned = pinned };
+        Assert.Contains(expected, SkinToolsForm.BuildStopMessage(reply));
+        Assert.Contains("本局原皮", SkinToolsForm.BuildStopMessage(reply));
+    }
+
+    [Fact]
+    public void OnlyGamePhaseStartsReadingAndVisibilityDoesNotProbe() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core();
+        var settings = new Settings();
+        settings.Load().SkinCoreEnabled = settings.Load().SkinHotkeysEnabled = true;
+        using var page = new SkinToolsForm(core, settings);
+        page.Visible = false;
+        page.Visible = true;
+        Refresh(page);
+        page.ApplyHotkeyAsync(QuickShoutHotkeyAction.SkinNext).GetAwaiter().GetResult();
+        Assert.Equal(0, core.Reads);
+
+        page.OnGamePhaseChanged(true);
+        Assert.Equal(1, core.Reads);
+        page.OnGamePhaseChanged(true);
+        page.Visible = false;
+        page.Visible = true;
+        Assert.Equal(1, core.Reads);
+
+        page.OnGamePhaseChanged(false);
+        page.Visible = false;
+        page.Visible = true;
+        Refresh(page);
+        page.ApplyHotkeyAsync(QuickShoutHotkeyAction.SkinNext).GetAwaiter().GetResult();
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        ((Task)typeof(SkinToolsForm).GetMethod("RunObjectsAsync", flags)!.Invoke(page, [0])!).GetAwaiter().GetResult();
+        Assert.Equal(1, core.Reads);
+        Assert.Empty(core.AppliedEntries);
+        Assert.All(Descendants(page).OfType<AntdUI.Button>().Where(b => b.Name.StartsWith("SkinAction")),
+            button => Assert.False(button.Enabled));
+
+        page.OnGamePhaseChanged(true);
+        Assert.Equal(2, core.Reads);
+    });
+
+    [Fact]
+    public void LeavingGameCancelsReadAndDoesNotApplyLateRememberedSkin() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core();
+        var settings = new Settings();
+        settings.Load().SkinCoreEnabled = true;
+        using var page = new SkinToolsForm(core, settings);
+        page.OnGamePhaseChanged(true);
+        var catalog = core.LastCatalog!;
+        settings.Load().RememberedHeroSkins["Lux"] = catalog.Entries[1];
+        core.PendingRead = new TaskCompletionSource<SkinCoreReply>();
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var pending = (Task)typeof(SkinToolsForm).GetMethod("RefreshAsync", flags)!.Invoke(page, null)!;
+        var token = core.LastReadToken;
+        Assert.False(pending.IsCompleted);
+        page.OnGamePhaseChanged(false);
+        Assert.True(token.IsCancellationRequested);
+        core.PendingRead.SetResult(catalog with { Session = "abcdef1234567890" });
+        Assert.True(SpinWait.SpinUntil(() => { System.Windows.Forms.Application.DoEvents(); return pending.IsCompleted; }, TimeSpan.FromSeconds(5)));
+        pending.GetAwaiter().GetResult();
+        Assert.Empty(core.AppliedEntries);
+        Assert.Empty(Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").Items);
+    });
 }

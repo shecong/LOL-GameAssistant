@@ -63,7 +63,7 @@ public sealed class SkinCoreServiceTests
     }
     private const string Session = "1234567890abcdef";
     private static SkinCoreReply Catalog() => new() { Ok = true, Independent = true, OriginalRequired = false,
-        Session = Session, ReferenceSha256 = "profile", Model = "Lux", Entries = [
+        Session = Session, ReferenceSha256 = "profile", Model = "Lux", ActiveModel = "Lux", Skin = 0, ActiveSkin = 0, Entries = [
             new() { EntryId = "0:-1", Index = 0, Gear = -1, SkinNum = 0, Model = "Lux", Name = "Base" },
             new() { EntryId = "1:-1", Index = 1, Gear = -1, SkinNum = 7, Model = "Lux", Name = "Elementalist" },
             new() { EntryId = "2:-1", Index = 2, Gear = -1, SkinNum = 7, Model = "LuxFire", Name = "Fire" }] };
@@ -209,5 +209,78 @@ public sealed class SkinCoreServiceTests
         release.SetResult(); await Assert.ThrowsAsync<SkinCoreException>(() => current); await Assert.ThrowsAsync<SkinCoreException>(() => queued);
         Assert.True((await stop).StateVerified); Assert.False(service.Enabled);
         Assert.Single(fake.Calls, c => c[0] == "restore"); Assert.DoesNotContain(fake.Calls, c => c[0] == "entry");
+    }
+
+    [Fact]
+    public async Task StopRestoresFirstObservedSkinInsteadOfBaseOrLatestSelection()
+    {
+        bool changed = false;
+        var fake = new Fake((args, _) => Task.FromResult(args[0] == "catalog"
+            ? Catalog() with { Skin = 7, ActiveSkin = 7, ActiveModel = changed ? "LuxFire" : "Lux" }
+            : Applied() with { Skin = 7, ActiveSkin = 7, ActiveModel = args[2] == "1" ? "Lux" : "LuxFire" }));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        await service.GetCatalogAsync();
+        changed = true;
+        await service.ApplyAsync(Session, "2:-1");
+        var stopped = await service.StopAsync(Session);
+        Assert.True(stopped.HeroRestoreVerified);
+        Assert.Equal(new[] { "entry", Session, "1", "-1" }, fake.Calls.Last());
+        Assert.DoesNotContain(fake.Calls, args => args[0] == "restore");
+        Assert.False(service.Enabled);
+    }
+
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    public async Task StopChecksModuleAfterRestoreWithoutLoadingAnotherCatalog(bool loaded, bool pinned, bool expected)
+    {
+        var fake = new Fake((args, _) => Task.FromResult(args[0] switch
+        {
+            "catalog" => Catalog(),
+            "module-state" => Catalog() with { Pid = 42, GameRunning = true, ModuleLoaded = loaded, ModuleUnloadVerified = !loaded },
+            _ => Applied() with { Pid = 42, Skin = 0, ActiveSkin = 0, ActiveModel = "Lux", ModulePinned = pinned }
+        }));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        var stopped = await service.StopAsync(Session);
+        Assert.Equal(expected, stopped.ModuleUnloadVerified);
+        Assert.Equal(loaded, stopped.ModuleLoaded);
+        Assert.Equal(new[] { "catalog", "restore", "module-state" }, fake.Calls.Select(args => args[0]));
+        Assert.Equal(new[] { "module-state", "42" }, fake.Calls.Last());
+        Assert.False(service.Enabled);
+    }
+
+    [Fact]
+    public async Task ModuleCheckFailureDoesNotEraseVerifiedRestoreOrClaimUnload()
+    {
+        var fake = new Fake((args, _) => args[0] == "module-state"
+            ? throw new SkinCoreException("module_check_snapshot_failed")
+            : Task.FromResult(args[0] == "catalog" ? Catalog() : Applied() with { Pid = 42, Skin = 0, ActiveSkin = 0, ActiveModel = "Lux" }));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        var stopped = await service.StopAsync(Session);
+        Assert.True(stopped.HeroRestoreVerified);
+        Assert.Null(stopped.ModuleUnloadVerified);
+        Assert.False(service.Enabled);
+    }
+
+    [Fact]
+    public async Task ObjectRestoreFailureStillRestoresHeroAndReportsPartialResult()
+    {
+        var fake = new Fake((args, _) => args[0] == "objects-restore"
+            ? throw new SkinCoreException("object_restore_not_verified", true)
+            : Task.FromResult(args[0] switch
+            {
+                "object-catalog" => Objects(), "catalog" => Catalog(),
+                "objects" => Objects() with { ObjectTargetCount = 6, StateVerified = true, Invoked = true, TransportHookReleased = true },
+                _ => Applied() with { Skin = 0, ActiveSkin = 0, ActiveModel = "Lux" }
+            }));
+        var service = new NativeSkinCoreService(fake); service.SetEnabled(true);
+        await service.ApplyObjectsAsync(Session, 1, 1);
+        var stopped = await service.StopAsync(Session);
+        Assert.True(stopped.HeroRestoreVerified);
+        Assert.False(stopped.ObjectRestoreVerified);
+        Assert.False(stopped.StateVerified);
+        Assert.Contains(fake.Calls, args => args[0] == "restore");
+        Assert.False(service.Enabled);
     }
 }

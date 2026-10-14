@@ -27,6 +27,12 @@ public sealed record SkinCoreReply
     public bool StateVerified { get; init; }
     public bool? TransportHookReleased { get; init; }
     public bool? ModulePinned { get; init; }
+    public int Pid { get; init; }
+    public bool? GameRunning { get; init; }
+    public bool? ModuleLoaded { get; init; }
+    public bool? ModuleUnloadVerified { get; init; }
+    public bool? HeroRestoreVerified { get; init; }
+    public bool? ObjectRestoreVerified { get; init; }
     public string Error { get; init; } = "";
     public string Stage { get; init; } = "";
     public string Session { get; init; } = "";

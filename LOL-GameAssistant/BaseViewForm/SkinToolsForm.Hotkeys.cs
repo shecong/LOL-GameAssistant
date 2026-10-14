@@ -91,11 +91,11 @@ public sealed partial class SkinToolsForm
     private void RenewHotkeyRequests()
     {
         CancelHotkeyRequests();
-        if (!_disposing) _hotkeyRequests = new CancellationTokenSource();
+        if (!_disposing && _inProgress && _core.Enabled) _hotkeyRequests = new CancellationTokenSource();
     }
     public async Task ApplyHotkeyAsync(QuickShoutHotkeyAction action)
     {
-        if (_disposing || _busy || _refreshing || !_core.Enabled || !_settings.Load().SkinHotkeysEnabled || _hotkeyRequests == null) return;
+        if (_disposing || !_inProgress || _busy || _refreshing || !_core.Enabled || !_settings.Load().SkinHotkeysEnabled || _hotkeyRequests == null) return;
         if (action is not (QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext)) return;
         long now = Environment.TickCount64; if (now - _lastHotkeyAt < 750) return; _lastHotkeyAt = now;
         CancellationToken token = _hotkeyRequests.Token; _busy = true; UpdateButtons();

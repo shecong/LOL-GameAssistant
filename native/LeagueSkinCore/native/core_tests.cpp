@@ -6,6 +6,8 @@
 #include <initializer_list>
 #include "object_skin_rules.h"
 int main() {
+    // Module verification must reject this test process rather than load or hook it.
+    assert(moduleState(GetCurrentProcessId())==1);
     auto request=(Request*)HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(Request));
     request->magic=Magic;request->version=Protocol;request->pid=42;request->nonce=99;
     for(int command=0;command<6;command++){request->command=command;assert(!claim(request,42,99));}

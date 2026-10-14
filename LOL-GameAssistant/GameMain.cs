@@ -610,6 +610,7 @@ namespace LOL_GameAssistant
             }
             else
             {
+                _skinTools.OnGamePhaseChanged(false);
                 RuntimeDiagnostics.Report("LCU WebSocket", "已断开", "正在重新检测 lockfile 与客户端端口");
                 infoMsg.AddMsg("WebSocket已断开，正在检测 LCU 端口变化...");
             }

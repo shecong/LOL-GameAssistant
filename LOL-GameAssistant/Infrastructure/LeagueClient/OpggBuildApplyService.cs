@@ -174,6 +174,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             return OpggBuildApplyResult.Failure("所选方案没有至少三件核心装备，本次未写入客户端。");
 
         var completed = new List<string>();
+        var failed = new List<string>();
         try
         {
             string role = NormalizePosition(position);
@@ -190,17 +191,41 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 option.CoreItemIds.ToList(),
                 option.SituationalItemIds.ToList());
 
-            string runeResult = option.RunePerkIds.Count >= 6
-                ? await ApplyRunePageAsync(build, label, cancellationToken, allowReplaceCurrentRunePage: allowReplaceCurrentRunePage).ConfigureAwait(false)
-                : "该模式未提供可写入的符文数据，已保留客户端当前符文";
-            if (option.RunePerkIds.Count >= 6) completed.Add("符文页");
-            string itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
-            completed.Add("物品集");
-            string spellResult = applySummonerSpells
-                ? await ApplySummonerSpellsAsync(option.SummonerSpellIds, cancellationToken).ConfigureAwait(false)
-                : "当前未处于选人阶段，召唤师技能需在选人时应用";
-            if (spellResult.StartsWith("客户端未写入", StringComparison.Ordinal))
-                return OpggBuildApplyResult.Failure($"部分已写入（{string.Join("、", completed)}），召唤师技能写入失败；请在客户端核对。");
+            string runeResult = "该模式未提供可写入的符文数据，已保留客户端当前符文";
+            if (option.RunePerkIds.Count >= 6)
+            {
+                try
+                {
+                    runeResult = await ApplyRunePageAsync(build, label, cancellationToken,
+                        allowReplaceCurrentRunePage: allowReplaceCurrentRunePage).ConfigureAwait(false);
+                    completed.Add("符文页");
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex) { failed.Add($"符文页：{ex.Message}"); }
+            }
+            string itemResult = "物品集未写入";
+            try
+            {
+                itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
+                completed.Add("物品集");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) { failed.Add($"物品集：{ex.Message}"); }
+            string spellResult = "当前未处于选人阶段，召唤师技能需在选人时应用";
+            if (applySummonerSpells)
+            {
+                try
+                {
+                    spellResult = await ApplySummonerSpellsAsync(option.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
+                    if (spellResult.StartsWith("客户端未写入", StringComparison.Ordinal))
+                        failed.Add("召唤师技能：客户端拒绝写入");
+                    else if (option.SummonerSpellIds?.Count >= 2) completed.Add("召唤师技能");
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex) { failed.Add($"召唤师技能：{ex.Message}"); }
+            }
+            if (failed.Count > 0)
+                return OpggBuildApplyResult.Failure($"已写入：{(completed.Count == 0 ? "无" : string.Join("、", completed))}；未写入：{string.Join("；", failed)}。请在客户端核对。");
             string source = option.Mode == "aram_mayhem" ? "海克斯大乱斗专属" : "OP.GG";
             return OpggBuildApplyResult.Success($"已应用 {source} {label}：{runeResult}；{itemResult}；{spellResult}。游戏内请在商店的“自定义物品集”查看出装。");
         }
@@ -461,9 +486,6 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             throw new InvalidOperationException("OP.GG 符文缺少主系或副系，本次未写入客户端。");
 
         JArray pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
-        JObject? inventory = await ReadObjectAsync("/lol-perks/v1/inventory", cancellationToken).ConfigureAwait(false);
-        int pageLimit = inventory?.Value<int?>("ownedPageCount") ?? 2;
-        int customPageCount = inventory?.Value<int?>("customPageCount") ?? CountCustomPages(pages);
         string pageName = prefix + label;
         string body = JsonConvert.SerializeObject(new
         {
@@ -477,18 +499,11 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
 
         JObject? oldCurrent = pages.OfType<JObject>().FirstOrDefault(IsCurrentRunePage);
         long? oldCurrentId = oldCurrent?.Value<long?>("id");
+        var knownIds = pages.OfType<JObject>().Select(page => page.Value<long?>("id"))
+            .Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
         JObject? managedPage = pages.OfType<JObject>()
             .Where(page => IsManagedRunePage(page.Value<string>("name")))
             .FirstOrDefault(page => page.Value<bool?>("isEditable") != false && page.Value<long?>("id").HasValue);
-        bool replacingUserPage = false;
-        // 默认只替换助手管理的页面；容量已满时，仅在用户明确允许后才覆盖可编辑的当前页。
-        if (managedPage == null && customPageCount >= pageLimit && allowReplaceCurrentRunePage &&
-            oldCurrent?.Value<bool?>("isEditable") == true &&
-            oldCurrent.Value<bool?>("isTemporary") != true && oldCurrentId.HasValue)
-        {
-            managedPage = oldCurrent;
-            replacingUserPage = true;
-        }
         if (managedPage != null)
         {
             long id = managedPage.Value<long>("id");
@@ -499,8 +514,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 if (!await _lcu.PutAsync($"/lol-perks/v1/pages/{id}", body, cancellationToken).ConfigureAwait(false))
                     throw new InvalidOperationException("客户端拒绝替换符文页。");
                 await SetCurrentRunePageAsync(id, cancellationToken).ConfigureAwait(false);
-                return replacingUserPage ? "符文页已设为当前（已按授权覆盖原当前页）"
-                    : "符文页已设为当前（已替换助手创建的旧页）";
+                return "符文页已设为当前（已替换助手创建的旧页）";
             }
             catch
             {
@@ -511,15 +525,14 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             }
         }
 
-        if (customPageCount < pageLimit)
+        // 库存字段在不同客户端版本中含义不一致。直接让 LCU 决定能否创建。
+        if (await _lcu.PostAsync("/lol-perks/v1/pages", body, cancellationToken).ConfigureAwait(false))
         {
-            if (!await _lcu.PostAsync("/lol-perks/v1/pages", body, cancellationToken).ConfigureAwait(false))
-                throw new InvalidOperationException("客户端拒绝创建符文页。请确认仍处于可编辑符文的阶段。");
-
             // 少数客户端版本会忽略 POST 的 current 标志，补一次显式切换。
             pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
             long? createdId = pages.OfType<JObject>()
-                .FirstOrDefault(page => string.Equals(page.Value<string>("name"), pageName, StringComparison.Ordinal))?
+                .FirstOrDefault(page => !knownIds.Contains(page.Value<long?>("id") ?? 0) &&
+                    string.Equals(page.Value<string>("name"), pageName, StringComparison.Ordinal))?
                 .Value<long?>("id");
             if (!createdId.HasValue)
                 throw new InvalidOperationException("已创建符文页，但客户端未返回页面 ID；请在客户端检查当前符文页。");
@@ -536,7 +549,28 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             return "符文页已设为当前";
         }
 
-        throw new InvalidOperationException($"自定义符文页已满（{customPageCount}/{pageLimit}），且没有可替换的助手符文页；请在方案弹窗勾选允许覆盖当前页，或先在客户端释放一个符文页后重试。");
+        // 只有创建被客户端拒绝，才考虑用户明确授权的覆盖操作。
+        if (allowReplaceCurrentRunePage && oldCurrentId.HasValue &&
+            oldCurrent?.Value<bool?>("isEditable") != false &&
+            oldCurrent?.Value<bool?>("isTemporary") != true)
+        {
+            long id = oldCurrentId.Value;
+            string originalBody = BuildRunePageBody(oldCurrent!);
+            try
+            {
+                if (!await _lcu.PutAsync($"/lol-perks/v1/pages/{id}", body, cancellationToken).ConfigureAwait(false))
+                    throw new InvalidOperationException("客户端拒绝覆盖当前符文页。");
+                await SetCurrentRunePageAsync(id, cancellationToken).ConfigureAwait(false);
+                return "符文页已设为当前（已按授权覆盖原当前页）";
+            }
+            catch
+            {
+                if (!await TryRestoreRunePageAsync(id, originalBody, oldCurrentId).ConfigureAwait(false))
+                    throw new InvalidOperationException("覆盖当前符文页失败，自动恢复也未成功；请在客户端检查符文页。");
+                throw;
+            }
+        }
+        throw new InvalidOperationException("客户端拒绝创建符文页，且没有可替换的助手符文页；如需覆盖当前自定义页，请勾选允许覆盖并确认当前页不是临时页。");
     }
 
     /// <summary>显式设置当前符文页，避免客户端忽略创建请求中的 current 标志。</summary>
@@ -585,10 +619,6 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         order = page.Value<int?>("order") ?? 0
     });
 
-    /// <summary>自定义符文页数量；客户端未提供该字段时按“非临时页”估算。</summary>
-    private static int CountCustomPages(JArray pages) =>
-        pages.OfType<JObject>().Count(page => page.Value<bool?>("isTemporary") != true);
-
     /// <summary>兼容客户端 current 和 isActive 字段来判断当前页。</summary>
     private static bool IsCurrentRunePage(JObject page) =>
         page.Value<bool?>("current") == true || page.Value<bool?>("isActive") == true;
@@ -612,6 +642,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
 
         string endpoint = $"/lol-item-sets/v1/item-sets/{summonerId.Value}/sets";
         JObject? wrapper = await ReadObjectAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        if (wrapper?["itemSets"] is not JArray)
+            throw new InvalidOperationException("无法读取现有物品集，已停止写入以避免覆盖客户端原有配置。");
         var preservedSets = (wrapper?["itemSets"] as JArray ?? new JArray())
             .OfType<JObject>()
             .Where(itemSet => !(itemSet.Value<string>("title") ?? "").StartsWith(ManagedItemPrefix, StringComparison.Ordinal))
@@ -681,7 +713,9 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     private async Task<JArray> ReadArrayAsync(string endpoint, CancellationToken cancellationToken)
     {
         string? content = await _lcu.GetStringAsync(endpoint, cancellationToken).ConfigureAwait(false);
-        return string.IsNullOrWhiteSpace(content) ? new JArray() : JArray.Parse(content);
+        if (string.IsNullOrWhiteSpace(content))
+            throw new InvalidOperationException($"客户端未返回 {endpoint} 数据，请确认 LOL 客户端仍已连接。");
+        return JArray.Parse(content);
     }
 
     /// <summary>从 JSON 数组中提取有效资源标识。</summary>

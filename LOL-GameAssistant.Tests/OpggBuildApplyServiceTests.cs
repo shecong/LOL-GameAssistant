@@ -61,7 +61,7 @@ public sealed class OpggBuildApplyServiceTests
         OpggBuildApplyResult result = await service.ApplyBuildAsync(1, "TOP", CreateOption());
 
         Assert.False(result.Succeeded);
-        Assert.Contains("没有可替换的助手符文页", result.Message);
+        Assert.Contains("客户端拒绝创建符文页", result.Message);
         Assert.Empty(lcu.DeleteEndpoints);
         Assert.DoesNotContain("/lol-perks/v1/pages/33", lcu.PutEndpoints);
         Assert.Contains(lcu.RunePages, page => page.Value<long?>("id") == 11 && page.Value<string>("name") == "101资料站-菲兹");
@@ -104,7 +104,7 @@ public sealed class OpggBuildApplyServiceTests
 
         Assert.False(result.Succeeded);
         Assert.True(JToken.DeepEquals(original, Assert.Single(lcu.RunePages)));
-        Assert.DoesNotContain("/lol-item-sets/v1/item-sets/1/sets", lcu.PutEndpoints);
+        Assert.Contains("/lol-item-sets/v1/item-sets/1/sets", lcu.PutEndpoints);
     }
 
     [Theory]
@@ -117,13 +117,13 @@ public sealed class OpggBuildApplyServiceTests
             ["id"] = 22, ["name"] = "原当前页", ["current"] = true,
             ["isEditable"] = editable, ["isTemporary"] = temporary
         };
-        var lcu = new FakeLcuRequestSender(1, 1, original);
+        var lcu = new FakeLcuRequestSender(1, 1, original) { RejectRuneCreation = true };
         var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
 
         var result = await service.ApplyBuildAsync(1, "TOP", CreateOption(), allowReplaceCurrentRunePage: true);
 
         Assert.False(result.Succeeded);
-        Assert.Empty(lcu.PutEndpoints);
+        Assert.DoesNotContain(lcu.PutEndpoints, endpoint => endpoint.StartsWith("/lol-perks/", StringComparison.Ordinal));
         Assert.True(JToken.DeepEquals(original, Assert.Single(lcu.RunePages)));
     }
 
@@ -180,6 +180,36 @@ public sealed class OpggBuildApplyServiceTests
     }
 
     [Fact]
+    public async Task ApplyBuild_WhenInventoryUnderreportsCapacity_UsesClientCreationResult()
+    {
+        var lcu = new FakeLcuRequestSender(2, 2,
+            new JObject { ["id"] = 11, ["name"] = "用户符文页", ["current"] = true });
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption());
+
+        Assert.True(result.Succeeded);
+        Assert.Contains(lcu.RunePages, page => page.Value<long?>("id") == 99);
+    }
+
+    [Fact]
+    public async Task ApplyBuild_WhenRuneCreationFails_StillWritesItemsAndReportsRuneFailure()
+    {
+        var lcu = new FakeLcuRequestSender(1, 1,
+            new JObject { ["id"] = 11, ["name"] = "临时页", ["current"] = true, ["isTemporary"] = true })
+        { RejectRuneCreation = true };
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption(), allowReplaceCurrentRunePage: true);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("物品集", result.Message);
+        Assert.Contains("符文页：", result.Message);
+        Assert.Contains("/lol-item-sets/v1/item-sets/1/sets", lcu.PutEndpoints);
+        Assert.DoesNotContain(lcu.PutEndpoints, endpoint => endpoint.StartsWith("/lol-perks/v1/pages/", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ApplyBuild_WhenRecommendationHasSpells_PatchesCurrentChampionSelection()
     {
         var lcu = new FakeLcuRequestSender(
@@ -210,8 +240,8 @@ public sealed class OpggBuildApplyServiceTests
             CreateOption() with { SummonerSpellIds = new[] { 4, 14 } });
 
         Assert.False(result.Succeeded);
-        Assert.Contains("部分已写入", result.Message);
-        Assert.Contains("召唤师技能写入失败", result.Message);
+        Assert.Contains("已写入：", result.Message);
+        Assert.Contains("召唤师技能：客户端拒绝写入", result.Message);
     }
 
     [Fact]
@@ -296,6 +326,7 @@ public sealed class OpggBuildApplyServiceTests
         public List<string> PatchEndpoints { get; } = new();
         public bool FailNextCurrentSwitch { get; set; }
         public bool FailSpellWrite { get; set; }
+        public bool RejectRuneCreation { get; set; }
         public JObject? CurrentRunePage { get; set; }
         public JObject? MySelection { get; set; }
         public JObject? SelectionSession { get; set; }
@@ -335,6 +366,8 @@ public sealed class OpggBuildApplyServiceTests
         {
             if (endpoint == "/lol-perks/v1/pages")
             {
+                if (RejectRuneCreation || RunePages.Count(page => page.Value<bool?>("isTemporary") != true) >= _ownedPageCount)
+                    return Task.FromResult(false);
                 var page = JObject.Parse(jsonBody);
                 page["id"] = 99;
                 RunePages.Add(page);

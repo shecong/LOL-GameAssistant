@@ -16,6 +16,8 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
     private string? _objectSession;
     private int _baselineMinion = -1, _baselineWard = -1;
     private bool _minionChanged, _wardChanged;
+    private string? _heroSession;
+    private SkinEntry? _baselineHero;
     public bool Enabled => Volatile.Read(ref _enabled) == 1;
     public void SetEnabled(bool enabled) {
         if (enabled && Volatile.Read(ref _stopping) != 0) throw new SkinCoreException("core_stopping");
@@ -36,9 +38,31 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
         InvalidateSession(); long revision = Interlocked.Read(ref _revision); bool acquired = false;
         try {
             await _gate.WaitAsync(token).ConfigureAwait(false); acquired = true; Check(revision);
+            bool objectsRestored = true;
             if (_objectSession == session && (_minionChanged || _wardChanged))
-                await RestoreObjectsInternalAsync(revision, session, token).ConfigureAwait(false);
-            return await ApplyInternalAsync(revision, session, "", true, token).ConfigureAwait(false);
+            {
+                try { await RestoreObjectsInternalAsync(revision, session, token).ConfigureAwait(false); }
+                catch (SkinCoreException error) { objectsRestored = false; Log(new { stage = "stop_object_restore_failed", error.Code, error.OutcomeUnknown }); }
+            }
+            var catalog = await CatalogAsync(revision, token).ConfigureAwait(false);
+            if (catalog.Session != session) throw new SkinCoreException("stale_session");
+            if (_baselineHero == null) throw new SkinCoreException("hero_baseline_unavailable");
+            bool baseSkin = _baselineHero.SkinNum == 0 && _baselineHero.Gear == -1 && _baselineHero.Model == catalog.Model;
+            var restored = await ApplyInternalAsync(revision, session, _baselineHero.EntryId, baseSkin, token, catalog).ConfigureAwait(false);
+            if (restored.StateVerified && restored.TransportHookReleased == true && restored.Pid > 0)
+            {
+                try
+                {
+                    var state = await transport.InvokeAsync(["module-state", restored.Pid.ToString(CultureInfo.InvariantCulture)], token).ConfigureAwait(false);
+                    bool verified = state.Ok && state.Independent && !state.OriginalRequired && state.Pid == restored.Pid &&
+                        state.ModuleLoaded == false && state.ModuleUnloadVerified == true;
+                    restored = restored with { GameRunning = state.GameRunning, ModuleLoaded = state.ModuleLoaded, ModuleUnloadVerified = verified };
+                    Log(new { stage = "stop_module_state", restored.Pid, restored.GameRunning, restored.ModuleLoaded, restored.ModuleUnloadVerified });
+                }
+                catch (SkinCoreException error) { Log(new { stage = "stop_module_check_failed", error.Code }); }
+            }
+            return restored with { HeroRestoreVerified = restored.StateVerified, ObjectRestoreVerified = objectsRestored,
+                StateVerified = restored.StateVerified && objectsRestored };
         }
         catch (SkinCoreException error) { Log(new { stage = "stop_failed", error.Code, error.OutcomeUnknown }); throw; }
         finally {
@@ -121,7 +145,15 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
     private async Task<SkinCoreReply> CatalogAsync(long revision, CancellationToken token)
     {
         var result = await transport.InvokeAsync(["catalog"], token).ConfigureAwait(false); Check(revision);
-        ValidateCatalog(result); return result;
+        ValidateCatalog(result);
+        if (_heroSession != result.Session)
+        {
+            _heroSession = result.Session;
+            int skin = result.ActiveSkin ?? result.Skin;
+            _baselineHero = result.Entries.FirstOrDefault(entry => entry.SkinNum == skin &&
+                entry.Model == result.ActiveModel && entry.Gear == result.Gear);
+        }
+        return result;
     }
     internal static void ValidateCatalog(SkinCoreReply reply)
     {
@@ -134,9 +166,10 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
                 entry.EntryId != $"{entry.Index}:{entry.Gear}" || string.IsNullOrWhiteSpace(entry.Model) ||
                 string.IsNullOrWhiteSpace(entry.Name) || !ids.Add(entry.EntryId)) throw new SkinCoreException("invalid_catalog");
     }
-    private async Task<SkinCoreReply> ApplyInternalAsync(long revision, string session, string id, bool restore, CancellationToken token)
+    private async Task<SkinCoreReply> ApplyInternalAsync(long revision, string session, string id, bool restore, CancellationToken token,
+        SkinCoreReply? validatedCatalog = null)
     {
-        var catalog = await CatalogAsync(revision, token).ConfigureAwait(false);
+        var catalog = validatedCatalog ?? await CatalogAsync(revision, token).ConfigureAwait(false);
         if (session != catalog.Session) throw new SkinCoreException("stale_session");
         var candidates = restore ? catalog.Entries.Where(e => e.SkinNum == 0 && e.Gear == -1 && e.Model == catalog.Model).ToArray()
             : catalog.Entries.Where(e => e.EntryId == id).ToArray();

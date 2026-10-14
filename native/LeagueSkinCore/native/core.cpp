@@ -97,12 +97,43 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK StudioHookProc(int code,WPARAM
 }
 BOOL WINAPI DllMain(HINSTANCE,DWORD,LPVOID) {return TRUE;}
 #else
+#include <tlhelp32.h>
 static int error(const char* stage,DWORD code) {printf("{\"ok\":false,\"error\":\"%s\",\"stage\":\"transport\",\"win32\":%lu}\n",stage,code);return 1;}
 static bool integer(const char* text,int minimum,int maximum,int* result) {
     char* end=nullptr;long value=strtol(text,&end,10);
     if(end==text || *end || value<minimum || value>maximum) return false;*result=(int)value;return true;
 }
+// This path only reads process/module metadata; it never loads the bridge or installs a hook.
+static int moduleState(DWORD pid) {
+    HANDLE process=OpenProcess(SYNCHRONIZE|PROCESS_QUERY_LIMITED_INFORMATION,FALSE,pid);
+    if(!process) {
+        DWORD code=GetLastError();
+        if(code!=ERROR_INVALID_PARAMETER)return error("module_check_process_failed",code);
+        printf("{\"ok\":true,\"independent\":true,\"original_required\":false,\"pid\":%lu,\"game_running\":false,\"module_loaded\":false,\"module_unload_verified\":true}\n",pid);return 0;
+    }
+    if(WaitForSingleObject(process,0)==WAIT_OBJECT_0) {
+        CloseHandle(process);printf("{\"ok\":true,\"independent\":true,\"original_required\":false,\"pid\":%lu,\"game_running\":false,\"module_loaded\":false,\"module_unload_verified\":true}\n",pid);return 0;
+    }
+    wchar_t image[32768];DWORD length=32768;
+    if(!QueryFullProcessImageNameW(process,0,image,&length)){DWORD code=GetLastError();CloseHandle(process);return error("module_check_image_failed",code);}
+    const wchar_t* name=wcsrchr(image,L'\\');name=name?name+1:image;
+    if(_wcsicmp(name,L"League of Legends.exe")){CloseHandle(process);return error("module_check_target_mismatch",ERROR_INVALID_PARAMETER);}
+    HANDLE snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPMODULE|TH32CS_SNAPMODULE32,pid);
+    if(snapshot==INVALID_HANDLE_VALUE){DWORD code=GetLastError();CloseHandle(process);return error("module_check_snapshot_failed",code);}
+    MODULEENTRY32W entry{};entry.dwSize=sizeof(entry);bool loaded=false;
+    BOOL more=Module32FirstW(snapshot,&entry);
+    while(more) {if(!_wcsicmp(entry.szModule,L"league-skin-core.dll")){loaded=true;break;}more=Module32NextW(snapshot,&entry);}
+    DWORD code=loaded?ERROR_SUCCESS:GetLastError();CloseHandle(snapshot);
+    bool running=WaitForSingleObject(process,0)!=WAIT_OBJECT_0;CloseHandle(process);
+    if(!loaded && code!=ERROR_NO_MORE_FILES)return error("module_check_enumeration_failed",code);
+    loaded=loaded && running;
+    printf("{\"ok\":true,\"independent\":true,\"original_required\":false,\"pid\":%lu,\"game_running\":%s,\"module_loaded\":%s,\"module_unload_verified\":%s}\n",pid,running?"true":"false",loaded?"true":"false",loaded?"false":"true");return 0;
+}
 int main(int argc,char** argv) {
+    if(argc==3 && !strcmp(argv[1],"module-state")) {
+        int pid=0;if(!integer(argv[2],1,2147483647,&pid))return error("invalid_process",ERROR_INVALID_PARAMETER);
+        return moduleState((DWORD)pid);
+    }
     DWORD command=99;int index=-1,gear=-1;const char* session="";
     if(argc==2 && !strcmp(argv[1],"status")) command=6;
     if(argc==2 && !strcmp(argv[1],"catalog")) command=7;

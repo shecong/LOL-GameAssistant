@@ -16,13 +16,12 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         DropDownArrow = true, DropDownRadius = 10, Font = new Font(UiMetrics.FontFamily, 11), PlaceholderText = "请先启用并读取当前英雄" };
     private readonly AntdUI.Button _refresh = new() { Name = "SkinActionRefresh", Text = "读取当前英雄", Width = 146, Height = 42, Margin = new Padding(0, 8, 12, 4) };
     private readonly AntdUI.Button _restore = new() { Name = "SkinActionRestore", Text = "恢复基础皮肤", Width = 146, Height = 42, Margin = new Padding(0, 8, 0, 4) };
-    private readonly AntdUI.Button _stop = new() { Name = "SkinActionStop", Text = "恢复并停用", Width = 146, Height = 42, Margin = new Padding(12, 8, 0, 4) };
+    private readonly AntdUI.Button _stop = new() { Name = "SkinActionStop", Text = "恢复原皮并停用", Width = 146, Height = 42, Margin = new Padding(12, 8, 0, 4) };
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Top, Height = 60, Padding = new Padding(0, 8, 0, 0), Text = "功能已关闭。启用后可读取当前对局。" };
     private readonly AntdUI.Label _current = new() { Dock = DockStyle.Top, Height = 68, Padding = new Padding(14, 8, 14, 8), Font = new Font(UiMetrics.FontFamily, 10.5f), Text = "尚未连接游戏" };
     private readonly AntdUI.Panel _card = new() { Dock = DockStyle.Top, Height = 472, Radius = 14, Padding = new Padding(24), BorderWidth = 1 };
     private readonly List<Control> _surfaceRows = [];
     private readonly List<Control> _pageSurfaces = [];
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 4000 };
     private CancellationTokenSource? _pageRequests;
     private SkinCoreReply? _catalog;
     private List<SkinEntry> _filtered = [];
@@ -87,7 +86,6 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _refresh.Click += async (_, _) => await RefreshAsync();
         _restore.Click += async (_, _) => await ChangeAsync(true);
         _stop.Click += async (_, _) => await StopAsync();
-        _timer.Tick += async (_, _) => await RefreshAsync();
         VisibleChanged += PageVisibleChanged;
         UiLanguage.Changed += LanguageChanged;
         UiTheme.Apply(this); UpdateButtons();
@@ -97,7 +95,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         if (!_disposing && !IsDisposed) FilterEntries();
     }
-    private void PageVisibleChanged(object? sender, EventArgs e) => UpdateActivity();
+    private void PageVisibleChanged(object? sender, EventArgs e) => UpdateButtons();
     private void CancelPageRequests()
     {
         // Remove the owned reference before cancellation can trigger callbacks.
@@ -111,17 +109,18 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         try { var settings = _settings.Load(); settings.SkinCoreEnabled = _enabled.Checked; _settings.Save(settings); }
         catch (Exception ex) { _status.Text = $"设置保存失败：{ex.Message}"; }
         _skinNotice?.Hide(); _core.SetEnabled(_enabled.Checked); ResetSession(); UpdateActivity();
-        RenewHotkeyRequests(); HotkeySettingsChanged?.Invoke();
+        HotkeySettingsChanged?.Invoke();
         _status.Text = UiLanguage.T(_enabled.Checked ? "功能已启用，等待读取当前对局。" : "功能已关闭；已开始的请求可能已执行，当前皮肤不会自动还原。");
     }
     private void UpdateActivity()
     {
         if (_disposing || Disposing || IsDisposed) return;
-        _timer.Stop(); CancelPageRequests();
+        CancelPageRequests();
         Interlocked.Increment(ref _revision); _core.InvalidateSession();
-        if ((Visible || _inProgress) && _core.Enabled && !IsDisposed)
+        RenewHotkeyRequests();
+        if (_inProgress && _core.Enabled)
         {
-            _pageRequests = new CancellationTokenSource(); _timer.Start();
+            _pageRequests = new CancellationTokenSource();
             _ = RefreshAsync();
         }
         UpdateButtons();
@@ -130,8 +129,9 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         if (_inProgress == inProgress) return;
         _inProgress = inProgress;
-        if (!inProgress) { _skinNotice?.Hide(); ResetSession(); _core.InvalidateSession(); RenewHotkeyRequests(); }
+        if (!inProgress) { _skinNotice?.Hide(); ResetSession(); }
         UpdateActivity();
+        if (!inProgress && _core.Enabled) _status.Text = UiLanguage.T("当前不在对局中，等待读取下一次对局状态。");
     }
     private void ResetSession()
     {
@@ -158,8 +158,8 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private void UpdateButtons()
     {
         if (_disposing || IsDisposed) return;
-        bool ready = _core.Enabled && !_busy && Visible && _catalog != null;
-        _refresh.Enabled = _core.Enabled && !_busy && !_refreshing && Visible;
+        bool ready = _inProgress && _core.Enabled && !_busy && Visible && _catalog != null;
+        _refresh.Enabled = _inProgress && _core.Enabled && !_busy && !_refreshing && Visible;
         _search.Enabled = _core.Enabled; _entries.Enabled = ready;
         _restore.Enabled = ready && !_refreshing;
         _stop.Enabled = ready && !_refreshing;
@@ -167,18 +167,15 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     private async Task StopAsync()
     {
-        if (_disposing || _busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
+        if (_disposing || !_inProgress || _busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
         string session = _catalog.Session; CancellationToken token = _pageRequests.Token;
-        _busy = true; _enabled.Enabled = false; _timer.Stop(); CancelHotkeyRequests(); UpdateButtons();
+        _busy = true; _enabled.Enabled = false; CancelHotkeyRequests(); UpdateButtons();
         _status.Text = UiLanguage.T("正在恢复并停用…");
         string outcome = "功能已停用，但恢复结果未确认。请退出对局释放驻留核心。";
         try {
             var result = await _core.StopAsync(session, token);
             if (result.StateVerified) RememberSkin(_catalog, null);
-            if (result.StateVerified && result.TransportHookReleased == true)
-                outcome = result.ModulePinned == true
-                    ? "基础皮肤已恢复，连接已解除，功能已停用。核心已固定驻留，请退出对局释放。"
-                    : "基础皮肤已恢复，连接已解除，功能已停用。游戏内模块卸载尚未核验。";
+            outcome = BuildStopMessage(result);
         }
         catch (Exception error) {
             if (!_disposing && !IsDisposed) { ShowError(error); outcome = _status.Text + "\n" + UiLanguage.T("功能已停用，但恢复结果未确认。请退出对局释放驻留核心。"); }
@@ -191,9 +188,24 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             }
         }
     }
+    internal static string BuildStopMessage(SkinCoreReply result)
+    {
+        bool hero = result.HeroRestoreVerified ?? result.StateVerified;
+        bool objects = result.ObjectRestoreVerified ?? true;
+        string restored = hero && objects ? "本局原皮恢复已核验，功能已停用。"
+            : hero ? "英雄原皮已恢复，对象原皮恢复未核验；功能已停用。"
+            : "英雄原皮恢复未核验；功能已停用，请检查游戏画面。";
+        if (result.ModuleUnloadVerified == true && result.ModuleLoaded == false)
+            return restored + "游戏内核心已确认卸载。";
+        if (result.ModulePinned == true)
+            return restored + "核心已固定驻留，请退出对局释放。";
+        if (result.ModuleLoaded == true)
+            return restored + "核心仍在游戏进程内，请退出对局释放。";
+        return restored + "游戏内核心卸载尚未核验。";
+    }
     private async Task RefreshAsync()
     {
-        if (_disposing || _busy || _refreshing || (!Visible && !_inProgress) || !_core.Enabled || _pageRequests == null) return;
+        if (_disposing || !_inProgress || _busy || _refreshing || !_core.Enabled || _pageRequests == null) return;
         _refreshing = true; long revision = Interlocked.Read(ref _revision); CancellationToken token = _pageRequests.Token; UpdateButtons();
         try
         {
@@ -211,7 +223,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     private async Task ChangeAsync(bool restore)
     {
-        if (_disposing || _busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
+        if (_disposing || !_inProgress || _busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
         if (!restore && (_entries.SelectedIndex < 0 || _entries.SelectedIndex >= _filtered.Count)) return;
         string session = _catalog.Session; string entry = restore ? "" : _filtered[_entries.SelectedIndex].EntryId;
         var catalog = _catalog;
@@ -275,6 +287,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             "request_outcome_unknown" => "请求结果未确认，动作可能已执行。请读取状态，勿自动重试。",
             "standard_windows_hook_rejected" => "Windows 拒绝核心连接，未继续加载。",
             "stale_session" => "对局已变化，请重新读取当前英雄。",
+            "hero_baseline_unavailable" => "没有可恢复的本局原始皮肤记录；功能已停用，请退出对局释放核心。",
             _ => $"核心连接失败：{core.Code}"
         } : $"操作失败：{error.Message}";
         _status.Text = UiLanguage.T(message);
@@ -313,7 +326,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             Interlocked.Increment(ref _revision);
             VisibleChanged -= PageVisibleChanged;
             UiLanguage.Changed -= LanguageChanged;
-            _timer.Stop(); CancelPageRequests(); _timer.Dispose();
+            CancelPageRequests();
             CancelHotkeyRequests();
             _skinNotice?.Dispose();
             _core.InvalidateSession();
