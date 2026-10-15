@@ -63,7 +63,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Label _teamQueueTag1;
         private readonly AntdUI.Label _teamQueueTag2;
         private readonly ToolTip _teamQueueTip = new();
-        private const int PlayerCardHeight = 380;
+        private const int PlayerCardHeight = 440;
         private const int PlayerCardPreferredWidth = 560;
         private const int PlayerCardSingleColumnMaxWidth = 640;
         private const int PlayerCardMinimumWidth = 300;
@@ -567,6 +567,8 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             string signature = BuildRosterSignature(team1, team2);
 
+            _encounterSelfPuuid = myPuuid;
+
             // 阶段重试和手动刷新也复用原位控件，避免移除再添加引起背景闪白和滚动位置跳动。
             if (signature == _lastSignature && _lastRenderedPhase == Program.GameMain.gameFlowPhase &&
                 CanKeepPlayerCards(panelTeam1, team1, myPuuid, queueId, gameMode) &&
@@ -588,6 +590,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 // 房间标识可能比阵容晚到达；同一阵容也要更新开黑标签。
                 ApplyPremadeResult(partyDetection);
                 LayoutPlayerCards();
+                UpdateRecentEncounters();
                 return;
             }
             // ResetRosterCache clears the signature at the end of a match: never reuse the previous game's cards.
@@ -641,6 +644,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _teamTitleBase1 = lblTeamTitle1.Text;
             _teamTitleBase2 = lblTeamTitle2.Text;
             ApplyPremadeResult(partyDetection);
+            UpdateRecentEncounters();
         }
 
         /// <summary>确认当前队伍的每张卡片仍与玩家、队列和敌我关系兼容，才允许原位刷新。</summary>
@@ -1282,7 +1286,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
                 UiTheme.Apply(card);
                 card.RecentPerformanceReady += OnPlayerRecentPerformanceReady;
-                card.OverviewChanged += (_, _) => UpdateTeamOverview();
+                card.OverviewChanged += (_, _) => { UpdateTeamOverview(); UpdateRecentEncounters(); };
                 panel.Controls.Add(card);
             }
         }

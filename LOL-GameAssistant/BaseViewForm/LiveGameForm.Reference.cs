@@ -8,6 +8,14 @@ public partial class LiveGameForm
     private readonly AntdUI.Label _teamOverview2 = CreateOverviewLabel();
     private readonly AntdUI.Label _gameSubtitle = CreateOverviewLabel();
     private string _modeDescription = "双方阵容";
+    private string? _encounterSelfPuuid;
+
+    private void UpdateRecentEncounters()
+    {
+        var cards = panelTeam1.Controls.OfType<LivePlayerForm>().Concat(panelTeam2.Controls.OfType<LivePlayerForm>()).ToArray();
+        var ownHistory = cards.FirstOrDefault(card => card.Puuid == _encounterSelfPuuid)?.RecentEncounterHistory;
+        foreach (var card in cards) card.UpdateRecentEncounter(_encounterSelfPuuid, ownHistory);
+    }
 
     private static AntdUI.Label CreateOverviewLabel() => new() {
         AutoSize = false, BackColor = Color.Transparent,

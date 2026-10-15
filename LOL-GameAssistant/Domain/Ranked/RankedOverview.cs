@@ -38,7 +38,7 @@ public sealed class RankedOverview
 }
 
 /// <summary>单个排位队列的稳定展示数据。</summary>
-public sealed class RankedQueue
+public sealed record RankedQueue
 {
     public string QueueType { get; init; } = "";
     public string Tier { get; init; } = "";
@@ -46,6 +46,9 @@ public sealed class RankedQueue
     public int LeaguePoints { get; init; }
     public int Wins { get; init; }
     public int Losses { get; init; }
+    /// <summary>接口是否提供可信的完整胜负；他人数据中的占位零负场不视为真实战绩。</summary>
+    public bool HasWinLossRecord { get; init; } = true;
+    public string RecordScope { get; init; } = "";
     public bool IsProvisional { get; init; }
     public int ProvisionalGamesRemaining { get; init; }
     public int ProvisionalGameThreshold { get; init; }
@@ -83,6 +86,27 @@ public sealed class RankedQueue
         int losses = progress.Count(item => item == 'L');
         int winsNeeded = Math.Max(1, (progress.Length + 1) / 2);
         return $"进行中 {wins}胜{losses}负（还需{Math.Max(0, winsNeeded - wins)}胜）";
+    }
+}
+
+/// <summary>赛季胜负不可用时，仅以有明确胜负的已加载对局补充近期统计。</summary>
+public static class RankedRecordResolver
+{
+    public static RankedQueue? Resolve(RankedQueue? queue,
+        LOL_GameAssistant.Domain.Matches.MatchHistoryResponse? history, string puuid)
+    {
+        if (queue == null || queue.HasWinLossRecord) return queue;
+        int queueId = queue.QueueType == RankedQueues.Solo5x5 ? 420 : queue.QueueType == RankedQueues.Flex5x5 ? 440 : 0;
+        if (queueId == 0 || history?.Games?.Games is not { Count: > 0 } games) return queue;
+        var loaded = games.DistinctBy(game => game.GameId).ToArray();
+        var stats = loaded
+            .Where(game => game.QueueId == queueId && LOL_GameAssistant.Domain.Matches.MatchHistoryGameExtensions.IsCompletedGame(game))
+            .Select(game => LOL_GameAssistant.Domain.Matches.MatchHistoryGameExtensions.GetParticipant(game, puuid)?.stats)
+            .Where(stats => stats?.HasWinResult == true).ToArray();
+        if (stats.Length == 0) return queue;
+        string scope = $"已加载{loaded.Length}场";
+        return queue with { Wins = stats.Count(stats => stats!.Win), Losses = stats.Count(stats => !stats!.Win),
+            HasWinLossRecord = true, RecordScope = scope };
     }
 }
 

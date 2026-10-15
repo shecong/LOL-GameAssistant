@@ -45,9 +45,11 @@ public sealed class UiRedesignTests
                 Service<IProfileIconService>((_, _) => Task.FromResult<byte[]?>(null)),
                 Service<IMatchHistoryService>((method, _) => method.Name == "GetDetailAsync"
                     ? Task.FromResult<MatchDetail?>(match)
-                    : Task.FromResult<MatchHistoryResponse?>(new() { Games = new() { Games = Enumerable.Range(101, 10).Select(gameId => new MatchHistoryGame { GameId = gameId }).ToList() } })),
+                    : Task.FromResult<MatchHistoryResponse?>(new() { Games = new() { Games = Enumerable.Range(101, 10).Select(gameId => new MatchHistoryGame {
+                        GameId = gameId, GameCreation = DateTimeOffset.UtcNow.AddHours(-1).ToUnixTimeMilliseconds(),
+                        QueueId = 420, GameMode = "CLASSIC", GameDuration = 1456 }).ToList() } })),
                 assets, Service<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(rank)))
-                { Margin = new Padding(0, 0, 10, 10), Height = 380 };
+                { Margin = new Padding(0, 0, 10, 10), Height = 440 };
             cards.Add(card);
             (id <= 5 ? first : second).Controls.Add(card);
         }
@@ -57,6 +59,10 @@ public sealed class UiRedesignTests
         host.Controls.Add(live);
         host.Show();
         System.Windows.Forms.Application.DoEvents();
+        typeof(LiveGameForm).GetField("_encounterSelfPuuid", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(live, "player-1");
+        typeof(LiveGameForm).GetMethod("UpdateRecentEncounters", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(live, null);
+        Assert.Contains("KDA", cards[0].Controls.Find("lblRecentKda", true).Single().Text);
+        Assert.Equal("近期遇到 10 次", cards[1].Controls.Find("lblRecentEncounter", true).Single().Text);
         Assert.Equal(cards[0].Top, cards[1].Top);
         Assert.True(cards[1].Left > cards[0].Left);
         Assert.Equal(cards[5].Top, cards[6].Top);
@@ -91,7 +97,7 @@ public sealed class UiRedesignTests
         first.AutoScrollPosition = second.AutoScrollPosition = Point.Empty;
         host.ClientSize = new Size(1440, 850);
         System.Windows.Forms.Application.DoEvents();
-        Assert.Equal(380, cards[0].Height);
+        Assert.Equal(440, cards[0].Height);
         Assert.Equal("最近战绩", heading.Text);
         Assert.True(Field<Control>(cards[0], "panelMatches").Visible);
         host.Controls.Remove(live);

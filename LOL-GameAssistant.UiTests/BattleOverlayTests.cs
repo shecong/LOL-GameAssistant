@@ -25,6 +25,19 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class BattleOverlayTests
 {
     [Fact]
+    public void OtherPlayerPlaceholderLossesAreUnavailableWhileCurrentPlayerCanBeUndefeated()
+    {
+        var source = new LOL_GameAssistant.Entity.LolRankedDataParser.RankedData();
+        source.QueueMap[RankedQueues.Solo5x5] = new() { Tier = "GOLD", Wins = 429, Losses = 0 };
+        var other = LOL_GameAssistant.Infrastructure.LeagueClient.LegacyRankedStatsService.Map(source).GetQueue(RankedQueues.Solo5x5)!;
+        Assert.False(other.HasWinLossRecord);
+        Assert.Equal("—", BattleOverlayForm.RankRateText(other, false));
+        var self = LOL_GameAssistant.Infrastructure.LeagueClient.LegacyRankedStatsService.Map(source, true).GetQueue(RankedQueues.Solo5x5)!;
+        Assert.True(self.HasWinLossRecord);
+        Assert.Equal(100, self.WinRate);
+    }
+
+    [Fact]
     public void CurrentLoadoutParsesLocalizedNamesAndKeepsSpellSlotsInOrder()
     {
         var player = Assert.Single(LocalLiveClientDataReader.ParseScoreboard("""

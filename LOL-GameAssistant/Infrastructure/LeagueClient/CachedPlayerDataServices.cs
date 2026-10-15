@@ -48,6 +48,7 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
 /// <summary>排位数据为空时复用该玩家的本地段位；无段位的非空队列仍正常更新。</summary>
 internal sealed class CachedRankedStatsService : IRankedStatsService
 {
+    private string? _currentPuuid;
     private readonly IRankedStatsService _inner;
     private readonly LocalDataCache<Snapshot> _cache;
     // 显式快照保证只读字典属性中的队列数据也能从磁盘完整恢复。
@@ -62,9 +63,10 @@ internal sealed class CachedRankedStatsService : IRankedStatsService
 
     public async Task<RankedOverview?> GetAsync(string puuid, bool isCurrentUser = false, CancellationToken cancellationToken = default)
     {
-        Snapshot? value = await _cache.GetLatestOrCachedAsync(puuid, async () =>
+        if (isCurrentUser) _currentPuuid = puuid;
+        Snapshot? value = await _cache.GetLatestOrCachedAsync($"record-v2:{puuid}", async () =>
         {
-            var ranked = await _inner.GetAsync(puuid, isCurrentUser, cancellationToken).ConfigureAwait(false);
+            var ranked = await _inner.GetAsync(puuid, isCurrentUser || _currentPuuid == puuid, cancellationToken).ConfigureAwait(false);
             return ranked == null ? null : new Snapshot(ranked.Queues, ranked.SeasonEndsAt);
         }, cancellationToken).ConfigureAwait(false);
         if (value == null) return null;

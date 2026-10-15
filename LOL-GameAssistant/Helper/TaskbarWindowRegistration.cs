@@ -54,9 +54,21 @@ internal sealed class TaskbarWindowRegistration : NativeWindow, IDisposable
             return;
         }
         nint handle = _form.Handle;
+        SynchronizeIcon();
         if (_registeredHandle == handle) return;
         Remove();
         if (_update(handle, true) >= 0) _registeredHandle = handle;
+    }
+
+    /// <summary>向原生窗口发布图标；任务栏读取 HWND 图标，不读取自绘标题栏的图片。</summary>
+    private void SynchronizeIcon()
+    {
+        Icon icon = _form.Icon ?? AppIcon.Shared;
+        for (int size = 0; size <= 1; size++) // ICON_SMALL / ICON_BIG
+        {
+            if (SendMessage(_form.Handle, 0x007F, size, 0) != icon.Handle) // WM_GETICON
+                SendMessage(_form.Handle, 0x0080, size, icon.Handle); // WM_SETICON
+        }
     }
 
     /// <summary>移除当前已登记的任务栏窗口。</summary>
@@ -119,6 +131,9 @@ internal sealed class TaskbarWindowRegistration : NativeWindow, IDisposable
     /// <summary>注册跨进程可识别的窗口消息。</summary>
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern uint RegisterWindowMessage(string name);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint SendMessage(nint handle, int message, nint wParam, nint lParam);
 
     /// <summary>用于管理任务栏窗口按钮的 Windows COM 接口。</summary>
     [ComImport, Guid("56FDF342-FD6D-11D0-958A-006097C9A090"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

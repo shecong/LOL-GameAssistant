@@ -39,12 +39,21 @@ public sealed class RecentModePerformanceEvaluatorTests
     }
 
     [Fact]
-    public void FewerThanFiveGames_DoNotProducePerformanceLabel()
+    public void OneValidGameProducesPerformanceLabel()
     {
-        RecentModePerformanceAssessment result = Evaluate(4, kills: 20, deaths: 1, assists: 10);
+        RecentModePerformanceAssessment result = Evaluate(1, kills: 20, deaths: 1, assists: 10);
 
+        Assert.True(result.HasEnoughSample);
+        Assert.Equal(30, result.Kda);
+        Assert.Equal(MatchPerformanceTier.Upper, result.Tier);
+        Assert.Equal(RecentPerformanceLabel.Upper, result.Label);
+    }
+
+    [Fact]
+    public void ZeroGamesRemainUnavailable()
+    {
+        var result = Evaluate(0, kills: 0, deaths: 0, assists: 0);
         Assert.False(result.HasEnoughSample);
-        Assert.Equal(MatchPerformanceTier.Medium, result.Tier);
         Assert.Equal(RecentPerformanceLabel.InsufficientData, result.Label);
     }
 

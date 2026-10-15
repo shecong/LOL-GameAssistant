@@ -215,17 +215,18 @@ public sealed class GameKdaAnnouncementBuilderTests
     }
 
     [Fact]
-    public void InsufficientSamplesAreNotAnnouncedAsLowerTier()
+    public void FourSamplesAreScoredAndAnnouncedWithoutInsufficientWarning()
     {
-        var assessment = new RecentModePerformanceAssessment(
-            MatchPerformanceTier.Medium, 75, 4, 50, "", 3.2, false,
-            RecentPerformanceLabel.InsufficientData);
+        var assessment = RecentModePerformanceEvaluator.Evaluate("测试",
+            Enumerable.Repeat(new MatchPerformanceAssessment(MatchPerformanceTier.Medium, 75, "", 8, 5, 8), 4),
+            [true, false, true, false]);
         var player = new GameKdaPlayerSummary("蓝方", "玩家", assessment);
 
-        Assert.Contains("样本不足4/5 K3.2", Assert.Single(
-            GameKdaAnnouncementBuilder.Build([player], onePlayerPerLine: true)));
-        Assert.Contains("样本不足4/5 KDA3.20", Assert.Single(
-            GameKdaAnnouncementBuilder.Build([player])));
+        string line = Assert.Single(GameKdaAnnouncementBuilder.Build([player], onePlayerPerLine: true));
+        string team = Assert.Single(GameKdaAnnouncementBuilder.Build([player]));
+        Assert.DoesNotContain("样本不足", line + team);
+        Assert.Contains("K3.2", line);
+        Assert.Contains("KDA3.20", team);
     }
 
     [Fact]

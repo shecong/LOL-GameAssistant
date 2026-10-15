@@ -728,14 +728,14 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     lblSoloTitle.Visible = true;
                     lblSoloTitle.Text = "单双排";
-                    lblSoloStats.Text = FormatRanked(solo);
+                    lblSoloStats.Text = FormatRanked(RankedRecordResolver.Resolve(solo, _matchHistory, puuid)!);
                     lblSoloStats.Visible = true;
                 }
                 if (flex != null)
                 {
                     lblFlexTitle.Visible = true;
                     lblFlexTitle.Text = "灵活组排";
-                    lblFlexStats.Text = FormatRanked(flex);
+                    lblFlexStats.Text = FormatRanked(RankedRecordResolver.Resolve(flex, _matchHistory, puuid)!);
                     lblFlexStats.Visible = true;
                 }
             }
@@ -754,7 +754,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 extra += $" · 最高 {TierToChinese(entry.HighestTier)}{entry.HighestDivision}";
 
             if (!string.IsNullOrEmpty(entry.Tier) && entry.Tier != "NONE")
-                return $"{TierToChinese(entry.Tier)} {entry.Division} · {entry.LeaguePoints}LP · {entry.WinRate}% ({entry.Wins}W/{entry.Losses}L){extra}";
+            {
+                string record = entry.HasWinLossRecord
+                    ? $"{entry.WinRate}% ({entry.Wins}W/{entry.Losses}L)" + (entry.RecordScope.Length > 0 ? $" · {entry.RecordScope}" : "")
+                    : "赛季胜负未提供";
+                return $"{TierToChinese(entry.Tier)} {entry.Division} · {entry.LeaguePoints}LP · {record}{extra}";
+            }
             if (entry.IsProvisional)
                 return $"定位赛 ({entry.ProvisionalGamesRemaining}/{entry.ProvisionalGameThreshold})";
             return "暂无排位数据";
@@ -848,6 +853,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
                 if (!IsCurrentPage(puuid, requestedPage, requestedPageSize, token)) return;
                 _matchHistory = page;
+                if (solo != null) lblSoloStats.Text = FormatRanked(RankedRecordResolver.Resolve(solo, page, puuid)!);
+                if (flex != null) lblFlexStats.Text = FormatRanked(RankedRecordResolver.Resolve(flex, page, puuid)!);
                 if (page == null)
                 {
                     ClearMatchControls();

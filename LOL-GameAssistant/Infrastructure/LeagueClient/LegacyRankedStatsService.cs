@@ -19,11 +19,11 @@ public sealed class LegacyRankedStatsService : IRankedStatsService
             .GetRankedStatsAsync(puuid, isCurrentUser, cancellationToken)
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return legacy == null ? null : Map(legacy);
+        return legacy == null ? null : Map(legacy, isCurrentUser);
     }
 
     /// <summary>集中吸收旧 LCU 解析器字段，避免其 DTO 穿透应用边界。</summary>
-    internal static RankedOverview Map(LolRankedDataParser.RankedData source)
+    internal static RankedOverview Map(LolRankedDataParser.RankedData source, bool isCurrentUser = false)
     {
         var result = new RankedOverview();
         // queueMap is the parser's preferred source. The duplicate queues array must
@@ -44,6 +44,7 @@ public sealed class LegacyRankedStatsService : IRankedStatsService
                 LeaguePoints = entry.LeaguePoints,
                 Wins = entry.Wins,
                 Losses = entry.Losses,
+                HasWinLossRecord = isCurrentUser || entry.Losses > 0 || entry.Wins == 0,
                 IsProvisional = entry.IsProvisional,
                 ProvisionalGamesRemaining = entry.ProvisionalGamesRemaining,
                 ProvisionalGameThreshold = entry.ProvisionalGameThreshold,

@@ -22,8 +22,9 @@ public static class GameKdaAnnouncementBuilder
         string prefix = $"【{(player.Team == "蓝方" ? "蓝" : "红")}{position}】{name}";
         var assessment = player.Assessment;
         if (assessment == null) return $"{prefix} 战绩暂未获取，没数据就不瞎下结论。";
-        if (assessment.SampleSize <= 0) return $"{prefix} 近30天同模式无样本，暂不测评。";
-        string stats = $"近30天同模式{assessment.SampleSize}场 KDA{FormatKda(assessment.Kda, 2)}";
+        string scope = assessment.UsesAllModes ? "各模式" : "同模式";
+        if (assessment.SampleSize <= 0) return $"{prefix} 近30天{scope}无样本，暂不测评。";
+        string stats = $"近30天{scope}{assessment.SampleSize}场 KDA{FormatKda(assessment.Kda, 2)}";
         if (!assessment.HasEnoughSample) return $"{prefix} {stats}，样本不足，先别急着封神或判刑。";
         string remark = GameKdaRemarkLibrary.Select(assessment.Label, customRemarks);
         var placeholders = new Dictionary<string, string>

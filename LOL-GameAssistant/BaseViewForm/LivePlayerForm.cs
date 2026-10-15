@@ -264,6 +264,9 @@ namespace LOL_GameAssistant.BaseViewForm
             _historyHeading!.ForeColor = palette.TextPrimary;
             lblSub.ForeColor = palette.TextSecondary;
             lblChampionNow.ForeColor = palette.Accent;
+            _kdaLabel.ForeColor = palette.TextPrimary;
+            _encounterLabel.ForeColor = _encounterLabel.Text?.StartsWith("近期遇到", StringComparison.Ordinal) == true
+                ? palette.Accent : palette.TextSecondary;
             if (!string.IsNullOrWhiteSpace(lblSummary.Text))
             {
                 lblSummary.ForeColor = lblSummary.Text.StartsWith("人机", StringComparison.Ordinal)
@@ -529,6 +532,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 return;
             }
 
+            SetRecentEncounterHistory(matchlists);
+
             var games = matchlists.Games.Games
                 .OrderByDescending(g => g.GameCreation)
                 .Take(RecentGamesCount)
@@ -580,11 +585,14 @@ namespace LOL_GameAssistant.BaseViewForm
             OverviewChanged?.Invoke(this, EventArgs.Empty);
             int losses = results.Count - wins;
             double rate = results.Count > 0 ? Math.Round((double)wins / results.Count * 100, 1) : 0;
+            ShowLoadedRecentKda(matchlists, results);
             if (results.Count == 0)
             {
                 if (games.Count > 0)
                 {
                     ShowLoadFailure("获取失败", "战绩列表已获取，但对局详情暂不可用，可重新加载。");
+                    // 摘要可能已经有完整 KDA；详情加载失败不应阻止评分摘要。
+                    _ = CompleteAssessmentAsync(matchlists, results, wins, losses, rate);
                     return;
                 }
                 ControlLifetime.ClearAndDispose(panelMatches);
@@ -612,11 +620,13 @@ namespace LOL_GameAssistant.BaseViewForm
             catch (OperationCanceledException) when (timeout.IsCancellationRequested)
             {
                 if (!_lifetimeCancellation.IsCancellationRequested && !IsDisposed)
-                    ShowLoadFailure("评分暂不可用", "近期战绩已加载；30 天评分请求超时，不影响战绩查看。");
+                    if (!UseLoadedAssessmentOnFailure("完整 30 天评分请求超时"))
+                        ShowLoadFailure("评分暂不可用", "近期战绩已加载；30 天评分请求超时，不影响战绩查看。");
             }
             catch (Exception ex)
             {
-                if (!IsDisposed) ShowLoadFailure("评分暂不可用", $"近期战绩已加载；评分请求失败：{ex.Message}");
+                if (!IsDisposed && !UseLoadedAssessmentOnFailure("完整 30 天评分请求失败"))
+                    ShowLoadFailure("评分暂不可用", $"近期战绩已加载；评分请求失败：{ex.Message}");
             }
         }
 
@@ -725,22 +735,28 @@ namespace LOL_GameAssistant.BaseViewForm
                 _playerPuuid!, _currentQueueId, _currentGameMode,
                 LolGameModeNames.GetModeText(
                     _currentQueueId > 0 ? _currentQueueId.ToString() : "", _currentGameMode),
-                firstPage, cancellationToken).WaitAsync(cancellationToken);
+                firstPage, cancellationToken, fallbackToAllModes: true,
+                knownDetails: results.Select(item => item.detail).DistinctBy(detail => detail.GameId)
+                    .ToDictionary(detail => detail.GameId)).WaitAsync(cancellationToken);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);
-            lblSummary.Text = label;
-            lblSummary.ForeColor = assessment.Label switch
+            ShowRecentAssessment(assessment);
+            if (assessment.SampleSize > 0 || results.Count > 0 || firstPage.Games?.Games.Count == 0)
             {
-                RecentPerformanceLabel.Upper => Color.FromArgb(27, 94, 32),
-                RecentPerformanceLabel.Human => Color.FromArgb(123, 31, 162),
-                RecentPerformanceLabel.Lower => Color.FromArgb(183, 28, 28),
-                _ => Color.FromArgb(85, 85, 85)
-            };
+                lblSummary.Text = label;
+                lblSummary.ForeColor = assessment.Label switch
+                {
+                    RecentPerformanceLabel.Upper => Color.FromArgb(102, 187, 106),
+                    RecentPerformanceLabel.Human => Color.FromArgb(190, 128, 235),
+                    RecentPerformanceLabel.Lower => Color.FromArgb(239, 83, 80),
+                    _ => UiTheme.Palette.TextSecondary
+                };
+            }
             string recentRecord = results.Count > 0
                 ? $"近{results.Count}场 {allWins}胜{allLosses}负 · {allRate}%"
                 : "暂无战绩";
             _performanceTip.SetToolTip(lblSummary,
-                $"最近 30 天同模式有效对局 {assessment.SampleSize} 场。" +
+                $"最近 30 天{(assessment.UsesAllModes ? "各模式" : "同模式")}有效对局 {assessment.SampleSize} 场。" +
                 (assessment.SampleSize == 0 ? $"暂不分档。{recentRecord}" : assessment.Detail));
             return assessment;
         }

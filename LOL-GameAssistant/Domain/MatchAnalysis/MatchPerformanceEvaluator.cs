@@ -53,7 +53,10 @@ public sealed record RecentModePerformanceAssessment(
     string Detail,
     double Kda = 0,
     bool HasEnoughSample = false,
-    RecentPerformanceLabel Label = RecentPerformanceLabel.InsufficientData);
+    RecentPerformanceLabel Label = RecentPerformanceLabel.InsufficientData)
+{
+    public bool UsesAllModes { get; init; }
+}
 
 /// <summary>将近期表现评估转换为界面使用的档位文本。</summary>
 public static class RecentPerformanceLabelFormatter
@@ -131,7 +134,7 @@ public static class MatchPerformanceEvaluator
 public static class RecentModePerformanceEvaluator
 {
     /// <summary>默认样本下限；选人公告等场景可传入更大的样本数。</summary>
-    public const int RequiredSampleSize = 5;
+    public const int RequiredSampleSize = 1;
 
     /// <summary>下等马档位的分数上限。</summary>
     public const int LowerTierMaxScore = 59;

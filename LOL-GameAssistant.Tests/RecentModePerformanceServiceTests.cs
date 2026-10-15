@@ -58,7 +58,7 @@ public sealed class RecentModePerformanceServiceTests
     }
 
     [Fact]
-    public async Task FiltersOlderModesAndRemakesBeforeCheckingFiveGameMinimum()
+    public async Task FiltersOlderModesAndRemakesBeforeScoringAvailableGames()
     {
         long recent = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds();
         long old = DateTimeOffset.UtcNow.AddDays(-31).ToUnixTimeMilliseconds();
@@ -73,8 +73,26 @@ public sealed class RecentModePerformanceServiceTests
             .EvaluateAsync("self", 450, "ARAM", "极地大乱斗");
 
         Assert.Equal(4, result.SampleSize);
-        Assert.False(result.HasEnoughSample);
-        Assert.Equal(RecentPerformanceLabel.InsufficientData, result.Label);
+        Assert.True(result.HasEnoughSample);
+        Assert.Equal(RecentPerformanceLabel.Upper, result.Label);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LiveFallbackUsesOtherModesOnlyWhenSameModeHasNoValidSamples(bool sameMode)
+    {
+        long recent = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var games = new List<MatchHistoryGame> { Game(1, recent, 420) };
+        if (sameMode) games.Add(Game(2, recent, 450));
+        var result = await new RecentModePerformanceService(new FakeHistory(games))
+            .EvaluateAsync("self", 450, "ARAM", "大乱斗", fallbackToAllModes: true);
+        Assert.Equal(1, result.SampleSize);
+        Assert.Equal(4.5, result.Kda);
+        Assert.True(result.HasEnoughSample);
+        Assert.Equal(!sameMode, result.UsesAllModes);
+        Assert.Equal(RecentPerformanceLabel.Upper, result.Label);
+        if (!sameMode) Assert.Contains("各模式", result.Detail);
     }
 
     private static MatchHistoryGame Game(int id, long created, int queueId) => new()

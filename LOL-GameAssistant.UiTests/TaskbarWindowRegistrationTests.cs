@@ -7,6 +7,28 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class TaskbarWindowRegistrationTests
 {
     [Fact]
+    public void BorderlessWindowPublishesNativeIconsAfterShowAndHandleRecreation() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = new TestWindow { Icon = AppIcon.Shared };
+        AntdWindowChrome.Configure(form);
+        using var registration = new TaskbarWindowRegistration(form, (_, _) => 0);
+        form.Show();
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            System.Windows.Forms.Application.DoEvents();
+            Assert.NotEqual(nint.Zero, SendMessage(form.Handle, 0x007F, 1, 0)); // WM_GETICON / ICON_BIG
+            Assert.NotEqual(nint.Zero, SendMessage(form.Handle, 0x007F, 0, 0)); // ICON_SMALL
+            // 模拟窗口样式更新清掉原生图标；重复同步必须恢复，不能只登记一次按钮。
+            SendMessage(form.Handle, 0x0080, 1, 0);
+            SendMessage(form.Handle, 0x0080, 0, 0);
+            registration.Synchronize();
+            Assert.Equal(AppIcon.Shared.Handle, SendMessage(form.Handle, 0x007F, 1, 0));
+            Assert.Equal(AppIcon.Shared.Handle, SendMessage(form.Handle, 0x007F, 0, 0));
+            form.RebuildHandle();
+        }
+    });
+
+    [Fact]
     public void StartupHideRestoreAndClose_RegisterOnlyVisibleWindow() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var form = new TestWindow();

@@ -2,6 +2,8 @@ using System.Reflection;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
+using LOL_GameAssistant.Application.Ranked;
+using LOL_GameAssistant.Domain.Ranked;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Infrastructure.GameData;
@@ -12,6 +14,33 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class LocalDataCacheTests
 {
+    [Fact]
+    public async Task RankedCachePreservesUnavailableRecordsAndRemembersCurrentPlayer()
+    {
+        using var folder = new CacheFolder();
+        var inner = Service<IRankedStatsService>((_, args) =>
+        {
+            bool current = (bool)args[1]!;
+            Assert.Equal((string)args[0]! == "self", current);
+            var overview = new RankedOverview();
+            overview.Queues[RankedQueues.Solo5x5] = new()
+            {
+                QueueType = RankedQueues.Solo5x5, Tier = "GOLD", Wins = 10,
+                HasWinLossRecord = current
+            };
+            return Task.FromResult<RankedOverview?>(overview);
+        });
+        var first = new CachedRankedStatsService(inner, folder.Path);
+        await first.GetAsync("self", isCurrentUser: true);
+        Assert.True((await first.GetAsync("self"))!.GetQueue(RankedQueues.Solo5x5)!.HasWinLossRecord);
+        Assert.False((await first.GetAsync("other"))!.GetQueue(RankedQueues.Solo5x5)!.HasWinLossRecord);
+        var offline = Service<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(null));
+        var restarted = new CachedRankedStatsService(offline, folder.Path);
+        var restored = (await restarted.GetAsync("other"))!.GetQueue(RankedQueues.Solo5x5)!;
+        Assert.Equal(10, restored.Wins);
+        Assert.False(restored.HasWinLossRecord);
+    }
+
     [Fact]
     public async Task MatchDetailsReuseDiskCacheUnlessFreshDataIsExplicitlyRequested()
     {

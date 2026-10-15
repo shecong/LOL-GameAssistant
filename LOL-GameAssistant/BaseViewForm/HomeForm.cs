@@ -304,7 +304,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 play_dj.Text = player.SummonerLevel.ToString();
                 play_next.Text = player.XpUntilNextLevel.ToString();
                 play_jd.Value = CalculateLevelProgress(player);
-                ApplyRankedStats(ranked);
+                ApplyRankedStats(ranked, history, player.Puuid);
                 matchlists = history;
                 UpdateModeOptions();
                 InitPagin(history);
@@ -425,13 +425,13 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         /// <param name="plyaer"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private void ApplyRankedStats(RankedOverview? gameinfo)
+        private void ApplyRankedStats(RankedOverview? gameinfo, MatchHistoryResponse? history, string puuid)
         {
             gameinfo ??= new RankedOverview();
             //获取单双排信息
-            RankedQueue? solo = gameinfo.GetQueue(RankedQueues.Solo5x5);
+            RankedQueue? solo = RankedRecordResolver.Resolve(gameinfo.GetQueue(RankedQueues.Solo5x5), history, puuid);
             //获取灵活5v5信息
-            RankedQueue? flex = gameinfo.GetQueue(RankedQueues.Flex5x5);
+            RankedQueue? flex = RankedRecordResolver.Resolve(gameinfo.GetQueue(RankedQueues.Flex5x5), history, puuid);
 
             //===== 单双排（排位赛）卡片 =====
             if (solo != null)
@@ -441,9 +441,9 @@ namespace LOL_GameAssistant.BaseViewForm
                     ? $"单双排 {CheckTierName(solo.Tier)}{solo.Division}"
                     : "单双排 未排位";
                 this.game_dsp_lp.Text = $"{solo.LeaguePoints} LP";
-                this.game_dsp_sl.Text = $"胜率 {solo.WinRate}%";
-                this.game_dsp_win.Text = $"{solo.Wins} 胜";
-                this.game_dsp_loss.Text = $"{solo.Losses} 负";
+                this.game_dsp_sl.Text = solo.HasWinLossRecord ? $"胜率 {solo.WinRate}%" + (solo.RecordScope.Length > 0 ? $"（{solo.RecordScope}）" : "") : "赛季胜负未提供";
+                this.game_dsp_win.Text = solo.HasWinLossRecord ? $"{solo.Wins} 胜" : "胜场 未提供";
+                this.game_dsp_loss.Text = solo.HasWinLossRecord ? $"{solo.Losses} 负" : "负场 未提供";
                 this.game_dsp_highest.Text =
                     string.IsNullOrEmpty(solo.HighestTier) || solo.HighestTier == "NONE"
                         ? "最高 -"
@@ -468,9 +468,9 @@ namespace LOL_GameAssistant.BaseViewForm
                     ? $"灵活组排 {CheckTierName(flex.Tier)}{flex.Division}"
                     : "灵活组排 未排位";
                 this.game_lhp_lp.Text = $"{flex.LeaguePoints} LP";
-                this.game_lhp_sl.Text = $"胜率 {flex.WinRate}%";
-                this.game_lhp_win.Text = $"{flex.Wins} 胜";
-                this.game_lhp_loss.Text = $"{flex.Losses} 负";
+                this.game_lhp_sl.Text = flex.HasWinLossRecord ? $"胜率 {flex.WinRate}%" + (flex.RecordScope.Length > 0 ? $"（{flex.RecordScope}）" : "") : "赛季胜负未提供";
+                this.game_lhp_win.Text = flex.HasWinLossRecord ? $"{flex.Wins} 胜" : "胜场 未提供";
+                this.game_lhp_loss.Text = flex.HasWinLossRecord ? $"{flex.Losses} 负" : "负场 未提供";
                 this.game_lhp_highest.Text =
                     string.IsNullOrEmpty(flex.HighestTier) || flex.HighestTier == "NONE"
                         ? "最高 -"
@@ -490,7 +490,7 @@ namespace LOL_GameAssistant.BaseViewForm
             //===== 底部六项数据（以单双排为主，与左侧卡片对应） =====
             this.game_dws.Text = solo?.GetPlacementText() ?? "-";
             this.game_jjs.Text = solo?.GetPromotionText() ?? "-";
-            this.game_jjscount.Text = solo == null ? "-" : $"{solo.TotalGames} 场";
+            this.game_jjscount.Text = solo?.HasWinLossRecord == true ? $"{solo.TotalGames} 场" + (solo.RecordScope.Length > 0 ? $"（{solo.RecordScope}）" : "") : "未提供";
             this.game_dqsd.Text = solo == null ? "-" : $"{solo.LeaguePoints} LP";
             this.game_sjend.Text = gameinfo.GetSeasonEndText(RankedQueues.Solo5x5);
             string ratedTierName = solo == null ? "" : RankedDisplayRules.GetRatedTierName(solo.RatedTier);

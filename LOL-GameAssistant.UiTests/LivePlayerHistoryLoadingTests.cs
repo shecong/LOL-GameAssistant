@@ -6,6 +6,7 @@ using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Domain.Matches;
+using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Players;
 using LOL_GameAssistant.Helper;
 using Xunit;
@@ -14,6 +15,51 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class LivePlayerHistoryLoadingTests
 {
+    [Fact]
+    public void ValidSingleSummaryIsScoredEvenWhenEveryDetailRequestFails() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var card = CreateCard((method, _) => method.Name == "GetPageAsync"
+            ? Task.FromResult<MatchHistoryResponse?>(new() { Games = new() { Games = [new() {
+                GameId = DateTime.UtcNow.Ticks, GameCreation = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                GameDuration = 1200, QueueId = 430, GameMode = "CLASSIC",
+                Participants = [new() { stats = new() { kills = 5, deaths = 2, assists = 8, Win = true } }]
+            }] } }) : Task.FromResult<MatchDetail?>(null));
+        using var form = Mount(card);
+        Assert.Equal("上等马", Child(card, "lblSummary").Text);
+        Assert.Contains("KDA 6.50", Child(card, "lblRecentKda").Text);
+        Assert.Contains("1场", Child(card, "lblRecentKda").Text);
+    });
+
+    [Fact]
+    public void HeaderShowsKdaAndRecentEncounterWithoutCountingDuplicateOrOldMatches() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var pending = new TaskCompletionSource<MatchHistoryResponse?>();
+        var card = CreateCard((_, _) => pending.Task, puuid: "encounter-other");
+        card.Width = 320;
+        using var form = Mount(card);
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        MatchHistoryGame Game(long id, long created) => new() { GameId = id, GameCreation = created, GameDuration = 1200 };
+        card.SetRecentEncounterHistory(new() { Games = new() { Games = [Game(1, now), Game(1, now),
+            Game(2, DateTimeOffset.UtcNow.AddDays(-31).ToUnixTimeMilliseconds()), Game(3, now)] } });
+        card.UpdateRecentEncounter("self", null);
+        Assert.Equal("遇见检测中", Child(card, "lblRecentEncounter").Text);
+        card.UpdateRecentEncounter("self", [Game(1, now), Game(2, now)]);
+        Assert.Equal("近期遇到 1 次", Child(card, "lblRecentEncounter").Text);
+        card.UpdateRecentEncounter("self", [Game(99, now)]);
+        Assert.Equal("近期未遇到", Child(card, "lblRecentEncounter").Text);
+        var result = RecentModePerformanceEvaluator.Evaluate("测试", [new(MatchPerformanceTier.Upper, 90, "", 10, 4, 8)], [true]);
+        card.ShowRecentAssessment(result);
+        var kda = Child(card, "lblRecentKda");
+        Assert.Contains("KDA 4.50", kda.Text);
+        Assert.Contains("1场", kda.Text);
+        Assert.False(kda.Bounds.IntersectsWith(Child(card, "lblRecentEncounter").Bounds));
+        Assert.True(kda.Bottom <= Child(card, "panelMatches").Top);
+        card.ShowRecentAssessment(result with { UsesAllModes = true });
+        Assert.Contains("各模式", kda.Text);
+        card.UpdateRecentEncounter("encounter-other", []);
+        Assert.False(Child(card, "lblRecentEncounter").Visible);
+    });
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -93,7 +139,8 @@ public sealed class LivePlayerHistoryLoadingTests
         nextPage.SetException(new IOException("scoring failed"));
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal(10, panel.Controls.OfType<RecentMatchRow>().Count());
-        Assert.Equal("评分暂不可用", Child(card, "lblSummary").Text);
+        Assert.Equal("上等马", Child(card, "lblSummary").Text);
+        Assert.Contains("KDA 6.50", Child(card, "lblRecentKda").Text);
     });
 
     [Fact]

@@ -377,7 +377,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
                 new RectangleF(x + 186, y + 9, 111, 24), 10, Color.FromArgb(234, 205, 145));
             DrawText(g, RankRateText(player?.Rank, en),
                 new RectangleF(x + 186, y + 35, 111, 18), 8, Color.LightSlateGray);
-            DrawText(g, player?.Rank is { TotalGames: > 0 } rank ? RecordCounts(rank.Wins, rank.Losses, en) : "—",
+            DrawText(g, player?.Rank is { TotalGames: > 0, HasWinLossRecord: true } rank ? RecordCounts(rank.Wins, rank.Losses, en) : "—",
                 new RectangleF(x + 186, y + 53, 111, 18), 7, Color.LightSlateGray);
             if (player?.RecentResults is { Count: > 0 } results)
                 for (int i = 0; i < results.Count; i++)
@@ -430,7 +430,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
 
     internal static string RankRateText(RankedQueue? rank, bool en)
     {
-        if (rank is not { TotalGames: > 0 }) return "—";
+        if (rank is not { TotalGames: > 0, HasWinLossRecord: true }) return "—";
         string queue = rank.QueueType == RankedQueues.Flex5x5 ? (en ? "Flex" : "灵活") : (en ? "Solo" : "单双");
         return $"{queue} {rank.WinRate:0.#}%";
     }
