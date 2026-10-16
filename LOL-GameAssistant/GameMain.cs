@@ -187,6 +187,7 @@ namespace LOL_GameAssistant
             _ = new TaskbarWindowRegistration(this);
             _headerIconImage = AppIcon.Shared.ToBitmap();
             HeadContent.Icon = _headerIconImage;
+            UpdateBadge.AddToHeader(HeadContent);
             tabs1.Pages.Remove(tabPageFriends);
             tabs1.Controls.Remove(tabPageFriends);
             tabs1.Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold);

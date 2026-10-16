@@ -13,6 +13,54 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SettingsToolsTests
 {
     [Fact]
+    public void HeavySettingsPagesAreCreatedOnDemandAndReused() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int saves = 0;
+        var settings = new AssistantSettings { QuickMessageCustomPhrases = "按需加载的文案" };
+        using var form = new SettingForm(Service<IGameClientLauncher>((_, _) => null),
+            Service<IApplicationSettingsStore>((method, _) => method.Name switch
+            {
+                "Load" => settings,
+                "GetStoragePath" => "test-settings.json",
+                "Save" => ++saves,
+                _ => null
+            }), Service<ISettingsSecretProtector>((_, _) => null),
+            Service<IClientFeatureService>((_, _) => null));
+        var segments = Field<Control[]>(form, "_settingsSegments");
+        Assert.Null(segments[3]);
+        Assert.Null(segments[5]);
+        ((Task)Invoke(form, "LoadCachedSettings")!).GetAwaiter().GetResult();
+        typeof(SettingForm).GetField("_isLoading", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(form, false);
+        var navigation = Field<AntdUI.Segmented>(form, "_settingsSegmented");
+        navigation.SelectIndex = 3;
+        var shout = Assert.IsType<QuickShoutForm>(segments[3]);
+        Assert.Equal(settings.QuickMessageCustomPhrases, Field<AntdUI.Input>(shout, "_customPhrases").Text);
+        navigation.SelectIndex = 5;
+        var tools = Assert.IsType<ClientToolsForm>(segments[5]);
+        navigation.SelectIndex = 0;
+        navigation.SelectIndex = 3;
+        Assert.Same(shout, segments[3]);
+        Assert.Same(tools, segments[5]);
+        Assert.Equal(0, saves);
+        form.Dispose();
+        Assert.True(shout.IsDisposed);
+        Assert.True(tools.IsDisposed);
+    });
+
+    [Fact]
+    public void ShoutHotkeyCanInitializeItsPageWithoutOpeningSettingsCategory() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = new SettingForm(Service<IGameClientLauncher>((_, _) => null),
+            Service<IApplicationSettingsStore>((method, _) => method.Name == "GetStoragePath"
+                ? "test-settings.json" : new AssistantSettings()),
+            Service<ISettingsSecretProtector>((_, _) => null), Service<IClientFeatureService>((_, _) => null));
+        // 空的自定义文案不会向游戏发送，但仍走快捷键的实际初始化路径。
+        form.SendRandomQuickShoutToGameAsync(custom: true).GetAwaiter().GetResult();
+        Assert.IsType<QuickShoutForm>(Field<Control[]>(form, "_settingsSegments")[3]);
+        Assert.Equal(0, Field<AntdUI.Segmented>(form, "_settingsSegmented").SelectIndex);
+    });
+
+    [Fact]
     public void CompanionCheckboxPersistsImmediatelyWithoutSavingAiSettings() => MatchListScrollingTests.OnUiThread(() =>
     {
         var settings = new AssistantSettings { ChampSelectCompanionEnabled = false, LanguageMode = "en-US" };

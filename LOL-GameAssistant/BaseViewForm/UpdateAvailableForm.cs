@@ -14,7 +14,7 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
     internal UpdateAvailableForm(UpdateRelease release, Action<string>? openUrl = null)
     {
         Text = UiLanguage.IsEnglish ? "Update available" : "发现新版本";
-        StartPosition = FormStartPosition.CenterParent;
+        StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(580, 360);
         MinimumSize = new Size(580, 360);
         MaximizeBox = false;
@@ -70,6 +70,18 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
             {
                 UiMessage.warn(this, $"无法打开链接，可在浏览器访问项目发布页，或搜索 QQ 群 {QqGroupNumber} 获取更新。\n{ex.Message}");
             }
+        }
+    }
+
+    /// <summary>非模态窗口显式按主窗口居中，并避免超出当前屏幕工作区。</summary>
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        if (Owner is { IsDisposed: false } owner)
+        {
+            Location = new Point(owner.Left + (owner.Width - Width) / 2,
+                owner.Top + (owner.Height - Height) / 2);
+            WindowLayout.FitToWorkingArea(this);
         }
     }
 }

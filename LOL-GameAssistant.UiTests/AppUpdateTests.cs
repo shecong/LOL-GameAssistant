@@ -83,6 +83,47 @@ public sealed class AppUpdateTests
     private static void Click(Control control) => control.GetType()
         .GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(control, [EventArgs.Empty]);
 
+    [Fact]
+    public void UpdateBadgesStayVisibleAfterDismissalAndAppearOnAboutPageOpenedLater() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        AppUpdateChecker.SetAvailableRelease(null);
+        using var owner = new Form { ClientSize = new Size(1000, 700), ShowInTaskbar = false };
+        var header = new AntdUI.PageHeader { Dock = DockStyle.Top, Height = 36, Text = "sc", ShowIcon = true };
+        UpdateBadge.AddToHeader(header);
+        owner.Controls.Add(header);
+        owner.Show();
+        var headerBadge = header.Controls.Find("HeaderUpdateBadge", true).Single();
+        Assert.False(headerBadge.Visible);
+        var release = new UpdateRelease(new Version(99, 0, 0), "v99.0.0", "https://github.com", "");
+        var service = new StubService(() => Task.FromResult<UpdateRelease?>(release));
+        try
+        {
+            AppUpdateChecker.CheckAsync(owner, service, true).GetAwaiter().GetResult();
+            Assert.True(headerBadge.Visible);
+            Assert.True(header.ClientRectangle.Contains(headerBadge.Bounds));
+            Assert.Single(owner.OwnedForms.OfType<UpdateAvailableForm>()).Close();
+            Assert.True(headerBadge.Visible);
+
+            using var about = new AboutForm(service) { Dock = DockStyle.Fill };
+            owner.Controls.Add(about);
+            System.Windows.Forms.Application.DoEvents();
+            var aboutBadge = about.Controls.Find("AboutUpdateBadge", true).Single();
+            Assert.True(aboutBadge.Visible);
+            Click(aboutBadge);
+            Assert.Single(owner.OwnedForms.OfType<UpdateAvailableForm>()).Close();
+
+            AppUpdateChecker.CheckAsync(owner, new StubService(() => throw new HttpRequestException("Offline")), true).GetAwaiter().GetResult();
+            Assert.True(headerBadge.Visible);
+            Assert.True(aboutBadge.Visible);
+            Click(headerBadge);
+            Assert.Single(owner.OwnedForms.OfType<UpdateAvailableForm>()).Close();
+        }
+        finally
+        {
+            AppUpdateChecker.SetAvailableRelease(null);
+        }
+    });
+
     private sealed class StubService(Func<Task<UpdateRelease?>> getLatest) : IUpdateReleaseService
     {
         public Task<UpdateRelease?> GetLatestAsync(CancellationToken cancellationToken = default) => getLatest();

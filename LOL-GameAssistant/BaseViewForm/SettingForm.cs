@@ -184,7 +184,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AttachCommonSegmentTips();
             InitializeSegmentedSettings();
             BindBooleanAutoSave();
-            VisibleChanged += (_, _) => { if (Visible) SizeInteractiveControls(this); };
+            SizeInteractiveControls(this);
             DpiChangedAfterParent += (_, _) => SizeInteractiveControls(this);
             Disposed += (_, _) => { _lifetime.Dispose(); toolTip1.Dispose(); _featureTip.Dispose(); };
         }
@@ -239,14 +239,10 @@ namespace LOL_GameAssistant.BaseViewForm
             _settingsSegments[0] = CreateMatchSegment();
             _settingsSegments[1] = CreateClientSegment();
             _settingsSegments[2] = CreateWindowSegment();
-            _settingsSegments[3] = CreateShoutSegment();
             _settingsSegments[4] = CreateAiSegment();
-            _settingsSegments[5] = new ClientToolsForm(
-                AppCompositionRoot.ClientFeatureService,
-                AppCompositionRoot.ChampionInsightsService,
-                AppCompositionRoot.ProfileIconService);
-            foreach (Control segment in _settingsSegments)
+            foreach (Control? segment in _settingsSegments)
             {
+                if (segment is null) continue;
                 segment.Dock = DockStyle.Fill;
                 segment.Visible = false;
                 _settingsSegmentHost.Controls.Add(segment);
@@ -265,8 +261,35 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (index < 0 || index >= _settingsSegments.Length) return;
             HideSettingTips();
-            for (int i = 0; i < _settingsSegments.Length; i++)
-                _settingsSegments[i].Visible = i == index;
+            EnsureSettingsSegment(index);
+            _settingsSegmentHost.SuspendLayout();
+            try
+            {
+                for (int i = 0; i < _settingsSegments.Length; i++)
+                    if (_settingsSegments[i] is Control segment) segment.Visible = i == index;
+            }
+            finally { _settingsSegmentHost.ResumeLayout(true); }
+        }
+
+        /// <summary>较重的工具页在首次使用时创建，切换回来复用原有状态。</summary>
+        private Control EnsureSettingsSegment(int index)
+        {
+            if (_settingsSegments[index] is Control existing) return existing;
+            Control segment = index switch
+            {
+                3 => CreateShoutSegment(),
+                5 => new ClientToolsForm(_matchFeatures,
+                    AppCompositionRoot.ChampionInsightsService, AppCompositionRoot.ProfileIconService),
+                _ => throw new ArgumentOutOfRangeException(nameof(index))
+            };
+            segment.Dock = DockStyle.Fill;
+            segment.Visible = false;
+            SizeInteractiveControls(segment);
+            ResizeSettingColumns(segment);
+            UiTheme.Apply(segment);
+            _settingsSegments[index] = segment;
+            _settingsSegmentHost.Controls.Add(segment);
+            return segment;
         }
 
         /// <summary>切换页面前隐藏当前设置提示。</summary>
@@ -475,6 +498,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, row++, "操作：", CreateMatchActions());
             AddSegmentRow(layout, row++, "操作结果：", _matchToolsStatus);
             AddSegmentRow(layout, row++, "说明：", CreateNote("本页的开关、延迟、队列和英雄列表会自动保存。"));
+            layout.ResumeLayout(true);
             return panel;
         }
 
@@ -522,6 +546,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 6, "开机自启：", swi_startup);
             AddSegmentRow(layout, 7, "本地缓存：", label_cache_status);
             AddSegmentRow(layout, 8, "保存方式：", CreateNote("开关即时保存，安装路径编辑后离开输入框自动保存。"));
+            layout.ResumeLayout(true);
             return panel;
         }
 
@@ -574,6 +599,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 11, "最小化到托盘：", swi_tray);
             AddSegmentRow(layout, 12, "游戏分辨率：", select_resolution);
             AddSegmentRow(layout, 13, "保存方式：", CreateNote("开关、主题、语言、透明度与快捷键修改后自动保存。"));
+            layout.ResumeLayout(true);
             return panel;
         }
 
@@ -595,11 +621,11 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>从配置的喊话文案中随机选择并发送到游戏。</summary>
         public Task SendRandomQuickShoutToGameAsync(bool custom) =>
-            _quickShoutForm?.SendRandomToGameAsync(custom) ?? Task.CompletedTask;
+            ((QuickShoutForm)EnsureSettingsSegment(3)).SendRandomToGameAsync(custom);
 
         /// <summary>将当前选中的喊话文案发送到游戏。</summary>
         public Task SendSelectedQuickShoutToGameAsync() =>
-            _quickShoutForm?.SendSelectedBatchToGameAsync() ?? Task.CompletedTask;
+            ((QuickShoutForm)EnsureSettingsSegment(3)).SendSelectedBatchToGameAsync();
 
         /// <summary>保存快捷喊话界面当前选项。</summary>
         private void SaveShoutSettings()
@@ -718,6 +744,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
             AddSaveRow(layout, 24, "保存 AI 连接与密钥");
             AddSegmentRow(layout, 25, "保存方式：", CreateNote("所有开关立即保存；服务商、地址、模型与密钥填写完成后使用上方按钮保存。"));
+            layout.ResumeLayout(true);
             return panel;
         }
 
@@ -741,6 +768,8 @@ namespace LOL_GameAssistant.BaseViewForm
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            // 批量加入设置行后再统一布局，避免每增加一个控件都重排整个表格。
+            layout.SuspendLayout();
             return layout;
         }
 

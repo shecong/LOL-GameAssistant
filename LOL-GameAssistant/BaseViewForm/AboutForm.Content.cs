@@ -75,6 +75,7 @@ public partial class AboutForm
         footer.Controls.Add(btn_opengithub);
         footer.Controls.Add(btn_github);
         footer.Controls.Add(btn_update);
+        footer.Controls.Add(UpdateBadge.Create("AboutUpdateBadge", _openUrl));
         var joinGroup = new AntdUI.Button { Name = "JoinQqGroup", Text = $"加入QQ群 · {UpdateAvailableForm.QqGroupNumber}", AutoSize = true, Height = 36 };
         joinGroup.Click += (_, _) => OpenUrl(UpdateAvailableForm.QqGroupUrl);
         footer.Controls.Add(joinGroup);
