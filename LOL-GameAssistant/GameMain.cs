@@ -20,15 +20,21 @@ namespace LOL_GameAssistant
         public readonly InfoMsgForm infoMsg = new InfoMsgForm();
         public readonly HomeForm home;
         public readonly LiveGameForm liveGameForm = new LiveGameForm();
-        public readonly BattleQueryForm battleQueryForm = new BattleQueryForm();
+        private BattleQueryForm? _battleQueryForm;
+        public BattleQueryForm battleQueryForm => _battleQueryForm is { IsDisposed: false }
+            ? _battleQueryForm : _battleQueryForm = new BattleQueryForm();
         public readonly CoachForm coachForm = new CoachForm();
         private readonly MayhemOverlayForm _mayhemOverlay = new();
         private readonly BattleOverlayForm _battleOverlay = new();
         private readonly ChampSelectCompanionForm _champSelectCompanion = new();
-        public readonly DiagnosticsForm diagnosticsForm = new DiagnosticsForm();
+        private DiagnosticsForm? _diagnosticsForm;
+        public DiagnosticsForm diagnosticsForm => _diagnosticsForm is { IsDisposed: false }
+            ? _diagnosticsForm : _diagnosticsForm = new DiagnosticsForm();
 
-        // SettingForm may load while controls are attached; its side effects need these pages.
-        public readonly SettingForm settingForm = new SettingForm();
+        // Startup behavior reads the settings store directly; the editor is built on demand.
+        private SettingForm? _settingForm;
+        public SettingForm settingForm => _settingForm is { IsDisposed: false }
+            ? _settingForm : _settingForm = new SettingForm();
 
         private readonly ILeagueClientEventStream _eventStream;
         private readonly ILobbyService _lobbyService;
@@ -59,6 +65,7 @@ namespace LOL_GameAssistant
         private bool _autoClientLaunchAttempted;
         private bool? _lastAntdDarkMode;
         private long _gameFlowRevision;
+        private DateTimeOffset _lastAutoMatchAttempt = DateTimeOffset.MinValue;
 
         /// <summary>
         /// 游戏状态枚举
@@ -209,6 +216,13 @@ namespace LOL_GameAssistant
             _eventStream.ErrorOccurred += WebSocketError;
             _eventStream.ConnectionChanged += WebSocketChange;
             _eventStream.Reconnecting += WebSocketReconnecting;
+            Disposed += (_, _) =>
+            {
+                // These may have been created by a shortcut before their tab was opened.
+                _battleQueryForm?.Dispose();
+                _diagnosticsForm?.Dispose();
+                _settingForm?.Dispose();
+            };
         }
 
         /// <summary>应用设置页中的透明度和“按住置顶”快捷键。</summary>
@@ -219,8 +233,9 @@ namespace LOL_GameAssistant
             ConfigureQuickShoutHotkeys(config);
             UiTheme.SetMode(config.ThemeMode);
             UiLanguage.SetMode(config.LanguageMode);
-            settingForm.ApplyLanguage();
-            foreach (AboutForm about in tab4_grid1.Controls.OfType<AboutForm>()) about.ApplyLanguage();
+            _settingForm?.ApplyLanguage();
+            foreach (AboutForm about in tab4_grid1.Controls.OfType<DeferredPageHost>()
+                .SelectMany(host => host.Controls.OfType<AboutForm>())) about.ApplyLanguage();
             ApplyTheme();
         }
 
@@ -285,7 +300,7 @@ namespace LOL_GameAssistant
             _recommendationCoordinator.UpdateSettings(config);
 
         /// <summary>启动主界面并初始化客户端连接、托盘和后台跟踪。</summary>
-        public async void GameMain_Load(object sender, EventArgs e)
+        public void GameMain_Load(object sender, EventArgs e)
         {
             // 托盘与窗口事件先挂好：它们不依赖 LCU/网络，
             // 若放在 await 之后，客户端探测卡住时这段时间窗口既没有托盘图标也没有关闭拦截。
@@ -298,15 +313,15 @@ namespace LOL_GameAssistant
             // 设置页并不一定会被用户打开；在主窗体启动时立即恢复已保存的快捷键，
             // 使快捷消息不依赖设置页的 Load 事件才开始注册。
             AssistantSettings startupSettings = _settingsStore.Load();
+            SettingForm.ApplyStartupSetting(startupSettings.LaunchOnStartup);
             ApplyWindowSettings(startupSettings);
             _recommendationCoordinator.Start(startupSettings);
             TryAutoLaunchLeagueClient(startupSettings);
-            //初始化模块
+            // 首页优先；只读页面和设置编辑器首次打开时再创建。
             LoadAllForm();
             UiLanguage.Refresh();
             liveGameForm.ConfigureAutoRefresh(startupSettings.AutoRefresh,
                 Math.Max(10, startupSettings.AutoRefreshIntervalSeconds));
-            ApplyTheme();
             _ = InitializeLiveGameAsync();
         }
 
@@ -322,6 +337,20 @@ namespace LOL_GameAssistant
             if (!settings.AutoLaunchGameClient) return;
 
             _ = AutoLaunchLeagueClientAsync(settings.GameClientPath);
+        }
+
+        /// <summary>自动匹配不依赖设置编辑器的创建或加载。</summary>
+        private async Task TryAutoMatchAsync()
+        {
+            if (!_settingsStore.Load().AutoMatch ||
+                DateTimeOffset.UtcNow - _lastAutoMatchAttempt < TimeSpan.FromSeconds(10)) return;
+            _lastAutoMatchAttempt = DateTimeOffset.UtcNow;
+            try { await _lobbyService.StartMatchmakingAsync(); }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.WriteException(ex);
+                RuntimeDiagnostics.Report("大厅操作", "失败", ex.Message);
+            }
         }
 
         /// <summary>根据配置尝试启动客户端，避免在启动流程中重复发起。</summary>
@@ -420,7 +449,7 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>
-        /// 初始化加载所有窗体
+        /// 挂载首页及后台功能页面，其余页面首次可见时再创建。
         /// </summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
@@ -437,23 +466,17 @@ namespace LOL_GameAssistant
             tab1_grid1.Controls.Clear();
             liveGameForm.Dock = DockStyle.Fill;
             tab1_grid1.Controls.Add(liveGameForm);
-            //加载战绩查询
-            tabPage3.Controls.Clear();
-            battleQueryForm.Dock = DockStyle.Fill;
-            tabPage3.Controls.Add(battleQueryForm);
+            // 首次显示占位内容后再创建复杂编辑器，避免首次启动争抢 UI 线程。
+            tabPage3.Controls.Add(new DeferredPageHost(() => battleQueryForm));
             //加载智能建议
             _coachTab.Controls.Clear();
             coachForm.Dock = DockStyle.Fill;
             _coachTab.Controls.Add(coachForm);
-            _diagnosticsTab.Controls.Clear();
-            diagnosticsForm.Dock = DockStyle.Fill;
-            _diagnosticsTab.Controls.Add(diagnosticsForm);
+            _diagnosticsTab.Controls.Add(new DeferredPageHost(() => diagnosticsForm));
             //关于
-            tab4_grid1.Controls.Add(new AboutForm() { Dock = DockStyle.Fill });
+            tab4_grid1.Controls.Add(new DeferredPageHost(() => new AboutForm()));
             //加载设置
-            tabPage5.Controls.Clear();
-            settingForm.Dock = DockStyle.Fill;
-            tabPage5.Controls.Add(settingForm);
+            tabPage5.Controls.Add(new DeferredPageHost(() => settingForm));
             //加载日志窗口
             tab5_grid1.Controls.Clear();
             tab5_grid1.Controls.Add(infoMsg);
@@ -740,7 +763,7 @@ namespace LOL_GameAssistant
                     StopPhaseDataLoad();
                     liveGameForm.ClearPartySnapshots();
                     //在大厅,如果有开启自动对局,则自动开启
-                    SettingForm.OpenGame(settingForm);
+                    _ = TryAutoMatchAsync();
                     _ = liveGameForm.AddView(force: true);
                     break;
 

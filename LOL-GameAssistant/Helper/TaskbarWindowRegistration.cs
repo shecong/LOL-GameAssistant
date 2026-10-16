@@ -6,6 +6,7 @@ namespace LOL_GameAssistant.Helper;
 internal sealed class TaskbarWindowRegistration : NativeWindow, IDisposable
 {
     internal static readonly int TaskbarCreatedMessage = (int)RegisterWindowMessage("TaskbarCreated");
+    internal static readonly int TaskbarButtonCreatedMessage = (int)RegisterWindowMessage("TaskbarButtonCreated");
     private readonly Form _form;
     private readonly Func<nint, bool, int> _update;
     private nint _registeredHandle;
@@ -21,15 +22,24 @@ internal sealed class TaskbarWindowRegistration : NativeWindow, IDisposable
         form.VisibleChanged += VisibilityChanged;
         form.Shown += VisibilityChanged;
         form.Disposed += FormDisposed;
-        if (form.IsHandleCreated) AssignHandle(form.Handle);
+        if (form.IsHandleCreated) BindHandle();
         Synchronize();
     }
 
     /// <summary>绑定新窗口句柄并恢复与该句柄关联的状态。</summary>
     private void HandleCreated(object? sender, EventArgs e)
     {
-        AssignHandle(_form.Handle);
+        BindHandle();
         Synchronize();
+    }
+
+    private void BindHandle()
+    {
+        AssignHandle(_form.Handle);
+        TaskbarApplicationIdentity.ConfigureWindow(Handle);
+        // 程序以管理员运行，允许 Explorer 的任务栏重建通知通过 UIPI。
+        ChangeWindowMessageFilterEx(Handle, (uint)TaskbarCreatedMessage, 1, 0);
+        ChangeWindowMessageFilterEx(Handle, (uint)TaskbarButtonCreatedMessage, 1, 0);
     }
 
     /// <summary>解除已销毁句柄的绑定，避免继续向旧句柄发送消息。</summary>
@@ -82,8 +92,16 @@ internal sealed class TaskbarWindowRegistration : NativeWindow, IDisposable
     /// <summary>处理当前窗口关注的原生消息，其余消息继续交给基类。</summary>
     protected override void WndProc(ref Message m)
     {
+        if (m.Msg == 0x0002 && !_disposed) TaskbarApplicationIdentity.ClearWindow(Handle); // WM_DESTROY
         base.WndProc(ref m);
-        if (m.Msg != TaskbarCreatedMessage || _disposed) return;
+        if (_disposed) return;
+        if (m.Msg == TaskbarButtonCreatedMessage)
+        {
+            // 按钮建立晚于窗口显示；此时再发布一次图标，不重复 AddTab。
+            if (_form.IsHandleCreated) _form.BeginInvoke(new Action(Synchronize));
+            return;
+        }
+        if (m.Msg != TaskbarCreatedMessage) return;
         // Explorer 重启时原来的登记已经丢失；等 Shell 完成当前消息再重建按钮。
         _registeredHandle = 0;
         if (_form.IsHandleCreated) _form.BeginInvoke(new Action(Synchronize));
@@ -94,6 +112,7 @@ internal sealed class TaskbarWindowRegistration : NativeWindow, IDisposable
     {
         if (_disposed) return;
         Remove();
+        if (Handle != 0) TaskbarApplicationIdentity.ClearWindow(Handle);
         _disposed = true;
         _form.HandleCreated -= HandleCreated;
         _form.HandleDestroyed -= HandleDestroyed;
@@ -134,6 +153,9 @@ internal sealed class TaskbarWindowRegistration : NativeWindow, IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern nint SendMessage(nint handle, int message, nint wParam, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool ChangeWindowMessageFilterEx(nint handle, uint message, uint action, nint changeInfo);
 
     /// <summary>用于管理任务栏窗口按钮的 Windows COM 接口。</summary>
     [ComImport, Guid("56FDF342-FD6D-11D0-958A-006097C9A090"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

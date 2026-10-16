@@ -1157,7 +1157,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 设置/取消开机自启（写入 HKCU Run 注册表）。
         /// </summary>
-        private static void ApplyStartupSetting(bool enabled)
+        internal static void ApplyStartupSetting(bool enabled)
         {
             try
             {

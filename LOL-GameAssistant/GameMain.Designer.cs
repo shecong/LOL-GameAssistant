@@ -39,7 +39,7 @@
             tab1_grid1 = new AntdUI.GridPanel();
             tabPage3 = new AntdUI.TabPage();
             tabPage4 = new AntdUI.TabPage();
-            tab4_grid1 = new AntdUI.GridPanel();
+            tab4_grid1 = new Panel();
             tabPage5 = new AntdUI.TabPage();
             tabPage6 = new AntdUI.TabPage();
             tab5_grid1 = new AntdUI.GridPanel();
@@ -169,7 +169,6 @@
             tab4_grid1.Location = new Point(0, 0);
             tab4_grid1.Name = "tab4_grid1";
             tab4_grid1.Size = new Size(1510, 781);
-            tab4_grid1.Span = "";
             tab4_grid1.TabIndex = 0;
             tab4_grid1.Text = "gridPanel1";
             // 
@@ -312,7 +311,7 @@
         private AntdUI.GridPanel tab1_grid1;
         private AntdUI.TabPage tabPage1;
         private AntdUI.GridPanel tab0_grid1;
-        private AntdUI.GridPanel tab4_grid1;
+        private Panel tab4_grid1;
         private AntdUI.Button dj_refresh;
         private AntdUI.Button btn_theme_toggle;
         private AntdUI.Panel panel_main;

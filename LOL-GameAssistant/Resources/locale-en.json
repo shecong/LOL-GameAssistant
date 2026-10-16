@@ -2216,5 +2216,13 @@
   "正在恢复并停用…": "Restoring and disabling…",
   "基础皮肤已恢复，连接已解除，功能已停用。核心已固定驻留，请退出对局释放。": "Base skin restored, connection released, feature disabled. The core is pinned; exit the game to release it.",
   "基础皮肤已恢复，连接已解除，功能已停用。游戏内模块卸载尚未核验。": "Base skin restored, connection released, feature disabled. In-game module unload has not been verified.",
-  "功能已停用，但恢复结果未确认。请退出对局释放驻留核心。": "Feature disabled, but restoration is unconfirmed. Exit the game to release the resident core."
+  "功能已停用，但恢复结果未确认。请退出对局释放驻留核心。": "Feature disabled, but restoration is unconfirmed. Exit the game to release the resident core.",
+  "正在加载页面…": "Loading page…",
+  "重新加载": "Reload",
+  "页面加载失败": "Unable to load page",
+  "正在连接 LOL 客户端…": "Connecting to the League client…",
+  "正在加载近期战绩…": "Loading recent matches…",
+  "登录客户端后显示近期战绩": "Sign in to the League client to view recent matches",
+  "暂无符合筛选条件的对局": "No matches for the selected filter",
+  "加载失败，请点击刷新重试": "Unable to load. Refresh to try again."
 }

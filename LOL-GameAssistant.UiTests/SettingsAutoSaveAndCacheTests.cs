@@ -204,6 +204,48 @@ public sealed class SettingsAutoSaveAndCacheTests
         pending.SetResult([]); Pump(task);
     });
 
+    [Fact]
+    public void CachePanelCoalescesStartupRefreshAndDoesNotCancelActiveScan() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int scans = 0;
+        CancellationToken token = default;
+        var pending = new TaskCompletionSource<IReadOnlyList<LocalCacheUsage>>();
+        using var panel = new LocalCacheToolsControl(Service<ILocalCacheManagementService>((_, args) =>
+        {
+            scans++;
+            token = (CancellationToken)args[0]!;
+            return pending.Task;
+        }));
+        using var host = new Form { ShowInTaskbar = false };
+        host.Controls.Add(panel);
+        host.Show();
+        Pump(panel.RefreshUsageAsync());
+        Assert.Equal(1, scans);
+        Assert.False(token.IsCancellationRequested);
+        pending.SetResult([]);
+        System.Windows.Forms.Application.DoEvents();
+        Pump(panel.RefreshUsageAsync());
+        Assert.Equal(2, scans);
+    });
+
+    [Fact]
+    public void CachePanelHandlesCancelledScanAfterDisposal() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var pending = new TaskCompletionSource<IReadOnlyList<LocalCacheUsage>>();
+        CancellationToken token = default;
+        using var panel = new LocalCacheToolsControl(Service<ILocalCacheManagementService>((_, args) =>
+        {
+            token = (CancellationToken)args[0]!;
+            return pending.Task;
+        }));
+        Task refresh = panel.RefreshUsageAsync();
+        panel.Dispose();
+        Assert.True(token.IsCancellationRequested);
+        pending.SetCanceled(token);
+        Pump(refresh);
+        Assert.True(refresh.IsCompletedSuccessfully);
+    });
+
     private static IEnumerable<Control> Children(Control root) => root.Controls.Cast<Control>().SelectMany(child => new[] { child }.Concat(Children(child)));
 
     [Fact]

@@ -12,6 +12,7 @@ internal sealed class LocalCacheToolsControl : UserControl, IThemeAware
     private readonly AntdUI.Label _message = new() { Dock = DockStyle.Bottom, Height = 52, AutoEllipsis = true };
     private readonly AntdUI.Button _refresh = new() { Text = "刷新缓存大小", AutoSize = true };
     private readonly List<AntdUI.Button> _clearButtons = [];
+    private bool _operationInProgress;
 
     internal LocalCacheToolsControl(ILocalCacheManagementService service)
     {
@@ -37,7 +38,10 @@ internal sealed class LocalCacheToolsControl : UserControl, IThemeAware
 
     internal async Task RefreshUsageAsync()
     {
-        if (IsDisposed) return;
+        // Load and VisibleChanged may fire together. Reuse the active operation
+        // rather than repeatedly cancelling a disk scan that has just started.
+        if (IsDisposed || Disposing || _operationInProgress) return;
+        _operationInProgress = true;
         using var request = _requests.Begin();
         SetBusy(true);
         try
@@ -47,12 +51,17 @@ internal sealed class LocalCacheToolsControl : UserControl, IThemeAware
         }
         catch (OperationCanceledException) when (request.Token.IsCancellationRequested) { }
         catch (Exception ex) { if (request.IsCurrent) _message.Text = $"读取缓存失败：{ex.Message}"; }
-        finally { if (request.IsCurrent) SetBusy(false); }
+        finally
+        {
+            _operationInProgress = false;
+            if (request.IsCurrent) SetBusy(false);
+        }
     }
 
     internal async Task ClearCategoryAsync(LocalCacheCategory category)
     {
-        if (IsDisposed) return;
+        if (IsDisposed || Disposing || _operationInProgress) return;
+        _operationInProgress = true;
         using var request = _requests.Begin();
         SetBusy(true);
         _message.Text = "正在清理本地缓存…";
@@ -66,7 +75,11 @@ internal sealed class LocalCacheToolsControl : UserControl, IThemeAware
         }
         catch (OperationCanceledException) when (request.Token.IsCancellationRequested) { }
         catch (Exception ex) { if (request.IsCurrent) _message.Text = $"清理失败：{ex.Message}"; }
-        finally { if (request.IsCurrent) SetBusy(false); }
+        finally
+        {
+            _operationInProgress = false;
+            if (request.IsCurrent) SetBusy(false);
+        }
     }
 
     private void Render(IReadOnlyList<LocalCacheUsage> usage)

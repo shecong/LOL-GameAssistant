@@ -24,7 +24,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IMatchHistoryService _matchHistoryService;
         private readonly IPremadeDetectionService _premadeDetectionService;
         private readonly Dictionary<string, AntdUI.Label> _premadeTagsByPuuid = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, AntdUI.Label> _performanceTagsByPuuid = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, PerformanceTagLabel> _performanceTagsByPuuid = new(StringComparer.Ordinal);
         private readonly ToolTip _assetToolTip = new();
         private readonly AssetDetailToolTip _detailToolTip = new();
         /// <summary>点击玩家头像后选中的玩家 puuid（用于跳转战绩查询）。</summary>
@@ -266,11 +266,9 @@ namespace LOL_GameAssistant.BaseViewForm
             panel.TrackLabel(championLabel, primary: false);
             if (!string.IsNullOrWhiteSpace(playerPuuid))
             {
-                var performanceTag = new AntdUI.Label
+                var performanceTag = new PerformanceTagLabel
                 {
                     AutoSize = false,
-                    BackColor = Color.FromArgb(238, 241, 245),
-                    ForeColor = Color.FromArgb(90, 90, 90),
                     Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold),
                     Location = new Point(270, 8),
                     Size = new Size(82, 22),
@@ -589,11 +587,10 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             catch
             {
-                if (_performanceTagsByPuuid.TryGetValue(puuid, out AntdUI.Label? tag) && !tag.IsDisposed)
+                if (_performanceTagsByPuuid.TryGetValue(puuid, out PerformanceTagLabel? tag) && !tag.IsDisposed)
                 {
                     tag.Text = "数据不足";
-                    tag.BackColor = Color.FromArgb(245, 245, 245);
-                    tag.ForeColor = SystemColors.GrayText;
+                    tag.SetAssessment(null);
                     _assetToolTip.SetToolTip(tag, "最近 30 天同模式战绩暂时无法读取，未作表现判定。");
                 }
             }
@@ -602,24 +599,45 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>将评分和样本状态转换为表现标签及提示内容。</summary>
         private void SetPerformanceTag(string puuid, RecentModePerformanceAssessment assessment)
         {
-            if (IsDisposed || !_performanceTagsByPuuid.TryGetValue(puuid, out AntdUI.Label? tag) || tag.IsDisposed) return;
+            if (IsDisposed || !_performanceTagsByPuuid.TryGetValue(puuid, out PerformanceTagLabel? tag) || tag.IsDisposed) return;
             if (!assessment.HasEnoughSample)
             {
                 tag.Text = "数据不足";
-                tag.BackColor = Color.FromArgb(245, 245, 245);
-                tag.ForeColor = SystemColors.GrayText;
+                tag.SetAssessment(null);
                 _assetToolTip.SetToolTip(tag, assessment.Detail);
                 return;
             }
             tag.Text = RecentPerformanceLabelFormatter.GetText(assessment);
-            (tag.BackColor, tag.ForeColor) = assessment.Label switch
-            {
-                RecentPerformanceLabel.Upper => (Color.FromArgb(232, 245, 233), Color.FromArgb(27, 94, 32)),
-                RecentPerformanceLabel.Human => (Color.FromArgb(243, 229, 245), Color.FromArgb(123, 31, 162)),
-                RecentPerformanceLabel.Lower => (Color.FromArgb(255, 235, 238), Color.FromArgb(183, 28, 28)),
-                _ => (Color.FromArgb(245, 245, 245), Color.FromArgb(85, 85, 85))
-            };
+            tag.SetAssessment(assessment.Label);
             _assetToolTip.SetToolTip(tag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");
+        }
+
+        /// <summary>保留评分状态，在动态添加、异步评分和主题切换后使用一致的语义配色。</summary>
+        private sealed class PerformanceTagLabel : AntdUI.Label, IThemeAware
+        {
+            private RecentPerformanceLabel? _assessment;
+
+            public void SetAssessment(RecentPerformanceLabel? assessment)
+            {
+                _assessment = assessment;
+                ApplyTheme(UiTheme.Palette);
+            }
+
+            public void ApplyTheme(ThemePalette palette)
+            {
+                (BackColor, ForeColor) = (_assessment, palette.IsDark) switch
+                {
+                    (RecentPerformanceLabel.Upper, true) => (Color.FromArgb(28, 62, 47), Color.FromArgb(144, 221, 169)),
+                    (RecentPerformanceLabel.Upper, false) => (Color.FromArgb(232, 245, 233), Color.FromArgb(27, 94, 32)),
+                    (RecentPerformanceLabel.Human, true) => (Color.FromArgb(59, 39, 75), Color.FromArgb(216, 174, 240)),
+                    (RecentPerformanceLabel.Human, false) => (Color.FromArgb(243, 229, 245), Color.FromArgb(123, 31, 162)),
+                    (RecentPerformanceLabel.Lower, true) => (Color.FromArgb(72, 35, 43), Color.FromArgb(255, 163, 174)),
+                    (RecentPerformanceLabel.Lower, false) => (Color.FromArgb(255, 235, 238), Color.FromArgb(183, 28, 28)),
+                    (RecentPerformanceLabel.Medium, true) => (Color.FromArgb(35, 53, 76), Color.FromArgb(175, 207, 244)),
+                    (RecentPerformanceLabel.Medium, false) => (Color.FromArgb(233, 241, 252), Color.FromArgb(47, 82, 126)),
+                    _ => (palette.SurfaceMuted, palette.TextSecondary)
+                };
+            }
         }
 
         /// <summary>收集指定队伍中可用于查询的玩家身份。</summary>

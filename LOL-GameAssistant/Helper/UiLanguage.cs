@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
+using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.Helper;
 
@@ -12,8 +13,8 @@ internal static class UiLanguage
         .Where(entry => entry.Key.Contains('{') && entry.Key.Any(IsChinese))
         .OrderByDescending(entry => entry.Key.Length)
         .Select(entry => BuildPattern(entry.Key, entry.Value)).ToArray();
-    private static readonly Dictionary<Control, string> Originals = new();
-    private static readonly Dictionary<ComboBox, string[]> ComboOriginals = new();
+    private static readonly ConcurrentDictionary<Control, string> Originals = new();
+    private static readonly ConcurrentDictionary<ComboBox, string[]> ComboOriginals = new();
     /// <summary>保存控件原始文本和翻译状态，支持语言往返切换。</summary>
     private sealed class TextState(string source, string applied)
     {
@@ -62,9 +63,11 @@ internal static class UiLanguage
         .GroupBy(entry => entry.Value, StringComparer.Ordinal)
         .ToDictionary(group => group.Key, group => group.First().Key, StringComparer.Ordinal);
     private static bool _english;
-    private static bool _updating;
+    [ThreadStatic] private static bool _updating;
     private static bool _started;
-    private static readonly HashSet<Control> Dirty = new();
+    // Invalidated/Disposed can arrive from different UI threads. Keep the owning
+    // thread with each entry so an idle loop never updates another thread's control.
+    private static readonly ConcurrentDictionary<Control, int> Dirty = new();
     public static event EventHandler? Changed;
 
     /// <summary>判断当前界面语言是否为英文。</summary>
@@ -84,10 +87,10 @@ internal static class UiLanguage
     private static void ProcessIdle(object? sender, EventArgs args)
     {
         ApplyOpenForms(false);
-        foreach (Control control in Dirty.ToArray())
+        foreach (var (control, threadId) in Dirty.ToArray())
         {
-            Dirty.Remove(control);
-            if (control.IsDisposed) continue;
+            if (threadId != Environment.CurrentManagedThreadId) continue;
+            if (!Dirty.TryRemove(control, out _) || control.IsDisposed || control.Disposing) continue;
             ApplyProperties(control);
             if (control is ComboBox box) ApplyCombo(box);
             if (control is ListView list) ApplyList(list);
@@ -154,26 +157,44 @@ internal static class UiLanguage
     {
         if (_updating) return;
         foreach (Form form in System.Windows.Forms.Application.OpenForms.Cast<Form>().ToArray())
-            if (!form.IsDisposed && (refresh || !Originals.ContainsKey(form))) Attach(form, refresh);
+        {
+            if (form.IsDisposed || form.Disposing) continue;
+            if (form.InvokeRequired)
+            {
+                if (refresh)
+                {
+                    try { form.BeginInvoke(() => Attach(form, true)); }
+                    catch (InvalidOperationException) when (form.IsDisposed || !form.IsHandleCreated) { }
+                }
+                continue;
+            }
+            if (refresh || !Originals.ContainsKey(form)) Attach(form, refresh);
+        }
     }
 
     /// <summary>绑定目标控件或窗口的相关事件。</summary>
     private static void Attach(Control control, bool refresh = false)
     {
-        if (control.IsDisposed) return;
+        if (control.IsDisposed || control.Disposing) return;
         bool newlyAttached = !Originals.ContainsKey(control);
         if (newlyAttached)
         {
             Originals[control] = RecoverOriginal(control.Text);
             control.TextChanged += ControlTextChanged;
             if (control is ComboBox or ListView || LocalizedProperties.Any(name => control.GetType().GetProperty(name) != null))
-                control.Invalidated += (_, _) => { if (!_updating && !control.IsDisposed) Dirty.Add(control); };
+            {
+                int threadId = Environment.CurrentManagedThreadId;
+                control.Invalidated += (_, _) =>
+                {
+                    if (!_updating && !control.IsDisposed && !control.Disposing) Dirty[control] = threadId;
+                };
+            }
             control.ControlAdded += (_, args) => { if (args.Control is { } added) Attach(added); };
             control.Disposed += (_, _) =>
             {
-                Originals.Remove(control);
-                Dirty.Remove(control);
-                if (control is ComboBox combo) ComboOriginals.Remove(combo);
+                Originals.TryRemove(control, out _);
+                Dirty.TryRemove(control, out _);
+                if (control is ComboBox combo) ComboOriginals.TryRemove(combo, out _);
             };
         }
         if (newlyAttached || refresh)

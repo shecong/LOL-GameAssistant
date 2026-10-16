@@ -8,6 +8,8 @@ public partial class AboutForm
     private readonly AntdUI.Segmented _aboutNavigation = new() { Dock = DockStyle.Top, Height = 44, Full = true };
     private readonly Panel _aboutPages = new() { Dock = DockStyle.Fill };
     private readonly List<TableLayoutPanel> _aboutCards = [];
+    private readonly List<(Panel Page, TableLayoutPanel List)> _aboutLists = [];
+    private bool _layingOutAbout;
     private static readonly string[] AboutTabs = ["功能说明", "常用网站"];
 
     /// <summary>组织关于页的说明、项目链接和数据来源卡片。</summary>
@@ -17,12 +19,12 @@ public partial class AboutForm
         header.Controls.Add(new AntdUI.Label
         {
             Text = "把选人、对局和战绩信息放在一起", Dock = DockStyle.Bottom, Height = 26,
-            ForeColor = Color.DimGray
+            ForeColor = Color.DimGray, AutoEllipsis = true
         });
         header.Controls.Add(new AntdUI.Label
         {
             Text = "LOL 对局小助手", Dock = DockStyle.Top, Height = 38,
-            Font = new Font(UiMetrics.FontFamily, 19, FontStyle.Bold)
+            Font = new Font(UiMetrics.FontFamily, 19, FontStyle.Bold), AutoEllipsis = true
         });
         foreach (string title in AboutTabs) _aboutNavigation.Items.Add(new AntdUI.SegmentedItem { Text = title });
 
@@ -57,6 +59,7 @@ public partial class AboutForm
         {
             features.Visible = e.Value == 0;
             websites.Visible = e.Value == 1;
+            LayoutAboutCards();
         };
         _aboutNavigation.SelectIndex = 0;
         features.Visible = true;
@@ -64,8 +67,9 @@ public partial class AboutForm
 
         var footer = new FlowLayoutPanel
         {
-            Name = "aboutFooter", Dock = DockStyle.Bottom, Height = 66,
-            Padding = new Padding(18, 12, 18, 8), WrapContents = false
+            Name = "aboutFooter", Dock = DockStyle.Bottom, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(0, 66),
+            Padding = new Padding(18, 12, 18, 8), WrapContents = true
         };
         footer.Controls.Add(lblVersion);
         footer.Controls.Add(btn_opengithub);
@@ -75,17 +79,26 @@ public partial class AboutForm
         Controls.Add(footer);
         Controls.Add(_aboutNavigation);
         Controls.Add(header);
+        SizeChanged += (_, _) => LayoutAboutCards();
+        DpiChangedAfterParent += (_, _) => LayoutAboutCards();
+        VisibleChanged += (_, _) => { if (Visible) LayoutAboutCards(); };
         ApplyTheme(UiTheme.Palette);
         ApplyLanguage();
     }
 
     /// <summary>创建关于页使用的内容容器。</summary>
-    private static Panel CreateAboutPage(string name, out TableLayoutPanel list)
+    private Panel CreateAboutPage(string name, out TableLayoutPanel list)
     {
         var page = new Panel { Name = name, Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(12, 6, 12, 6) };
-        list = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, Padding = new Padding(4) };
+        list = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1, Padding = new Padding(4)
+        };
         list.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         page.Controls.Add(list);
+        _aboutLists.Add((page, list));
+        list.SizeChanged += (_, _) => LayoutAboutCards();
         return page;
     }
 
@@ -94,25 +107,21 @@ public partial class AboutForm
     {
         var card = new TableLayoutPanel
         {
-            AutoSize = true, Dock = DockStyle.Fill, ColumnCount = 1,
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill, ColumnCount = 1,
             Padding = new Padding(16, 10, 16, 12), Margin = new Padding(0, 0, 0, 10)
         };
         card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _aboutCards.Add(card);
         var heading = new AntdUI.Label
         {
-            Text = title, AutoSize = true, MaximumSize = new Size(480, 0), Font = new Font(UiMetrics.FontFamily, 11, FontStyle.Bold),
+            Text = title, TextMultiLine = true, Font = new Font(UiMetrics.FontFamily, 11, FontStyle.Bold),
             Margin = new Padding(0, 0, 0, 5)
         };
-        var detail = new AntdUI.Label { Text = description, AutoSize = true, MaximumSize = new Size(480, 0), Margin = Padding.Empty };
+        var detail = new AntdUI.Label { Text = description, TextMultiLine = true, Margin = Padding.Empty };
+        heading.TextChanged += (_, _) => LayoutAboutCards();
+        detail.TextChanged += (_, _) => LayoutAboutCards();
         card.Controls.Add(heading, 0, 0);
         card.Controls.Add(detail, 0, 1);
-        card.SizeChanged += (_, _) =>
-        {
-            int width = Math.Max(1, card.ClientSize.Width - card.Padding.Horizontal);
-            heading.MaximumSize = new Size(width, 0);
-            detail.MaximumSize = new Size(width, 0);
-        };
         if (url != null)
         {
             var link = new AntdUI.Button { Text = "打开网站", Tag = url, AutoSize = true, Height = 34, Margin = new Padding(0, 8, 0, 0) };
@@ -124,11 +133,63 @@ public partial class AboutForm
         list.Controls.Add(card, 0, row);
     }
 
+    /// <summary>按实际可用宽度排列卡片，文字变宽后允许行高回缩。</summary>
+    private void LayoutAboutCards()
+    {
+        if (_layingOutAbout || IsDisposed) return;
+        _layingOutAbout = true;
+        try
+        {
+            int Scale(int value) => value * DeviceDpi / 96;
+            _aboutNavigation.Height = Scale(48);
+            foreach (var (page, list) in _aboutLists)
+            {
+                var cards = list.Controls.OfType<TableLayoutPanel>().ToArray();
+                if (cards.Length == 0) continue;
+                int columns = list.ClientSize.Width >= Scale(960) ? 2 : 1;
+                list.SuspendLayout();
+                try
+                {
+                    list.ColumnCount = columns;
+                    list.ColumnStyles.Clear();
+                    for (int column = 0; column < columns; column++)
+                        list.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / columns));
+                    list.RowCount = (cards.Length + columns - 1) / columns;
+                    list.RowStyles.Clear();
+                    for (int row = 0; row < list.RowCount; row++) list.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    int columnWidth = Math.Max(1, (list.ClientSize.Width - list.Padding.Horizontal) / columns);
+                    for (int index = 0; index < cards.Length; index++)
+                    {
+                        var card = cards[index];
+                        list.SetCellPosition(card, new TableLayoutPanelCellPosition(index % columns, index / columns));
+                        card.Padding = new Padding(Scale(16), Scale(12), Scale(16), Scale(14));
+                        card.Margin = new Padding(0, 0, columns > 1 && index % columns == 0 ? Scale(12) : 0, Scale(12));
+                        int textWidth = Math.Max(1, columnWidth - card.Margin.Horizontal - card.Padding.Horizontal);
+                        foreach (AntdUI.Label label in card.Controls.OfType<AntdUI.Label>())
+                        {
+                            label.MaximumSize = new Size(textWidth, 0);
+                            label.MinimumSize = new Size(textWidth, 0);
+                            // AntdUI's AutoSize measures these labels as one line even
+                            // with MaximumSize. Measure wrapping at the final width.
+                            Size measured = TextRenderer.MeasureText(label.Text, label.Font,
+                                new Size(textWidth, int.MaxValue),
+                                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding | TextFormatFlags.TextBoxControl);
+                            label.Size = new Size(textWidth, Math.Max(label.Font.Height, measured.Height) + Scale(6));
+                        }
+                    }
+                }
+                finally { list.ResumeLayout(true); }
+            }
+        }
+        finally { _layingOutAbout = false; }
+    }
+
     /// <summary>按当前语言刷新界面文本。</summary>
     public void ApplyLanguage()
     {
         for (int index = 0; index < AboutTabs.Length; index++)
             _aboutNavigation.Items[index].Text = UiLanguage.T(AboutTabs[index]);
+        LayoutAboutCards();
     }
 
     /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
@@ -136,6 +197,7 @@ public partial class AboutForm
     {
         BackColor = palette.Surface;
         _aboutPages.BackColor = palette.Surface;
+        foreach (var (page, list) in _aboutLists) page.BackColor = list.BackColor = palette.Surface;
         _aboutNavigation.ColorScheme = palette.IsDark ? AntdUI.TAMode.Dark : AntdUI.TAMode.Light;
         _aboutNavigation.BackColor = palette.SurfaceMuted;
         _aboutNavigation.ForeColor = palette.TextPrimary;
@@ -144,7 +206,11 @@ public partial class AboutForm
         {
             foreach (Control child in root.Controls)
             {
-                if (child is AntdUI.Label label) label.ForeColor = palette.TextPrimary;
+                if (child is AntdUI.Label label)
+                {
+                    label.ForeColor = palette.TextPrimary;
+                    label.BackColor = Color.Transparent;
+                }
                 SetLabels(child);
             }
         }

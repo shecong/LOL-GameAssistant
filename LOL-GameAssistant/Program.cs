@@ -16,6 +16,7 @@ namespace LOL_GameAssistant
         {
             // Complete elevation before acquiring the instance lock or creating any windows.
             if (!AdminPermissionHelper.EnsureAdminPermission()) return;
+            TaskbarApplicationIdentity.InitializeProcess();
             ApplicationConfiguration.Initialize();
 
             int replaceRequested = 0;
@@ -42,6 +43,12 @@ namespace LOL_GameAssistant
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
 
+            // Apply the saved palette before any page or native handle is created.
+            // Otherwise dark-mode startup first paints the default light surfaces.
+            var startupSettings = Bootstrap.AppCompositionRoot.ApplicationSettingsStore.Load();
+            UiTheme.SetMode(startupSettings.ThemeMode);
+            AntdUI.Config.IsDark = UiTheme.Palette.IsDark;
+            UiLanguage.SetMode(startupSettings.LanguageMode);
             GameMain = new GameMain();
             // A replacement request may arrive while the main window is being created.
             GameMain.Shown += (_, _) =>

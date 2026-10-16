@@ -237,6 +237,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="e"></param>
         private async void HomeForm_Load(object sender, EventArgs e)
         {
+            play_name.Text = "正在连接 LOL 客户端…";
             await LoadGame();
         }
 
@@ -254,6 +255,7 @@ namespace LOL_GameAssistant.BaseViewForm
             using var request = _loads.Begin();
             _pages.Cancel();
             var token = request.Token;
+            if (stackPanel1.Controls.Count == 0) ShowHistoryMessage("正在加载近期战绩…");
             if (IsHandleCreated) Search_Player.Loading = refeash.Loading = true;
             try
             {
@@ -263,6 +265,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     play_name.Text = "等待 LOL 客户端";
                     play_number.Text = "启动客户端并登录后自动连接";
+                    if (!stackPanel1.Controls.OfType<RecordForm>().Any()) ShowHistoryMessage("登录客户端后显示近期战绩");
                     return;
                 }
                 if (search != null)
@@ -283,20 +286,17 @@ namespace LOL_GameAssistant.BaseViewForm
                     }
                     if (string.IsNullOrWhiteSpace(puuid)) { _infoMsgForm.AddMsg("未找到该玩家，请输入完整的名称#TAG 或 PUUID"); return; }
                 }
-                await _gameDataVersionService.EnsureCurrentVersionAsync(token);
                 var player = puuid == null ? await _playerProfileService.GetCurrentAsync(token)
                     : await _playerProfileService.GetByPuuidAsync(puuid, token);
                 if (!request.IsCurrent) return;
-                if (player == null) { _infoMsgForm.AddMsg("未获取到玩家资料，请检查名称#TAG 和客户端连接"); return; }
-                byte[]? icon = await _profileIconService.GetProfileIconAsync(player.ProfileIconId, token);
-                if (!request.IsCurrent) return;
-                var ranked = await _rankedStatsService.GetAsync(player.Puuid, isCurrentUser: puuid == null, cancellationToken: token);
-                if (!request.IsCurrent) return;
-                var history = await _matchHistoryService.GetPageAsync(player.Puuid, 0, RecentGamesLimit - 1, token);
-                if (!request.IsCurrent) return;
+                if (player == null)
+                {
+                    _infoMsgForm.AddMsg("未获取到玩家资料，请检查名称#TAG 和客户端连接");
+                    if (!stackPanel1.Controls.OfType<RecordForm>().Any()) ShowHistoryMessage("加载失败，请点击刷新重试");
+                    return;
+                }
                 UserStatus = puuid == null ? 1 : 2;
                 if (UserStatus == 1) userinfo = player; else userOhterinfo = player;
-                if (icon is { Length: > 0 }) ReplaceProfileIcon(icon);
                 play_name.Text = player.GameName;
                 play_number.Text = $"#{player.TagLine}";
                 inp_playname.Text = player.RiotId;
@@ -304,6 +304,18 @@ namespace LOL_GameAssistant.BaseViewForm
                 play_dj.Text = player.SummonerLevel.ToString();
                 play_next.Text = player.XpUntilNextLevel.ToString();
                 play_jd.Value = CalculateLevelProgress(player);
+                await _gameDataVersionService.EnsureCurrentVersionAsync(token);
+                if (!request.IsCurrent) return;
+                // Show the profile immediately, then fetch independent data together.
+                var iconTask = _profileIconService.GetProfileIconAsync(player.ProfileIconId, token);
+                var rankedTask = _rankedStatsService.GetAsync(player.Puuid, isCurrentUser: puuid == null, cancellationToken: token);
+                var historyTask = _matchHistoryService.GetPageAsync(player.Puuid, 0, RecentGamesLimit - 1, token);
+                await Task.WhenAll(iconTask, rankedTask, historyTask);
+                if (!request.IsCurrent) return;
+                byte[]? icon = await iconTask;
+                var ranked = await rankedTask;
+                var history = await historyTask;
+                if (icon is { Length: > 0 }) ReplaceProfileIcon(icon);
                 ApplyRankedStats(ranked, history, player.Puuid);
                 matchlists = history;
                 UpdateModeOptions();
@@ -313,7 +325,11 @@ namespace LOL_GameAssistant.BaseViewForm
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                if (request.IsCurrent) _infoMsgForm.AddMsg($"首页加载失败：{ex.Message}");
+                if (request.IsCurrent)
+                {
+                    _infoMsgForm.AddMsg($"首页加载失败：{ex.Message}");
+                    if (!stackPanel1.Controls.OfType<RecordForm>().Any()) ShowHistoryMessage("加载失败，请点击刷新重试");
+                }
                 RuntimeDiagnostics.WriteException(ex);
             }
             finally
@@ -348,8 +364,9 @@ namespace LOL_GameAssistant.BaseViewForm
 
             int total = sortedList.Count;
             int skip = (pageindex - 1) * pageSize;
-            if (skip >= total) return;
+            if (skip >= total) { ShowHistoryMessage("暂无符合筛选条件的对局"); return; }
             var pageList = sortedList.Skip(skip).Take(pageSize).ToList();
+            ShowHistoryMessage("正在加载近期战绩…");
 
             // 并行加载本页战绩（限制并发，避免瞬时大量请求），完成后按原顺序显示
             using var semaphore = new SemaphoreSlim(4, 4);
@@ -389,11 +406,24 @@ namespace LOL_GameAssistant.BaseViewForm
                 foreach (var record in records) record?.Dispose();
                 return;
             }
+            ControlLifetime.ClearAndDispose(stackPanel1);
             foreach (var record in records)
             {
                 if (record != null) this.stackPanel1.Controls.Add(record);
             }
             LayoutRecordCards();
+            if (stackPanel1.Controls.Count == 0) ShowHistoryMessage("加载失败，请点击刷新重试");
+        }
+
+        private void ShowHistoryMessage(string text)
+        {
+            ControlLifetime.ClearAndDispose(stackPanel1);
+            stackPanel1.Controls.Add(new AntdUI.Label
+            {
+                Text = UiLanguage.T(text), Width = Math.Max(200, stackPanel1.ClientSize.Width - 36),
+                Height = 80 * DeviceDpi / 96, TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = UiTheme.Palette.TextSecondary, BackColor = Color.Transparent
+            });
         }
 
         /// <summary>计算首页战绩卡片的可用宽度。</summary>

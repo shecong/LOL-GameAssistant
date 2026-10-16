@@ -7,6 +7,48 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class TaskbarWindowRegistrationTests
 {
     [Fact]
+    public void ShellIdentityUsesReadableVersionedIconAndSurvivesHandleRecreation() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = new TestWindow { Icon = AppIcon.Shared };
+        using var registration = new TaskbarWindowRegistration(form, (_, _) => 0);
+        form.Show();
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            Assert.Equal(TaskbarApplicationIdentity.ApplicationId, TaskbarApplicationIdentity.ReadWindowProperty(form.Handle, 5));
+            string resource = TaskbarApplicationIdentity.ReadWindowProperty(form.Handle, 3)!;
+            Assert.EndsWith(".ico,0", resource);
+            string path = resource[..^2];
+            Assert.True(File.Exists(path));
+            using var icon = new Icon(path);
+            Assert.True(icon.Width > 0);
+            Assert.Contains("LOL-GameAssistant", path);
+            Assert.False(string.IsNullOrWhiteSpace(TaskbarApplicationIdentity.ReadWindowProperty(form.Handle, 2)));
+            Assert.Equal("SC · LOL GameAssistant", TaskbarApplicationIdentity.ReadWindowProperty(form.Handle, 4));
+            form.RebuildHandle();
+        }
+        nint handle = form.Handle;
+        registration.Dispose();
+        Assert.Null(TaskbarApplicationIdentity.ReadWindowProperty(handle, 5));
+        Assert.Null(TaskbarApplicationIdentity.ReadWindowProperty(handle, 3));
+    });
+
+    [Fact]
+    public void ShellButtonCreationRestoresClearedIconsWithoutRegisteringAnotherButton() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = new TestWindow { Icon = AppIcon.Shared };
+        int additions = 0;
+        using var registration = new TaskbarWindowRegistration(form, (_, visible) => { if (visible) additions++; return 0; });
+        form.Show();
+        SendMessage(form.Handle, 0x0080, 1, 0);
+        SendMessage(form.Handle, 0x0080, 0, 0);
+        SendMessage(form.Handle, TaskbarWindowRegistration.TaskbarButtonCreatedMessage, 0, 0);
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Equal(AppIcon.Shared.Handle, SendMessage(form.Handle, 0x007F, 1, 0));
+        Assert.Equal(AppIcon.Shared.Handle, SendMessage(form.Handle, 0x007F, 0, 0));
+        Assert.Equal(1, additions);
+    });
+
+    [Fact]
     public void BorderlessWindowPublishesNativeIconsAfterShowAndHandleRecreation() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var form = new TestWindow { Icon = AppIcon.Shared };
