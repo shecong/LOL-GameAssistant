@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Builds;
+﻿using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Settings;
@@ -374,8 +374,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     {
         if (string.Equals(latest.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
             // 分路由客户端推断，选人期间可能变化；用户可以主动选择任意分路的方案。
-            return latest.MyChampionId == original.MyChampionId &&
-                Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(latest.GameMode, latest.QueueId) == selectedMode;
+            return latest.MyChampionId == original.MyChampionId;
 
         return allowPreconfiguration && !latest.HasLiveClientData && (latest.Phase ?? "").ToLowerInvariant() is
             "" or "未知" or "none" or "lobby" or "matchmaking" or "readycheck";
@@ -571,7 +570,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             $"打开时 {context.Phase}/{context.MyChampionId}/{context.GameMode}/{context.QueueId} · " +
             $"当前 {latest.Phase}/{latest.MyChampionId}/{latest.GameMode}/{latest.QueueId} · 方案模式 {option.Mode}");
         if (!canApply)
-            result = OpggBuildApplyResult.Failure("当前阶段不可配置，或英雄、模式已变化，请重新获取方案。");
+            result = OpggBuildApplyResult.Failure("当前阶段不可配置，或英雄已变化，请重新获取方案。");
         else
         {
             _status.Text = $"正在应用 OP.GG 方案 {option.Order}…";

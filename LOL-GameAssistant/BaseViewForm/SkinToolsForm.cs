@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Settings;
+﻿using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.Domain.Skins;
 using LOL_GameAssistant.Helper;
@@ -33,9 +33,10 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private bool _inProgress;
     private readonly HashSet<string> _rememberedSessions = [];
 
-    public SkinToolsForm(ISkinCoreService core, IApplicationSettingsStore settings)
+    public SkinToolsForm(ISkinCoreService core, IApplicationSettingsStore settings,
+        IChampionSkinResourceService? skinResources = null)
     {
-        _core = core; _settings = settings; Dock = DockStyle.Fill;
+        _core = core; _settings = settings; _skinResources = skinResources ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ChampionSkinResourceService; Dock = DockStyle.Fill;
         var viewport = new AntdUI.Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = Padding.Empty, Radius = 0 };
         var heading = new TableLayoutPanel { Dock = DockStyle.Top, Height = 56, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
@@ -55,25 +56,22 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _card.Controls.Add(_search); _card.Controls.Add(stateGap); _card.Controls.Add(_current); _card.Controls.Add(heading);
         _surfaceRows.AddRange([heading, toggleRow, buttons, gap, selectionLabel, stateGap, searchGap]);
         var notice = new AntdUI.Label { Dock = DockStyle.Top, Height = 96, Padding = new Padding(8, 16, 8, 8), Text = "实验性功能：游戏更新后可能需要重新适配。第三方换肤存在账号处罚风险。\n关闭开关停止新的请求，不会卸载已加载的游戏模块或自动恢复皮肤。" };
-        var content = new TableLayoutPanel { ColumnCount = 1, RowCount = 4, Margin = Padding.Empty, Padding = Padding.Empty };
+        var content = new TableLayoutPanel { ColumnCount = 1, RowCount = 3, Margin = Padding.Empty, Padding = Padding.Empty };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 472));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 314));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 400));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
         _card.Dock = DockStyle.Fill; _card.Margin = Padding.Empty;
-        content.Controls.Add(_card, 0, 0); content.Controls.Add(CreateHotkeyCard(), 0, 1); content.Controls.Add(CreateObjectCard(), 0, 2); content.Controls.Add(notice, 0, 3);
+        content.Controls.Add(_card, 0, 0); content.Controls.Add(CreateHotkeyCard(), 0, 1); content.Controls.Add(notice, 0, 2);
         _pageSurfaces.AddRange([viewport, content, notice]);
         void PositionContent()
         {
-            int width = Math.Max(360, Math.Min(1040, viewport.ClientSize.Width - 40));
+            int width = Math.Max(360, viewport.ClientSize.Width - 24);
             int skinHeight = width < 560 ? 528 : 472;
-            int objectHeight = width < 560 ? 520 : 400;
             content.RowStyles[0].Height = skinHeight;
-            content.RowStyles[2].Height = objectHeight;
-            content.SetBounds(Math.Max(20, (viewport.ClientSize.Width - width) / 2), 20, width, skinHeight + objectHeight + 414);
+            content.SetBounds(12, 12, width, skinHeight + 414);
         }
-        viewport.Controls.Add(content); viewport.Resize += (_, _) => PositionContent(); PositionContent(); Controls.Add(viewport);
+        viewport.Controls.Add(content); viewport.Resize += (_, _) => PositionContent(); PositionContent(); BuildSkinNavigation(viewport);
         _enabled.Checked = settings.Load().SkinCoreEnabled;
         _core.SetEnabled(_enabled.Checked);
         _enabled.CheckedChanged += (_, _) => ToggleEnabled();
@@ -81,7 +79,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _entries.SelectedIndexChanged += async (_, _) =>
         {
             UpdateButtons();
-            if (!_updatingSelection) await ChangeAsync(false);
+            if (!_updatingSelection) { await ChangeAsync(false); await UpdatePreviewAsync(); }
         };
         _refresh.Click += async (_, _) => await RefreshAsync();
         _restore.Click += async (_, _) => await ChangeAsync(true);
@@ -95,7 +93,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         if (!_disposing && !IsDisposed) FilterEntries();
     }
-    private void PageVisibleChanged(object? sender, EventArgs e) => UpdateButtons();
+    private void PageVisibleChanged(object? sender, EventArgs e) { UpdateButtons(); if (Visible) _ = UpdatePreviewAsync(); }
     private void CancelPageRequests()
     {
         // Remove the owned reference before cancellation can trigger callbacks.
@@ -135,6 +133,11 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     private void ResetSession()
     {
+        _previewCancellation?.Cancel();
+        _previewKey = "";
+        _clientSkins.Clear();
+        _poster.Image?.Dispose(); _poster.Image = null;
+        _posterCaption.Text = "连接游戏后显示当前英雄皮肤海报";
         Interlocked.Increment(ref _revision); _catalog = null; _filtered.Clear(); _entries.Items.Clear(); _entries.SelectedIndex = -1;
         _objectCatalog = null;
         _current.Text = UiLanguage.T("尚未连接游戏"); UpdateButtons();
@@ -143,13 +146,13 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         string? previous = _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count ? _filtered[_entries.SelectedIndex].EntryId : null;
         string query = _search.Text.Trim();
-        _filtered = _catalog?.Entries.Where(e => $"{e.Name} {e.Model} {e.SkinNum} {e.GearName}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
+        _filtered = _catalog?.Entries.Where(e => $"{GetSkinDisplayName(e)} {e.Name} {e.Model} {e.SkinNum} {e.GearName}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
         bool wasUpdating = _updatingSelection;
         _updatingSelection = true;
         try
         {
             _entries.Items.Clear();
-            foreach (var entry in _filtered) _entries.Items.Add($"{entry.Name}  ·  {entry.Model}  ·  #{entry.SkinNum}" + (entry.GearName == null ? "" : $"  ·  {entry.GearName}"));
+            foreach (var entry in _filtered) _entries.Items.Add(GetSkinDisplayName(entry));
             _entries.SelectedIndex = previous == null ? -1 : _filtered.FindIndex(e => e.EntryId == previous);
         }
         finally { _updatingSelection = wasUpdating; }
@@ -216,6 +219,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             _current.Text = $"{result.Model}  ·  {result.Entries.Count} {UiLanguage.T("个皮肤与形态")}\n{UiLanguage.T("当前状态")}: #{result.Skin}  ·  {result.ActiveModel}  ·  {UiLanguage.T("形态")} {result.Gear}";
             if (changed) { _entries.SelectedIndex = -1; FilterEntries(); _status.Text = UiLanguage.T("已连接。请选择条目；状态核验不替代画面和技能验收。"); }
             await ApplyRememberedSkinAsync(result, revision, token);
+            _ = UpdatePreviewAsync();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { if (!IsDisposed && revision == Interlocked.Read(ref _revision)) { ResetSession(); ShowError(ex); } }
@@ -236,7 +240,18 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             if (IsDisposed || revision != Interlocked.Read(ref _revision)) return;
             _status.Text = UiLanguage.T(result.StateVerified ? "调用完成，实际状态已核验。画面、特效与技能仍需检查。" : "调用完成，但实际状态核验未通过。请刷新，勿连续重试。");
             _current.Text = $"{result.Model}  ·  #{result.Skin}  ·  {result.ActiveModel}  ·  {result.Gear}";
-            if (result.StateVerified) RememberSkin(catalog, selected);
+            if (result.StateVerified)
+            {
+                RememberSkin(catalog, selected);
+                _catalog = result with { Entries = catalog.Entries };
+                if (restore)
+                {
+                    _updatingSelection = true;
+                    try { _entries.SelectedIndex = -1; }
+                    finally { _updatingSelection = false; }
+                }
+                _ = UpdatePreviewAsync();
+            }
             if (!result.StateVerified) { _catalog = null; _entries.SelectedIndex = -1; }
         }
         catch (OperationCanceledException) { }
@@ -271,7 +286,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         var result = await _core.ApplyAsync(catalog.Session, entry.EntryId, token);
         if (_disposing || IsDisposed || token.IsCancellationRequested || revision != Interlocked.Read(ref _revision)) return;
         _current.Text = $"{result.Model}  ·  #{result.Skin}  ·  {result.ActiveModel}  ·  {result.Gear}";
-        _status.Text = result.StateVerified ? $"已自动应用上次选择：{entry.Name}" : "上次皮肤的应用状态未核验，请读取状态后检查。";
+        _status.Text = result.StateVerified ? $"已自动应用上次选择：{GetSkinDisplayName(entry)}" : "上次皮肤的应用状态未核验，请读取状态后检查。";
     }
 
     private void ShowError(Exception error)
@@ -295,6 +310,17 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     public void ApplyTheme(ThemePalette palette)
     {
         BackColor = palette.Surface; ForeColor = palette.TextPrimary;
+        _skinNavigation.BackColor = palette.SurfaceMuted;
+        _skinNavigation.ForeColor = palette.TextPrimary;
+        foreach (var button in new[] { _heroSkinTab, _objectSkinTab })
+        {
+            button.BackColor = palette.Accent;
+            button.DefaultBack = palette.SurfaceRaised;
+            button.DefaultBorderColor = palette.Border;
+            button.ForeColor = button.Type == AntdUI.TTypeMini.Primary ? Color.White : palette.TextPrimary;
+        }
+        _posterCaption.ForeColor = palette.TextSecondary;
+        _posterCaption.BackColor = _poster.BackColor = palette.SurfaceRaised;
         _card.Back = palette.SurfaceRaised; _card.BackColor = palette.SurfaceRaised; _card.ForeColor = palette.TextPrimary; _card.BorderColor = palette.Border;
         foreach (var row in _surfaceRows) row.BackColor = palette.SurfaceRaised;
         foreach (var surface in _pageSurfaces) surface.BackColor = palette.Surface;
@@ -328,6 +354,9 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             UiLanguage.Changed -= LanguageChanged;
             CancelPageRequests();
             CancelHotkeyRequests();
+            _previewCancellation?.Cancel();
+            _previewCancellation?.Dispose();
+            _poster.Image?.Dispose();
             _skinNotice?.Dispose();
             _core.InvalidateSession();
         }

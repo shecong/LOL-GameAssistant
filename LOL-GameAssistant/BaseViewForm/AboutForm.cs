@@ -30,11 +30,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>加载关于页所需的版本和展示信息。</summary>
         private void AboutForm_Load(object? sender, EventArgs e)
         {
-            var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            if (ver != null)
-            {
-                lblVersion.Text = $"版本: {ver.Major}.{ver.Minor}.{ver.Build}";
-            }
+            lblVersion.Text = $"版本: {AppVersion.Current.ToString(3)}";
         }
 
         /// <summary>响应项目链接按钮，打开对应项目页面。</summary>
@@ -57,7 +53,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             try
             {
-                await CheckForUpdateAsync();
+                await AppUpdateChecker.CheckAsync(ParentForm!, _updateReleaseService, automatic: false, openUrl: _openUrl);
             }
             catch (Exception ex)
             {
@@ -65,40 +61,11 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             finally
             {
-                btn_update.Enabled = true;
-                btn_update.Text = "软件更新";
-            }
-        }
-
-        /// <summary>查询发布版本并将比较结果展示给用户。</summary>
-        private async Task CheckForUpdateAsync()
-        {
-            UpdateRelease? release = await _updateReleaseService.GetLatestAsync();
-            if (release == null)
-            {
-                LOL_GameAssistant.Helper.UiMessage.warn(ParentForm!, "未获取到版本信息");
-                return;
-            }
-
-            var currentVer = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-
-            if (currentVer != null && release.Version > currentVer)
-            {
-                string msg = $"发现新版本 {release.TagName}！\n\n"
-                           + $"当前版本: {currentVer.Major}.{currentVer.Minor}.{currentVer.Build}\n"
-                           + $"最新版本: {release.TagName}\n";
-
-                if (!string.IsNullOrEmpty(release.ReleaseNotes))
+                if (!IsDisposed)
                 {
-                    msg += $"\n更新内容:\n{release.ReleaseNotes}";
+                    btn_update.Enabled = true;
+                    btn_update.Text = "软件更新";
                 }
-
-                LOL_GameAssistant.Helper.UiMessage.info(ParentForm!, msg);
-                OpenUrl(release.ReleaseUrl);
-            }
-            else
-            {
-                LOL_GameAssistant.Helper.UiMessage.success(ParentForm!, $"当前已是最新版本 ({currentVer})");
             }
         }
 

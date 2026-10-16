@@ -8,7 +8,7 @@ public sealed partial class SkinToolsForm
     private AntdUI.Panel? _objectCard;
     private readonly AntdUI.Select _minionSkins = new() { Dock = DockStyle.Top, Height = 52, List = true, MaxCount = 12, DropDownArrow = true };
     private readonly AntdUI.Select _wardSkins = new() { Dock = DockStyle.Top, Height = 52, List = true, MaxCount = 12, DropDownArrow = true, PlaceholderText = "读取后选择自己的眼位皮肤" };
-    private readonly AntdUI.Label _objectStatus = new() { Dock = DockStyle.Top, Height = 64, Text = "读取当前小兵与自己的眼位。每次应用覆盖当前已存在的对象。" };
+    private readonly AntdUI.Label _objectStatus = new() { Dock = DockStyle.Top, Height = 64, Text = "读取当前小兵与自己的眼位。应用后每 2 秒同步本局新生成的对象；恢复或停用后停止。" };
     private readonly AntdUI.Button _objectsRead = new() { Text = "读取小兵与眼位", Width = 160, Height = 42 };
     private readonly AntdUI.Button _objectsApply = new() { Text = "应用对象皮肤", Width = 160, Height = 42 };
     private readonly AntdUI.Button _objectsRestore = new() { Text = "恢复对象原皮", Width = 160, Height = 42 };
@@ -62,7 +62,8 @@ public sealed partial class SkinToolsForm
                 result = action == 2 ? await _core.RestoreObjectsAsync(_objectCatalog.Session, token) :
                     await _core.ApplyObjectsAsync(_objectCatalog.Session, _minionSkins.SelectedIndex - 1, ward, token);
                 if (IsDisposed || revision != Interlocked.Read(ref _revision)) return;
-                _objectStatus.Text = result.StateVerified ? $"状态已核验：对象 {result.ObjectTargetCount}，本次刷新 {result.ObjectChangedCount}。请检查游戏画面。" :
+                _objectStatus.Text = result.StateVerified ? $"状态已核验：对象 {result.ObjectTargetCount}，本次刷新 {result.ObjectChangedCount}。" +
+                    (action == 2 ? "已停止自动同步。" : "已开启本局新对象自动同步，请检查游戏画面。") :
                     "没有可核验的目标对象，或读取状态未通过；未标记为成功。";
             }
         } catch (OperationCanceledException) { }

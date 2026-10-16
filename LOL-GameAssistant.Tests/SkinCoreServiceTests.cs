@@ -7,6 +7,135 @@ namespace LOL_GameAssistant.Tests;
 
 public sealed class SkinCoreServiceTests
 {
+    private sealed class RefreshClock
+    {
+        private readonly System.Threading.Channels.Channel<TaskCompletionSource> _waits =
+            System.Threading.Channels.Channel.CreateUnbounded<TaskCompletionSource>();
+        private TaskCompletionSource? _pending;
+        public Task Delay(CancellationToken token)
+        {
+            var wait = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _waits.Writer.TryWrite(wait);
+            return wait.Task.WaitAsync(token);
+        }
+        public async Task ReleaseAsync()
+        {
+            var wait = _pending ?? await _waits.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            _pending = null;
+            wait.SetResult();
+        }
+        public async Task TickAsync()
+        {
+            await ReleaseAsync();
+            // The next delay is reached only after the entire queued refresh completes.
+            _pending = await _waits.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [Fact]
+    public async Task NewWavesKeepSelectedThemeAcrossEmptyWavesAndRestoreOriginalBaseline()
+    {
+        int lanes = 5;
+        var clock = new RefreshClock();
+        var fake = new Fake((args, _) => Task.FromResult(args[0] == "object-catalog"
+            ? Objects() with { LaneCount = lanes, BaselineMinionSkin = lanes == 0 ? -1 : 2 }
+            : Objects() with { ObjectTargetCount = lanes, StateVerified = lanes > 0, TransportHookReleased = true }));
+        var service = new NativeSkinCoreService(fake) { ObjectRefreshDelay = clock.Delay }; service.SetEnabled(true);
+        await service.ApplyObjectsAsync(Session, 4, -1);
+        lanes = 0; await clock.TickAsync();
+        lanes = 12; await clock.TickAsync();
+        Assert.Equal(3, fake.Calls.Count(args => args[0] == "objects"));
+        Assert.All(fake.Calls.Where(args => args[0] == "objects"), args => Assert.Equal(new[] { "objects", Session, "4", "-1" }, args));
+        await service.RestoreObjectsAsync(Session);
+        await service.ObjectMaintenanceTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new[] { "objects-restore", Session, "2", "-1" }, fake.Calls.Last());
+    }
+
+    [Fact]
+    public async Task ChangingThemeReplacesPreviousAutomaticSelection()
+    {
+        var clock = new RefreshClock();
+        var fake = new Fake((args, _) => Task.FromResult(args[0] == "object-catalog" ? Objects() :
+            Objects() with { ObjectTargetCount = 6, StateVerified = true, TransportHookReleased = true }));
+        var service = new NativeSkinCoreService(fake) { ObjectRefreshDelay = clock.Delay }; service.SetEnabled(true);
+        await service.ApplyObjectsAsync(Session, 1, 1);
+        var oldLoop = service.ObjectMaintenanceTask;
+        await service.ApplyObjectsAsync(Session, 7, -1);
+        await oldLoop.WaitAsync(TimeSpan.FromSeconds(5));
+        // Discard the cancelled loop's pending delay, then run the new loop.
+        await clock.ReleaseAsync();
+        await clock.TickAsync();
+        service.SetEnabled(false); await service.ObjectMaintenanceTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new[] { "objects", Session, "7", "-1" }, fake.Calls.Last());
+        Assert.Equal(3, fake.Calls.Count(args => args[0] == "objects"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisableOrSessionInvalidationStopsAutomaticWrites(bool invalidate)
+    {
+        var clock = new RefreshClock();
+        var fake = new Fake((args, _) => Task.FromResult(args[0] == "object-catalog" ? Objects() :
+            Objects() with { ObjectTargetCount = 6, StateVerified = true, TransportHookReleased = true }));
+        var service = new NativeSkinCoreService(fake) { ObjectRefreshDelay = clock.Delay }; service.SetEnabled(true);
+        await service.ApplyObjectsAsync(Session, 1, 1);
+        if (invalidate) service.InvalidateSession(); else service.SetEnabled(false);
+        await service.ObjectMaintenanceTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Single(fake.Calls, args => args[0] == "objects");
+    }
+
+    [Fact]
+    public async Task RestoreWaitsForInFlightRefreshAndNoThemeWriteFollowsRestore()
+    {
+        var clock = new RefreshClock();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int writes = 0;
+        var fake = new Fake(async (args, token) => {
+            if (args[0] == "object-catalog") return Objects();
+            if (args[0] == "objects" && ++writes == 2)
+            {
+                Assert.False(token.CanBeCanceled);
+                started.SetResult(); await release.Task;
+            }
+            return Objects() with { ObjectTargetCount = 6, StateVerified = true, TransportHookReleased = true };
+        });
+        var service = new NativeSkinCoreService(fake) { ObjectRefreshDelay = clock.Delay }; service.SetEnabled(true);
+        await service.ApplyObjectsAsync(Session, 1, 1);
+        await clock.ReleaseAsync(); await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var restore = service.RestoreObjectsAsync(Session);
+        Assert.False(restore.IsCompleted);
+        release.SetResult();
+        await restore.WaitAsync(TimeSpan.FromSeconds(5));
+        await service.ObjectMaintenanceTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new[] { "objects", "objects", "objects-restore" },
+            fake.Calls.Where(args => args[0] != "object-catalog").Select(args => args[0]));
+    }
+
+    [Theory]
+    [InlineData("session")]
+    [InlineData("profile")]
+    [InlineData("unknown")]
+    [InlineData("unverified")]
+    public async Task AutomaticRefreshStopsOnSessionChangeOrUncertainWrite(string failure)
+    {
+        bool refresh = false;
+        var clock = new RefreshClock();
+        var fake = new Fake((args, _) => {
+            if (args[0] == "object-catalog") return Task.FromResult(refresh ? failure switch {
+                "session" => Objects() with { Session = "0000000000000000" },
+                "profile" => Objects() with { ReferenceSha256 = "new" }, _ => Objects() } : Objects());
+            if (refresh && failure == "unknown") throw new SkinCoreException("request_outcome_unknown", true);
+            return Task.FromResult(Objects() with { ObjectTargetCount = 6, StateVerified = !refresh, TransportHookReleased = true });
+        });
+        var service = new NativeSkinCoreService(fake) { ObjectRefreshDelay = clock.Delay }; service.SetEnabled(true);
+        await service.ApplyObjectsAsync(Session, 1, -1);
+        refresh = true; await clock.ReleaseAsync();
+        await service.ObjectMaintenanceTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(failure is "session" or "profile" ? 1 : 2, fake.Calls.Count(args => args[0] == "objects"));
+    }
+
     private static SkinCoreReply Objects() => Catalog() with { LaneCount = 5, OwnWardCount = 1, BaselineMinionSkin = 0, BaselineWardSkin = 220,
         WardEntries = [new() { SkinNum = 1, Name = "Ward" }, new() { SkinNum = 220, Name = "Original" }] };
     [Fact]

@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Builds;
+﻿using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.Builds;
@@ -21,14 +21,30 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
     private const string ManagedItemPrefix = "LOL助手 OP.GG · ";
     private static readonly HttpClient OpggHttp = CreateHttpClient();
 
+    private readonly Action<PersonalRunePreset>? _recordAppliedRune;
     private readonly ILcuRequestSender _lcu;
     private readonly IChampionCatalog _championCatalog;
 
     /// <summary>初始化 OpggBuildApplyService 的实例状态，并保存传入的依赖或数据。</summary>
-    public OpggBuildApplyService(ILcuRequestSender lcu, IChampionCatalog championCatalog)
+    public OpggBuildApplyService(ILcuRequestSender lcu, IChampionCatalog championCatalog,
+        Action<PersonalRunePreset>? recordAppliedRune = null)
     {
+        _recordAppliedRune = recordAppliedRune;
         _lcu = lcu;
         _championCatalog = championCatalog;
+    }
+
+    public async Task<IReadOnlyList<PersonalRunePreset>> GetLocalRunePagesAsync(CancellationToken cancellationToken = default)
+    {
+        var pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
+        return pages.OfType<JObject>().Where(page => page["selectedPerkIds"] is JArray { Count: >= 6 })
+            .Select(page => new PersonalRunePreset
+            {
+                Name = page.Value<string>("name") ?? "客户端符文页", Source = "客户端符文页",
+                PrimaryStyleId = page.Value<int?>("primaryStyleId") ?? 0,
+                SubStyleId = page.Value<int?>("subStyleId") ?? 0,
+                RunePerkIds = page["selectedPerkIds"]!.Values<int>().ToList()
+            }).ToArray();
     }
 
     /// <summary>读取当前符文页和召唤师技能，生成可保存的个人方案。</summary>
@@ -76,6 +92,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             var build = new OpggBuild(preset.PrimaryStyleId, preset.SubStyleId,
                 preset.RunePerkIds.ToList(), new(), new(), new());
             await ApplyRunePageAsync(build, preset.Name, cancellationToken, PersonalRunePrefix).ConfigureAwait(false);
+            try { preset.LastAppliedAt = DateTimeOffset.Now; _recordAppliedRune?.Invoke(preset); }
+            catch { /* 符文已写入，记录失败不会触发重复应用。 */ }
             string spells = await ApplySummonerSpellsAsync(preset.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
             return spells.StartsWith("客户端未写入", StringComparison.Ordinal)
                 ? OpggBuildApplyResult.Failure($"符文已应用，但{spells}。请检查选人界面。")
@@ -83,6 +101,19 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) { return OpggBuildApplyResult.Failure($"个人方案应用失败：{ex.Message}"); }
+    }
+
+    private void RecordAppliedRune(int championId, string role, OpggBuildOption option, string label)
+    {
+        if (_recordAppliedRune == null) return;
+        var preset = new PersonalRunePreset { Name = label, ChampionId = championId, Mode = option.Mode,
+            Position = PersonalRunePresetResolver.NormalizePosition(role), PrimaryStyleId = option.PrimaryStyleId,
+            SubStyleId = option.SubStyleId, RunePerkIds = option.RunePerkIds.ToList(),
+            SummonerSpellIds = option.SummonerSpellIds?.ToList() ?? [], Source = "应用记录", AutoApply = false,
+            LastAppliedAt = DateTimeOffset.Now };
+        if (!preset.IsValid) return;
+        try { _recordAppliedRune(preset); }
+        catch { /* 本地记录失败不改变客户端已经成功写入的结果。 */ }
     }
 
     /// <summary>读取指定英雄和场景的推荐方案集合。</summary>
@@ -117,9 +148,11 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             OpggBuildPayload payload = mode == "aram_mayhem"
                 ? await FetchMayhemBuildPayloadAsync(championId, cancellationToken).ConfigureAwait(false)
                 : await FetchBuildPayloadAsync(championId, role, mode, cancellationToken).ConfigureAwait(false);
-            IReadOnlyList<OpggBuildOption> options = payload.Options;
+            IReadOnlyList<OpggBuildOption> options = payload.Options
+                .DistinctBy(option => $"{option.PrimaryStyleId}/{option.SubStyleId}:{string.Join(',', option.RunePerkIds)}:{string.Join(',', option.CoreItemIds.Order())}")
+                .Skip(Math.Max(0, request.Offset)).Take(Math.Clamp(request.Limit, 1, 15)).ToArray();
             if (options.Count == 0)
-                return OpggBuildChoices.Failure("OP.GG 没有返回可用的核心出装方案。");
+                return OpggBuildChoices.Failure(request.Offset > 0 ? "已显示全部可用搭配。" : "OP.GG 没有返回可用的核心出装方案。");
 
             string championName = _championCatalog.GetDisplayName(championId);
             if (string.IsNullOrWhiteSpace(championName)) championName = $"英雄{championId}";
@@ -199,6 +232,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                     runeResult = await ApplyRunePageAsync(build, label, cancellationToken,
                         allowReplaceCurrentRunePage: allowReplaceCurrentRunePage).ConfigureAwait(false);
                     completed.Add("符文页");
+                    RecordAppliedRune(championId, role, option, label);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch (Exception ex) { failed.Add($"符文页：{ex.Message}"); }
@@ -391,9 +425,16 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         JObject data = JObject.Parse(json)["data"] as JObject
             ?? throw new JsonException("missing data");
-        JObject? rune = data["runes"]?.OfType<JObject>()
+        return ParseBuildPayload(data, mode);
+    }
+
+    internal static OpggBuildPayload ParseBuildPayload(JObject data, string mode)
+    {
+        var runeVariants = data["runes"]?.OfType<JObject>()
             .OrderByDescending(item => item.Value<int?>("play") ?? 0)
-            .FirstOrDefault();
+            .DistinctBy(item => $"{item["primary_page_id"]}/{item["secondary_page_id"]}:{item["primary_rune_ids"]}:{item["secondary_rune_ids"]}:{item["stat_mod_ids"]}")
+            .Take(5).ToList() ?? [];
+        JObject? rune = runeVariants.FirstOrDefault();
         JObject? firstStarter = data["starter_items"]?.OfType<JObject>()
             .OrderByDescending(item => item.Value<int?>("play") ?? 0)
             .FirstOrDefault();
@@ -414,8 +455,15 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             .OrderByDescending(item => item.Value<int?>("play") ?? 0)
             .ToList() ?? new List<JObject>();
         var options = new List<OpggBuildOption>();
-        foreach (JObject coreVariant in allCore.Where(item => ReadIds(item["ids"]).Count >= 3).Take(5))
+        var coreVariants = allCore.Where(item => ReadIds(item["ids"]).Count >= 3)
+            .DistinctBy(item => string.Join(',', ReadIds(item["ids"]).Order())).Take(8).ToList();
+        // 先轮换数据源实际提供的符文与出装，再补充其余组合；不伪造联合样本胜率。
+        for (int round = 0; round < Math.Max(1, runeVariants.Count); round++)
+        foreach (JObject coreVariant in coreVariants)
         {
+            rune = runeVariants.Count == 0 ? null : runeVariants[(coreVariants.IndexOf(coreVariant) + round) % runeVariants.Count];
+            runePerks = ReadIds(rune?["primary_rune_ids"]).Concat(ReadIds(rune?["secondary_rune_ids"]))
+                .Concat(ReadIds(rune?["stat_mod_ids"])).ToList();
             var core = ReadIds(coreVariant["ids"]);
             if (boot > 0 && !core.Contains(boot)) core.Insert(Math.Min(1, core.Count), boot);
             var alternateFrequency = new Dictionary<int, int>();
@@ -795,7 +843,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
         List<int> SituationalItems);
 
     /// <summary>外部推荐数据解析后的方案、强化和对位信息集合。</summary>
-    private sealed record OpggBuildPayload(
+    internal sealed record OpggBuildPayload(
         IReadOnlyList<OpggBuildOption> Options,
         IReadOnlyList<OpggAugmentRecommendation> Augments,
         IReadOnlyList<OpggMatchup> Matchups);

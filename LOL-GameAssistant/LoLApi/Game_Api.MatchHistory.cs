@@ -1,5 +1,6 @@
 using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Application.Matches;
 
 namespace LOL_GameAssistant.LoLApi
 {
@@ -23,14 +24,37 @@ namespace LOL_GameAssistant.LoLApi
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrEmpty(puuid)) return null;
-            HttpClientHelper client = new HttpClientHelper();
-            using Stream? responseStream = await client.GetRequiredAsync(
-                $"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex ?? "0"}&endIndex={endIndex ?? "9999"}",
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (responseStream == null) return null;
-            return await responseStream.ReadAsJsonAsync<GameHeadModel.MatchHistoryResponse>(cancellationToken)
-                .ConfigureAwait(false);
+            return await MatchHistoryRequestPolicy.Shared.ExecuteAsync(
+                token => ReadUserGamePageAsync(puuid, begIndex, endIndex, token), cancellationToken).ConfigureAwait(false);
+        }
+
+        private static async Task<GameHeadModel.MatchHistoryResponse?> ReadUserGamePageAsync(
+            string puuid, string? begIndex, string? endIndex, CancellationToken cancellationToken)
+        {
+            var elapsed = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                HttpClientHelper client = new HttpClientHelper();
+                using Stream? responseStream = await client.GetRequiredAsync(
+                    $"/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begIndex ?? "0"}&endIndex={endIndex ?? "9999"}",
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (responseStream == null) return null;
+                return await responseStream.ReadAsJsonAsync<GameHeadModel.MatchHistoryResponse>(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                RuntimeDiagnostics.Report("战绩列表", "请求取消或超时",
+                    $"范围 {begIndex ?? "0"}–{endIndex ?? "9999"}，请求 {elapsed.ElapsedMilliseconds}ms。");
+                throw;
+            }
+            catch (Exception error)
+            {
+                RuntimeDiagnostics.Report("战绩列表", "请求失败",
+                    $"范围 {begIndex ?? "0"}–{endIndex ?? "9999"}，请求 {elapsed.ElapsedMilliseconds}ms：{error.Message}");
+                throw;
+            }
         }
 
         /// <summary>

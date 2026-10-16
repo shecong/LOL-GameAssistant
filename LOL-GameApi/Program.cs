@@ -7,6 +7,7 @@
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            LOL_GameApi.Lounge.LoungeEndpoints.AddLounge(builder);
 
             // Add services to the container.
 
@@ -29,6 +30,9 @@
             builder.Services.AddRateLimiter(options =>
             {
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddPolicy("lounge-connect", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                    { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
                 options.AddPolicy("version", _ => System.Threading.RateLimiting.RateLimitPartition.GetConcurrencyLimiter(
                     "version", _ => new System.Threading.RateLimiting.ConcurrencyLimiterOptions
                     { PermitLimit = 32, QueueLimit = 0 }));
@@ -50,9 +54,11 @@
             app.UseMiddleware<LOL_GameApi.Middleware.ExceptionHandlingMiddleware>();
 
             app.UseRateLimiter();
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();
+            LOL_GameApi.Lounge.LoungeEndpoints.MapLounge(app);
 
             app.Run();
         }

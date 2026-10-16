@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Builds;
+﻿using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.GameData;
@@ -11,6 +11,54 @@ namespace LOL_GameAssistant.Tests;
 
 public sealed class OpggBuildApplyServiceTests
 {
+    [Fact]
+    public void RecommendationsUseDistinctRuneAndEquipmentVariants()
+    {
+        var data = JObject.Parse("""
+            {"runes":[
+                {"primary_page_id":8000,"secondary_page_id":8200,"primary_rune_ids":[8005,9111,9104,8014],"secondary_rune_ids":[8234,8236],"play":100},
+                {"primary_page_id":8100,"secondary_page_id":8200,"primary_rune_ids":[8112,8126,8138,8135],"secondary_rune_ids":[8234,8236],"play":80}],
+             "core_items":[{"ids":[1,2,3],"play":100,"win":50},{"ids":[1,2,3],"play":90},{"ids":[4,5,6],"play":80,"win":42}]}
+            """);
+        var options = OpggBuildApplyService.ParseBuildPayload(data, "ranked").Options;
+        Assert.Equal(4, options.Count);
+        Assert.Equal(2, options.Take(3).Select(option => option.PrimaryStyleId).Distinct().Count());
+        Assert.Equal(2, options.Take(3).Select(option => string.Join(',', option.CoreItemIds)).Distinct().Count());
+        Assert.Equal(options.Count, options.Select(option => string.Join(',', option.RunePerkIds) + ":" + string.Join(',', option.CoreItemIds)).Distinct().Count());
+    }
+
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public async Task AppliedRuneHistoryReflectsActualRuneWrite(bool rejectRune, int expectedRecords)
+    {
+        var lcu = new FakeLcuRequestSender(10, 0) { RejectRuneCreation = rejectRune };
+        var records = new List<LOL_GameAssistant.Domain.Builds.PersonalRunePreset>();
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog(), records.Add);
+        await service.ApplyBuildAsync(1, "TOP", CreateOption());
+        Assert.Equal(expectedRecords, records.Count);
+        if (records.Count > 0)
+        {
+            Assert.True(records[0].IsValid);
+            Assert.False(records[0].AutoApply);
+            Assert.NotNull(records[0].LastAppliedAt);
+        }
+    }
+
+    [Fact]
+    public async Task ExistingClientRunePagesCanBeViewedWithoutChampionSelection()
+    {
+        var lcu = new FakeLcuRequestSender(10, 1, JObject.Parse("""
+            {"id":42,"name":"我之前应用的符文","primaryStyleId":8000,"subStyleId":8200,"selectedPerkIds":[8005,9111,9104,8014,8234,8236]}
+            """));
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+        var pages = await service.GetLocalRunePagesAsync();
+        Assert.Single(pages);
+        Assert.Equal("我之前应用的符文", pages[0].Name);
+        Assert.Equal(6, pages[0].RunePerkIds.Count);
+        Assert.Empty(lcu.DeleteEndpoints);
+        Assert.Empty(lcu.PutEndpoints);
+    }
     [Fact]
     public async Task PreconfigurationWritesRunesAndItemsWithoutPatchingSummonerSpells()
     {

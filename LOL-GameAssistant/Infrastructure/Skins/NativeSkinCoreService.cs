@@ -18,12 +18,86 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
     private bool _minionChanged, _wardChanged;
     private string? _heroSession;
     private SkinEntry? _baselineHero;
+    private readonly object _objectMaintenanceLock = new();
+    private CancellationTokenSource? _objectMaintenance;
+    internal Task ObjectMaintenanceTask { get; private set; } = Task.CompletedTask;
+    internal Func<CancellationToken, Task> ObjectRefreshDelay { get; set; } =
+        token => Task.Delay(TimeSpan.FromSeconds(2), token);
     public bool Enabled => Volatile.Read(ref _enabled) == 1;
     public void SetEnabled(bool enabled) {
         if (enabled && Volatile.Read(ref _stopping) != 0) throw new SkinCoreException("core_stopping");
         Interlocked.Exchange(ref _enabled, enabled ? 1 : 0); InvalidateSession();
     }
-    public void InvalidateSession() => Interlocked.Increment(ref _revision);
+    public void InvalidateSession()
+    {
+        lock (_objectMaintenanceLock)
+        {
+            Interlocked.Increment(ref _revision);
+            _objectMaintenance?.Cancel();
+        }
+    }
+
+    private void StopObjectMaintenance()
+    {
+        lock (_objectMaintenanceLock) _objectMaintenance?.Cancel();
+    }
+
+    private void StartObjectMaintenance(long revision, SkinCoreReply catalog, int minion, int ward)
+    {
+        lock (_objectMaintenanceLock)
+        {
+            Check(revision);
+            _objectMaintenance?.Cancel();
+            var cancellation = new CancellationTokenSource();
+            _objectMaintenance = cancellation;
+            ObjectMaintenanceTask = MaintainObjectsAsync(revision, catalog, minion, ward, cancellation);
+        }
+    }
+
+    private async Task MaintainObjectsAsync(long revision, SkinCoreReply appliedCatalog, int minion, int ward,
+        CancellationTokenSource cancellation)
+    {
+        var token = cancellation.Token;
+        try
+        {
+            while (true)
+            {
+                await ObjectRefreshDelay(token).ConfigureAwait(false);
+                // Use the same queue as manual changes and restoration. Cancelling the
+                // loop stops queued work, but never interrupts a native write in flight.
+                await RunAsync(async (_, _) =>
+                {
+                    Check(revision); token.ThrowIfCancellationRequested();
+                    var catalog = await ObjectCatalogAsync(revision, token).ConfigureAwait(false);
+                    if (catalog.Session != appliedCatalog.Session || catalog.ReferenceSha256 != appliedCatalog.ReferenceSha256)
+                        throw new SkinCoreException("stale_session");
+                    Check(revision); token.ThrowIfCancellationRequested();
+                    var result = await transport.InvokeAsync(["objects", catalog.Session,
+                        minion.ToString(CultureInfo.InvariantCulture), ward.ToString(CultureInfo.InvariantCulture)], CancellationToken.None).ConfigureAwait(false);
+                    CheckObjectWriteRevision(revision);
+                    result = ValidateObjectResult(result, catalog);
+                    // No objects between waves is normal; do not recapture the baseline.
+                    if (result.ObjectTargetCount > 0 && !result.StateVerified)
+                        throw new SkinCoreException("object_refresh_not_verified", true);
+                    return result;
+                }, token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            // A failed/uncertain write must not turn into an automatic retry loop.
+            Log(new { stage = "object_maintenance_stopped", error = error.Message });
+        }
+        finally
+        {
+            lock (_objectMaintenanceLock)
+            {
+                if (ReferenceEquals(_objectMaintenance, cancellation)) _objectMaintenance = null;
+                cancellation.Dispose();
+            }
+        }
+    }
 
     public Task<SkinCoreReply> GetCatalogAsync(CancellationToken token = default) =>
         RunAsync(async (revision, ct) => await CatalogAsync(revision, ct).ConfigureAwait(false), token);
@@ -82,9 +156,12 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
             if ((minionIndex >= 0 && (catalog.LaneCount == 0 || _baselineMinion < 0)) ||
                 (wardSkin >= 0 && (catalog.OwnWardCount == 0 || _baselineWard < 0))) throw new SkinCoreException("object_baseline_unavailable");
             Check(revision); ct.ThrowIfCancellationRequested();
+            StopObjectMaintenance();
             _minionChanged |= minionIndex >= 0; _wardChanged |= wardSkin >= 0;
             var result = await transport.InvokeAsync(["objects", session, minionIndex.ToString(CultureInfo.InvariantCulture), wardSkin.ToString(CultureInfo.InvariantCulture)], ct).ConfigureAwait(false);
-            CheckObjectWriteRevision(revision); return ValidateObjectResult(result, catalog);
+            CheckObjectWriteRevision(revision); result = ValidateObjectResult(result, catalog);
+            if (result.StateVerified) StartObjectMaintenance(revision, catalog, minionIndex, wardSkin);
+            return result;
         }, token);
     public Task<SkinCoreReply> RestoreObjectsAsync(string session, CancellationToken token = default) =>
         RunAsync((revision, ct) => RestoreObjectsInternalAsync(revision, session, ct), token);
@@ -103,6 +180,7 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
     }
     private async Task<SkinCoreReply> RestoreObjectsInternalAsync(long revision, string session, CancellationToken token)
     {
+        StopObjectMaintenance();
         var catalog = await ObjectCatalogAsync(revision, token).ConfigureAwait(false);
         if (session != catalog.Session) throw new SkinCoreException("stale_session");
         var result = await transport.InvokeAsync(["objects-restore", session, (_minionChanged ? _baselineMinion : -1).ToString(CultureInfo.InvariantCulture),

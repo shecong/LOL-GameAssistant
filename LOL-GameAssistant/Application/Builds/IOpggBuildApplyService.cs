@@ -1,10 +1,14 @@
-using LOL_GameAssistant.Domain.Builds;
+﻿using LOL_GameAssistant.Domain.Builds;
 
 namespace LOL_GameAssistant.Application.Builds;
 
 /// <summary>从 OP.GG 公共英雄数据获取推荐，并写入本机 League Client 的符文页和物品集。</summary>
 public interface IOpggBuildApplyService
 {
+    /// <summary>读取本机客户端现有符文页，供符文库浏览。</summary>
+    Task<IReadOnlyList<PersonalRunePreset>> GetLocalRunePagesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<PersonalRunePreset>>(Array.Empty<PersonalRunePreset>());
+
     /// <summary>读取当前符文页和召唤师技能，生成可保存的个人方案。</summary>
     Task<PersonalRunePreset?> CaptureCurrentRunePresetAsync(
         int championId, string mode, string position, CancellationToken cancellationToken = default);
@@ -81,7 +85,8 @@ public sealed record OpggBuildChoices(
 public sealed record OpggBuildRequest(
     string? GameMode,
     int QueueId = 0,
-    IReadOnlyList<int>? EnemyChampionIds = null);
+    IReadOnlyList<int>? EnemyChampionIds = null,
+    int Offset = 0, int Limit = 3);
 
 /// <summary>一个海克斯推荐条目；仅展示推荐，不自动替玩家作出局内选择。</summary>
 public sealed record OpggAugmentRecommendation(int Id, int Rarity, int Matches, int Wins)

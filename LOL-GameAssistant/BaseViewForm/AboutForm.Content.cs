@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Helper;
+﻿using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -75,6 +75,9 @@ public partial class AboutForm
         footer.Controls.Add(btn_opengithub);
         footer.Controls.Add(btn_github);
         footer.Controls.Add(btn_update);
+        var joinGroup = new AntdUI.Button { Name = "JoinQqGroup", Text = $"加入QQ群 · {UpdateAvailableForm.QqGroupNumber}", AutoSize = true, Height = 36 };
+        joinGroup.Click += (_, _) => OpenUrl(UpdateAvailableForm.QqGroupUrl);
+        footer.Controls.Add(joinGroup);
         Controls.Add(_aboutPages);
         Controls.Add(footer);
         Controls.Add(_aboutNavigation);

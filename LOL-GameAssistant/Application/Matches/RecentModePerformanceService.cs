@@ -12,7 +12,8 @@ public sealed class RecentModePerformanceService(IMatchHistoryService matches)
     public async Task<RecentModePerformanceAssessment> EvaluateAsync(
         string puuid, int queueId, string? gameMode, string modeText,
         MatchHistoryResponse? firstPage = null, CancellationToken cancellationToken = default,
-        bool fallbackToAllModes = false, IReadOnlyDictionary<long, MatchDetail>? knownDetails = null)
+        bool fallbackToAllModes = false, IReadOnlyDictionary<long, MatchDetail>? knownDetails = null,
+        int firstPageSize = PageSize)
     {
         long cutoff = DateTimeOffset.UtcNow.AddDays(-30).ToUnixTimeMilliseconds();
         var seen = new HashSet<long>();
@@ -75,7 +76,8 @@ public sealed class RecentModePerformanceService(IMatchHistoryService matches)
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            MatchHistoryResponse? page = offset == 0 && firstPage != null
+            bool usingFirstPage = offset == 0 && firstPage != null;
+            MatchHistoryResponse? page = usingFirstPage
                 ? firstPage
                 : await matches.GetPageAsync(puuid, offset, offset + PageSize - 1, cancellationToken);
             List<MatchHistoryGame>? games = page?.Games?.Games;
@@ -91,7 +93,7 @@ public sealed class RecentModePerformanceService(IMatchHistoryService matches)
 
             offset += games.Count;
             // 战绩由新到旧分页，遇到时间截止点或服务端总数后即可结束，无须继续翻旧记录。
-            if (games.Count < PageSize ||
+            if (games.Count < (usingFirstPage ? firstPageSize : PageSize) ||
                 (page?.Games?.GameCount is > 0 && offset >= page.Games.GameCount) ||
                 games.Any(game => game.GameCreation > 0 && game.GameCreation < cutoff)) break;
         }

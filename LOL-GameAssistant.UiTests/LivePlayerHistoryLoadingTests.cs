@@ -16,6 +16,19 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class LivePlayerHistoryLoadingTests
 {
     [Fact]
+    public void VisibleCardsRequestOnlyTwentySummariesInitially() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var card = CreateCard((method, args) => {
+            Assert.Equal("GetPageAsync", method.Name);
+            Assert.Equal(0, (int)args[1]!);
+            Assert.Equal(19, (int)args[2]!);
+            return Task.FromResult<MatchHistoryResponse?>(new() { Games = new() });
+        });
+        using var form = Mount(card);
+        Assert.Contains(Child(card, "panelMatches").Controls.Cast<Control>(), control => control.Text == "暂无战绩");
+    });
+
+    [Fact]
     public void ValidSingleSummaryIsScoredEvenWhenEveryDetailRequestFails() => MatchListScrollingTests.OnUiThread(() =>
     {
         var card = CreateCard((method, _) => method.Name == "GetPageAsync"

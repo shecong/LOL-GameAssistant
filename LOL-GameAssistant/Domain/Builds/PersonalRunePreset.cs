@@ -1,8 +1,10 @@
-namespace LOL_GameAssistant.Domain.Builds;
+﻿namespace LOL_GameAssistant.Domain.Builds;
 
 /// <summary>用户保存的选人符文与召唤师技能方案。</summary>
 public sealed class PersonalRunePreset
 {
+    public DateTimeOffset? LastAppliedAt { get; set; }
+    public string Source { get; set; } = "手动保存";
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "";
     public int ChampionId { get; set; }
@@ -17,8 +19,8 @@ public sealed class PersonalRunePreset
 
     /// <summary>检查符文方案是否包含应用所需的有效字段。</summary>
     public bool IsValid => ChampionId > 0 && PrimaryStyleId > 0 && SubStyleId > 0 &&
-        RunePerkIds?.Count >= 6 && SummonerSpellIds?.Count == 2 &&
-        SummonerSpellIds.All(id => id > 0);
+        RunePerkIds?.Count >= 6 && (SummonerSpellIds?.Count == 2 || Source == "应用记录" && SummonerSpellIds?.Count == 0) &&
+        SummonerSpellIds!.All(id => id > 0);
 }
 
 /// <summary>按英雄、模式和分路解析优先使用的个人符文方案。</summary>

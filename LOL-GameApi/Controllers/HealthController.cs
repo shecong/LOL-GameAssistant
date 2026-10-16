@@ -31,6 +31,7 @@ namespace LOL_GameApi.Controllers
             return ApiResponse<object>.Ok(new
             {
                 service = "LOL-GameApi",
+                loungeProtocolVersion = LOL.Lounge.LoungeRules.ProtocolVersion,
                 version,
                 serverTime = DateTimeOffset.Now
             });

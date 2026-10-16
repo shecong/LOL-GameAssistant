@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.GameData;
@@ -64,7 +64,7 @@ public sealed class CoachThemeTests
         var pendingContext = new TaskCompletionSource<AiGameContext>();
         var settings = new AssistantSettings { OpggBuildAssistantEnabled = true, AutoApplyRuneBuild = false };
         settings.OpggManualBuildSelections["122:aram:none"] = 2;
-        var options = new[] { 1, 2 }.Select(order => new OpggBuildOption(order, [1054], [3078, 3053, 6333], [],
+        var options = new[] { 1, 2 }.Select(order => new OpggBuildOption(order, [1054], [3078, 3053, 6333 + order], [],
             8000, 8200, [8010, 9111, 9104, 8299, 8234, 8236], 100, 50, Mode: "aram")).ToArray();
         using var form = new CoachForm(
             Service<IAiCoachingService>((_, _) =>
@@ -112,7 +112,7 @@ public sealed class CoachThemeTests
         int applications = 0;
         int saves = 0;
         var settings = new AssistantSettings();
-        var options = new[] { 1, 2 }.Select(order => new OpggBuildOption(order, [1054], [3078, 3053, 6333], [],
+        var options = new[] { 1, 2 }.Select(order => new OpggBuildOption(order, [1054], [3078, 3053, 6333 + order], [],
             8000, 8200, [8010, 9111, 9104, 8299, 8234, 8236], 100, 50, Mode: "aram")).ToArray();
         using var form = new CoachForm(
             Service<IAiCoachingService>((_, _) => Task.FromResult(new AiGameContext

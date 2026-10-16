@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.ApplicationInfo;
+﻿using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.ClientFeatures;
@@ -39,6 +39,12 @@ public static class AppCompositionRoot
             new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore")),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
+
+    public static LOL_GameAssistant.Application.Skins.IChampionSkinResourceService ChampionSkinResourceService { get; } =
+        new LcuChampionSkinResourceService(LcuRequestSender, () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
+
+    public static Infrastructure.Lounge.LoungeClient CreateLoungeClient() =>
+        new(new Infrastructure.Lounge.LoungeLcuReader(LcuRequestSender));
 
     public static LcuQuickShoutService QuickShoutService { get; } = new(LcuRequestSender);
 
@@ -122,8 +128,19 @@ public static class AppCompositionRoot
 
     /// <summary>OP.GG 公开推荐到本机 LCU 符文页和自定义物品集的一键配置。</summary>
     public static IOpggBuildApplyService OpggBuildApplyService { get; } =
-        new CachedOpggBuildApplyService(new OpggBuildApplyService(LcuRequestSender, ChampionCatalog),
+        new CachedOpggBuildApplyService(new OpggBuildApplyService(LcuRequestSender, ChampionCatalog, RememberAppliedRune),
             () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
+
+    private static void RememberAppliedRune(LOL_GameAssistant.Domain.Builds.PersonalRunePreset applied)
+    {
+        var settings = ApplicationSettingsStore.Load();
+        var existing = settings.PersonalRunePresets.FirstOrDefault(preset => preset.ChampionId == applied.ChampionId &&
+            preset.Mode == applied.Mode && preset.Position == applied.Position && preset.PrimaryStyleId == applied.PrimaryStyleId &&
+            preset.SubStyleId == applied.SubStyleId && preset.RunePerkIds.SequenceEqual(applied.RunePerkIds));
+        if (existing == null) settings.PersonalRunePresets.Add(applied);
+        else existing.LastAppliedAt = applied.LastAppliedAt;
+        ApplicationSettingsStore.Save(settings);
+    }
 
     /// <summary>仅读取本机当前玩家实时状态的服务。</summary>
     public static ILiveClientGameStateService LiveClientGameStateService { get; } = new LiveClientGameStateService();

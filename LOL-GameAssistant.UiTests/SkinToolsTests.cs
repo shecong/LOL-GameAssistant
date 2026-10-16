@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Settings;
+﻿using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.Settings;
@@ -11,6 +11,57 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class SkinToolsTests
 {
+    [Fact]
+    public void SkinTabsAndPosterFollowAppliedSkinAndRestore() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var calls = new List<(string Model, int Skin)>();
+        byte[] bytes;
+        using (var bitmap = new Bitmap(4, 4))
+        using (var stream = new MemoryStream())
+        {
+            bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+            bytes = stream.ToArray();
+        }
+        var assets = SecondPhaseRegressionTests.Service<IChampionSkinResourceService>((method, args) =>
+        {
+            if (method.Name == "GetCatalogAsync") return Task.FromResult<IReadOnlyList<ChampionSkinResource>>([
+                new(0, "拉克丝", []), new(7, "大元素使 拉克丝", [])]);
+            Assert.Equal("GetPosterAsync", method.Name);
+            calls.Add(("Lux", ((ChampionSkinResource)args[0]!).SkinNumber));
+            return Task.FromResult<LOL_GameAssistant.Domain.GameData.GameAsset?>(new(bytes));
+        });
+        var core = new Core();
+        var settings = new Settings();
+        settings.Load().SkinCoreEnabled = true;
+        using var host = new Form { ClientSize = new Size(1500, 850), ShowInTaskbar = false };
+        using var page = new SkinToolsForm(core, settings, assets);
+        host.Controls.Add(page); host.Show();
+        page.OnGamePhaseChanged(true);
+        var poster = Descendants(page).OfType<PictureBox>().Single(picture => picture.Name == "SkinPoster");
+        SecondPhaseRegressionTests.PumpUntil(() => poster.Image != null);
+        Assert.Equal(("Lux", 0), calls.Last());
+        var selector = Descendants(page).OfType<AntdUI.Select>().Single(select => select.Name == "HeroSkinEntries");
+        selector.SelectedIndex = 1;
+        SecondPhaseRegressionTests.PumpUntil(() => calls.Last().Skin == 7 && poster.Image != null);
+        Assert.Contains("大元素使 拉克丝", selector.Items[1]!.ToString());
+        Assert.Single(core.AppliedEntries); // Updating client names must not apply another skin.
+        var tabs = Descendants(page).OfType<AntdUI.Button>();
+        var heroTab = tabs.Single(b => b.Name == "HeroSkinTab");
+        var objectTab = tabs.Single(b => b.Name == "ObjectSkinTab");
+        Assert.True(objectTab.Left - heroTab.Right >= 16);
+        objectTab.PerformClick();
+        Assert.False(selector.Visible);
+        Assert.Equal(AntdUI.TTypeMini.Primary, objectTab.Type);
+        Assert.Equal(AntdUI.TTypeMini.Default, heroTab.Type);
+        heroTab.PerformClick();
+        Assert.True(selector.Visible);
+        Assert.Equal(AntdUI.TTypeMini.Primary, heroTab.Type);
+        var restore = (Task)typeof(SkinToolsForm).GetMethod("ChangeAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, [true])!;
+        SecondPhaseRegressionTests.Pump(restore);
+        SecondPhaseRegressionTests.PumpUntil(() => calls.Last().Skin == 0 && poster.Image != null);
+        page.OnGamePhaseChanged(false);
+        Assert.Null(poster.Image);
+    });
     private sealed class Settings : IApplicationSettingsStore
     {
         private AssistantSettings _settings = new();

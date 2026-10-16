@@ -43,7 +43,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private const int RecentGamesCount = 10;
 
         /// <summary>近期战绩列表的首次请求大小；表现评分会继续读取最近 30 天。</summary>
-        private const int HistoryFetchCount = 100;
+        private const int HistoryFetchCount = 20;
         private static readonly TimeSpan MaximumLoadDuration = TimeSpan.FromMinutes(1);
         private string _loadingStage = "战绩列表";
         private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
@@ -737,7 +737,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     _currentQueueId > 0 ? _currentQueueId.ToString() : "", _currentGameMode),
                 firstPage, cancellationToken, fallbackToAllModes: true,
                 knownDetails: results.Select(item => item.detail).DistinctBy(detail => detail.GameId)
-                    .ToDictionary(detail => detail.GameId)).WaitAsync(cancellationToken);
+                    .ToDictionary(detail => detail.GameId), firstPageSize: HistoryFetchCount).WaitAsync(cancellationToken);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);
             ShowRecentAssessment(assessment);

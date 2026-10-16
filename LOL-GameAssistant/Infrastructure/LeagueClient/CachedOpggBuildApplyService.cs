@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Builds;
+﻿using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Domain.Builds;
 using LOL_GameAssistant.Infrastructure.GameData;
 
@@ -34,10 +34,13 @@ internal sealed class CachedOpggBuildApplyService : IOpggBuildApplyService
         string mode = OpggBuildApplyService.NormalizeMode(request.GameMode, request.QueueId);
         if (id <= 0 || mode == "unknown") return await _inner.GetBuildChoicesAsync(id, position, request, token);
         string role = mode == "ranked" ? PersonalRunePresetResolver.NormalizePosition(position) : "none";
-        return await _cache.GetAsync($"{_version()}:{id}:{mode}:{role}",
+        return await _cache.GetAsync($"diverse-v2:{_version()}:{id}:{mode}:{role}:{request.Offset}:{request.Limit}",
             async () => await _inner.GetBuildChoicesAsync(id, position, request), token)
             ?? OpggBuildChoices.Failure("暂未获取到推荐方案，请重试。");
     }
+
+    public Task<IReadOnlyList<PersonalRunePreset>> GetLocalRunePagesAsync(CancellationToken token = default) =>
+        _inner.GetLocalRunePagesAsync(token);
 
     /// <summary>读取当前符文页和召唤师技能，生成可保存的个人方案。</summary>
     public Task<PersonalRunePreset?> CaptureCurrentRunePresetAsync(int id, string mode, string position, CancellationToken token = default) =>

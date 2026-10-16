@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Builds;
+﻿using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
@@ -38,15 +38,18 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     };
     private readonly List<Button> _laneTabs = new();
     private readonly Dictionary<(string Mode, string Position), OpggBuildChoices> _cache = new();
+    private readonly CancellationTokenSource _visualLifetime = new();
     private CancellationTokenSource? _queryCancellation;
     private int _queryVersion;
     private bool _loading;
+    private bool _disposedResources;
     private string _position;
     private readonly string _initialPosition;
     private readonly int _initialOrder;
     private bool _hasLoadedCategory;
     private readonly IGameAssetService _gameAssetService;
     private readonly FlowLayoutPanel _routeCards = new RouteListPanel();
+    private readonly Button _loadMore = CreateGoldButton("加载更多搭配");
     private readonly Button _apply = CreateGoldButton("应用选中方案");
     private readonly Label _note = new();
     private readonly Label _empty = new();
@@ -119,7 +122,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             Activate();
             BringToFront();
             if (_buildService != null && _choices.Mode == "ranked")
-                await ChangeCategoryAsync(_choices.Mode, "all");
+                await ChangeCategoryAsync(_choices.Mode, _position);
             else await LoadVisualsAsync();
         };
     }
@@ -200,7 +203,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _championIcon.SizeMode = PictureBoxSizeMode.Zoom;
         var heroText = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 0, 0, 0) };
         var title = _heading;
-        title.Text = $"{_choices.ChampionName}  /  {_choices.PositionName}  ·  {_choices.Options.Count} 套推荐";
+        title.Text = $"{_choices.ChampionName}  /  {_choices.PositionName}  ·  {UniqueOptions(_choices.Options).Take(3).Count()} 套推荐";
         title.ForeColor = Gold;
         title.Height = 24;
         title.AutoEllipsis = true;
@@ -228,7 +231,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _routeCards.WrapContents = false;
         _routeCards.Padding = new Padding(0, 4, 0, 0);
         _routeCards.SizeChanged += (_, _) => ResizeRouteCards();
-        foreach (OpggBuildOption option in _choices.Options)
+        foreach (OpggBuildOption option in UniqueOptions(_choices.Options).Take(3))
         {
             RouteCard card = CreateRouteCard(option);
             _cards.Add(card);
@@ -268,7 +271,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         };
         footer.Controls.Add(_apply, 1, 0);
         footer.SetRowSpan(_apply, 2);
+        _loadMore.Dock = DockStyle.Bottom;
+        _loadMore.Height = 36;
+        _loadMore.Enabled = _buildService != null;
+        _loadMore.Click += async (_, _) => await ChangeCategoryAsync(_filter, _position, true);
         Controls.Add(_routeCards);
+        Controls.Add(_loadMore);
         Controls.Add(footer);
         Controls.Add(header);
         Controls.Add(_windowHeader);
@@ -296,7 +304,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         bool mayhem = option.Mode == "aram_mayhem";
         var root = new Panel
         {
-            Width = 900, Height = 212, Padding = new Padding(20, 14, 14, 14),
+            Width = 900, Height = 236, Padding = new Padding(20, 14, 14, 14),
             Margin = new Padding(0, 0, 0, 4), Cursor = Cursors.Hand
         };
         root.Paint += (_, e) =>
@@ -323,7 +331,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         var details = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 2, Margin = Padding.Empty };
         details.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 28));
         details.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         details.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
         details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         details.Controls.Add(VerticalTag(mayhem ? "增\n幅" : "符\n文"), 0, 0);
@@ -401,6 +409,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         var winRate = TextLabel(option.Matches > 0 || option.ReportedWinRate.HasValue
             ? $"胜率 {option.WinRate:0.#}%" : "暂无胜率统计", Color.FromArgb(232, 231, 209));
         winRate.TextAlign = ContentAlignment.MiddleRight;
+        _toolTip.SetToolTip(winRate, mayhem ? "数据来源提供的胜率" : "核心出装样本胜率；符文与装备来自独立统计，组合不代表联合样本胜率。");
         stats.Controls.Add(winRate, 0, 0);
         var sample = TextLabel(mayhem && option.PickRate.HasValue
             ? $"选择率 {option.PickRate:0.0}%" : $"{option.Matches:N0} 场样本", Muted);
@@ -438,7 +447,17 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     {
         if (id <= 0) return;
         var tile = CreateAssetTile(id, size);
-        tile.Root.Margin = new Padding(gap, (42 - size) / 2, 4, 0);
+        tile.Root.Margin = new Padding(gap, 0, 4, 0);
+        tile.Root.Size = new Size(66, 58);
+        tile.Name.Visible = true;
+        tile.Name.AutoEllipsis = true;
+        tile.Name.Text = "加载中…";
+        tile.Name.Dock = DockStyle.Bottom;
+        tile.Name.Height = 20;
+        tile.Name.ForeColor = Muted;
+        tile.Name.TextAlign = ContentAlignment.MiddleCenter;
+        tile.Icon.Dock = DockStyle.None;
+        tile.Icon.SetBounds((66 - size) / 2, 0, size, size);
         tile.Icon.Paint += (_, e) =>
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
@@ -530,8 +549,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     }
 
     /// <summary>判断当前推荐是否具备应用到客户端的必要数据。</summary>
-    private bool CanApply(RouteCard card) => _allowApply && !_loading && !_applyingSelection && !_selectionApplied &&
-        (!_hasCurrentMatch || card.Option.Mode == _choices.Mode);
+    private bool CanApply(RouteCard card) => _allowApply && !_loading && !_applyingSelection && !_selectionApplied;
 
     // 禁用正在处理的按钮会让 WinForms 移动焦点。保持滚动位置，避免下一焦点把
     // 列表自动滚到后面的方案；用户仍可通过滚轮和滚动条浏览。
@@ -544,7 +562,13 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         [("TOP", "上路"), ("JUNGLE", "打野"), ("MIDDLE", "中路"), ("BOTTOM", "下路"), ("UTILITY", "辅助")];
 
     /// <summary>切换推荐类别并加载对应方案。</summary>
-    internal async Task ChangeCategoryAsync(string mode, string position)
+    private static string BuildKey(OpggBuildOption option) =>
+        $"{option.PrimaryStyleId}/{option.SubStyleId}:{string.Join(',', option.RunePerkIds)}:{string.Join(',', option.CoreItemIds.Order())}";
+
+    private static IEnumerable<OpggBuildOption> UniqueOptions(IEnumerable<OpggBuildOption> options) =>
+        options.DistinctBy(BuildKey);
+
+    internal async Task ChangeCategoryAsync(string mode, string position, bool append = false)
     {
         if (_buildService == null) return;
         _queryCancellation?.Cancel();
@@ -558,10 +582,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         bool ranked = queryMode == "ranked";
         var roles = ranked && position == "all" ? Lanes.Select(lane => lane.Key).ToArray()
             : new[] { ranked ? position : "MIDDLE" };
-        _loading = true;
-        _selectedCard = null;
-        _apply.Enabled = false;
-        ClearRouteCards();
+        _loadMore.Enabled = false;
+        _loading = !append;
+        if (!append)
+        {
+            _selectedCard = null;
+            _apply.Enabled = false;
+            ClearRouteCards();
+        }
         _empty.Visible = true;
         _empty.Text = "正在加载推荐方案…";
         _note.Text = "正在获取所选模式与分路的数据…";
@@ -570,7 +598,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         {
             var pending = roles.OrderBy(role => role == _initialPosition ? 0 : 1).Select(async role =>
             {
-                if (_cache.TryGetValue((queryMode, role), out var cached)) return (Role: role, Choices: cached);
+                if (!append && _cache.TryGetValue((queryMode, role), out var cached)) return (Role: role, Choices: cached);
                 var request = queryMode switch
                 {
                     "aram" => new OpggBuildRequest("ARAM"),
@@ -582,9 +610,10 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                 };
                 try
                 {
+                    request = request with { Offset = append ? _cards.Count(card => card.Position == role) : 0, Limit = 3 };
                     var choices = await _buildService.GetBuildChoicesAsync(ResolveChampionId(), role, request, token);
                     token.ThrowIfCancellationRequested();
-                    if (choices.Succeeded) _cache[(queryMode, role)] = choices;
+                    if (choices.Succeeded && !append) _cache[(queryMode, role)] = choices;
                     return (Role: role, Choices: choices);
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
@@ -604,12 +633,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                 {
                     if (result.Choices.Succeeded)
                     {
-                        foreach (var option in result.Choices.Options)
+                        foreach (var option in UniqueOptions(result.Choices.Options).Where(option => !_cards.Any(card => card.Position == result.Role && BuildKey(card.Option) == BuildKey(option))).Take(3))
                         {
                             var card = CreateRouteCard(option, result.Choices, result.Role);
                             _cards.Add(card);
                             _routeCards.Controls.Add(card.Root);
-                            _ = LoadCardVisualsAsync(card);
+                            _ = LoadCardVisualsAsync(card, token);
                         }
                     }
                     _empty.Visible = _cards.Count == 0;
@@ -618,8 +647,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                     _heading.Text = $"{_choices.ChampionName} / " + (ranked ? position == "all" ? "全部分路" :
                         Lanes.First(lane => lane.Key == position).Name : result.Choices.Succeeded
                             ? result.Choices.PositionName : queryMode) + $" · {_cards.Count} 套推荐";
-                    _note.Text = queryMode != _choices.Mode ? "当前浏览其他模式；请切回当前对局模式后应用方案。" :
-                        queryMode == "aram_mayhem" ? "海克斯大乱斗专属出装与增幅推荐 · 此模式无常规符文页" :
+                    _note.Text = queryMode == "aram_mayhem" ? "海克斯大乱斗专属出装与增幅推荐 · 此模式无常规符文页" :
                         "选择一套方案，配置符文、装备与召唤师技能";
                     if (!_hasCurrentMatch) _note.Text = "可预先配置所示英雄的符文与装备；召唤师技能需在选人阶段应用。";
                     if (pending.Count > 0) _note.Text += $" · 正在补充其他分路（{results.Count}/{roles.Length}）";
@@ -644,14 +672,18 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                 finally { _routeCards.ResumeLayout(true); }
                 ResizeRouteCards();
             }
+            _loadMore.Enabled = results.Any(result => result.Choices.Succeeded && result.Choices.Options.Count >= 3);
+            _loadMore.Text = _loadMore.Enabled ? "加载更多搭配" : "已显示全部可用搭配";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception)
+        catch (Exception ex)
         {
+            RuntimeDiagnostics.WriteException(ex);
             if (IsDisposed || version != _queryVersion) return;
             _loading = false;
             _empty.Text = "推荐加载失败，请重新选择分路或类型重试。";
             _note.Text = "暂未取得所选类型的数据";
+            _loadMore.Enabled = true;
         }
     }
 
@@ -704,16 +736,16 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>启动推荐界面所需的图标和名称加载。</summary>
     private async Task LoadVisualsAsync()
     {
-        var tasks = _cards.ToArray().Select(LoadCardVisualsAsync).ToList();
+        var tasks = _cards.ToArray().Select(card => LoadCardVisualsAsync(card, _visualLifetime.Token)).ToList();
         tasks.Add(LoadChampionVisualAsync());
         await Task.WhenAll(tasks);
     }
 
     /// <summary>加载单张推荐卡片中的英雄及资源图标。</summary>
-    private Task LoadCardVisualsAsync(RouteCard card) => Task.WhenAll(
-        card.ItemTiles.Select(LoadItemVisualAsync)
-            .Concat(card.RuneTiles.Select(LoadRuneVisualAsync))
-            .Concat(card.SpellTiles.Select(LoadSpellVisualAsync)));
+    private Task LoadCardVisualsAsync(RouteCard card, CancellationToken token) => Task.WhenAll(
+        card.ItemTiles.Select(tile => LoadItemVisualAsync(tile, token))
+            .Concat(card.RuneTiles.Select(tile => LoadRuneVisualAsync(tile, token)))
+            .Concat(card.SpellTiles.Select(tile => LoadSpellVisualAsync(tile, token))));
     /// <summary>读取推荐卡片中的英雄图像。</summary>
     private async Task LoadChampionVisualAsync()
     {
@@ -737,23 +769,26 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     }
 
     /// <summary>读取装备条目的图标和名称。</summary>
-    private async Task LoadItemVisualAsync(AssetTile tile)
+    private async Task LoadItemVisualAsync(AssetTile tile, CancellationToken token)
     {
         try
         {
-            await _visualLoadGate.WaitAsync();
+            await _visualLoadGate.WaitAsync(token);
             try
             {
                 if (IsDisposed || tile.Root.IsDisposed) return;
-                Task<GameAsset?> iconTask = _gameAssetService.GetItemIconAsync(tile.Id);
-                Task<string?> nameTask = _gameAssetService.GetItemNameAsync(tile.Id);
-                await Task.WhenAll(iconTask, nameTask);
+                Task<GameAsset?> iconTask = _gameAssetService.GetItemIconAsync(tile.Id, token);
+                Task<string?> nameTask = _gameAssetService.GetItemNameAsync(tile.Id, token);
+                Task<string?> detailTask = _gameAssetService.GetItemDescriptionAsync(tile.Id, token);
+                await Task.WhenAll(iconTask, nameTask, detailTask);
                 if (IsDisposed || tile.Root.IsDisposed) return;
                 string name = nameTask.Result ?? $"装备 {tile.Id}";
                 tile.Name.Text = name;
-                _toolTip.SetToolTip(tile.Root, name);
-                _toolTip.SetToolTip(tile.Icon, name);
-                AssignImage(tile.Icon, ToImage(iconTask.Result));
+                string details = PlainText(name + "\n\n" + detailTask.Result);
+                _toolTip.SetToolTip(tile.Root, details);
+                _toolTip.SetToolTip(tile.Icon, details);
+                _toolTip.SetToolTip(tile.Name, details);
+                if (iconTask.Result is { IsEmpty: false }) AssignImage(tile.Icon, await Task.Run(() => ToImage(iconTask.Result), token));
             }
             finally
             {
@@ -769,19 +804,30 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     }
 
     /// <summary>读取符文条目的展示图标。</summary>
-    private async Task LoadRuneVisualAsync(AssetTile tile)
+    private async Task LoadRuneVisualAsync(AssetTile tile, CancellationToken token)
     {
         try
         {
-            await _visualLoadGate.WaitAsync();
+            await _visualLoadGate.WaitAsync(token);
             try
             {
                 if (IsDisposed || tile.Root.IsDisposed) return;
-                var asset = await _gameAssetService.GetRuneIconAsync(tile.Id);
+                var iconTask = _gameAssetService.GetRuneIconAsync(tile.Id, token);
+                var detailsTask = _gameAssetService.GetRuneDetailsAsync(tile.Id, token);
+                await Task.WhenAll(iconTask, detailsTask);
+                var asset = iconTask.Result;
                 if (IsDisposed || tile.Root.IsDisposed) return;
-                AssignImage(tile.Icon, ToImage(asset));
-                _toolTip.SetToolTip(tile.Root, $"符文 {tile.Id}");
-                _toolTip.SetToolTip(tile.Icon, $"符文 {tile.Id}");
+                if (asset is { IsEmpty: false }) AssignImage(tile.Icon, await Task.Run(() => ToImage(asset), token));
+                string details = PlainText(detailsTask.Result ?? $"符文 {tile.Id}");
+                tile.Name.Text = details.Split('\n')[0];
+                tile.Name.Visible = true;
+                tile.Name.AutoEllipsis = true;
+                tile.Name.Dock = DockStyle.Bottom;
+                tile.Name.Height = 20;
+                tile.Name.ForeColor = Muted;
+                _toolTip.SetToolTip(tile.Root, details);
+                _toolTip.SetToolTip(tile.Icon, details);
+                _toolTip.SetToolTip(tile.Name, details);
             }
             finally
             {
@@ -796,6 +842,9 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     }
 
     /// <summary>根据推荐上下文确定英雄标识。</summary>
+    private static string PlainText(string value) => System.Net.WebUtility.HtmlDecode(
+        System.Text.RegularExpressions.Regex.Replace(value.Replace("<br>", "\n").Replace("<br/>", "\n").Replace("<br />", "\n"), "<[^>]+>", ""));
+
     private int ResolveChampionId() => _choices.ChampionId > 0
         ? _choices.ChampionId
         : AppCompositionRoot.ChampionCatalog.FindIdByDisplayName(_choices.ChampionName) ?? 0;
@@ -926,19 +975,19 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     }
 
     /// <summary>读取召唤师技能条目的图标和名称。</summary>
-    private async Task LoadSpellVisualAsync(AssetTile tile)
+    private async Task LoadSpellVisualAsync(AssetTile tile, CancellationToken token)
     {
         try
         {
-            await _visualLoadGate.WaitAsync();
+            await _visualLoadGate.WaitAsync(token);
             try
             {
                 if (IsDisposed || tile.Root.IsDisposed) return;
-                var icon = await _gameAssetService.GetSummonerSpellIconAsync(tile.Id);
-                var name = await _gameAssetService.GetSummonerSpellNameAsync(tile.Id);
+                var icon = await _gameAssetService.GetSummonerSpellIconAsync(tile.Id, token);
+                var name = await _gameAssetService.GetSummonerSpellNameAsync(tile.Id, token);
                 if (IsDisposed || tile.Root.IsDisposed) return;
                 _toolTip.SetToolTip(tile.Icon, name ?? $"召唤师技能 {tile.Id}");
-                AssignImage(tile.Icon, ToImage(icon));
+                if (icon is { IsEmpty: false }) AssignImage(tile.Icon, await Task.Run(() => ToImage(icon), token));
             }
             finally { _visualLoadGate.Release(); }
         }
@@ -982,8 +1031,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         string reason = !_allowApply ? "当前窗口仅供预览，无法应用方案。"
             : _loading ? "推荐仍在加载，请稍后重试。"
             : _selectedCard == null ? "当前没有可应用的方案，请选择有推荐数据的模式或分路。"
-            : _hasCurrentMatch && _selectedCard.Option.Mode != _choices.Mode
-                ? "所选方案与当前对局模式不一致，请切回当前模式。" : "";
+            : "";
         if (reason.Length > 0)
         {
             _applyStatus.Text = reason;
@@ -1011,8 +1059,11 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !_disposedResources)
         {
+            _disposedResources = true;
+            _visualLifetime.Cancel();
+            _visualLifetime.Dispose();
             _queryCancellation?.Cancel();
             _queryCancellation?.Dispose();
             _queryCancellation = null;

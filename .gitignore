@@ -364,3 +364,6 @@ MigrationBackup/
 FodyWeavers.xsd
 /docs/IT审计报告-2026-10-07.md
 /docs
+
+# Public lounge runtime database (including SQLite WAL files).
+/LOL-GameApi/data/

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.ApplicationInfo;
@@ -165,7 +165,7 @@ public sealed class AboutPageTests
                 System.Windows.Forms.Application.DoEvents();
                 Assert.True(footer.Visible);
                 Assert.True(about.ClientRectangle.Contains(footer.Bounds));
-                Assert.Equal(3, footer.Controls.OfType<AntdUI.Button>().Count());
+                Assert.Equal(4, footer.Controls.OfType<AntdUI.Button>().Count());
                 foreach (Panel page in Children(about).OfType<Panel>().Where(page => page.Visible && page.Name.StartsWith("about")))
                     Assert.False(page.HorizontalScroll.Visible);
                 foreach (AntdUI.Label label in Children(about).OfType<AntdUI.Label>().Where(label => label.Visible && label.Parent is TableLayoutPanel))
@@ -178,6 +178,9 @@ public sealed class AboutPageTests
             Click(footer.Controls.OfType<AntdUI.Button>().Single(button => button.Text == "给项目点个赞"));
             Assert.Equal(8, opened.Count);
             Assert.All(opened.TakeLast(2), url => Assert.Equal("https://github.com/shecong/LOL-GameAssistant", url));
+            Click(footer.Controls.OfType<AntdUI.Button>().Single(button => button.Name == "JoinQqGroup"));
+            Assert.Contains("uin=1067459719", opened.Last());
+            Assert.StartsWith("mqqapi://", opened.Last());
             string? preview = Environment.GetEnvironmentVariable("ABOUT_PAGE_PREVIEW");
             if (width == 1100 && !string.IsNullOrEmpty(preview))
             {

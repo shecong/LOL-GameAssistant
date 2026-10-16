@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Entity;
+﻿using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
@@ -147,7 +147,13 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<string?> GetRuneDetailsAsync(int perkId)
         {
             await GetRuneIconPathsAsync().ConfigureAwait(false);
-            return RuneDetails.GetValueOrDefault(perkId);
+            return RuneDetails.GetValueOrDefault(perkId) ?? perkId switch
+            {
+                5001 => "生命值\n增加生命值。", 5010 => "成长生命值\n随等级增加生命值。",
+                5011 => "生命值\n增加基础生命值。", 5002 => "护甲\n增加护甲。", 5003 => "魔法抗性\n增加魔法抗性。",
+                5005 => "攻击速度\n增加攻击速度。", 5007 => "技能急速\n增加技能急速。", 5008 => "适应之力\n提供适应之力。",
+                5013 => "韧性与减速抗性\n提高对控制与减速效果的抗性。", _ => null
+            };
         }
 
         /// <summary>
@@ -252,6 +258,7 @@ namespace LOL_GameAssistant.LoLApi
                     int id = style.Value<int?>("id") ?? 0;
                     string? icon = style.Value<string>("icon");
                     if (id > 0 && !string.IsNullOrWhiteSpace(icon)) resolved[id] = icon;
+                    if (id > 0) RuneDetails[id] = style.Value<string>("name") ?? $"符文系 {id}";
                 }
                 foreach (JObject rune in styles
                     .OfType<JObject>()

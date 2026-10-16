@@ -1,6 +1,5 @@
 using LOL_GameAssistant.Helper;
 
-
 namespace LOL_GameAssistant
 {
     /// <summary>程序入口：配置应用启动环境与生命周期。</summary>
@@ -42,7 +41,6 @@ namespace LOL_GameAssistant
             System.Windows.Forms.Application.ThreadException += Application_ThreadException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
-
             // Apply the saved palette before any page or native handle is created.
             // Otherwise dark-mode startup first paints the default light surfaces.
             var startupSettings = Bootstrap.AppCompositionRoot.ApplicationSettingsStore.Load();
@@ -51,10 +49,14 @@ namespace LOL_GameAssistant
             UiLanguage.SetMode(startupSettings.LanguageMode);
             GameMain = new GameMain();
             // A replacement request may arrive while the main window is being created.
-            GameMain.Shown += (_, _) =>
+            GameMain.Shown += async (_, _) =>
             {
                 if (Volatile.Read(ref replaceRequested) != 0)
+                {
                     System.Windows.Forms.Application.Exit();
+                    return;
+                }
+                await AppUpdateChecker.CheckAsync(GameMain, Bootstrap.AppCompositionRoot.UpdateReleaseService, automatic: true);
             };
             if (Volatile.Read(ref replaceRequested) != 0)
             {
@@ -121,6 +123,5 @@ namespace LOL_GameAssistant
             // 可以选择是否退出应用
             // Application.Exit();
         }
-
     }
 }

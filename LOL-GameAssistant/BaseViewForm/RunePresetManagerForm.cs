@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Builds;
+﻿using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Settings;
@@ -10,20 +10,27 @@ using LOL_GameAssistant.Infrastructure.LeagueClient;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>从客户端当前符文页与召唤师技能保存个人方案，按英雄及场景维护优先级。</summary>
-internal sealed class RunePresetManagerForm : AntdUI.Window
+internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
 {
+    private readonly IGameAssetService _assets;
     private readonly IApplicationSettingsStore _settings;
     private readonly IOpggBuildApplyService _builds;
     private readonly IAiCoachingService _context;
     private readonly IChampionCatalog _champions = AppCompositionRoot.ChampionCatalog;
     private readonly AntdUI.Table _list = new() { Dock = DockStyle.Fill, VisibleHeader = false, Bordered = true };
-    private readonly AntdUI.Input _name = new() { Width = 250 };
-    private readonly AntdUI.Select _mode = new() { ReadOnly = true, Width = 155 };
-    private readonly AntdUI.Select _position = new() { ReadOnly = true, Width = 125 };
-    private readonly AntdUI.InputNumber _priority = new() { Minimum = -100, Maximum = 100, Width = 80 };
+    private readonly AntdUI.Input _name = new() { Width = 400, Height = 40 };
+    private readonly AntdUI.Select _mode = new() { ReadOnly = true, Width = 155, Height = 40 };
+    private readonly AntdUI.Select _position = new() { ReadOnly = true, Width = 125, Height = 40 };
+    private readonly AntdUI.InputNumber _priority = new() { Minimum = -100, Maximum = 100, Width = 80, Height = 36 };
     private readonly AntdUI.Checkbox _auto = new() { Text = "选人时自动使用", AutoSize = true };
     private readonly AntdUI.Label _detail = new() { AutoSize = true, MaximumSize = new Size(400, 0) };
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Bottom, Height = 42, TextAlign = ContentAlignment.MiddleLeft };
+    private readonly AntdUI.Segmented _categories = new() { Dock = DockStyle.Top, Height = 260, Vertical = true, Full = false, SelectIndex = 0 };
+    private readonly FlowLayoutPanel _runePreview = new() { Width = 440, Height = 190, AutoScroll = true, WrapContents = true };
+    private readonly ToolTip _tips = new() { AutoPopDelay = 20000 };
+    private readonly CancellationTokenSource _lifetime = new();
+    private int _detailVersion;
+    private IReadOnlyList<PersonalRunePreset> _clientPages = [];
     private List<PersonalRunePreset> _presets = new();
     /// <summary>个人符文方案列表使用的显示行。</summary>
     private sealed record PresetRow(string Label);
@@ -47,31 +54,38 @@ internal sealed class RunePresetManagerForm : AntdUI.Window
     ];
 
     /// <summary>初始化 RunePresetManagerForm 的实例状态，并保存传入的依赖或数据。</summary>
-    public RunePresetManagerForm(IApplicationSettingsStore settings, IOpggBuildApplyService builds, IAiCoachingService context)
+    public RunePresetManagerForm(IApplicationSettingsStore settings, IOpggBuildApplyService builds, IAiCoachingService context, IGameAssetService? assets = null)
     {
+        _assets = assets ?? AppCompositionRoot.GameAssetService;
         _settings = settings;
         _builds = builds;
         _context = context;
         Text = "我的符文方案";
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new Size(760, 500);
-        Size = new Size(820, 550);
+        Size = new Size(1040, 720);
         Font = new Font("Microsoft YaHei UI", 9);
         _mode.Items.AddRange(Modes);
         _position.Items.AddRange(Positions);
         _list.Columns.Add(new AntdUI.Column(nameof(PresetRow.Label), "方案") { Width = "100%" });
 
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(14), ColumnCount = 2 };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
-        root.Controls.Add(_list, 0, 0);
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
+        var library = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 14, 0) };
+        foreach (string category in new[] { "全部方案", "应用记录", "自动方案", "客户端页面" })
+            _categories.Items.Add(new AntdUI.SegmentedItem { Text = category });
+        _categories.SelectIndexChanged += (_, _) => Reload();
+        library.Controls.Add(_list);
+        library.Controls.Add(_categories);
+        root.Controls.Add(library, 0, 0);
         var editor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
-        editor.Controls.Add(new AntdUI.Label { Text = "选中方案；从当前客户端符文页和技能捕获新方案", AutoSize = true });
+        editor.Controls.Add(new AntdUI.Label { Text = "本地符文库 · 已应用的推荐会自动保存在这里", AutoSize = true });
         editor.Controls.Add(new AntdUI.Label { Text = "方案名称", AutoSize = true });
         editor.Controls.Add(_name);
         editor.Controls.Add(new AntdUI.Label { Text = "模式", AutoSize = true });
         editor.Controls.Add(_mode);
-        editor.Controls.Add(new AntdUI.Label { Text = "分路（峡谷模式精确匹配）", AutoSize = true });
+        editor.Controls.Add(new AntdUI.Label { Text = "推荐分路（仅自动使用时匹配）", AutoSize = true });
         editor.Controls.Add(_position);
         editor.Controls.Add(new AntdUI.Label { Text = "优先级（数值越高越先使用）", AutoSize = true });
         editor.Controls.Add(_priority);
@@ -84,6 +98,12 @@ internal sealed class RunePresetManagerForm : AntdUI.Window
         actions.Controls.AddRange(new Control[] { capture, save, apply, delete });
         editor.Controls.Add(actions);
         editor.Controls.Add(_detail);
+        editor.Controls.Add(_runePreview);
+        editor.SizeChanged += (_, _) =>
+        {
+            _name.Width = Math.Max(220, editor.ClientSize.Width - 28);
+            _runePreview.Width = Math.Max(220, editor.ClientSize.Width - 28);
+        };
         root.Controls.Add(editor, 1, 0);
         Controls.Add(root);
         Controls.Add(_status);
@@ -94,9 +114,38 @@ internal sealed class RunePresetManagerForm : AntdUI.Window
         apply.Click += async (_, _) => await ApplySelectedAsync();
         delete.Click += (_, _) => DeleteSelected();
         Reload();
+        Shown += async (_, _) =>
+        {
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+                timeout.CancelAfter(TimeSpan.FromSeconds(8));
+                _clientPages = await _builds.GetLocalRunePagesAsync(timeout.Token);
+                if (!IsDisposed) Reload(Selected?.Id);
+            }
+            catch (OperationCanceledException) { }
+            catch { if (!IsDisposed) _status.Text = "客户端页面暂不可用；本地保存的方案仍可浏览。"; }
+        };
         UiLanguage.Changed += LanguageChanged;
-        Disposed += (_, _) => UiLanguage.Changed -= LanguageChanged;
+        Disposed += (_, _) =>
+        {
+            UiLanguage.Changed -= LanguageChanged;
+            _lifetime.Cancel();
+            _lifetime.Dispose();
+            _tips.Dispose();
+            ClearPreview();
+        };
         UiTheme.Apply(this);
+    }
+
+    public void ApplyTheme(ThemePalette palette)
+    {
+        BackColor = palette.Surface;
+        ForeColor = palette.TextPrimary;
+        _categories.BackColor = _list.BackColor = palette.SurfaceRaised;
+        _categories.ForeColor = palette.TextPrimary;
+        _status.ForeColor = palette.TextSecondary;
+        _runePreview.BackColor = palette.SurfaceRaised;
     }
 
     /// <summary>语言变化后刷新依赖本地化文本的界面。</summary>
@@ -114,32 +163,87 @@ internal sealed class RunePresetManagerForm : AntdUI.Window
     /// <summary>重新读取符文方案并恢复有效的选择。</summary>
     private void Reload(Guid? selectId = null)
     {
-        _presets = _settings.Load().PersonalRunePresets
-            .OrderBy(preset => preset.ChampionId).ThenByDescending(preset => preset.Priority).ToList();
+        var saved = _settings.Load().PersonalRunePresets;
+        _presets = (_categories.SelectIndex == 3 ? _clientPages : saved.AsEnumerable())
+            .Where(preset => _categories.SelectIndex != 1 || preset.LastAppliedAt.HasValue)
+            .Where(preset => _categories.SelectIndex != 2 || preset.AutoApply)
+            .OrderByDescending(preset => preset.LastAppliedAt).ThenBy(preset => preset.ChampionId).ThenByDescending(preset => preset.Priority).ToList();
         _list.DataSource = _presets.Select(preset =>
         {
+            if (preset.Source == "客户端符文页") return new PresetRow($"{preset.Name} · {preset.RunePerkIds.Count} 个符文");
             string champion = _champions.GetDisplayName(preset.ChampionId);
             if (string.IsNullOrWhiteSpace(champion)) champion = $"#{preset.ChampionId}";
-            return new PresetRow($"{champion} · {preset.Name} · {ModeLabel(preset.Mode)}/{PositionLabel(preset.Position)}" +
+            return new PresetRow($"{preset.Source} · {champion} · {preset.Name} · {ModeLabel(preset.Mode)}/{PositionLabel(preset.Position)}" +
                 (preset.AutoApply ? (UiLanguage.IsEnglish ? " · Auto" : " · 自动") : ""));
         }).ToArray();
         int index = selectId.HasValue ? _presets.FindIndex(preset => preset.Id == selectId.Value) : -1;
         if (_presets.Count > 0) _list.SelectedIndex = index >= 0 ? index : 0;
+        ShowSelected();
+        if (_presets.Count == 0) _status.Text = "暂无本地方案。成功应用推荐后会自动记录，也可从当前选人捕获。";
     }
 
     /// <summary>将选中符文方案的字段同步到编辑区域。</summary>
     private void ShowSelected()
     {
         var preset = Selected;
-        if (preset == null) return;
+        if (preset == null) { ClearPreview(); _detail.Text = ""; return; }
         _name.Text = preset.Name;
         _mode.SelectedValue = Modes.FirstOrDefault(item => item.Key == preset.Mode);
         _position.SelectedValue = Positions.FirstOrDefault(item => item.Key == preset.Position);
         _priority.Value = Math.Clamp(preset.Priority, -100, 100);
         _auto.Checked = preset.AutoApply;
-        _detail.Text = UiLanguage.IsEnglish
-            ? $"Champion ID: {preset.ChampionId}\nPrimary/secondary: {preset.PrimaryStyleId}/{preset.SubStyleId}\nRunes: {string.Join(", ", preset.RunePerkIds)}\nSummoner spells: {string.Join(", ", preset.SummonerSpellIds)}"
-            : $"英雄 ID：{preset.ChampionId}\n主系/副系：{preset.PrimaryStyleId}/{preset.SubStyleId}\n符文：{string.Join(", ", preset.RunePerkIds)}\n召唤师技能：{string.Join(", ", preset.SummonerSpellIds)}";
+        _detail.Text = preset.Source == "客户端符文页" ? "客户端现有符文页 · 可查看符文名称与效果" :
+            $"{preset.Source} · {ModeLabel(preset.Mode)} / {PositionLabel(preset.Position)}\n" +
+            (preset.LastAppliedAt is { } applied ? $"最近应用：{applied.LocalDateTime:yyyy-MM-dd HH:mm}" : "尚无应用记录");
+        _ = ShowRuneDetailsAsync(preset);
+
+    }
+
+    private void ClearPreview()
+    {
+        foreach (Control control in _runePreview.Controls.Cast<Control>().ToArray())
+        {
+            foreach (PictureBox picture in control.Controls.OfType<PictureBox>()) picture.Image?.Dispose();
+            control.Dispose();
+        }
+        _runePreview.Controls.Clear();
+    }
+
+    private async Task ShowRuneDetailsAsync(PersonalRunePreset preset)
+    {
+        int version = ++_detailVersion;
+        ClearPreview();
+        var assets = _assets;
+        using var gate = new SemaphoreSlim(4);
+        var tasks = preset.RunePerkIds.Select(async id =>
+        {
+            await gate.WaitAsync(_lifetime.Token);
+            try
+            {
+                var textTask = assets.GetRuneDetailsAsync(id, _lifetime.Token);
+                var imageTask = assets.GetRuneIconAsync(id, _lifetime.Token);
+                await Task.WhenAll(textTask, imageTask);
+                if (IsDisposed || version != _detailVersion) return;
+                string detail = System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(textTask.Result ?? $"符文 {id}", "<[^>]+>", ""));
+                var tile = new Panel { Size = new Size(98, 78), Margin = new Padding(0, 0, 6, 8) };
+                var image = new PictureBox { Dock = DockStyle.Top, Height = 46, SizeMode = PictureBoxSizeMode.Zoom };
+                if (imageTask.Result is { IsEmpty: false } asset)
+                {
+                    using var stream = new MemoryStream(asset.Content);
+                    using var original = Image.FromStream(stream);
+                    image.Image = new Bitmap(original);
+                }
+                var name = new Label { Dock = DockStyle.Bottom, Height = 28, Text = detail.Split('\n')[0], TextAlign = ContentAlignment.MiddleCenter, AutoEllipsis = true };
+                tile.Controls.Add(image); tile.Controls.Add(name);
+                _tips.SetToolTip(image, detail); _tips.SetToolTip(name, detail);
+                _runePreview.Controls.Add(tile);
+            }
+            catch (OperationCanceledException) { }
+            catch { /* 静态资源失败不影响本地方案。 */ }
+            finally { gate.Release(); }
+        });
+        try { await Task.WhenAll(tasks); }
+        catch (OperationCanceledException) { }
     }
 
     /// <summary>从选人阶段的当前符文页和技能捕获个人方案。</summary>
@@ -175,7 +279,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window
         if (name.Length is < 1 or > 80) { _status.Text = "方案名称需为 1 至 80 个字符。"; return; }
         var settings = _settings.Load();
         var target = settings.PersonalRunePresets.FirstOrDefault(item => item.Id == preset.Id);
-        if (target == null) return;
+        if (target == null) { _status.Text = "此项为客户端页面预览。请在选人时捕获后再保存为个人方案。"; return; }
         target.Name = name;
         target.Mode = (_mode.SelectedValue as Choice)?.Key ?? target.Mode;
         target.Position = (_position.SelectedValue as Choice)?.Key ?? target.Position;
@@ -191,6 +295,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window
     {
         var preset = Selected;
         if (preset == null) return;
+        if (preset.Source == "客户端符文页") { _status.Text = "客户端页面仅供查看；请从当前选人捕获后应用。"; return; }
         var context = await _context.CollectContextAsync();
         if (context.Phase != "ChampSelect" || context.MyChampionId != preset.ChampionId)
         {
@@ -201,6 +306,12 @@ internal sealed class RunePresetManagerForm : AntdUI.Window
         }
         var result = await _builds.ApplyPersonalRunePresetAsync(preset);
         _status.Text = result.Message;
+        if (result.Succeeded)
+        {
+            var saved = _settings.Load();
+            var applied = saved.PersonalRunePresets.FirstOrDefault(item => item.Id == preset.Id);
+            if (applied != null) { applied.LastAppliedAt = DateTimeOffset.Now; _settings.Save(saved); Reload(applied.Id); }
+        }
     }
 
     /// <summary>将方案模式键转换为当前语言的名称。</summary>

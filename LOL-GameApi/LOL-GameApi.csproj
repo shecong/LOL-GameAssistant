@@ -9,6 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../Shared/LoungeProtocol.cs" Link="Lounge/LoungeProtocol.cs" />
+    <Compile Include="../Shared/LoungeContent.cs" Link="Lounge/LoungeContent.cs" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 

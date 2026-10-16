@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Domain.Skins;
+﻿using LOL_GameAssistant.Domain.Skins;
 using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
@@ -112,7 +112,7 @@ public sealed partial class SkinToolsForm
             else
             {
                 RememberSkin(catalog, target);
-                string name = target.Name + (string.IsNullOrWhiteSpace(target.GearName) ? "" : $" · {target.GearName}");
+                string name = GetSkinDisplayName(target);
                 HotkeySkinApplied?.Invoke(name);
                 (_skinNotice ??= new SkinChangeOverlayForm()).ShowSkin(name);
             }

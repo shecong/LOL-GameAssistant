@@ -8,6 +8,19 @@ namespace LOL_GameAssistant.Tests;
 public sealed class RecentModePerformanceServiceTests
 {
     [Fact]
+    public async Task SmallerVisibleFirstPageContinuesAtTwentyWithoutLosingThirtyDaySamples()
+    {
+        long recent = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds();
+        var games = Enumerable.Range(1, 125).Select(id => Game(id, recent, 450)).ToList();
+        var source = new FakeHistory(games);
+        var first = await source.GetPageAsync("self", 0, 19);
+        var result = await new RecentModePerformanceService(source).EvaluateAsync(
+            "self", 450, "ARAM", "大乱斗", firstPage: first, firstPageSize: 20);
+        Assert.Equal(125, result.SampleSize);
+        Assert.Equal(3, source.PageRequests);
+    }
+
+    [Fact]
     public async Task BackgroundScoringLeavesCapacityForVisibleRowsAndCancellationReleasesSlots()
     {
         var games = Enumerable.Range(1, 6).Select(id => Game(id, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 450)).ToList();

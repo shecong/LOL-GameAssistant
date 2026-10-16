@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Domain.GameData;
+﻿using LOL_GameAssistant.Domain.GameData;
 
 namespace LOL_GameAssistant.Application.GameData;
 

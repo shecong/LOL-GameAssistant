@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.Builds;
+﻿using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.GameData;
@@ -11,6 +11,43 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window resources")]
 public sealed class OpggBuildPickerTests
 {
+    [Fact]
+    public void MoreRecommendationsAreRequestedOnlyAfterExplicitLoad() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var requests = new List<OpggBuildRequest>();
+        var all = Enumerable.Range(1, 7).Select(order => Choices("TOP").Options[0] with
+            { Order = order, CoreItemIds = [3078, 3053, 6300 + order] }).ToArray();
+        var service = BuildService(args =>
+        {
+            var request = (OpggBuildRequest)args[2]!;
+            requests.Add(request);
+            return Task.FromResult(Choices("TOP") with { Options = all.Skip(request.Offset).Take(request.Limit).ToArray() });
+        });
+        using var form = new OpggBuildPickerForm(Choices("TOP") with { Options = all.Take(3).ToArray() }, new EmptyAssets(), buildService: service);
+        form.Show();
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Empty(requests);
+        Assert.Equal(3, Children(form).OfType<Button>().Count(button => button.Name.StartsWith("applyRoute")));
+        SecondPhaseRegressionTests.Pump(form.ChangeCategoryAsync("ranked", "TOP", true));
+        Assert.Single(requests);
+        Assert.Equal(3, requests[0].Offset);
+        Assert.Equal(3, requests[0].Limit);
+        Assert.Equal(6, Children(form).OfType<Button>().Count(button => button.Name.StartsWith("applyRoute")));
+        SecondPhaseRegressionTests.Pump(form.ChangeCategoryAsync("ranked", "TOP", true));
+        Assert.Equal(6, requests[1].Offset);
+        Assert.Equal(7, Children(form).OfType<Button>().Count(button => button.Name.StartsWith("applyRoute")));
+        Assert.False(Children(form).OfType<Button>().Single(button => button.Text == "已显示全部可用搭配").Enabled);
+    });
+
+    [Fact]
+    public void DuplicateBuildsAreRemovedAndRuneNamesAreShown() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var choices = Choices("TOP");
+        using var form = new OpggBuildPickerForm(choices with { Options = [choices.Options[0], choices.Options[0] with { Order = 2 }] }, new EmptyAssets());
+        form.Show();
+        SecondPhaseRegressionTests.PumpUntil(() => Children(form).OfType<Label>().Any(label => label.Text == "征服者"));
+        Assert.Single(Children(form).OfType<Button>(), button => button.Name.StartsWith("applyRoute"));
+    });
     [Fact]
     public void EscapeClosesIndependentPickerWithoutApplying() => MatchListScrollingTests.OnUiThread(() =>
     {
@@ -51,7 +88,7 @@ public sealed class OpggBuildPickerTests
     [Theory]
     [InlineData(0)]
     [InlineData(120)]
-    [InlineData(220)]
+    [InlineData(260)]
     public void FocusingVisibleRowApplyKeepsButtonUnderPointer(int offset) => MatchListScrollingTests.OnUiThread(() =>
     {
         using var form = CreateForm();
@@ -83,7 +120,7 @@ public sealed class OpggBuildPickerTests
     [Theory]
     [InlineData(0)]
     [InlineData(120)]
-    [InlineData(220)]
+    [InlineData(260)]
     public void StartingApplicationDoesNotScrollAwayFromClickedRow(int offset) => MatchListScrollingTests.OnUiThread(() =>
     {
         var response = new TaskCompletionSource<OpggBuildApplyResult>();
@@ -255,6 +292,8 @@ public sealed class OpggBuildPickerTests
         using var form = CreateForm(buildService: service);
         form.Show();
         System.Windows.Forms.Application.DoEvents();
+        Assert.Empty(calls);
+        SecondPhaseRegressionTests.Pump(form.ChangeCategoryAsync("ranked", "all"));
         foreach (string lane in new[] { "上路", "打野", "中路", "下路", "辅助" })
             Assert.True(Children(form).OfType<Label>().Any(label => label.Text.Contains($"[{lane}]")),
                 lane + ": " + string.Join(";", Children(form).OfType<Label>().Where(label => label.Text.StartsWith("方案")).Select(label => label.Text)));
@@ -268,7 +307,7 @@ public sealed class OpggBuildPickerTests
     });
 
     [Fact]
-    public void TypeSwitchLoadsAramAndPreventsApplyingItToCurrentRiftMatch() => MatchListScrollingTests.OnUiThread(() =>
+    public void TypeSwitchLoadsAramAndAllowsExplicitCrossModeApplication() => MatchListScrollingTests.OnUiThread(() =>
     {
         var service = BuildService(args => Task.FromResult(Choices((string)args[1]!,
             ((OpggBuildRequest)args[2]!).GameMode == "ARAM" ? "aram" : "ranked")));
@@ -277,11 +316,9 @@ public sealed class OpggBuildPickerTests
         System.Windows.Forms.Application.DoEvents();
         Children(form).OfType<Button>().Single(button => button.Text == "大乱斗").PerformClick();
         Assert.Equal("aram", form.SelectedOption?.Mode);
-        Assert.Contains(Children(form).OfType<Label>(), label => label.Name == "applyStatus" &&
-            label.Visible && label.Text.Contains("与当前对局模式不一致"));
-        Assert.False(Children(form).OfType<Button>().Single(button => button.Text == "应用选中方案").Enabled);
+        Assert.True(Children(form).OfType<Button>().Single(button => button.Text == "应用选中方案").Enabled);
         Assert.All(Children(form).OfType<Button>().Where(button => button.Name.StartsWith("applyRoute")),
-            button => Assert.False(button.Enabled));
+            button => Assert.True(button.Enabled));
         Assert.All(Children(form).OfType<Button>().Where(button => button.Text is "上路" or "下路" or "中路"),
             button => Assert.False(button.Enabled));
         Children(form).OfType<Button>().Single(button => button.Text == "峡谷").PerformClick();
@@ -327,6 +364,9 @@ public sealed class OpggBuildPickerTests
         using var form = CreateForm(buildService: service);
         form.Show();
         System.Windows.Forms.Application.DoEvents();
+        Assert.Empty(pending);
+        var loading = form.ChangeCategoryAsync("ranked", "all");
+        System.Windows.Forms.Application.DoEvents();
         Assert.Equal(4, pending.Count);
         Assert.Contains(Children(form).OfType<Label>(), label => label.Visible && label.Text.Contains("[上路]"));
         Assert.True(Children(form).OfType<Button>().Single(button => button.Text == "应用选中方案").Enabled);
@@ -347,10 +387,10 @@ public sealed class OpggBuildPickerTests
             ? OpggBuildChoices.Failure("此英雄上路暂无数据") : Choices((string)args[1]!)));
         using var form = CreateForm("aram", service);
         form.Show();
-        Assert.True(form.ChangeCategoryAsync("ranked", "TOP").IsCompletedSuccessfully);
+        SecondPhaseRegressionTests.Pump(form.ChangeCategoryAsync("ranked", "TOP"));
         Assert.Null(form.SelectedOption);
         Assert.Contains(Children(form).OfType<Label>(), label => label.Visible && label.Text == "此英雄上路暂无数据");
-        Assert.True(form.ChangeCategoryAsync("ranked", "TOP").IsCompletedSuccessfully);
+        SecondPhaseRegressionTests.Pump(form.ChangeCategoryAsync("ranked", "TOP"));
         Assert.Equal("TOP", form.SelectedPosition);
         Assert.NotNull(form.SelectedOption);
     });
@@ -434,7 +474,7 @@ public sealed class OpggBuildPickerTests
     [InlineData("未知", 0, "", "ranked", true, true)]
     [InlineData("ChampSelect", 122, "CLASSIC", "ranked", true, true)]
     [InlineData("ChampSelect", 22, "CLASSIC", "ranked", true, false)]
-    [InlineData("ChampSelect", 122, "ARAM", "ranked", true, false)]
+    [InlineData("ChampSelect", 122, "ARAM", "ranked", true, true)]
     [InlineData("InProgress", 122, "CLASSIC", "ranked", true, false)]
     [InlineData("Lobby", 0, "", "ranked", false, false)]
     public void ApplyRechecksCurrentContext(string phase, int championId, string mode,
@@ -491,7 +531,7 @@ public sealed class OpggBuildPickerTests
         Func<OpggBuildOption, string, bool, Task<OpggBuildApplyResult>>? applySelection = null)
     {
         var options = Enumerable.Range(1, 4).Select(order => new OpggBuildOption(order,
-            [1054, 2003], [3078, 3053, 6333], [3143, 3065, 3071, 3026, 3047, 3082],
+            [1054, 2003], [3078, 3053, 6333 + order], [3143, 3065, 3071, 3026, 3047, 3082],
             8000, 8200, mode == "aram_mayhem" ? [] : [8010, 9111, 9104, 8299, 8234, 8236, 5008, 5008, 5001],
             7200 / order, 3500 / order, [4, 12], Mode: mode)).ToArray();
         return new OpggBuildPickerForm(new OpggBuildChoices(true, "", "德莱厄斯", "上路", options,
@@ -504,6 +544,8 @@ public sealed class OpggBuildPickerTests
 
     private sealed class EmptyAssets : IGameAssetService
     {
+        public Task<string?> GetRuneDetailsAsync(int id, CancellationToken token = default) => Task.FromResult<string?>(id == 8010 ? "征服者\n叠加适应之力" : "测试符文\n符文效果说明");
+        public Task<string?> GetItemDescriptionAsync(int id, CancellationToken token = default) => Task.FromResult<string?>("增加攻击力与生命值");
         public Task<GameAsset?> GetChampionIconAsync(int id, CancellationToken token = default) => Task.FromResult<GameAsset?>(null);
         public Task<GameAsset?> GetItemIconAsync(int id, CancellationToken token = default) => Task.FromResult<GameAsset?>(null);
         public Task<GameAsset?> GetRuneIconAsync(int id, CancellationToken token = default) => Task.FromResult<GameAsset?>(null);

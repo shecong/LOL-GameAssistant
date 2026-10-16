@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.ChampionSelect;
+﻿using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.LeagueClient;
@@ -79,8 +79,9 @@ namespace LOL_GameAssistant
         private const int BattleQueryTabIndex = 2;
         private const int CoachTabIndex = 5;
         private readonly AntdUI.TabPage _coachTab;
-        private readonly AntdUI.TabPage _diagnosticsTab;
         private readonly AntdUI.TabPage _skinTab;
+        private readonly AntdUI.TabPage _loungeTab;
+        private readonly Infrastructure.Lounge.LoungeClient _lounge = AppCompositionRoot.CreateLoungeClient();
         private readonly SkinToolsForm _skinTools;
 
         /// <summary>判断用户当前是否停留在对局页面。</summary>
@@ -192,16 +193,16 @@ namespace LOL_GameAssistant
             tabs1.ItemSize = 112;
             tabs1.Gap = 12;
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
-            _diagnosticsTab = new AntdUI.TabPage { Text = "运行诊断", Dock = DockStyle.Fill };
             _skinTab = new AntdUI.TabPage { Text = "游戏换肤", Dock = DockStyle.Fill };
             _skinTools = new SkinToolsForm(AppCompositionRoot.SkinCoreService, _settingsStore);
             _skinTab.Controls.Add(_skinTools);
             tabs1.Controls.Add(_coachTab);
             tabs1.Pages.Add(_coachTab);
-            tabs1.Controls.Add(_diagnosticsTab);
-            tabs1.Pages.Add(_diagnosticsTab);
             tabs1.Controls.Add(_skinTab);
             tabs1.Pages.Add(_skinTab);
+            _loungeTab = new AntdUI.TabPage { Text = "lol休息室", Name = "tabPageLounge", Dock = DockStyle.Fill };
+            tabs1.Controls.Add(_loungeTab);
+            tabs1.Pages.Add(_loungeTab);
             tabs1.Pages.Add(tabPage4);
             _windowHoldController = new WindowHoldController(this);
             _windowHoldController.ConfigureBattleOverlay(
@@ -222,6 +223,7 @@ namespace LOL_GameAssistant
                 _battleQueryForm?.Dispose();
                 _diagnosticsForm?.Dispose();
                 _settingForm?.Dispose();
+                _lounge.Dispose();
             };
         }
 
@@ -472,14 +474,28 @@ namespace LOL_GameAssistant
             _coachTab.Controls.Clear();
             coachForm.Dock = DockStyle.Fill;
             _coachTab.Controls.Add(coachForm);
-            _diagnosticsTab.Controls.Add(new DeferredPageHost(() => diagnosticsForm));
             //关于
+            _loungeTab.Controls.Add(new DeferredPageHost(() => new LoungeForm(_lounge)));
+            _lounge.Changed += () => RunOnUiThread(() =>
+            {
+                if (!IsDisposed) _loungeTab.Text = _lounge.UnreadCount > 0 ? $"lol休息室 ({_lounge.UnreadCount})" : "lol休息室";
+            });
+            _lounge.Notification += (title, text) => RunOnUiThread(() =>
+            {
+                if (IsDisposed) return;
+                infoMsg.AddMsg(title + "：" + text);
+                if (_trayIcon == null) return;
+                _trayIcon.Visible = true;
+                _trayIcon.ShowBalloonTip(5000, title, text.Length > 240 ? text[..240] : text, ToolTipIcon.Info);
+                _ = Task.Delay(6000).ContinueWith(_ => RunOnUiThread(UpdateTrayVisibility));
+            });
+            _lounge.Start();
             tab4_grid1.Controls.Add(new DeferredPageHost(() => new AboutForm()));
             //加载设置
             tabPage5.Controls.Add(new DeferredPageHost(() => settingForm));
             //加载日志窗口
             tab5_grid1.Controls.Clear();
-            tab5_grid1.Controls.Add(infoMsg);
+            tab5_grid1.Controls.Add(new LogToolsForm(infoMsg, () => diagnosticsForm));
         }
 
         /// <summary>
@@ -494,6 +510,7 @@ namespace LOL_GameAssistant
             {
                 if (tabs1.SelectedIndex == 0) await home.RefreshAsync();
                 else if (tabs1.SelectedIndex == BattleQueryTabIndex) await battleQueryForm.PerformSearchAsync();
+                else if (tabs1.Pages[tabs1.SelectedIndex] == _loungeTab) return;
                 else await liveGameForm.FetchAllPlayersAsync();
             }
             finally { if (!IsDisposed) dj_refresh.Loading = false; }
@@ -1328,6 +1345,7 @@ namespace LOL_GameAssistant
                 Cleanup(() => _champSelectCompanion.Dispose());
                 Cleanup(StopPhaseDataLoad);
                 Cleanup(() => _connectionMonitor.Dispose());
+                Cleanup(() => _lounge.Dispose());
                 NotifyIcon? trayIcon = _trayIcon;
                 _trayIcon = null;
                 Cleanup(() => trayIcon?.Dispose());
