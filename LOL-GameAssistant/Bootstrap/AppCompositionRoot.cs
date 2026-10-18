@@ -52,7 +52,7 @@ public static class AppCompositionRoot
     public static IGameClientLauncher GameClientLauncher { get; } = new LocalGameClientLauncher();
 
     /// <summary>发布版本查询服务。</summary>
-    public static IUpdateReleaseService UpdateReleaseService { get; } = new GitHubUpdateReleaseService();
+    public static IUpdateReleaseService UpdateReleaseService { get; } = new ServerUpdateReleaseService();
 
     /// <summary>用户明确选择的文本导出服务。</summary>
     public static ITextExportService TextExportService { get; } = new TextExportService();
@@ -102,7 +102,9 @@ public static class AppCompositionRoot
     /// <summary>英雄、装备和技能等只读游戏资源服务。</summary>
     public static IGameAssetService GameAssetService { get; } = new CachedGameAssetService(
         new LegacyGameAssetService(), () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
-    public static IAugmentScanner AugmentScanner { get; } = new LocalAugmentScanner();
+    public static IGameOverlayBridge GameOverlay { get; } = new NativeGameOverlayBridge();
+
+    public static IAugmentScanner AugmentScanner { get; } = new LocalAugmentScanner(GameOverlay);
     public static IAugmentInfoService AugmentInfoService { get; } = new AugmentInfoService();
 
     /// <summary>英雄 ID 与展示名称目录。</summary>

@@ -12,7 +12,8 @@ public sealed partial class SkinToolsForm
     private readonly AntdUI.Switch _hotkeyEnabled = new() { Name = "SkinHotkeysEnabled", Width = 52, Height = 30 };
     private readonly AntdUI.Input _previousKey = new() { Name = "SkinPreviousKey", Height = 40, Dock = DockStyle.Fill, Font = new Font(UiMetrics.FontFamily, 10) };
     private readonly AntdUI.Input _nextKey = new() { Name = "SkinNextKey", Height = 40, Dock = DockStyle.Fill, Font = new Font(UiMetrics.FontFamily, 10) };
-    private readonly AntdUI.Label _hotkeyStatus = new() { Dock = DockStyle.Fill, Text = "仅游戏前台生效；切换后自动应用并提示皮肤名称。" };
+    private readonly AntdUI.Input _pickerKey = new() { Name = "SkinPickerKey", Height = 40, Dock = DockStyle.Fill, Font = new Font(UiMetrics.FontFamily, 10) };
+    private readonly AntdUI.Label _hotkeyStatus = new() { Dock = DockStyle.Fill, Text = "浮窗快捷键默认 Home，可点击输入框录制；需启用独立核心。\n上一款/下一款仅游戏前台生效；切换后自动应用。" };
     private CancellationTokenSource? _hotkeyRequests;
     private long _lastHotkeyAt;
     private bool _savingHotkeys;
@@ -22,20 +23,21 @@ public sealed partial class SkinToolsForm
         var settings = _settings.Load();
         _hotkeyEnabled.Checked = settings.SkinHotkeysEnabled;
         _previousKey.Text = settings.SkinPreviousHotkey; _nextKey.Text = settings.SkinNextHotkey;
+        _pickerKey.Text = settings.SkinPickerHotkey;
         _hotkeyCard = new AntdUI.Panel { Dock = DockStyle.Fill, Radius = 14, BorderWidth = 1, Padding = new Padding(24), Margin = new Padding(0, 14, 0, 0) };
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 5 };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 6 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140)); layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (int i = 0; i < 4; i++) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        for (int i = 0; i < 5; i++) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         void Row(int index, string label, Control control)
         {
             layout.Controls.Add(new AntdUI.Label { Dock = DockStyle.Fill, Text = label, TextAlign = ContentAlignment.MiddleLeft }, 0, index);
             layout.Controls.Add(control, 1, index);
         }
-        Row(0, "游戏内快捷键", _hotkeyEnabled); Row(1, "上一款皮肤", _previousKey); Row(2, "下一款皮肤", _nextKey);
+        Row(0, "浮窗显示 / 隐藏", _pickerKey); Row(1, "上一款/下一款开关", _hotkeyEnabled); Row(2, "上一款皮肤", _previousKey); Row(3, "下一款皮肤", _nextKey);
         var save = new AntdUI.Button { Text = "保存快捷键", Width = 146, Height = 38 }; save.Click += (_, _) => SaveHotkeys();
-        Row(3, "", save); layout.Controls.Add(_hotkeyStatus, 0, 4); layout.SetColumnSpan(_hotkeyStatus, 2);
-        foreach (var input in new[] { _previousKey, _nextKey })
+        Row(4, "", save); layout.Controls.Add(_hotkeyStatus, 0, 5); layout.SetColumnSpan(_hotkeyStatus, 2);
+        foreach (var input in new[] { _previousKey, _nextKey, _pickerKey })
         {
             input.KeyDown += (_, e) =>
             {
@@ -53,22 +55,25 @@ public sealed partial class SkinToolsForm
         if (_disposing || _savingHotkeys) return;
         _savingHotkeys = true;
         LOL_GameAssistant.Domain.Settings.AssistantSettings? config = null;
-        (bool core, bool enabled, string previous, string next) original = (false, false, "", "");
+        (bool core, bool enabled, string previous, string next, string picker) original = (false, false, "", "", "Home");
         try
         {
             config = _settings.Load(); bool coreEnabled = config.SkinCoreEnabled;
-            original = (coreEnabled, config.SkinHotkeysEnabled, config.SkinPreviousHotkey, config.SkinNextHotkey);
-            if (new[] { _previousKey, _nextKey }.Any(input => !WindowHoldController.TryParseGameHotkey(input.Text, out _)))
+            original = (coreEnabled, config.SkinHotkeysEnabled, config.SkinPreviousHotkey, config.SkinNextHotkey, config.SkinPickerHotkey);
+            if (new[] { _previousKey, _nextKey, _pickerKey }.Any(input => !WindowHoldController.TryParseGameHotkey(input.Text, out _)))
                 throw new InvalidOperationException("快捷键格式无效，请点击输入框重新录制。");
             config.SkinPreviousHotkey = _previousKey.Text; config.SkinNextHotkey = _nextKey.Text;
+            config.SkinPickerHotkey = _pickerKey.Text;
             config.SkinHotkeysEnabled = _hotkeyEnabled.Checked;
             config.SkinCoreEnabled = true;
             var bindings = WindowHoldController.CreateGameHotkeyBindings(config);
             config.SkinCoreEnabled = coreEnabled;
-            if (config.SkinHotkeysEnabled && new[] { QuickShoutHotkeyAction.SkinPrevious, QuickShoutHotkeyAction.SkinNext }.Any(action => !bindings.ContainsValue(action)))
+            if (!bindings.ContainsValue(QuickShoutHotkeyAction.SkinPicker) ||
+                config.SkinHotkeysEnabled && new[] { QuickShoutHotkeyAction.SkinPrevious, QuickShoutHotkeyAction.SkinNext }.Any(action => !bindings.ContainsValue(action)))
                 throw new InvalidOperationException("快捷键存在冲突，请更换后保存。");
             _settings.Save(config); RenewHotkeyRequests(); HotkeySettingsChanged?.Invoke();
-            _hotkeyStatus.Text = UiLanguage.T("快捷键已保存，仅游戏前台生效。");
+            _hotkeyStatus.Text = UiLanguage.T("快捷键已保存，仅游戏前台生效。") + $"\n{config.SkinPickerHotkey} 显示/隐藏局内皮肤选择窗（需启用独立核心）。";
+            UpdateSkinPicker();
         }
         catch (Exception error)
         {
@@ -76,6 +81,7 @@ public sealed partial class SkinToolsForm
             {
                 config.SkinCoreEnabled = original.core; config.SkinHotkeysEnabled = original.enabled;
                 config.SkinPreviousHotkey = original.previous; config.SkinNextHotkey = original.next;
+                config.SkinPickerHotkey = original.picker;
                 _hotkeyEnabled.Checked = original.enabled;
             }
             _hotkeyStatus.Text = error.Message;
@@ -95,6 +101,7 @@ public sealed partial class SkinToolsForm
     }
     public async Task ApplyHotkeyAsync(QuickShoutHotkeyAction action)
     {
+        if (action == QuickShoutHotkeyAction.SkinPicker) { await ToggleSkinPickerAsync(); return; }
         if (_disposing || !_inProgress || _busy || _refreshing || !_core.Enabled || !_settings.Load().SkinHotkeysEnabled || _hotkeyRequests == null) return;
         if (action is not (QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext)) return;
         long now = Environment.TickCount64; if (now - _lastHotkeyAt < 750) return; _lastHotkeyAt = now;

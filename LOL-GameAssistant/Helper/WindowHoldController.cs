@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant.Helper;
 
-public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda, Player1 = 100, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10, SkinPrevious = 200, SkinNext }
+public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch, GameKda, Player1 = 100, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10, SkinPrevious = 200, SkinNext, SkinPicker }
 
 /// <summary>
 /// 置顶键使用 Windows 热键；局内面板同时检测按键状态，避免游戏拦截热键消息后无响应。
@@ -149,6 +149,8 @@ public sealed class WindowHoldController : IDisposable
     internal static Dictionary<Keys, QuickShoutHotkeyAction> CreateGameHotkeyBindings(AssistantSettings config)
     {
         var candidates = new List<(Keys Key, QuickShoutHotkeyAction Action)>();
+        if (config.SkinCoreEnabled && TryParseGameHotkey(config.SkinPickerHotkey, out Keys picker))
+            candidates.Add((picker, QuickShoutHotkeyAction.SkinPicker));
         if (config.SkinCoreEnabled && config.SkinHotkeysEnabled)
         {
             if (TryParseGameHotkey(config.SkinPreviousHotkey, out Keys previous)) candidates.Add((previous, QuickShoutHotkeyAction.SkinPrevious));
@@ -176,7 +178,7 @@ public sealed class WindowHoldController : IDisposable
     public static bool HasGameHotkeyConflict(AssistantSettings config) =>
         CreateGameHotkeyBindings(config).Count !=
         (config.QuickShoutHotkeysEnabled ? 3 : 0) + (config.GameKdaHotkeyEnabled ? 1 : 0) + (config.GameKdaPlayerHotkeysEnabled ? 10 : 0) +
-        (config.SkinCoreEnabled && config.SkinHotkeysEnabled ? 3 : 0);
+        (config.SkinCoreEnabled ? 1 : 0) + (config.SkinCoreEnabled && config.SkinHotkeysEnabled ? 2 : 0);
 
     public static bool HasBattleOverlayHotkeyConflict(AssistantSettings config)
     {
@@ -188,6 +190,7 @@ public sealed class WindowHoldController : IDisposable
                 ParseGameHotkey(config.QuickShoutCustomHotkey, Keys.F7),
                 ParseGameHotkey(config.QuickShoutBatchHotkey, Keys.F8)
             }.Contains(key)) ||
+            (config.SkinCoreEnabled && TryParseGameHotkey(config.SkinPickerHotkey, out Keys picker) && key == picker) ||
             (config.GameKdaHotkeyEnabled && key == ParseGameHotkey(config.GameKdaHotkey, Keys.F9)) ||
             (config.GameKdaPlayerHotkeysEnabled && key is >= Keys.NumPad0 and <= Keys.NumPad9) ||
             (config.SkinCoreEnabled && config.SkinHotkeysEnabled && new[] { config.SkinPreviousHotkey, config.SkinNextHotkey }
@@ -309,6 +312,8 @@ public sealed class WindowHoldController : IDisposable
             return true;
         if (_onlyWhenLeagueFocused && !IsLeagueForeground()) return true;
         if (_registeredForOverlay && !ShouldUseOverlay()) return true;
+        // Desktop topmost windows can minimize an exclusive fullscreen game.
+        if (!_registeredForOverlay && IsLeagueGameForeground()) return true;
         // A queued WM_HOTKEY must not reopen the window after a quick tap has already ended.
         if (!IsHotkeyHeld(_registeredKey)) return true;
         _holdingOverlay = _registeredForOverlay;

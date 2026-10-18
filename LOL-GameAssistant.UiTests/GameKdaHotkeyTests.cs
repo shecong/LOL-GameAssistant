@@ -11,6 +11,23 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class GameKdaHotkeyTests
 {
     [Fact]
+    public void HomePickerRequiresCoreButDoesNotRequireCyclingHotkeys()
+    {
+        var settings = new AssistantSettings { SkinCoreEnabled = false, SkinHotkeysEnabled = false };
+        Assert.DoesNotContain(QuickShoutHotkeyAction.SkinPicker, Bindings(settings).Values);
+        settings.SkinCoreEnabled = true;
+        Assert.Equal(QuickShoutHotkeyAction.SkinPicker, Bindings(settings)[Keys.Home]);
+        Assert.False(WindowHoldController.HasGameHotkeyConflict(settings));
+        settings.SkinPickerHotkey = "Ctrl+F10";
+        Assert.Equal(QuickShoutHotkeyAction.SkinPicker, Bindings(settings)[Keys.Control | Keys.F10]);
+        Assert.DoesNotContain(Keys.Home, Bindings(settings).Keys);
+        settings.SkinPickerHotkey = "Home";
+        settings.BattleOverlayEnabled = true; settings.BattleOverlayHotkey = "Home";
+        Assert.True(WindowHoldController.HasBattleOverlayHotkeyConflict(settings));
+        Assert.True(WindowHoldController.HasGameHotkeyConflict(settings));
+    }
+
+    [Fact]
     public void SkinBindingsRequireBothSwitchesAndRejectConflicts()
     {
         var settings = new AssistantSettings { SkinCoreEnabled = true, SkinHotkeysEnabled = true };

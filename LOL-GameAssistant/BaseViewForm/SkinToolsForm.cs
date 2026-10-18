@@ -59,7 +59,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         var content = new TableLayoutPanel { ColumnCount = 1, RowCount = 3, Margin = Padding.Empty, Padding = Padding.Empty };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 472));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 314));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 356));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
         _card.Dock = DockStyle.Fill; _card.Margin = Padding.Empty;
         content.Controls.Add(_card, 0, 0); content.Controls.Add(CreateHotkeyCard(), 0, 1); content.Controls.Add(notice, 0, 2);
@@ -69,7 +69,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             int width = Math.Max(360, viewport.ClientSize.Width - 24);
             int skinHeight = width < 560 ? 528 : 472;
             content.RowStyles[0].Height = skinHeight;
-            content.SetBounds(12, 12, width, skinHeight + 414);
+            content.SetBounds(12, 12, width, skinHeight + 456);
         }
         viewport.Controls.Add(content); viewport.Resize += (_, _) => PositionContent(); PositionContent(); BuildSkinNavigation(viewport);
         _enabled.Checked = settings.Load().SkinCoreEnabled;
@@ -161,6 +161,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private void UpdateButtons()
     {
         if (_disposing || IsDisposed) return;
+        UpdateSkinPicker();
         bool ready = _inProgress && _core.Enabled && !_busy && Visible && _catalog != null;
         _refresh.Enabled = _inProgress && _core.Enabled && !_busy && !_refreshing && Visible;
         _search.Enabled = _core.Enabled; _entries.Enabled = ready;
@@ -336,7 +337,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (_hotkeyCard != null) ThemeCardLabels(_hotkeyCard);
         _status.BackColor = palette.SurfaceRaised; _status.ForeColor = palette.TextSecondary;
         _current.BackColor = palette.SurfaceMuted; _current.ForeColor = palette.TextPrimary;
-        foreach (var input in new[] { _previousKey, _nextKey })
+        foreach (var input in new[] { _previousKey, _nextKey, _pickerKey })
         {
             input.BackColor = palette.SurfaceMuted; input.ForeColor = palette.TextPrimary;
             input.BorderColor = palette.Border;
@@ -358,6 +359,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             _previewCancellation?.Dispose();
             _poster.Image?.Dispose();
             _skinNotice?.Dispose();
+            _skinPicker?.Dispose();
             _core.InvalidateSession();
         }
         base.Dispose(disposing);

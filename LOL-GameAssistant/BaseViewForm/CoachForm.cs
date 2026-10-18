@@ -336,7 +336,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         if (!string.Equals(state.Context.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
         {
             _lastOverlaySignature = "";
-            if (_overlay.Visible) _overlay.Hide();
+            if (_overlay.OverlayVisible) _overlay.Hide();
             return;
         }
 
@@ -344,7 +344,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             RecommendationStatus.ConfigurationRequired or RecommendationStatus.Failed)
         {
             _lastOverlaySignature = "";
-            if (_overlay.Visible) _overlay.Hide();
+            if (_overlay.OverlayVisible) _overlay.Hide();
             return;
         }
 
@@ -357,7 +357,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         if (!ai.RecommendationOverlayEnabled && !ai.ShowRecommendationPopup)
         {
             _lastOverlaySignature = "";
-            if (_overlay.Visible) _overlay.Hide();
+            if (_overlay.OverlayVisible) _overlay.Hide();
             return;
         }
         CoachRecommendation recommendation = state.Recommendations[0];

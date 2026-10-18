@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "version": "6.1.0",
+  "runtime": "win-x64",
+  "package": "LOL-GameAssistant-win-x64.zip",
+  "size": 12345678,
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "entryExecutable": "LOL-GameGUI.exe"
+}

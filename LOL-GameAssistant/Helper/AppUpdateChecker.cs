@@ -67,7 +67,7 @@ internal static class AppUpdateChecker
         {
             RuntimeDiagnostics.Report("软件更新", "检查失败", ex.Message);
             if (!automatic && !owner.IsDisposed && !owner.Disposing)
-                UiMessage.error(owner, $"暂时无法检查更新，请稍后重试，或前往 GitHub 发布页 / QQ 群 {UpdateAvailableForm.QqGroupNumber} 获取。详情见日志。");
+                UiMessage.error(owner, $"暂时无法检查更新，请稍后重试，或前往服务器下载页 / GitHub 发布页 / QQ 群 {UpdateAvailableForm.QqGroupNumber} 获取。详情见日志。");
         }
         finally
         {

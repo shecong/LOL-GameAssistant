@@ -10,12 +10,14 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class QuickShoutLayoutTests
 {
     [Theory]
+    [InlineData(820)]
     [InlineData(980)]
     [InlineData(1440)]
     public void OptionInputsAreVisibleAndAligned(int width) => MatchListScrollingTests.OnUiThread(() =>
     {
         using var host = new Form { ClientSize = new Size(width, 760), StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000) };
         using var editor = CreateEditor();
+        if (width == 820) editor.Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold);
         host.Controls.Add(editor);
         UiTheme.SetMode("Dark");
         UiTheme.Apply(host);
@@ -38,11 +40,11 @@ public sealed class QuickShoutLayoutTests
         Assert.True(cooldown.Parent!.ClientRectangle.Contains(cooldown.Bounds), $"Cooldown {cooldown.Bounds}, parent {cooldown.Parent.ClientRectangle}");
         var phrases = Field<ListBox>(editor, "_phrases");
         Assert.True(phrases.Height >= 100);
-        if (width == 1440)
+        if (width == 1440 || width == 820)
         {
             using var bitmap = new Bitmap(host.ClientSize.Width, host.ClientSize.Height);
             editor.DrawToBitmap(bitmap, editor.ClientRectangle);
-            bitmap.Save(Path.Combine(Path.GetTempPath(), "quick-shout-layout.png"));
+            bitmap.Save(Path.Combine(Path.GetTempPath(), $"quick-shout-layout-{width}.png"));
         }
     });
 

@@ -16,6 +16,7 @@ public sealed class AssistantSettings
     public bool SkinCoreEnabled { get; set; }
     public Dictionary<string, LOL_GameAssistant.Domain.Skins.SkinEntry> RememberedHeroSkins { get; set; } = new();
     public bool SkinHotkeysEnabled { get; set; }
+    public string SkinPickerHotkey { get; set; } = "Home";
     public string SkinPreviousHotkey { get; set; } = "Ctrl+Alt+Left";
     public string SkinNextHotkey { get; set; } = "Ctrl+Alt+Right";
     public string GameClientPath { get; set; } = "";
@@ -99,6 +100,7 @@ public sealed class AssistantSettings
         LanguageMode = LanguageMode == "en-US" ? "en-US" : "zh-CN";
         GameClientPath ??= "";
         RememberedHeroSkins ??= new();
+        SkinPickerHotkey = string.IsNullOrWhiteSpace(SkinPickerHotkey) ? "Home" : SkinPickerHotkey;
         WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
         HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
         BattleOverlayHotkey = string.IsNullOrWhiteSpace(BattleOverlayHotkey) ? "Oem3" : BattleOverlayHotkey;

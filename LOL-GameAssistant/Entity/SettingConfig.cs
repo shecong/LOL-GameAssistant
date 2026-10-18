@@ -17,6 +17,7 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("rememberedHeroSkins")]
         public Dictionary<string, LOL_GameAssistant.Domain.Skins.SkinEntry> RememberedHeroSkins { get; set; } = new();
         public bool SkinHotkeysEnabled { get; set; }
+        public string SkinPickerHotkey { get; set; } = "Home";
         public string SkinPreviousHotkey { get; set; } = "Ctrl+Alt+Left";
         public string SkinNextHotkey { get; set; } = "Ctrl+Alt+Right";
 

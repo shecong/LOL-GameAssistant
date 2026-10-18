@@ -48,6 +48,31 @@ public sealed class AppUpdateTests
     });
 
     [Fact]
+    public void ServerEnabledPromptOffersBothSourcesAndFitsAtMinimumSize() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var owner = new Form { ShowInTaskbar = false };
+        owner.Show();
+        var release = new UpdateRelease(new Version(99, 0, 0), "v99.0.0", "https://github.com", "")
+        {
+            ServerManifestUrl = new Uri("https://updates.example.com/app/v99.0.0/update.json")
+        };
+        using var prompt = new UpdateAvailableForm(release);
+        prompt.Show(owner);
+        prompt.Size = prompt.MinimumSize;
+        System.Windows.Forms.Application.DoEvents();
+        var source = Assert.IsType<ComboBox>(prompt.Controls.Find("UpdateDownloadSource", true).Single());
+        Assert.Equal(2, source.Items.Count);
+        Assert.Equal(0, source.SelectedIndex);
+        source.SelectedIndex = 1;
+        Assert.True(source.Visible);
+        Assert.True(source.Parent!.ClientRectangle.Contains(source.Bounds));
+        var actions = prompt.Controls.Find("UpdateLater", true).Single().Parent!;
+        foreach (Control button in actions.Controls)
+            Assert.True(actions.ClientRectangle.Contains(button.Bounds), $"Clipped update action: {button.Bounds}");
+        Assert.True(actions.Parent!.ClientRectangle.Contains(actions.Bounds));
+    });
+
+    [Fact]
     public void AutomaticCheckStaysQuietForSameOlderMissingAndFailedReleases() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var owner = new Form { ShowInTaskbar = false };

@@ -394,6 +394,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.RememberedHeroSkins = latest.RememberedHeroSkins;
             _config.SkinCoreEnabled = latest.SkinCoreEnabled;
             _config.SkinHotkeysEnabled = latest.SkinHotkeysEnabled;
+            _config.SkinPickerHotkey = latest.SkinPickerHotkey;
             _config.SkinPreviousHotkey = latest.SkinPreviousHotkey;
             _config.SkinNextHotkey = latest.SkinNextHotkey;
             _settingsStore.Save(_config);

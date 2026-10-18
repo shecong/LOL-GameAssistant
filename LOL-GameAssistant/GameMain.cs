@@ -115,7 +115,7 @@ namespace LOL_GameAssistant
             _windowHoldController.ConfigureQuickShoutHotkeys(config,
                 action => _ = action switch
                 {
-                    QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext => ApplySkinHotkeyAsync(action),
+                    QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext or QuickShoutHotkeyAction.SkinPicker => ApplySkinHotkeyAsync(action),
                     >= QuickShoutHotkeyAction.Player1 and <= QuickShoutHotkeyAction.Player10 => liveGameForm.SendGameKdaManuallyAsync((int)action - 100),
                     QuickShoutHotkeyAction.GameKda => liveGameForm.SendGameKdaManuallyAsync(),
                     QuickShoutHotkeyAction.SelectedBatch => settingForm.SendSelectedQuickShoutToGameAsync(),
@@ -1339,6 +1339,7 @@ namespace LOL_GameAssistant
                 }
 
                 Cleanup(() => _autoActionCts?.Cancel());
+                Cleanup(() => AppCompositionRoot.GameOverlay.Dispose());
                 Cleanup(CancelAutoAccept);
                 Cleanup(StopOpggChampSelectMonitor);
                 Cleanup(() => _mayhemOverlay.Dispose());

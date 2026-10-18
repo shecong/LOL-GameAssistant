@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.InteropServices;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LiveGame;
@@ -327,8 +327,13 @@ public sealed class BattleOverlayTests
     [Fact]
     public void OverlayUsesNativeNonActivationAndMousePassThroughAndFitsGameBounds() => MatchListScrollingTests.OnUiThread(() =>
     {
-        using var overlay = CreateOverlay();
+        using var bridge = new RecordingGameOverlay();
+        using var overlay = CreateOverlay(bridge: bridge);
         overlay.ShowForGame(new Rectangle(10, 10, 1000, 600), "·");
+        Assert.False(overlay.IsHandleCreated);
+        var surface = bridge.Panels[GameOverlayPanelKind.Battle].Image!;
+        Assert.Equal(overlay.ClientSize, surface.Size);
+        Assert.NotEqual(surface.GetPixel(0,0),surface.GetPixel(40,40));
         int style = GetWindowLong(overlay.Handle, -20);
         Assert.Equal(0x08000000, style & 0x08000000);
         Assert.Equal(0x20, style & 0x20);
@@ -338,8 +343,11 @@ public sealed class BattleOverlayTests
         Assert.False(overlay.ShowInTaskbar);
         Assert.True(overlay.Width <= 900);
         Assert.True(overlay.Height <= 510);
-        Assert.True(overlay.Visible);
+        Assert.True(overlay.OverlayVisible);
+        Assert.False(overlay.Visible);
         overlay.StopTracking();
+        Assert.Empty(bridge.Panels);
+        Assert.False(overlay.OverlayVisible);
         Assert.False(overlay.Visible);
     });
 
@@ -433,8 +441,8 @@ public sealed class BattleOverlayTests
             stats = new() { Win = win, kills = kills, deaths = deaths, assists = assists } }]
     };
 
-    private static BattleOverlayForm CreateOverlay(IGameAssetService? assets = null) => new(null!, null!, null!, assets!,
-        Proxy<IChampionCatalog>((method, args) => method.Name == "GetDisplayName" ? ((int)args[0]! == 22 ? "寒冰射手" : "光辉女郎") : null));
+    private static BattleOverlayForm CreateOverlay(IGameAssetService? assets = null, IGameOverlayBridge? bridge = null) => new(null!, null!, null!, assets!,
+        Proxy<IChampionCatalog>((method, args) => method.Name == "GetDisplayName" ? ((int)args[0]! == 22 ? "寒冰射手" : "光辉女郎") : null), bridge);
 
     private static T Proxy<T>(Func<MethodInfo, object?[], object?> handler) where T : class
     {

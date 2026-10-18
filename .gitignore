@@ -367,3 +367,7 @@ FodyWeavers.xsd
 
 # Public lounge runtime database (including SQLite WAL files).
 /LOL-GameApi/data/
+
+# Native updater is rebuilt by tools/publish-update.ps1.
+/LOL-GameAssistant/Tools/Updater/
+/.artifacts/updates/

@@ -10,6 +10,8 @@ namespace LOL_GameAssistant.Infrastructure.GameData;
 /// <summary>只截取本机游戏窗口中央的增幅卡片区域，并在本机使用托管 PaddleOCR。</summary>
 public sealed class LocalAugmentScanner : IAugmentScanner
 {
+    private readonly IGameOverlayBridge? _overlay;
+    public LocalAugmentScanner(IGameOverlayBridge? overlay = null) => _overlay = overlay;
     private static readonly SemaphoreSlim ScanGate = new(1, 1);
     private static PaddleOcrAll? _engine;
 
@@ -29,17 +31,24 @@ public sealed class LocalAugmentScanner : IAugmentScanner
     {
         // Reuse one model pipeline without overlapping scans. Cancellation also applies while queued.
         await ScanGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { return await Task.Run(() => Scan(cancellationToken), cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            bool native = _overlay?.UseNativeOverlay == true;
+            using var capture = !native ? null : await _overlay!.CaptureAsync(cancellationToken).ConfigureAwait(false);
+            if (native && capture == null)
+                return new AugmentScanResult([], "游戏覆盖层尚未就绪，请查看运行诊断中的「游戏覆盖层」状态。");
+            return await Task.Run(() => Scan(cancellationToken, capture), cancellationToken).ConfigureAwait(false);
+        }
         finally { ScanGate.Release(); }
     }
 
     /// <summary>截取游戏窗口中的强化卡片区域并在本机执行 OCR 识别。</summary>
-    private static AugmentScanResult Scan(CancellationToken cancellationToken)
+    private static AugmentScanResult Scan(CancellationToken cancellationToken, GameOverlayCapture? capture)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Rectangle game = GetGameBounds(out int gameProcessId);
         if (game.Width < 600 || game.Height < 400)
-            return new AugmentScanResult(Array.Empty<int>(), "未找到可截取的游戏窗口，请将游戏设为无边框或窗口模式。");
+            return new AugmentScanResult(Array.Empty<int>(), "未找到可截取的游戏窗口，请保持游戏在前台。");
         if (!IsGameOrSidebarForeground(gameProcessId))
             return new AugmentScanResult(Array.Empty<int>(), "请将游戏或增幅侧边栏置于前台后重试扫描。");
         // The title height varies with resolution and the in-game UI scale.
@@ -49,9 +58,10 @@ public sealed class LocalAugmentScanner : IAugmentScanner
             game.Top + game.Height * 28 / 100,
             game.Width * 2 / 3,
             game.Height * 32 / 100);
-        using var screenshot = new Bitmap(region.Width, region.Height);
-        using (Graphics graphics = Graphics.FromImage(screenshot))
-            graphics.CopyFromScreen(region.Location, Point.Empty, region.Size);
+        using var screenshot = capture == null ? new Bitmap(region.Width, region.Height) : null;
+        if (screenshot != null)
+            using (Graphics graphics = Graphics.FromImage(screenshot))
+                graphics.CopyFromScreen(region.Location, Point.Empty, region.Size);
         var catalog = AugmentCatalog.GetAll();
         // ARAMKit's Mayhem stats use 1000+ IDs. The catalog also contains Arena-only
         // entries below 1000, which otherwise produce false OCR matches.
@@ -60,7 +70,7 @@ public sealed class LocalAugmentScanner : IAugmentScanner
             .Concat(mayhemCatalog.Where(item => !string.IsNullOrWhiteSpace(item.EnglishName))
                 .Select(item => (item.Id, item.EnglishName!))).ToArray();
         var engine = _engine ??= AugmentOcrEngine.Create();
-        return AugmentImageRecognizer.Recognize(screenshot, game.Size, engine, names, cancellationToken);
+        return AugmentImageRecognizer.Recognize(capture?.Image ?? screenshot!, capture?.GameSize ?? game.Size, engine, names, cancellationToken);
     }
 
     /// <summary>读取游戏窗口的客户区位置与尺寸。</summary>

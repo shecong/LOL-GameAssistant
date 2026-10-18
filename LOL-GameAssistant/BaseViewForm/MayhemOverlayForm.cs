@@ -1,5 +1,4 @@
-using System.Diagnostics;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.GameData;
@@ -14,10 +13,11 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     private readonly IAiCoachingService _context = AppCompositionRoot.AiCoachingService;
     private readonly IOpggBuildApplyService _builds = AppCompositionRoot.OpggBuildApplyService;
     private readonly IAugmentScanner _scanner;
+    private readonly IGameOverlayBridge _overlay;
     private readonly IAugmentInfoService _augments = AppCompositionRoot.AugmentInfoService;
     private readonly IGameAssetService _assets = AppCompositionRoot.GameAssetService;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 6000 };
-    private readonly System.Windows.Forms.Timer _visibilityTimer = new() { Interval = 1000 };
+    private readonly System.Windows.Forms.Timer _visibilityTimer = new() { Interval = 100 };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Top, Height = 54, ForeColor = Color.LightGray };
     private readonly AntdUI.Input _recommendations = TextPanel();
@@ -36,6 +36,7 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     private DateTimeOffset _loadedAt;
     private int _championId;
     private bool _tracking;
+    private bool _mayhemActive;
     private bool _busy;
     private bool _scanning;
     private bool _collapsed;
@@ -53,9 +54,10 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     /// <summary>初始化 MayhemOverlayForm 的实例状态。</summary>
     public MayhemOverlayForm() : this(AppCompositionRoot.AugmentScanner) { }
 
-    internal MayhemOverlayForm(IAugmentScanner scanner)
+    internal MayhemOverlayForm(IAugmentScanner scanner, IGameOverlayBridge? overlay = null)
     {
         _scanner = scanner;
+        _overlay = overlay ?? AppCompositionRoot.GameOverlay;
         Text = "海克斯增幅推荐";
         AntdWindowChrome.Configure(this, fitWorkingArea: false);
         EnableHitTest = false;
@@ -110,6 +112,7 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         Disposed += (_, _) =>
         {
             _lifetime.Cancel();
+            _overlay.Disable();
             UiLanguage.Changed -= LanguageChanged;
             _timer.Dispose();
             _visibilityTimer.Dispose();
@@ -170,11 +173,10 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         if (_tracking) return;
         _tracking = true;
         _status.Text = UiLanguage.T("正在读取当前对局与海克斯数据…");
-        if (!Visible) Show();
-        RaiseWithoutActivation();
+        // Wait for the mode check before showing; tracking also starts for non-Mayhem games.
         _timer.Start();
         _visibilityTimer.Start();
-        RuntimeDiagnostics.Report("增幅浮窗", "已启动", "已开启局内侧栏跟踪");
+        RuntimeDiagnostics.Report("增幅浮窗", "已启动", "已开启游戏覆盖层推荐跟踪");
         _ = PollAsync();
     }
 
@@ -183,8 +185,10 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     {
         if (IsDisposed) return;
         _tracking = false;
+        _mayhemActive = false;
         _timer.Stop();
         _visibilityTimer.Stop();
+        _overlay.Disable();
         if (_collapsed) Expand();
         _lastOfferKey = _dismissedOfferKey = _pendingOfferKey = "";
         _pendingOfferScans = 0;
@@ -192,20 +196,31 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         Hide();
     }
 
-    /// <summary>游戏重新成为前台后恢复层级，不依赖网络请求或 OCR 是否完成。</summary>
-    private void MaintainOverlayVisibility()
+    /// <summary>将推荐发送到游戏帧，持续跟踪期间不显示或激活桌面侧栏。</summary>
+    internal void MaintainOverlayVisibility()
     {
-        if (!_tracking || _scanning || IsDisposed || !Visible) return;
-        IntPtr foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero) return;
-        GetWindowThreadProcessId(foreground, out uint processId);
-        try
+        if (IsDisposed) return;
+        if (!_tracking || !_mayhemActive)
         {
-            using var process = Process.GetProcessById((int)processId);
-            if (string.Equals(process.ProcessName, "League of Legends", StringComparison.OrdinalIgnoreCase))
-                RaiseWithoutActivation();
+            _overlay.Disable();
+            if (Visible) Hide();
+            return;
         }
-        catch (ArgumentException) { } // Foreground process exited during the check.
+        if (!_overlay.UseNativeOverlay)
+        {
+            _overlay.Disable();
+            if (!WindowHoldController.TryGetForegroundGameBounds(out var bounds)) { if (Visible) Hide(); return; }
+            if (_collapsed) Left = bounds.Right - Width;
+            else if (!Visible) Location = new Point(bounds.Right-Width-18,bounds.Top+Math.Max(0,(bounds.Height-Height)/2));
+            if (!Visible) Show();
+            return;
+        }
+        if (Visible) Hide();
+        int command = _overlay.Publish(new GameOverlayFrame(_titleLabel.Text ?? "", _status.Text ?? "",
+            _recommendations.Text, _offered.Text, _raritySelector.SelectIndex, _collapsed, _scanning));
+        if (command == 1 && !_scanning) _ = ScanAsync();
+        else if (command == 2) { if (_collapsed) Expand(); else Collapse(); }
+        else if (command is >= 10 and <= 12) _raritySelector.SelectIndex = command - 10;
     }
 
     private void RaiseWithoutActivation()
@@ -229,7 +244,7 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
         int right = Right;
         _contentLayout.Visible = _scan.Visible = _status.Visible = _close.Visible = false;
         UpdateTitle();
-        Size = new Size(210, 46);
+        Size = new Size(48, 48);
         Left = right - Width;
     }
 
@@ -247,7 +262,7 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
 
     /// <summary>根据当前浮窗状态刷新标题文本。</summary>
     private void UpdateTitle() => _titleLabel.Text = _collapsed
-        ? (UiLanguage.IsEnglish ? "Mayhem offers · click to open" : "海克斯推荐 · 点击展开")
+        ? (UiLanguage.IsEnglish ? "HEX" : "增幅")
         : (UiLanguage.IsEnglish ? "Mayhem · augment sidebar" : "海克斯大乱斗 · 增幅侧边栏");
 
     /// <summary>记录标题区域按下的位置，为拖动判断准备状态。</summary>
@@ -292,12 +307,12 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
             if (!_tracking || IsDisposed || _lifetime.IsCancellationRequested) return;
             bool mayhem = context.QueueId is 2400 or 3270 ||
                 context.GameMode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase);
-            if (context.Phase != "InProgress" || !mayhem)
+            _mayhemActive = context.Phase == "InProgress" && mayhem;
+            MaintainOverlayVisibility();
+            if (!_mayhemActive)
             {
-                if (Visible) Hide();
                 return;
             }
-            if (!Visible) Show();
             if (DateTimeOffset.UtcNow - _lastAutoScanAt >= TimeSpan.FromSeconds(_collapsed ? 6 : 12))
             {
                 _lastAutoScanAt = DateTimeOffset.UtcNow;
@@ -507,12 +522,6 @@ internal sealed class MayhemOverlayForm : AntdUI.Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y,
         int width, int height, uint flags);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
     /// <summary>启动原生窗口拖动流程。</summary>
     private void Drag(MouseEventArgs e)

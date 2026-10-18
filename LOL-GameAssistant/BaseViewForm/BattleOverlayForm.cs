@@ -1,4 +1,4 @@
-using System.Drawing.Drawing2D;
+﻿using System.Drawing.Drawing2D;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LiveGame;
 using LOL_GameAssistant.Application.Lobby;
@@ -35,14 +35,17 @@ internal sealed class BattleOverlayForm : AntdUI.Window
     private string _signature = "";
     private string _hotkeyText = "·";
     private bool _refreshing;
+    private readonly IGameOverlayBridge? _overlay;
+    internal bool OverlayVisible { get; private set; }
     private int _generation;
 
     public BattleOverlayForm() : this(AppCompositionRoot.LobbyService, AppCompositionRoot.BattleOverlayService,
-        AppCompositionRoot.LiveClientGameStateService, AppCompositionRoot.GameAssetService, AppCompositionRoot.ChampionCatalog) { }
+        AppCompositionRoot.LiveClientGameStateService, AppCompositionRoot.GameAssetService, AppCompositionRoot.ChampionCatalog, AppCompositionRoot.GameOverlay) { }
 
     internal BattleOverlayForm(ILobbyService lobby, BattleOverlayService details, ILiveClientGameStateService live,
-        IGameAssetService assets, IChampionCatalog champions)
+        IGameAssetService assets, IChampionCatalog champions, IGameOverlayBridge? overlay = null)
     {
+        _overlay = overlay;
         _lobby = lobby; _details = details; _live = live; _assets = assets; _champions = champions;
         Text = "对局详情";
         AntdWindowChrome.Configure(this, fitWorkingArea: false);
@@ -98,7 +101,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         _players.Clear();
         _loading.Clear();
         _retryAt.Clear();
-        Invalidate();
+        RefreshOverlay();
     }
 
     public void ShowForGame(Rectangle gameBounds, string hotkey)
@@ -109,9 +112,26 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         float scale = Math.Min(1.15f, Math.Min(area.Width * .90f / DesignWidth, area.Height * .85f / DesignHeight));
         Size = new Size((int)(DesignWidth * scale), (int)(DesignHeight * scale));
         Location = new Point(area.Left + (area.Width - Width) / 2, area.Top + (area.Height - Height) / 2);
-        Show();
-        Invalidate();
+        OverlayVisible = true;
+        RefreshOverlay();
         _ = RefreshAsync();
+    }
+
+    public new void Hide()
+    {
+        OverlayVisible = false;
+        _overlay?.HidePanel(GameOverlayPanelKind.Battle);
+        base.Hide();
+    }
+    private void RefreshOverlay()
+    {
+        Invalidate();
+        if (!OverlayVisible || IsDisposed || _overlay == null) return;
+        using var bitmap = new Bitmap(ClientSize.Width, ClientSize.Height);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(BackColor);
+        OnPaint(new PaintEventArgs(graphics, ClientRectangle));
+        _overlay.PublishPanel(new(GameOverlayPanelKind.Battle, Image: bitmap));
     }
 
     private async Task RefreshAsync()
@@ -122,7 +142,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         try
         {
             // Read local loadouts independently: a slow LCU roster must not block live spells/runes.
-            await Task.WhenAll(RefreshRosterAsync(token), Visible ? RefreshScoresAsync(token) : Task.CompletedTask);
+            await Task.WhenAll(RefreshRosterAsync(token), OverlayVisible ? RefreshScoresAsync(token) : Task.CompletedTask);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -154,7 +174,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
             _scores = null;
             RuntimeDiagnostics.Report("本局实时数据", "等待数据", ex.Message);
         }
-        if (!token.IsCancellationRequested && !IsDisposed) Invalidate();
+        if (!token.IsCancellationRequested && !IsDisposed) RefreshOverlay();
     }
 
     private async Task RefreshRosterAsync(CancellationToken token)
@@ -185,7 +205,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
                     _ = LoadIconAsync(member.ChampionId, token);
             }
         }
-        Invalidate();
+        RefreshOverlay();
     }
 
     private async Task<ActiveGameSnapshot?> ReadSessionAsync(CancellationToken token)
@@ -246,7 +266,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
             using var image = Image.FromStream(stream);
             _loadoutIcons[key] = new Bitmap(image);
             _loadoutIconRetryAt.Remove(key);
-            Invalidate();
+            RefreshOverlay();
         }
         catch { if (!token.IsCancellationRequested && !IsDisposed) _loadoutIconRetryAt[key] = DateTimeOffset.UtcNow.AddSeconds(30); }
         finally { _loadingLoadoutIcons.Remove(key); }
@@ -268,7 +288,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
                 player.NeedsRetry)
                 _retryAt[key] = DateTimeOffset.UtcNow.AddSeconds(30);
             else _retryAt.Remove(key);
-            Invalidate();
+            RefreshOverlay();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { RuntimeDiagnostics.Report("对局玩家资料", "等待数据", ex.Message); }
@@ -280,7 +300,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         if (token.IsCancellationRequested || generation != _generation || IsDisposed) return;
         string key = MemberKey(player.Member);
         _players[key] = _players.TryGetValue(key, out var previous) ? player.Merge(previous) : player;
-        Invalidate();
+        RefreshOverlay();
     }
 
     private async Task LoadIconAsync(int championId, CancellationToken token)
@@ -292,7 +312,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
             using var stream = new MemoryStream(asset.Content);
             using var image = Image.FromStream(stream);
             _icons[championId] = new Bitmap(image);
-            Invalidate();
+            RefreshOverlay();
         }
         catch { /* Names still render when artwork is unavailable. */ }
         finally { _loadingIcons.Remove(championId); }
@@ -305,7 +325,7 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         _players.Clear();
         foreach (var player in players) _players[MemberKey(player.Member)] = player;
         _scores = scores;
-        Invalidate();
+        RefreshOverlay();
     }
 
     protected override void OnPaint(PaintEventArgs e)

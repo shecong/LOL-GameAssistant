@@ -108,6 +108,7 @@ public sealed class SettingsToolsTests
         latest.SkinHotkeysEnabled = true;
         latest.SkinPreviousHotkey = "F7";
         latest.SkinNextHotkey = "F8";
+        latest.SkinPickerHotkey = "Ctrl+F10";
         typeof(SettingForm).GetField("_isLoading", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(form, false);
         Field<AntdUI.Switch>(form, "swi_gametrue").Checked = true;
         Assert.True(latest.AutoAccept);
@@ -115,6 +116,7 @@ public sealed class SettingsToolsTests
         Assert.True(latest.SkinHotkeysEnabled);
         Assert.Equal("F7", latest.SkinPreviousHotkey);
         Assert.Equal("F8", latest.SkinNextHotkey);
+        Assert.Equal("Ctrl+F10", latest.SkinPickerHotkey);
     });
 
     [Fact]

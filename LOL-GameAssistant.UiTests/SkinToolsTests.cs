@@ -12,6 +12,45 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SkinToolsTests
 {
     [Fact]
+    public void OverlaySelectionWorksWithMainPageHiddenAndStopsWithCoreOrGame() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core(); var settings = new Settings();
+        settings.Load().SkinCoreEnabled = true;
+        settings.Load().SkinHotkeysEnabled = false;
+        using var page = new SkinToolsForm(core, settings);
+        page.OnGamePhaseChanged(true); page.Visible = false;
+        page.SelectOverlaySkinAsync("1:-1").GetAwaiter().GetResult();
+        Assert.Equal("1:-1", Assert.Single(core.AppliedEntries));
+        Assert.Equal("1:-1", settings.Load().RememberedHeroSkins["Lux"].EntryId);
+        page.OnGamePhaseChanged(false);
+        page.SelectOverlaySkinAsync("0:-1").GetAwaiter().GetResult();
+        Assert.Single(core.AppliedEntries);
+        page.OnGamePhaseChanged(true);
+        Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled").Checked = false;
+        page.SelectOverlaySkinAsync("0:-1").GetAwaiter().GetResult();
+        Assert.Single(core.AppliedEntries);
+    });
+
+    [Fact]
+    public void PickerCommandsApplyOnceAndIgnoreBusyOrStaleSelections() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var selected = new List<string>();
+        using var bridge = new RecordingGameOverlay();
+        using var overlay = new SkinPickerOverlayForm(() => true, selected.Add, () => { }, () => { }, bridge);
+        overlay.SetState([("a", "基础皮肤"), ("b", "大元素使")], "a", "请选择皮肤", true, true);
+        overlay.ShowOverGame(new Rectangle(100,100,1280,720));
+        Assert.False(overlay.Visible); Assert.False(overlay.IsHandleCreated);
+        int version = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker].Version;
+        bridge.Command = new(1,1,version); overlay.PollCommands(); overlay.PollCommands();
+        Assert.Equal("b", Assert.Single(selected));
+        overlay.SetState([("a", "基础皮肤"), ("b", "大元素使")], "b", "请求执行中", false, false);
+        bridge.Command = new(1,0,version); overlay.PollCommands(); Assert.Single(selected);
+        overlay.SetState([("c", "新列表")], "c", "列表已更新", true, true);
+        bridge.Command = new(1,0,version); overlay.PollCommands(); Assert.Single(selected);
+        overlay.Hide(); Assert.Empty(bridge.Panels);
+    });
+
+    [Fact]
     public void SkinTabsAndPosterFollowAppliedSkinAndRestore() => MatchListScrollingTests.OnUiThread(() =>
     {
         var calls = new List<(string Model, int Skin)>();
@@ -229,6 +268,29 @@ public sealed class SkinToolsTests
         Assert.False(settings.Load().SkinCoreEnabled); Assert.Equal("Ctrl+Alt+Right", settings.Load().SkinNextHotkey); Assert.Equal(0, notifications);
         next.Text = "Ctrl+Alt+Right"; enabled.Checked = true;
         Assert.True(settings.Load().SkinHotkeysEnabled); Assert.False(settings.Load().SkinCoreEnabled); Assert.Equal(1, notifications);
+    });
+    [Fact]
+    public void PickerHotkeyPersistsAndRejectsConflictsWithCyclingDisabled() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new Settings();
+        using var page = new SkinToolsForm(new Core(), settings);
+        var picker = Descendants(page).OfType<AntdUI.Input>().Single(c => c.Name == "SkinPickerKey");
+        Assert.Equal("Home", picker.Text);
+        void Save() => typeof(SkinToolsForm).GetMethod("SaveHotkeys", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(page, null);
+        picker.Text = "Ctrl+F10"; Save();
+        Assert.Equal("Ctrl+F10", settings.Load().SkinPickerHotkey);
+        Assert.False(settings.Load().SkinCoreEnabled);
+        Assert.False(settings.Load().SkinHotkeysEnabled);
+        var dto = LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToLegacy(settings.Load());
+        var saved = Newtonsoft.Json.JsonConvert.DeserializeObject<LOL_GameAssistant.Entity.SettingConfig>(Newtonsoft.Json.JsonConvert.SerializeObject(dto))!;
+        Assert.Equal("Ctrl+F10", LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToDomain(saved).SkinPickerHotkey);
+        foreach (var conflict in new[] { "F9", "Oem3", "bad-key" })
+        {
+            picker.Text = conflict; Save();
+            Assert.Equal("Ctrl+F10", settings.Load().SkinPickerHotkey);
+        }
+        using var reopened = new SkinToolsForm(new Core(), settings);
+        Assert.Equal("Ctrl+F10", Descendants(reopened).OfType<AntdUI.Input>().Single(c => c.Name == "SkinPickerKey").Text);
     });
     [Fact]
     public void ThemeAndLayoutRenderWithoutGameConnection() => MatchListScrollingTests.OnUiThread(() =>

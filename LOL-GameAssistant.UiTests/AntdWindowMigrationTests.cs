@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.InteropServices;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.BaseViewForm;
@@ -169,7 +169,7 @@ public sealed class AntdWindowMigrationTests
         {
             Assert.Equal(0x08000000, GetWindowLong(window.Handle, -20) & 0x08000000);
             typeof(MayhemOverlayForm).GetMethod("Collapse", flags)!.Invoke(window, null);
-            Assert.Equal(new Size(210, 46), window.Size);
+            Assert.Equal(new Size(48, 48), window.Size);
             Assert.Equal((nint)3, SendMessage(window.Handle, 0x0021, 0, 0));
             window.Hide();
             // 重建句柄后仍要保留禁止激活的原生样式。

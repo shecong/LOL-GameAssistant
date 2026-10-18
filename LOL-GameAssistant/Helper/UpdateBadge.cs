@@ -7,7 +7,7 @@ internal static class UpdateBadge
     {
         var badge = new AntdUI.Tag
         {
-            Name = name, Text = "新版本", Size = new Size(76, 24),
+            Name = name, Text = "有新版本更新", Size = new Size(116, 24),
             Type = AntdUI.TTypeMini.Primary, Cursor = Cursors.Hand, Visible = false,
             Margin = new Padding(4, 6, 4, 0)
         };
@@ -15,7 +15,7 @@ internal static class UpdateBadge
         {
             if (badge.IsDisposed) return;
             if (badge.InvokeRequired) { badge.BeginInvoke(() => Refresh(sender, e)); return; }
-            badge.Text = UiLanguage.IsEnglish ? "Update" : "新版本";
+            badge.Text = UiLanguage.IsEnglish ? "Update" : "有新版本更新";
             badge.Visible = AppUpdateChecker.AvailableRelease != null;
         }
         badge.Click += (_, _) =>
@@ -42,7 +42,7 @@ internal static class UpdateBadge
             int Scale(int value) => value * header.DeviceDpi / 96;
             int titleWidth = TextRenderer.MeasureText(header.Text, header.Font).Width;
             badge.Bounds = new Rectangle(header.Height + titleWidth + Scale(24),
-                Math.Max(0, (header.Height - Scale(24)) / 2), Scale(76), Scale(24));
+                Math.Max(0, (header.Height - Scale(24)) / 2), Scale(116), Scale(24));
         };
         badge.BringToFront();
     }

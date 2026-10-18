@@ -17,6 +17,12 @@ namespace LOL_GameAssistant
             if (!AdminPermissionHelper.EnsureAdminPermission()) return;
             TaskbarApplicationIdentity.InitializeProcess();
             ApplicationConfiguration.Initialize();
+            if (UpdateInstaller.HasPendingRecovery())
+            {
+                MessageBox.Show("检测到未完成的更新。请关闭助手，运行程序目录中的 Updater.exe 恢复后再启动。",
+                    "更新恢复", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
             int replaceRequested = 0;
             using var singleInstance = SingleInstanceCoordinator.StartOrReplace(() =>
@@ -56,16 +62,20 @@ namespace LOL_GameAssistant
                     System.Windows.Forms.Application.Exit();
                     return;
                 }
+                // Shown 后再经过一次消息循环，确认主窗口初始化和绘制已经完成。
+                GameMain.BeginInvoke(new Action(UpdateInstaller.ConfirmStartup));
                 await AppUpdateChecker.CheckAsync(GameMain, Bootstrap.AppCompositionRoot.UpdateReleaseService, automatic: true);
             };
             if (Volatile.Read(ref replaceRequested) != 0)
             {
                 GameMain.Dispose();
+                Bootstrap.AppCompositionRoot.GameOverlay.Dispose();
                 return;
             }
             UiLanguage.Start();
 
-            System.Windows.Forms.Application.Run(GameMain);
+            try { System.Windows.Forms.Application.Run(GameMain); }
+            finally { Bootstrap.AppCompositionRoot.GameOverlay.Dispose(); }
         }
 
         // UI线程异常处理

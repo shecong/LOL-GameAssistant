@@ -281,12 +281,13 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     {
         var area = new TableLayoutPanel
         {
-            Dock = DockStyle.Bottom, Height = 228, ColumnCount = 2, RowCount = 1,
+            Name = "QuickShoutOptions", Dock = DockStyle.Bottom, Height = 264, ColumnCount = 2, RowCount = 1,
             Padding = new Padding(12, 8, 12, 4)
         };
         area.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
         area.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         var sending = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6, Padding = new Padding(8, 0, 16, 0) };
+        sending.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         sending.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         for (int i = 0; i < 3; i++) sending.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         sending.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
@@ -296,19 +297,19 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         sending.Controls.Add(_sendToAll, 0, 2);
         sending.Controls.Add(_useClipboard, 0, 3);
         var cooldown = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
-        cooldown.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
-        cooldown.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102));
         cooldown.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        cooldown.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102));
+        cooldown.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 36));
         cooldown.Controls.Add(OptionLabel("触发冷却"), 0, 0);
         _minimumInterval.Anchor = AnchorStyles.Left;
         cooldown.Controls.Add(_minimumInterval, 1, 0);
-        cooldown.Controls.Add(OptionLabel("秒 · 两组喊话之间的间隔"), 2, 0);
+        cooldown.Controls.Add(OptionLabel("秒"), 2, 0);
         sending.Controls.Add(cooldown, 0, 4);
-        sending.Controls.Add(OptionLabel("多选最多 10 句；逐字批量最多 40 字。"), 0, 5);
+        sending.Controls.Add(OptionLabel("冷却为两组喊话之间的间隔。\n多选最多 10 句；逐字批量最多 40 字。"), 0, 5);
 
         var shortcuts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 6, Padding = new Padding(12, 0, 8, 0) };
-        shortcuts.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
-        shortcuts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        shortcuts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
+        shortcuts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48));
         shortcuts.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         for (int i = 0; i < 4; i++) shortcuts.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         shortcuts.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -322,7 +323,14 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         shortcuts.Controls.Add(_batchHotkey, 1, 3);
         shortcuts.Controls.Add(_kdaHotkeyEnabled, 0, 4);
         shortcuts.Controls.Add(_kdaHotkey, 1, 4);
-        var hint = OptionLabel("点击框后按键录入，支持 Ctrl / Alt / Shift 组合；仅游戏前台触发。KDA 可重复发送。");
+        foreach (var input in new[] { _builtInHotkey, _customHotkey, _batchHotkey, _kdaHotkey })
+        {
+            input.Dock = DockStyle.Fill;
+            input.Margin = new Padding(8, 3, 0, 3);
+        }
+        _kdaHotkeyEnabled.AutoSize = false;
+        _kdaHotkeyEnabled.Dock = DockStyle.Fill;
+        var hint = OptionLabel("点击输入框后按键录入，支持 Ctrl / Alt / Shift 组合。\n仅游戏前台触发；KDA 可重复发送。");
         shortcuts.Controls.Add(hint, 0, 5);
         shortcuts.SetColumnSpan(hint, 2);
         area.Controls.Add(sending, 0, 0);
@@ -333,7 +341,8 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     /// <summary>创建逐人测评热键的配置区域。</summary>
     private Control CreatePlayerHotkeyOptions()
     {
-        var panel = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 64, ColumnCount = 1, RowCount = 2, Padding = new Padding(20, 0, 20, 0) };
+        var panel = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 88, ColumnCount = 1, RowCount = 2, Padding = new Padding(20, 0, 20, 0) };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
@@ -380,7 +389,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     /// <summary>创建设置项的说明标签。</summary>
     private static AntdUI.Label OptionLabel(string text) => new()
     {
-        Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+        Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, TextMultiLine = true,
         Margin = new Padding(3, 0, 3, 0)
     };
 

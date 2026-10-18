@@ -36,12 +36,37 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Tools\GameOverlay\sc-game-overlay.dll;Tools\GameOverlay\sc-game-overlay-host.exe;Tools\GameOverlay\ImGui-LICENSE.txt;Tools\GameOverlay\MinHook-LICENSE.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="update-source.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="Tools\Updater\Updater.exe" Condition="Exists('Tools\Updater\Updater.exe')">
+      <Link>Updater.exe</Link>
+      <TargetPath>Updater.exe</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
     <Content Include="Tools\SkinCore\league-skin-core-host.exe;Tools\SkinCore\league-skin-core.dll;Tools\SkinCore\SHA256SUMS.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
   </ItemGroup>
+
+  <Target Name="BuildNativeGameOverlay" BeforeTargets="PrepareForBuild" Condition="'$(BuildGameOverlay)' == 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\native\GameOverlay\build.ps1&quot;" />
+  </Target>
+  <Target Name="RequireNativeGameOverlayForPublish" BeforeTargets="PrepareForPublish">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\Tools\GameOverlay\sc-game-overlay.dll') Or !Exists('$(MSBuildProjectDirectory)\Tools\GameOverlay\sc-game-overlay-host.exe')"
+           Text="Game overlay binaries are missing. Run native/GameOverlay/build.ps1 or publish with -p:BuildGameOverlay=true." />
+  </Target>
   <ItemGroup>
     <InternalsVisibleTo Include="LOL-GameAssistant.UiTests" />
     <Compile Include="../Shared/LoungeProtocol.cs" Link="Lounge/LoungeProtocol.cs" />
