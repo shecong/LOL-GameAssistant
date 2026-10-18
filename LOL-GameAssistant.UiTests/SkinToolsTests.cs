@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.Settings;
+using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.Settings;
@@ -36,10 +36,9 @@ public sealed class SkinToolsTests
     {
         var selected = new List<string>();
         using var bridge = new RecordingGameOverlay();
-        using var overlay = new SkinPickerOverlayForm(() => true, selected.Add, () => { }, () => { }, bridge);
+        using var overlay = new SkinPickerOverlayController(() => true, selected.Add, () => { }, () => { }, bridge);
         overlay.SetState([("a", "基础皮肤"), ("b", "大元素使")], "a", "请选择皮肤", true, true);
         overlay.ShowOverGame(new Rectangle(100,100,1280,720));
-        Assert.False(overlay.Visible); Assert.False(overlay.IsHandleCreated);
         int version = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker].Version;
         bridge.Command = new(1,1,version); overlay.PollCommands(); overlay.PollCommands();
         Assert.Equal("b", Assert.Single(selected));
@@ -89,7 +88,6 @@ public sealed class SkinToolsTests
         var objectTab = tabs.Single(b => b.Name == "ObjectSkinTab");
         Assert.True(objectTab.Left - heroTab.Right >= 16);
         objectTab.PerformClick();
-        Assert.False(selector.Visible);
         Assert.Equal(AntdUI.TTypeMini.Primary, objectTab.Type);
         Assert.Equal(AntdUI.TTypeMini.Default, heroTab.Type);
         heroTab.PerformClick();

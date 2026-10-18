@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.ChampionSelect;
+using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.LeagueClient;
@@ -24,8 +24,8 @@ namespace LOL_GameAssistant
         public BattleQueryForm battleQueryForm => _battleQueryForm is { IsDisposed: false }
             ? _battleQueryForm : _battleQueryForm = new BattleQueryForm();
         public readonly CoachForm coachForm = new CoachForm();
-        private readonly MayhemOverlayForm _mayhemOverlay = new();
-        private readonly BattleOverlayForm _battleOverlay = new();
+        private readonly MayhemOverlayController _mayhemOverlay = new();
+        private readonly BattleOverlayController _battleOverlay = new();
         private readonly ChampSelectCompanionForm _champSelectCompanion = new();
         private DiagnosticsForm? _diagnosticsForm;
         public DiagnosticsForm diagnosticsForm => _diagnosticsForm is { IsDisposed: false }
@@ -1338,8 +1338,8 @@ namespace LOL_GameAssistant
                     catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
                 }
 
-                Cleanup(() => _autoActionCts?.Cancel());
                 Cleanup(() => AppCompositionRoot.GameOverlay.Dispose());
+                Cleanup(() => _autoActionCts?.Cancel());
                 Cleanup(CancelAutoAccept);
                 Cleanup(StopOpggChampSelectMonitor);
                 Cleanup(() => _mayhemOverlay.Dispose());

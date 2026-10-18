@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Domain.Skins;
+using LOL_GameAssistant.Domain.Skins;
 using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
@@ -7,7 +7,7 @@ public sealed partial class SkinToolsForm
 {
     public event Action? HotkeySettingsChanged;
     internal event Action<string>? HotkeySkinApplied;
-    private SkinChangeOverlayForm? _skinNotice;
+    private SkinChangeOverlayPresenter? _skinNotice;
     private AntdUI.Panel? _hotkeyCard;
     private readonly AntdUI.Switch _hotkeyEnabled = new() { Name = "SkinHotkeysEnabled", Width = 52, Height = 30 };
     private readonly AntdUI.Input _previousKey = new() { Name = "SkinPreviousKey", Height = 40, Dock = DockStyle.Fill, Font = new Font(UiMetrics.FontFamily, 10) };
@@ -121,7 +121,7 @@ public sealed partial class SkinToolsForm
                 RememberSkin(catalog, target);
                 string name = GetSkinDisplayName(target);
                 HotkeySkinApplied?.Invoke(name);
-                (_skinNotice ??= new SkinChangeOverlayForm()).ShowSkin(name);
+                (_skinNotice ??= new SkinChangeOverlayPresenter()).ShowSkin(name);
             }
         }
         catch (OperationCanceledException) { }

@@ -1,6 +1,7 @@
 #include "protocol.h"
 #include <d3d11.h>
 #include <dxgi.h>
+#include <d3dcompiler.h>
 #include <wrl/client.h>
 #include <cstdio>
 #include <cstring>
@@ -9,7 +10,8 @@ using namespace overlay;
 static void Check(bool condition, const char* message) { if (!condition) { printf("FAIL: %s\n", message); fflush(stdout); ExitProcess(1); } }
 
 int main(int argc, char** argv) {
-    bool exclusive = argc == 2 && strcmp(argv[1], "--exclusive") == 0;
+    bool exclusive=false,borderless=false,flip=false;
+    for(int i=1;i<argc;++i) { exclusive|=strcmp(argv[i],"--exclusive")==0; borderless|=strcmp(argv[i],"--borderless")==0; flip|=strcmp(argv[i],"--flip")==0; }
     wchar_t name[160]{}; uint64_t nonce = GetTickCount64() | 1;
     MappingName(name, GetCurrentProcessId(), GetCurrentProcessId(), nonce);
     HANDLE mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, DWORD(MappingSize), name);
@@ -26,17 +28,29 @@ int main(int argc, char** argv) {
     strcpy_s(frame->offered, "本次识别\n1. 双刀流\n2. 连拨击锤");
     WNDCLASSW wc{}; wc.lpfnWndProc = DefWindowProcW; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = L"SC.Overlay.Smoke";
     RegisterClassW(&wc);
-    HWND window = CreateWindowExW(WS_EX_NOACTIVATE, wc.lpszClassName, L"SC Overlay Render Test", WS_OVERLAPPEDWINDOW,
+    HWND window = CreateWindowExW(WS_EX_NOACTIVATE, wc.lpszClassName, L"SC Overlay Render Test", borderless ? WS_POPUP : WS_OVERLAPPEDWINDOW,
         10, 10, 1280, 720, nullptr, nullptr, wc.hInstance, nullptr);
     Check(window != nullptr, "test window"); ShowWindow(window, SW_SHOWNOACTIVATE);
     DXGI_SWAP_CHAIN_DESC desc{}; desc.BufferCount = 2; desc.BufferDesc.Width = 1280; desc.BufferDesc.Height = 720;
     desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; desc.OutputWindow = window; desc.SampleDesc.Count = 1; desc.Windowed = TRUE;
+    if(flip) desc.SwapEffect=DXGI_SWAP_EFFECT_FLIP_DISCARD;
     ComPtr<IDXGISwapChain> chain; ComPtr<ID3D11Device> device; ComPtr<ID3D11DeviceContext> context;
     Check(SUCCEEDED(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION,
         &desc, &chain, &device, nullptr, &context)), "D3D11 hardware device");
+    const char computeSource[]="[numthreads(1,1,1)] void main(uint3 id:SV_DispatchThreadID) {}";
+    ComPtr<ID3DBlob> code,errors; ComPtr<ID3D11ComputeShader> gameCompute;
+    Check(SUCCEEDED(D3DCompile(computeSource,sizeof(computeSource),nullptr,nullptr,nullptr,"main","cs_5_0",0,0,&code,&errors)),"compile game compute shader");
+    Check(SUCCEEDED(device->CreateComputeShader(code->GetBufferPointer(),code->GetBufferSize(),nullptr,&gameCompute)),"game compute shader");
+    D3D11_BUFFER_DESC ud{}; ud.ByteWidth=16; ud.Usage=D3D11_USAGE_DEFAULT; ud.BindFlags=D3D11_BIND_UNORDERED_ACCESS;
+    ud.MiscFlags=D3D11_RESOURCE_MISC_BUFFER_STRUCTURED; ud.StructureByteStride=4;
+    ComPtr<ID3D11Buffer> ub; ComPtr<ID3D11UnorderedAccessView> gameUav;
+    Check(SUCCEEDED(device->CreateBuffer(&ud,nullptr,&ub)) && SUCCEEDED(device->CreateUnorderedAccessView(ub.Get(),nullptr,&gameUav)),"game UAV");
     if (exclusive) {
+        DWORD foregroundThread=GetWindowThreadProcessId(GetForegroundWindow(),nullptr);
+        bool joined=foregroundThread!=GetCurrentThreadId() && AttachThreadInput(GetCurrentThreadId(),foregroundThread,TRUE);
         ShowWindow(window, SW_SHOWNORMAL); SetForegroundWindow(window);
+        if(joined) AttachThreadInput(GetCurrentThreadId(),foregroundThread,FALSE);
         HRESULT full = chain->SetFullscreenState(TRUE, nullptr);
         if (FAILED(full)) { printf("EXCLUSIVE UNAVAILABLE: 0x%08lx\n", full); return 2; }
     }
@@ -52,14 +66,20 @@ int main(int argc, char** argv) {
     }
     Check(UnhookWindowsHookEx(hook) != FALSE, "release bootstrap hook");
     Check(frame->status == 1, "hook installed handshake");
-    bool savedPreview = false;
-    auto present = [&] {
+    auto syncSnapshot=reinterpret_cast<void(*)()>(GetProcAddress(module,"OverlayTestSync"));
+    Check(syncSnapshot!=nullptr,"test snapshot fixture");
+    bool savedPreview = flip;
+    auto present = [&](bool changed=true) {
+        if(changed) ++frame->revision;
+        syncSnapshot();
         MSG message{}; while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); }
         ComPtr<ID3D11Texture2D> back; ComPtr<ID3D11RenderTargetView> view;
         Check(SUCCEEDED(chain->GetBuffer(0, IID_PPV_ARGS(&back))), "get backbuffer");
         Check(SUCCEEDED(device->CreateRenderTargetView(back.Get(), nullptr, &view)), "render target");
         const float color[]{0.1f, 0.2f, 0.3f, 1.f}; context->ClearRenderTargetView(view.Get(), color);
-        ID3D11RenderTargetView* target = view.Get(); context->OMSetRenderTargets(1, &target, nullptr);
+        ID3D11RenderTargetView* target = view.Get(); ID3D11UnorderedAccessView* uav=gameUav.Get(); UINT preserve=UINT(-1);
+        context->OMSetRenderTargetsAndUnorderedAccessViews(1,&target,nullptr,1,1,&uav,&preserve);
+        context->CSSetShader(gameCompute.Get(),nullptr,0);
         Check(SUCCEEDED(chain->Present(0, 0)), "present");
         if (!savedPreview && frame->status == 2) {
             D3D11_TEXTURE2D_DESC readDesc{}; back->GetDesc(&readDesc);
@@ -89,18 +109,39 @@ int main(int argc, char** argv) {
             fclose(file); context->Unmap(readback.Get(), 0); savedPreview = true;
         }
         ComPtr<ID3D11RenderTargetView> restored; context->OMGetRenderTargets(1, &restored, nullptr);
-        Check(restored.Get() == target, "game output target restored");
+        Check(restored.Get() == target || (flip && !restored), "game output target restored (flip Present may unbind it)");
+        ComPtr<ID3D11ComputeShader> restoredCompute; context->CSGetShader(&restoredCompute,nullptr,nullptr);
+        Check(restoredCompute.Get()==gameCompute.Get(),"game compute stage restored");
+        ComPtr<ID3D11UnorderedAccessView> restoredUav;
+        context->OMGetRenderTargetsAndUnorderedAccessViews(0,nullptr,nullptr,1,1,&restoredUav);
+        Check(restoredUav.Get()==gameUav.Get(),"game output UAV restored");
         context->OMSetRenderTargets(0, nullptr, nullptr);
     };
+    if(exclusive) {
+        DWORD thread=GetWindowThreadProcessId(GetForegroundWindow(),nullptr);
+        bool joined=thread!=GetCurrentThreadId() && AttachThreadInput(GetCurrentThreadId(),thread,TRUE);
+        ShowWindow(window,SW_SHOWNORMAL); SetForegroundWindow(window);
+        if(joined) AttachThreadInput(GetCurrentThreadId(),thread,FALSE);
+        Check(SUCCEEDED(chain->SetFullscreenState(TRUE,nullptr)),"enter fullscreen after fixture setup");
+    }
     frame->captureRequest = 1;
     present();
     Check(frame->status == 2 && frame->renderedFrames == 1, "actual game-frame rendering");
     if (exclusive) {
         BOOL fullscreen = FALSE; chain->GetFullscreenState(&fullscreen, nullptr);
+        if(!fullscreen || GetForegroundWindow()!=window) printf("fullscreen diagnostic: state=%d focus=%d\n",fullscreen,GetForegroundWindow()==window);
         Check(fullscreen && GetForegroundWindow() == window, "exclusive fullscreen and game focus preserved");
         puts("PASS: exclusive fullscreen rendering keeps game focus");
         chain->SetFullscreenState(FALSE, nullptr);
     }
+    Check(frame->captureResponse==0,"capture defers GPU readback to later frame");
+    auto waitCapture=[&](LONG request) {
+        ULONGLONG deadline=GetTickCount64()+2500;
+        while(frame->captureResponse!=request && GetTickCount64()<deadline) { present(false); Sleep(1); }
+        Check(frame->captureResponse==request && frame->captureError==0,"async capture completes");
+    };
+    waitCapture(1);
+    auto beforeDisable=frame->renderedFrames;
     Check(frame->captureResponse == 1 && frame->captureError == 0, "pre-overlay backbuffer capture");
     Check(frame->captureWidth == 853 && frame->captureHeight == 230, "capture region dimensions");
     auto pixels = reinterpret_cast<unsigned char*>(frame) + PixelOffset;
@@ -109,11 +150,11 @@ int main(int argc, char** argv) {
     // game background, proving capture precedes overlay rendering.
     size_t last = (size_t(frame->captureWidth) * frame->captureHeight - 1) * 4;
     Check(pixels[last] >= 75 && pixels[last] <= 78 && pixels[last+1] == 51, "overlay excluded from OCR image");
-    frame->enabled = 0; present(); Check(frame->renderedFrames == 1, "disable hides rendering");
+    frame->enabled = 0; present(); Check(frame->renderedFrames == beforeDisable, "disable hides rendering");
     frame->enabled = 1; frame->mayhemEnabled = 1; frame->heartbeat = GetTickCount64() - 6000;
-    present(); Check(frame->renderedFrames == 1, "expired owner heartbeat hides rendering");
+    present(); Check(frame->renderedFrames == beforeDisable, "expired owner heartbeat hides rendering");
     frame->heartbeat = GetTickCount64(); frame->collapsed = 1; present();
-    Check(frame->renderedFrames == 2, "collapsed panel renders");
+    Check(frame->renderedFrames == beforeDisable+1, "collapsed panel renders");
     Check(frame->panelWidth == 48 && frame->panelHeight == 48 && frame->hitRegionCount == 1, "collapsed hit area is only 48x48");
     // Exercise actual window messages, without Alt or a desktop overlay window.
     auto region = reinterpret_cast<BOOL(*)(unsigned,RECT*)>(GetProcAddress(module,"OverlayTestRegion"));
@@ -159,7 +200,18 @@ int main(int argc, char** argv) {
     frame->collapsed=1; present();
     Check(region(0,&bubble) && abs(bubble.right-clientBounds.right)<=1,"collapsed entry stays docked after resolution change");
     frame->collapsed = 0; frame->captureRequest = 2; present();
+    waitCapture(2);
     Check(frame->captureResponse == 2 && frame->gameWidth == 1024 && frame->gameHeight == 768, "capture follows resolution change");
+    auto creates=frame->targetCreates, builds=frame->uiBuilds, rendered=frame->renderedFrames;
+    LARGE_INTEGER started{},finished{},hz{}; QueryPerformanceFrequency(&hz); QueryPerformanceCounter(&started);
+    for(int i=0;i<300;++i) present(false);
+    QueryPerformanceCounter(&finished);
+    Check(frame->targetCreates==creates,"no per-frame render target allocation");
+    Check(frame->renderedFrames==rendered+300,"cached UI still draws every game frame");
+    Check(frame->uiBuilds-builds<100,"static UI layout reused across frames");
+    printf("PERF: 300 cached frames, UI builds=%u, target creates=%u, last hook CPU=%uus, total present avg=%.3fms\n",
+        frame->uiBuilds-builds,frame->targetCreates-creates,frame->lastCpuUs,
+        double(finished.QuadPart-started.QuadPart)*1000/hz.QuadPart/300);
     frame->enabled = 0;
     printf("PASS: DX11 render, UTF-8 Chinese UI, state restore, capture, disable, heartbeat, 48x48 collapse, mouse without Alt, auxiliary panels, versioned skin selection, resolution change\n");
     DestroyWindow(window);

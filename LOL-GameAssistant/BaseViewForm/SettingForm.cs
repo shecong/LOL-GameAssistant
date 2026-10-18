@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Application.LeagueClient;
+﻿using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.LeagueClient;
@@ -740,7 +740,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 21, "符文自动配置：", _autoApplyRuneBuild,
                 "按英雄、模式和分路优先选择已启用的个人方案；没有匹配方案时自动应用 OP.GG 推荐。仅选人阶段执行一次，手动选择方案不受影响。");
             AddSegmentRow(layout, 22, "海克斯侧边栏：", _mayhemOverlayEnabled,
-                "仅海克斯大乱斗时显示专用浮窗；可扫描本机屏幕识别正在展示的增幅卡片并比较胜率。");
+                "仅海克斯大乱斗的窗口或无边框模式显示；独占全屏自动隐藏并停止扫描。可识别增幅卡片并比较胜率。");
             AddSegmentRow(layout, 23, "选人伴随窗：", _champSelectCompanionEnabled,
                 "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
             AddSaveRow(layout, 24, "保存 AI 连接与密钥");

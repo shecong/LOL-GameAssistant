@@ -17,24 +17,31 @@ void ClampPanel(ImVec2 size) {
 }
 
 void RecommendationRows(const char* text) {
-    std::istringstream lines(text); std::string line;
-    if (!strchr(text, '%')) { ImGui::TextWrapped("%s", text); return; }
+    struct Row { std::string name,rate,samples; };
+    static std::string previous;
+    static std::vector<Row> rows;
+    if(previous!=text) {
+        previous=text; rows.clear();
+        std::istringstream lines(previous); std::string line;
+        while(std::getline(lines,line)) {
+            auto percent=line.find('%'); if(percent==std::string::npos) continue;
+            auto start=percent; while(start>0 && (isdigit(static_cast<unsigned char>(line[start-1])) || line[start-1]=='.')) --start;
+            auto delimiter=line.find("·",percent);
+            rows.push_back({line.substr(0,start),line.substr(start,percent-start+1),delimiter==std::string::npos ? "" : line.substr(delimiter+2)});
+        }
+    }
+    if(rows.empty()) { ImGui::TextWrapped("%s",text); return; }
     if (ImGui::BeginTable("Rates", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("增幅", ImGuiTableColumnFlags_WidthStretch, 1.8f);
         ImGui::TableSetupColumn("胜率", ImGuiTableColumnFlags_WidthFixed, 58);
         ImGui::TableSetupColumn("场次", ImGuiTableColumnFlags_WidthFixed, 84);
         ImGui::TableHeadersRow();
-        while (std::getline(lines, line)) {
-            auto percent = line.find('%');
-            if (percent == std::string::npos) continue;
-            auto start = percent;
-            while (start > 0 && (isdigit(static_cast<unsigned char>(line[start-1])) || line[start-1] == '.')) --start;
-            auto name = line.substr(0, start), rate = line.substr(start, percent-start+1);
-            auto delimiter = line.find("·", percent);
-            auto samples = delimiter == std::string::npos ? "" : line.substr(delimiter+2);
-            ImGui::TableNextRow(0, 29); ImGui::TableNextColumn(); ImGui::TextUnformatted(name.c_str());
-            ImGui::TableNextColumn(); ImGui::TextColored(ImVec4(.55f,.85f,.70f,1), "%s", rate.c_str());
-            ImGui::TableNextColumn(); ImGui::TextDisabled("%s", samples.c_str());
+        ImGuiListClipper clipper; clipper.Begin(int(rows.size()),29);
+        while(clipper.Step()) for(int i=clipper.DisplayStart;i<clipper.DisplayEnd;++i) {
+            const auto& row=rows[i];
+            ImGui::TableNextRow(0,29); ImGui::TableNextColumn(); ImGui::TextUnformatted(row.name.c_str());
+            ImGui::TableNextColumn(); ImGui::TextColored(ImVec4(.55f,.85f,.70f,1),"%s",row.rate.c_str());
+            ImGui::TableNextColumn(); ImGui::TextDisabled("%s",row.samples.c_str());
         }
         ImGui::EndTable();
     }
@@ -173,7 +180,8 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinTitle); ImGui::PopTextWrapPos(); ImGui::Separator();
         ImGui::BeginChild("Skins",ImVec2(0,(std::max)(40.f,ImGui::GetContentRegionAvail().y-145)),ImGuiChildFlags_Borders);
         ImGui::BeginDisabled(!aux.skinReady);
-        for(int i=0;i<std::clamp(aux.skinCount,0,256);++i) {
+        ImGuiListClipper skins; skins.Begin(std::clamp(aux.skinCount,0,256));
+        while(skins.Step()) for(int i=skins.DisplayStart;i<skins.DisplayEnd;++i) {
             aux.skinNames[i][191]=0; ImGui::PushID(i);
             if(ImGui::Selectable(aux.skinNames[i],aux.skinSelected==i,0,ImVec2(0,32))) command(1,i);
             ImGui::PopID();

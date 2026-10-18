@@ -1,4 +1,4 @@
-﻿using System.Drawing.Drawing2D;
+using System.Drawing.Drawing2D;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LiveGame;
 using LOL_GameAssistant.Application.Lobby;
@@ -11,7 +11,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>A read-only, non-activating scoreboard which lets mouse input pass through to the game.</summary>
-internal sealed class BattleOverlayForm : AntdUI.Window
+internal sealed class BattleOverlayController : IDisposable
 {
     private const int DesignWidth = 1120;
     private const int DesignHeight = 680;
@@ -35,50 +35,28 @@ internal sealed class BattleOverlayForm : AntdUI.Window
     private string _signature = "";
     private string _hotkeyText = "·";
     private bool _refreshing;
-    private readonly IGameOverlayBridge? _overlay;
     internal bool OverlayVisible { get; private set; }
     private int _generation;
 
-    public BattleOverlayForm() : this(AppCompositionRoot.LobbyService, AppCompositionRoot.BattleOverlayService,
+    public BattleOverlayController() : this(AppCompositionRoot.LobbyService, AppCompositionRoot.BattleOverlayService,
         AppCompositionRoot.LiveClientGameStateService, AppCompositionRoot.GameAssetService, AppCompositionRoot.ChampionCatalog, AppCompositionRoot.GameOverlay) { }
 
-    internal BattleOverlayForm(ILobbyService lobby, BattleOverlayService details, ILiveClientGameStateService live,
+    internal BattleOverlayController(ILobbyService lobby, BattleOverlayService details, ILiveClientGameStateService live,
         IGameAssetService assets, IChampionCatalog champions, IGameOverlayBridge? overlay = null)
     {
-        _overlay = overlay;
+        _overlay=overlay;
         _lobby = lobby; _details = details; _live = live; _assets = assets; _champions = champions;
-        Text = "对局详情";
-        AntdWindowChrome.Configure(this, fitWorkingArea: false);
-        EnableHitTest = false;
-        ShowInTaskbar = false;
-        TopMost = true;
-        Opacity = .98; // A layered transparent window passes mouse input through across processes.
-        StartPosition = FormStartPosition.Manual;
-        BackColor = Color.FromArgb(18, 24, 36);
-        DoubleBuffered = true;
-        AutoScaleMode = AutoScaleMode.None;
-        ClientSize = new Size(DesignWidth, DesignHeight);
-        _timer.Tick += (_, _) => _ = RefreshAsync();
+        _timer.Tick += (_,_)=>_=RefreshAsync();
     }
-
-    protected override bool ShowWithoutActivation => true;
-    protected override CreateParams CreateParams
+    private readonly IGameOverlayBridge? _overlay;
+    internal Size ClientSize { get; set; } = new(DesignWidth,DesignHeight);
+    public bool IsDisposed { get; private set; }
+    internal void DrawToBitmap(Bitmap bitmap, Rectangle bounds)
     {
-        get
-        {
-            var parameters = base.CreateParams;
-            parameters.ExStyle |= 0x08000000 | 0x00000080 | 0x00000020; // NOACTIVATE, TOOLWINDOW, TRANSPARENT
-            return parameters;
-        }
+        using var graphics=Graphics.FromImage(bitmap);
+        graphics.Clear(Color.FromArgb(18,24,36));
+        OnPaint(new PaintEventArgs(graphics,bounds));
     }
-
-    protected override void WndProc(ref Message m)
-    {
-        if (m.Msg == 0x0084) { m.Result = new IntPtr(-1); return; } // HTTRANSPARENT
-        if (m.Msg == 0x0021) { m.Result = new IntPtr(3); return; } // MA_NOACTIVATE
-        base.WndProc(ref m);
-    }
-
     public void StartTracking()
     {
         if (_tracking != null || IsDisposed) return;
@@ -110,28 +88,23 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         var area = Rectangle.Intersect(gameBounds, Screen.FromRectangle(gameBounds).Bounds);
         if (area.Width <= 0 || area.Height <= 0) area = Screen.FromRectangle(gameBounds).Bounds;
         float scale = Math.Min(1.15f, Math.Min(area.Width * .90f / DesignWidth, area.Height * .85f / DesignHeight));
-        Size = new Size((int)(DesignWidth * scale), (int)(DesignHeight * scale));
-        Location = new Point(area.Left + (area.Width - Width) / 2, area.Top + (area.Height - Height) / 2);
+        ClientSize = new Size((int)(DesignWidth * scale), (int)(DesignHeight * scale));
         OverlayVisible = true;
         RefreshOverlay();
         _ = RefreshAsync();
     }
 
-    public new void Hide()
+    public void Hide()
     {
         OverlayVisible = false;
         _overlay?.HidePanel(GameOverlayPanelKind.Battle);
-        base.Hide();
     }
     private void RefreshOverlay()
     {
-        Invalidate();
-        if (!OverlayVisible || IsDisposed || _overlay == null) return;
-        using var bitmap = new Bitmap(ClientSize.Width, ClientSize.Height);
-        using var graphics = Graphics.FromImage(bitmap);
-        graphics.Clear(BackColor);
-        OnPaint(new PaintEventArgs(graphics, ClientRectangle));
-        _overlay.PublishPanel(new(GameOverlayPanelKind.Battle, Image: bitmap));
+        if(!OverlayVisible || IsDisposed || _overlay==null) return;
+        using var bitmap=new Bitmap(ClientSize.Width,ClientSize.Height);
+        DrawToBitmap(bitmap,new Rectangle(Point.Empty,ClientSize));
+        _overlay.PublishPanel(new(GameOverlayPanelKind.Battle,Image:bitmap));
     }
 
     private async Task RefreshAsync()
@@ -328,9 +301,8 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         RefreshOverlay();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    private void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);
         Graphics g = e.Graphics;
         g.ScaleTransform(ClientSize.Width / (float)DesignWidth, ClientSize.Height / (float)DesignHeight);
         g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -514,17 +486,11 @@ internal sealed class BattleOverlayForm : AntdUI.Window
         g.DrawString(text, font, brush, bounds, format);
     }
 
-    protected override void Dispose(bool disposing)
+    public void Dispose()
     {
-        if (disposing)
-        {
-            StopTracking();
-            _timer.Dispose();
-            foreach (var image in _icons.Values) image.Dispose();
-            _icons.Clear();
-            foreach (var image in _loadoutIcons.Values) image.Dispose();
-            _loadoutIcons.Clear();
-        }
-        base.Dispose(disposing);
+        if(IsDisposed) return;
+        StopTracking(); IsDisposed=true; _timer.Dispose();
+        foreach(var image in _icons.Values) image.Dispose(); _icons.Clear();
+        foreach(var image in _loadoutIcons.Values) image.Dispose(); _loadoutIcons.Clear();
     }
 }

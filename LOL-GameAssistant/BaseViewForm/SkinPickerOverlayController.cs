@@ -5,7 +5,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>Stores picker state; interactive controls are drawn inside the game's DX11 frame.</summary>
-internal sealed class SkinPickerOverlayForm : AntdUI.Window
+internal sealed class SkinPickerOverlayController : IDisposable
 {
     private readonly System.Windows.Forms.Timer _watch = new() { Interval = 100 };
     private readonly Func<bool> _available;
@@ -19,24 +19,16 @@ internal sealed class SkinPickerOverlayForm : AntdUI.Window
     private int _version;
     internal bool OverlayVisible { get; private set; }
 
-    internal SkinPickerOverlayForm(Func<bool> available, Action<string> select, Action refresh, Action restore,
+    internal SkinPickerOverlayController(Func<bool> available, Action<string> select, Action refresh, Action restore,
         IGameOverlayBridge? overlay = null)
     {
         _available = available; _select = select; _refresh = refresh; _restore = restore;
         _overlay = overlay ?? AppCompositionRoot.GameOverlay;
-        AntdWindowChrome.Configure(this, fitWorkingArea: false);
-        Name = "SkinPickerOverlay"; Text = "游戏换肤";
-        FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopMost = true;
         _watch.Tick += (_, _) =>
         {
             if (!_available() || !WindowHoldController.TryGetForegroundGameBounds(out _)) { Hide(); return; }
             PollCommands();
         };
-    }
-    protected override bool ShowWithoutActivation => true;
-    protected override CreateParams CreateParams
-    {
-        get { var p = base.CreateParams; p.ExStyle |= 0x08000000 | 0x00000080; return p; }
     }
     internal void SetState((string Id, string Name)[] items, string? selected, string status, bool ready, bool canRefresh)
     {
@@ -68,13 +60,15 @@ internal sealed class SkinPickerOverlayForm : AntdUI.Window
             Items: _items.Take(256).Select(p => p.Name).ToArray(), Selected: Array.FindIndex(_items, p => p.Id == _selected),
             Ready: _ready, CanRefresh: _canRefresh, Version: _version));
     }
-    public new void Hide()
+    public void Hide()
     {
-        OverlayVisible = false; _watch.Stop(); _overlay.HidePanel(GameOverlayPanelKind.SkinPicker); base.Hide();
+        OverlayVisible = false; _watch.Stop(); _overlay.HidePanel(GameOverlayPanelKind.SkinPicker);
     }
-    protected override void Dispose(bool disposing)
+    public bool IsDisposed { get; private set; }
+    public void Dispose()
     {
-        if (disposing) { Hide(); _watch.Dispose(); }
-        base.Dispose(disposing);
+        if(IsDisposed) return;
+        IsDisposed=true;
+        Hide(); _watch.Dispose();
     }
 }

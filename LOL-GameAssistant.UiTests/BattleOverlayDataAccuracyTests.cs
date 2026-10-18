@@ -29,11 +29,11 @@ public sealed class BattleOverlayDataAccuracyTests
     public void FullIdentityConflictCannotFallBackToAnotherPlayersLegacyName()
     {
         var score = new LiveScoreboardPlayer("same#B", "same", "ORDER", 9, 2, 4, 100, null);
-        Assert.Null(BattleOverlayForm.FindScore([score], "same#A", "same", "ORDER"));
-        Assert.Same(score, BattleOverlayForm.FindScore([score], "same#B", "same", "ORDER"));
-        Assert.Same(score, BattleOverlayForm.FindScore([score], "same", "same#B", "ORDER"));
-        Assert.Null(BattleOverlayForm.FindScore([score, score], "same#B", "same", "ORDER"));
-        Assert.NotNull(BattleOverlayForm.FindScore([score with { RiotId = "" }], "same#A", "same", "ORDER"));
+        Assert.Null(BattleOverlayController.FindScore([score], "same#A", "same", "ORDER"));
+        Assert.Same(score, BattleOverlayController.FindScore([score], "same#B", "same", "ORDER"));
+        Assert.Same(score, BattleOverlayController.FindScore([score], "same", "same#B", "ORDER"));
+        Assert.Null(BattleOverlayController.FindScore([score, score], "same#B", "same", "ORDER"));
+        Assert.NotNull(BattleOverlayController.FindScore([score with { RiotId = "" }], "same#A", "same", "ORDER"));
     }
 
     [Fact]
@@ -43,11 +43,11 @@ public sealed class BattleOverlayDataAccuracyTests
             [{"scores":{}},{"scores":{"kills":0,"deaths":0,"assists":0,"creepScore":0}},
              {"scores":{"kills":3,"deaths":null}}]
             """);
-        Assert.Equal("— / — / —", BattleOverlayForm.LiveKdaText(scores[0]));
+        Assert.Equal("— / — / —", BattleOverlayController.LiveKdaText(scores[0]));
         Assert.Null(scores[0].CreepScore);
-        Assert.Equal("0 / 0 / 0", BattleOverlayForm.LiveKdaText(scores[1]));
+        Assert.Equal("0 / 0 / 0", BattleOverlayController.LiveKdaText(scores[1]));
         Assert.Equal(0, scores[1].CreepScore);
-        Assert.Equal("3 / — / —", BattleOverlayForm.LiveKdaText(scores[2]));
+        Assert.Equal("3 / — / —", BattleOverlayController.LiveKdaText(scores[2]));
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public sealed class BattleOverlayDataAccuracyTests
         var initial = Assert.Single(players).Value;
         var retries = Field<Dictionary<string, DateTimeOffset>>(overlay, "_retryAt");
         retries[players.Keys.Single()] = DateTimeOffset.UtcNow.AddSeconds(-1);
-        var task = (Task)typeof(BattleOverlayForm).GetMethod("RefreshAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(overlay, null)!;
+        var task = (Task)typeof(BattleOverlayController).GetMethod("RefreshAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(overlay, null)!;
         Assert.True(task.IsCompletedSuccessfully);
         var refreshed = Assert.Single(players).Value;
         Assert.Same(initial.Rank, refreshed.Rank);
@@ -283,7 +283,7 @@ public sealed class BattleOverlayDataAccuracyTests
     [InlineData(430, "参考单双排")]
     [InlineData(420, "单双排")]
     [InlineData(440, "灵活组排")]
-    public void RankLabelDescribesItsActualSource(int queue, string text) => Assert.Equal(text, BattleOverlayForm.RankSourceText(queue, false));
+    public void RankLabelDescribesItsActualSource(int queue, string text) => Assert.Equal(text, BattleOverlayController.RankSourceText(queue, false));
 
     private static MatchHistoryGame Sample() => new()
     {
@@ -299,11 +299,11 @@ public sealed class BattleOverlayDataAccuracyTests
     private static BattleOverlayService Service(Func<MethodInfo, object?[], object?> history, IRankedStatsService? ranks = null) => new(
         Proxy<IPlayerProfileService>((_, _) => Task.FromResult<PlayerProfile?>(new("me", "same", "A", 0, 1, 0, 0))),
         ranks ?? Proxy<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(new())), Proxy<IMatchHistoryService>(history));
-    private static BattleOverlayForm Overlay(BattleOverlayService details, ILiveClientGameStateService live) => new(
+    private static BattleOverlayController Overlay(BattleOverlayService details, ILiveClientGameStateService live) => new(
         Proxy<ILobbyService>((_, _) => Task.FromResult<ActiveGameSnapshot?>(Session)), details, live,
         Proxy<IGameAssetService>((_, _) => Task.FromResult<GameAsset?>(null)),
         Proxy<IChampionCatalog>((method, _) => method.Name == "GetDisplayName" ? "寒冰射手" : null));
-    private static void Start(BattleOverlayForm overlay)
+    private static void Start(BattleOverlayController overlay)
     {
         overlay.ShowForGame(new Rectangle(0, 0, 1280, 720), "F10");
         overlay.StartTracking();

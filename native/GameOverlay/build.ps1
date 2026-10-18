@@ -1,4 +1,4 @@
-param([switch]$Test)
+﻿param([switch]$Test)
 $ErrorActionPreference = 'Stop'
 $overlayPins = @{
     imgui = @('https://github.com/ocornut/imgui.git', 'v1.91.9b', 'f5befd2d29e66809cd1110a152e375a7f1981f06')
@@ -42,7 +42,7 @@ try {
     if ($Test) {
         & cl.exe @overlayCommon /LD /DSC_OVERLAY_TEST @overlaySources /Fe:sc-game-overlay-test.dll /link user32.lib d3d11.lib dxgi.lib d3dcompiler.lib
         if ($LASTEXITCODE -ne 0) { throw 'Test overlay compilation failed' }
-        & cl.exe @overlayCommon "$PSScriptRoot/smoke.cpp" /Fe:sc-game-overlay-smoke.exe /link user32.lib d3d11.lib dxgi.lib
+        & cl.exe @overlayCommon "$PSScriptRoot/smoke.cpp" /Fe:sc-game-overlay-smoke.exe /link user32.lib d3d11.lib dxgi.lib d3dcompiler.lib
         if ($LASTEXITCODE -ne 0) { throw 'Smoke harness compilation failed' }
         & ./sc-game-overlay-smoke.exe
         if ($LASTEXITCODE -ne 0) { throw 'Overlay render smoke test failed' }

@@ -24,7 +24,8 @@ struct Frame {
     int32_t captureError;
     uint32_t renderedFrames;
     uint32_t mayhemEnabled, panelWidth, panelHeight, hitRegionCount;
-    uint8_t reserved[32];
+    uint32_t revision, uiBuilds, targetCreates, lastCpuUs, maxCpuUs;
+    uint8_t reserved[12];
     char title[256], statusText[2048], recommendations[32768], offered[16384];
 };
 struct Auxiliary {

@@ -7,23 +7,16 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>Publishes timeline advice to the game renderer without creating a desktop popup.</summary>
-internal sealed class RecommendationOverlayForm : AntdUI.Window
+internal sealed class RecommendationOverlayPresenter : IDisposable
 {
     private readonly System.Windows.Forms.Timer _hideTimer = new();
     private readonly IGameOverlayBridge _overlay;
     internal bool OverlayVisible { get; private set; }
-    public RecommendationOverlayForm() : this(AppCompositionRoot.GameOverlay) { }
-    internal RecommendationOverlayForm(IGameOverlayBridge overlay)
+    public RecommendationOverlayPresenter() : this(AppCompositionRoot.GameOverlay) { }
+    internal RecommendationOverlayPresenter(IGameOverlayBridge overlay)
     {
         _overlay = overlay;
-        AntdWindowChrome.Configure(this, fitWorkingArea: false);
-        EnableHitTest = false; ShowInTaskbar = false; TopMost = true;
         _hideTimer.Tick += (_, _) => Hide();
-    }
-    protected override bool ShowWithoutActivation => true;
-    protected override CreateParams CreateParams
-    {
-        get { var p = base.CreateParams; p.ExStyle |= 0x080800A0; return p; }
     }
     public void ShowRecommendation(CoachRecommendation recommendation, CloudAiSettings settings)
     {
@@ -38,13 +31,15 @@ internal sealed class RecommendationOverlayForm : AntdUI.Window
         _hideTimer.Stop(); _hideTimer.Interval = duration; _hideTimer.Start();
     }
     private static string Clip(string text,int max) => text.Trim().Length <= max ? text.Trim() : text.Trim()[..max] + "…";
-    public new void Hide()
+    public void Hide()
     {
-        OverlayVisible = false; _hideTimer.Stop(); _overlay.HidePanel(GameOverlayPanelKind.Coaching); base.Hide();
+        OverlayVisible = false; _hideTimer.Stop(); _overlay.HidePanel(GameOverlayPanelKind.Coaching);
     }
-    protected override void Dispose(bool disposing)
+    public bool IsDisposed { get; private set; }
+    public void Dispose()
     {
-        if (disposing) { Hide(); _hideTimer.Dispose(); }
-        base.Dispose(disposing);
+        if(IsDisposed) return;
+        IsDisposed=true;
+        Hide(); _hideTimer.Dispose();
     }
 }

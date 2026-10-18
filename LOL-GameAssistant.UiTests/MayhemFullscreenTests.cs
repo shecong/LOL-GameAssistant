@@ -12,19 +12,16 @@ public sealed class MayhemFullscreenTests
     public void TrackingPublishesIntoGameWithoutShowingDesktopWindowEvenDuringScan() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var bridge = new RecordingBridge();
-        using var window = new MayhemOverlayForm(new EmptyScanner(), bridge);
+        using var window = new MayhemOverlayController(new EmptyScanner(), bridge);
         SetField(window, "_tracking", true);
         SetField(window, "_mayhemActive", true);
         nint foreground = GetForegroundWindow();
         for (int i = 0; i < 3; i++) window.MaintainOverlayVisibility();
         Assert.Equal(3, bridge.Frames.Count);
-        Assert.False(window.Visible);
-        Assert.False(window.IsHandleCreated);
         Assert.Equal(foreground, GetForegroundWindow());
         SetField(window, "_scanning", true);
         window.MaintainOverlayVisibility();
         Assert.True(bridge.Frames[^1].Scanning);
-        Assert.False(window.Visible);
         window.StopTracking();
         window.MaintainOverlayVisibility();
         Assert.False(bridge.Enabled);
@@ -35,7 +32,7 @@ public sealed class MayhemFullscreenTests
     public void OnlyMayhemPublishesAndNativeCommandsChangeRarityAndCollapse() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var bridge = new RecordingBridge();
-        using var window = new MayhemOverlayForm(new EmptyScanner(), bridge);
+        using var window = new MayhemOverlayController(new EmptyScanner(), bridge);
         SetField(window, "_tracking", true);
         window.MaintainOverlayVisibility();
         Assert.Empty(bridge.Frames);
@@ -53,15 +50,14 @@ public sealed class MayhemFullscreenTests
         SetField(window, "_mayhemActive", false);
         window.MaintainOverlayVisibility();
         Assert.False(bridge.Enabled);
-        Assert.False(window.Visible);
-    });
+        });
 
     [Fact]
     public void NativeScanCommandRunsOnceAndKeepsDesktopHidden() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var bridge = new RecordingBridge();
         var scanner = new PendingScanner();
-        using var window = new MayhemOverlayForm(scanner, bridge);
+        using var window = new MayhemOverlayController(scanner, bridge) { GameBounds=()=>new Rectangle(0,0,1280,720) };
         SetField(window, "_tracking", true); SetField(window, "_mayhemActive", true);
         bridge.Command = 1;
         window.MaintainOverlayVisibility();
@@ -69,7 +65,6 @@ public sealed class MayhemFullscreenTests
         window.MaintainOverlayVisibility();
         Assert.Equal(1, scanner.Calls);
         Assert.True(bridge.Frames[^1].Scanning);
-        Assert.False(window.Visible);
         scanner.Completion.SetResult(new AugmentScanResult([], "测试识别结果"));
         Assert.True(SpinWait.SpinUntil(() =>
         {
@@ -80,8 +75,8 @@ public sealed class MayhemFullscreenTests
         Assert.Contains("测试识别结果", bridge.Frames[^1].Offered);
     });
 
-    private static void SetField(MayhemOverlayForm window, string name, bool value) =>
-        typeof(MayhemOverlayForm).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(window, value);
+    private static void SetField(MayhemOverlayController window, string name, bool value) =>
+        typeof(MayhemOverlayController).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(window, value);
 
     private sealed class RecordingBridge : IGameOverlayBridge
     {

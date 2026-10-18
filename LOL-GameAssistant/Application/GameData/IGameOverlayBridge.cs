@@ -3,7 +3,6 @@ namespace LOL_GameAssistant.Application.GameData;
 /// <summary>游戏内覆盖层的数据与指令通道；不创建或激活桌面窗口。</summary>
 public interface IGameOverlayBridge : IDisposable
 {
-    bool UseNativeOverlay => true;
     int Publish(GameOverlayFrame frame);
     void Disable();
     void PublishPanel(GameOverlayPanel panel) { }

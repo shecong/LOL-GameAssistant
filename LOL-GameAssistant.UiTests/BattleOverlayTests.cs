@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LiveGame;
@@ -31,7 +31,7 @@ public sealed class BattleOverlayTests
         source.QueueMap[RankedQueues.Solo5x5] = new() { Tier = "GOLD", Wins = 429, Losses = 0 };
         var other = LOL_GameAssistant.Infrastructure.LeagueClient.LegacyRankedStatsService.Map(source).GetQueue(RankedQueues.Solo5x5)!;
         Assert.False(other.HasWinLossRecord);
-        Assert.Equal("—", BattleOverlayForm.RankRateText(other, false));
+        Assert.Equal("—", BattleOverlayController.RankRateText(other, false));
         var self = LOL_GameAssistant.Infrastructure.LeagueClient.LegacyRankedStatsService.Map(source, true).GetQueue(RankedQueues.Solo5x5)!;
         Assert.True(self.HasWinLossRecord);
         Assert.Equal(100, self.WinRate);
@@ -101,7 +101,7 @@ public sealed class BattleOverlayTests
         {
             Loadout = new(new(4, "Rune"), new(8000, "精密"), new(8300, "启迪"), new(4, "闪现"), new(14, "引燃"))
         };
-        var load = typeof(BattleOverlayForm).GetMethod("EnsureLoadoutIcons", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var load = typeof(BattleOverlayController).GetMethod("EnsureLoadoutIcons", BindingFlags.Instance | BindingFlags.NonPublic)!;
         for (int refresh = 0; refresh < 2; refresh++)
             load.Invoke(overlay, [Enumerable.Repeat(score, 10).ToArray(), CancellationToken.None]);
         Assert.Equal(5, requested.Count);
@@ -121,14 +121,14 @@ public sealed class BattleOverlayTests
         var live = Proxy<ILiveClientGameStateService>((_, _) => Task.FromResult<IReadOnlyList<LiveScoreboardPlayer>?>(scores));
         var assets = Proxy<IGameAssetService>((_, _) => Task.FromResult<GameAsset?>(null));
         var champions = Proxy<IChampionCatalog>((method, _) => method.Name == "FindIdByDisplayName" ? 22 : "寒冰射手");
-        using var overlay = new BattleOverlayForm(lobby, null!, live, assets, champions);
+        using var overlay = new BattleOverlayController(lobby, null!, live, assets, champions);
         overlay.ShowForGame(new Rectangle(0, 0, 1280, 720), "·");
         overlay.StartTracking();
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        var session = (ActiveGameSnapshot)typeof(BattleOverlayForm).GetField("_session", flags)!.GetValue(overlay)!;
+        var session = (ActiveGameSnapshot)typeof(BattleOverlayController).GetField("_session", flags)!.GetValue(overlay)!;
         Assert.Equal("test#A", Assert.Single(session.TeamOne).SummonerName);
         Assert.Equal(22, session.TeamOne[0].ChampionId);
-        Assert.Same(scores, typeof(BattleOverlayForm).GetField("_scores", flags)!.GetValue(overlay));
+        Assert.Same(scores, typeof(BattleOverlayController).GetField("_scores", flags)!.GetValue(overlay));
         Assert.False(pending.Task.IsCompleted);
         overlay.StopTracking();
     });
@@ -294,9 +294,9 @@ public sealed class BattleOverlayTests
             new LiveScoreboardPlayer("same#A", "same", "ORDER", 1, 0, 0, 0, null),
             new LiveScoreboardPlayer("same#B", "same", "ORDER", 9, 0, 0, 0, null)
         };
-        Assert.Null(BattleOverlayForm.FindScore(scores, "same", "same", "ORDER"));
-        Assert.Equal(9, BattleOverlayForm.FindScore(scores, "same#B", "same", "ORDER")!.Kills);
-        Assert.Null(BattleOverlayForm.FindScore(scores, "same#B", "same", "CHAOS"));
+        Assert.Null(BattleOverlayController.FindScore(scores, "same", "same", "ORDER"));
+        Assert.Equal(9, BattleOverlayController.FindScore(scores, "same#B", "same", "ORDER")!.Kills);
+        Assert.Null(BattleOverlayController.FindScore(scores, "same#B", "same", "CHAOS"));
     }
 
     [Fact]
@@ -325,30 +325,18 @@ public sealed class BattleOverlayTests
     }
 
     [Fact]
-    public void OverlayUsesNativeNonActivationAndMousePassThroughAndFitsGameBounds() => MatchListScrollingTests.OnUiThread(() =>
+    public void OverlayPublishesBitmapWithoutCreatingDesktopWindow() => MatchListScrollingTests.OnUiThread(() =>
     {
-        using var bridge = new RecordingGameOverlay();
-        using var overlay = CreateOverlay(bridge: bridge);
-        overlay.ShowForGame(new Rectangle(10, 10, 1000, 600), "·");
-        Assert.False(overlay.IsHandleCreated);
-        var surface = bridge.Panels[GameOverlayPanelKind.Battle].Image!;
-        Assert.Equal(overlay.ClientSize, surface.Size);
+        using var bridge=new RecordingGameOverlay();
+        using var overlay=CreateOverlay(bridge:bridge);
+        overlay.ShowForGame(new Rectangle(10,10,1000,600),"·");
+        Assert.False(typeof(Form).IsAssignableFrom(typeof(BattleOverlayController)));
+        var surface=bridge.Panels[GameOverlayPanelKind.Battle].Image!;
+        Assert.Equal(overlay.ClientSize,surface.Size);
         Assert.NotEqual(surface.GetPixel(0,0),surface.GetPixel(40,40));
-        int style = GetWindowLong(overlay.Handle, -20);
-        Assert.Equal(0x08000000, style & 0x08000000);
-        Assert.Equal(0x20, style & 0x20);
-        Assert.Equal(0x80000, style & 0x80000);
-        Assert.Equal((nint)3, SendMessage(overlay.Handle, 0x0021, 0, 0));
-        Assert.Equal((nint)(-1), SendMessage(overlay.Handle, 0x0084, 0, 0));
-        Assert.False(overlay.ShowInTaskbar);
-        Assert.True(overlay.Width <= 900);
-        Assert.True(overlay.Height <= 510);
         Assert.True(overlay.OverlayVisible);
-        Assert.False(overlay.Visible);
-        overlay.StopTracking();
-        Assert.Empty(bridge.Panels);
-        Assert.False(overlay.OverlayVisible);
-        Assert.False(overlay.Visible);
+        Assert.True(overlay.ClientSize.Width<=900); Assert.True(overlay.ClientSize.Height<=510);
+        overlay.StopTracking(); Assert.Empty(bridge.Panels); Assert.False(overlay.OverlayVisible);
     });
 
     [Fact]
@@ -392,12 +380,12 @@ public sealed class BattleOverlayTests
         var result = BattleOverlayPlayer.Create(member, "me", null, [win, winTwo, loss, loss], 450, "ARAM");
         Assert.Equal(3, result.ChampionGames);
         Assert.Equal(2, result.ChampionWins);
-        Assert.Equal("样本 66.7%", BattleOverlayForm.ChampionRateText(result, false));
-        Assert.Equal("2胜1负 / 3场", BattleOverlayForm.RecordCounts(result.ChampionWins, result.ChampionLosses, false));
+        Assert.Equal("样本 66.7%", BattleOverlayController.ChampionRateText(result, false));
+        Assert.Equal("2胜1负 / 3场", BattleOverlayController.RecordCounts(result.ChampionWins, result.ChampionLosses, false));
         var rank = new RankedQueue { QueueType = RankedQueues.Solo5x5, Wins = 1, Losses = 6 };
-        Assert.Equal("单双 14.3%", BattleOverlayForm.RankRateText(rank, false));
-        Assert.Equal("1胜6负 / 7场", BattleOverlayForm.RecordCounts(rank.Wins, rank.Losses, false));
-        Assert.Equal("灵活 50%", BattleOverlayForm.RankRateText(new() { QueueType = RankedQueues.Flex5x5, Wins = 1, Losses = 1 }, false));
+        Assert.Equal("单双 14.3%", BattleOverlayController.RankRateText(rank, false));
+        Assert.Equal("1胜6负 / 7场", BattleOverlayController.RecordCounts(rank.Wins, rank.Losses, false));
+        Assert.Equal("灵活 50%", BattleOverlayController.RankRateText(new() { QueueType = RankedQueues.Flex5x5, Wins = 1, Losses = 1 }, false));
     }
 
     [Fact]
@@ -431,7 +419,7 @@ public sealed class BattleOverlayTests
             .GetQueue(RankedQueues.Solo5x5)!;
         Assert.Equal(3, result.Wins);
         Assert.Equal(1, result.Losses);
-        Assert.Equal("单双 75%", BattleOverlayForm.RankRateText(result, false));
+        Assert.Equal("单双 75%", BattleOverlayController.RankRateText(result, false));
     }
 
     private static MatchHistoryGame Game(bool win, int champion, int kills, int deaths, int assists) => new()
@@ -441,7 +429,7 @@ public sealed class BattleOverlayTests
             stats = new() { Win = win, kills = kills, deaths = deaths, assists = assists } }]
     };
 
-    private static BattleOverlayForm CreateOverlay(IGameAssetService? assets = null, IGameOverlayBridge? bridge = null) => new(null!, null!, null!, assets!,
+    private static BattleOverlayController CreateOverlay(IGameAssetService? assets = null, IGameOverlayBridge? bridge = null) => new(null!, null!, null!, assets!,
         Proxy<IChampionCatalog>((method, args) => method.Name == "GetDisplayName" ? ((int)args[0]! == 22 ? "寒冰射手" : "光辉女郎") : null), bridge);
 
     private static T Proxy<T>(Func<MethodInfo, object?[], object?> handler) where T : class

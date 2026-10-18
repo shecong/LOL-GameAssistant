@@ -33,7 +33,7 @@ public sealed class LocalAugmentScanner : IAugmentScanner
         await ScanGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            bool native = _overlay?.UseNativeOverlay == true;
+            bool native = _overlay != null;
             using var capture = !native ? null : await _overlay!.CaptureAsync(cancellationToken).ConfigureAwait(false);
             if (native && capture == null)
                 return new AugmentScanResult([], "游戏覆盖层尚未就绪，请查看运行诊断中的「游戏覆盖层」状态。");

@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.Builds;
+using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Settings;
@@ -27,7 +27,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly IOpggBuildApplyService _opggBuildApplyService;
     private readonly IGameAssetService? _gameAssetService;
-    private readonly RecommendationOverlayForm _overlay = new();
+    private readonly RecommendationOverlayPresenter _overlay = new();
     private bool _applyingOpgg;
     private bool _opggPickerOpen;
     private OpggBuildPickerForm? _activeBuildPicker;

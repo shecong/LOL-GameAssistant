@@ -1,10 +1,10 @@
-﻿using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
 public sealed partial class SkinToolsForm
 {
-    private SkinPickerOverlayForm? _skinPicker;
+    private SkinPickerOverlayController? _skinPicker;
 
     private bool CanUseSkinPicker => !_disposing && _inProgress && _core.Enabled;
 
@@ -15,7 +15,7 @@ public sealed partial class SkinToolsForm
         if (!WindowHoldController.TryGetForegroundGameBounds(out var bounds)) return;
         if (_skinPicker == null)
         {
-            _skinPicker = new SkinPickerOverlayForm(() => CanUseSkinPicker,
+            _skinPicker = new SkinPickerOverlayController(() => CanUseSkinPicker,
                 id => _ = SelectOverlaySkinAsync(id), () => _ = RefreshAsync(), () => _ = ChangeAsync(true));
             _status.TextChanged += (_, _) => UpdateSkinPicker();
         }

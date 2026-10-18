@@ -26,16 +26,21 @@ internal sealed class RecordingGameOverlay : IGameOverlayBridge
 public sealed class GameOverlayPanelsTests
 {
     [Fact]
+    public void AllInGameSurfacesAreControllersRatherThanWindows()
+    {
+        foreach(var type in new[] { typeof(MayhemOverlayController),typeof(BattleOverlayController),typeof(RecommendationOverlayPresenter),typeof(SkinChangeOverlayPresenter),typeof(SkinPickerOverlayController) })
+            Assert.False(typeof(Form).IsAssignableFrom(type),type.Name);
+    }
+
+    [Fact]
     public void AdviceAndSkinNoticeShareRendererWithoutDesktopHandles() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var bridge = new RecordingGameOverlay();
-        using var advice = new RecommendationOverlayForm(bridge);
-        using var notice = new SkinChangeOverlayForm(bridge);
+        using var advice = new RecommendationOverlayPresenter(bridge);
+        using var notice = new SkinChangeOverlayPresenter(bridge);
         advice.ShowRecommendation(new("test", "test", RecommendationPriority.Info, "控龙", "提前布置视野", "小龙即将刷新",
             RecommendationSource.CloudAi, DateTimeOffset.UtcNow.AddSeconds(30)), new CloudAiSettings { RecommendationOverlayPosition = "TopRight" });
         notice.ShowSkin("大元素使");
-        Assert.False(advice.Visible); Assert.False(advice.IsHandleCreated);
-        Assert.False(notice.Visible); Assert.False(notice.IsHandleCreated);
         Assert.Equal(2, bridge.Panels.Count);
         var card = bridge.Panels[GameOverlayPanelKind.Coaching];
         Assert.Equal(2, card.Position); Assert.Equal("提前布置视野", card.Body);

@@ -28,25 +28,9 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
     private sealed record PanelPayload(GameOverlayPanel Panel, byte[]? Pixels, int Width, int Height);
     private readonly Dictionary<GameOverlayPanelKind, PanelPayload> _panels = new();
     private readonly System.Threading.Timer _heartbeat;
-    private bool _panelsDirty;
+    private bool _panelsDirty, _frameDirty = true;
+    private readonly HashSet<GameOverlayPanelKind> _dirtyPanels = [];
     private int _battleVersion;
-    public bool UseNativeOverlay
-    {
-        get
-        {
-            lock (_gate)
-            {
-                if (!_disposed && _session is { Failed:false } session)
-                {
-                    long observed=session.View.ReadInt64(104);
-                    if(observed>0 && Environment.TickCount64-observed is >=0 and <1000)
-                        return session.View.ReadInt32(96)==1;
-                }
-            }
-            return GameDisplayModeDetector.UseNativeOverlay();
-        }
-    }
-
     public NativeGameOverlayBridge() : this(true) { }
     internal NativeGameOverlayBridge(bool connectToGame) => _heartbeat = new(_ => Heartbeat(), null,
         connectToGame ? 250 : Timeout.Infinite, connectToGame ? 250 : Timeout.Infinite);
@@ -85,7 +69,10 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         lock (_gate)
         {
             if (_disposed) return;
-            _panels[panel.Kind] = new(panel, pixels, width, height); _panelsDirty = true;
+            if (pixels==null && _panels.TryGetValue(panel.Kind,out var existing) &&
+                existing.Panel with { Items=null } == panel with { Items=null } &&
+                (existing.Panel.Items ?? []).SequenceEqual(panel.Items ?? [])) return;
+            _panels[panel.Kind] = new(panel, pixels, width, height); _panelsDirty = true; _dirtyPanels.Add(panel.Kind);
             if (panel.Kind == GameOverlayPanelKind.Battle) ++_battleVersion;
             Flush();
         }
@@ -93,7 +80,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
 
     public void HidePanel(GameOverlayPanelKind kind)
     {
-        lock (_gate) { if (_disposed) return; if (_panels.Remove(kind)) _panelsDirty = true; Flush(); }
+        lock (_gate) { if (_disposed) return; if (_panels.Remove(kind)) { _panelsDirty=true; _dirtyPanels.Remove(kind); } Flush(); }
     }
 
     public GameOverlayPanelCommand? ReadPanelCommand(GameOverlayPanelKind kind)
@@ -117,9 +104,12 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         if (_session is not { Failed: false } session || !TryAcquire(session.Mutex)) return;
         try
         {
-            WriteFrame(session.View, _lastFrame ?? new("", "", "", "", 0, false, false), _enabled || _panels.Count > 0);
+            bool changed=_frameDirty || _panelsDirty;
+            if(_frameDirty) { WriteFrame(session.View, _lastFrame ?? new("", "", "", "", 0, false, false), _enabled || _panels.Count > 0); _frameDirty=false; }
+            else { session.View.Write(8, _enabled || _panels.Count>0 ? 1 : 0); session.View.Write(24, Environment.TickCount64); }
             session.View.Write(80, _enabled ? 1 : 0);
-            if (_panelsDirty) { WritePanels(session.View); _panelsDirty = false; }
+            if (_panelsDirty) { WritePanels(session.View); _panelsDirty = false; _dirtyPanels.Clear(); }
+            if(changed) session.View.Write(96,unchecked(session.View.ReadInt32(96)+1));
         }
         finally { session.Mutex.ReleaseMutex(); }
     }
@@ -130,6 +120,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         foreach (var (kind, payload) in _panels)
         {
             flags |= (int)kind;
+            if(!_dirtyPanels.Contains(kind)) continue;
             var p = payload.Panel;
             switch (kind)
             {
@@ -160,7 +151,9 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         lock (_gate)
         {
             if (_disposed) return 0;
+            if(!_enabled) _frameDirty=true;
             _enabled = true;
+            if(_lastFrame != frame) _frameDirty=true;
             _lastFrame = frame;
             if (_session is not { } session) return 0;
             if (session.Failed) return 0;
@@ -211,7 +204,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                 if (_disposed || (!_enabled && _panels.Count == 0)) { session.Dispose(); return; }
                 _session?.Dispose();
                 _session = session;
-                _panelsDirty = true; Flush();
+                _frameDirty = true; _panelsDirty = true; _dirtyPanels.UnionWith(_panels.Keys); Flush();
             }
             var start = new ProcessStartInfo(host)
             {
@@ -313,6 +306,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
     {
         lock (_gate)
         {
+            if(_enabled) _frameDirty=true;
             _enabled = false;
             if (!_disposed) Flush();
         }

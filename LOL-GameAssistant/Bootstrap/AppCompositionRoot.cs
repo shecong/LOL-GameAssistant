@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.ApplicationInfo;
+using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.ClientFeatures;
@@ -102,8 +102,8 @@ public static class AppCompositionRoot
     /// <summary>英雄、装备和技能等只读游戏资源服务。</summary>
     public static IGameAssetService GameAssetService { get; } = new CachedGameAssetService(
         new LegacyGameAssetService(), () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
-    public static IGameOverlayBridge GameOverlay { get; } = new NativeGameOverlayBridge();
 
+    public static IGameOverlayBridge GameOverlay { get; } = new NativeGameOverlayBridge();
     public static IAugmentScanner AugmentScanner { get; } = new LocalAugmentScanner(GameOverlay);
     public static IAugmentInfoService AugmentInfoService { get; } = new AugmentInfoService();
 

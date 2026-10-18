@@ -147,13 +147,13 @@ public sealed class BattleOverlayRefactorTests
     public void PresentationDistinguishesLoadingEmptyAndUnverifiedResults()
     {
         var player = BattleOverlayPlayer.Create(Member, "me", null, [], 450, "ARAM");
-        Assert.Equal("战绩读取中…", BattleOverlayForm.RecentRecordText(player with { HistoryLoaded = false }, false));
-        Assert.Equal("暂无样本", BattleOverlayForm.RecentRecordText(player, false));
-        Assert.Equal("暂无样本 · 待核验", BattleOverlayForm.RecentRecordText(player with { HistoryComplete = false }, false));
+        Assert.Equal("战绩读取中…", BattleOverlayController.RecentRecordText(player with { HistoryLoaded = false }, false));
+        Assert.Equal("暂无样本", BattleOverlayController.RecentRecordText(player, false));
+        Assert.Equal("暂无样本 · 待核验", BattleOverlayController.RecentRecordText(player with { HistoryComplete = false }, false));
         var partial = BattleOverlayPlayer.Create(Member, "me", null, [Sample(1, true)], 450, "ARAM")
             with { HistoryComplete = false };
-        Assert.Equal("待核验 · 1胜0负", BattleOverlayForm.RecentRecordText(partial, false));
-        Assert.Equal("钻石一 55LP", BattleOverlayForm.RankText(new() { Tier = "DIAMOND", Division = "I", LeaguePoints = 55 }, false));
+        Assert.Equal("待核验 · 1胜0负", BattleOverlayController.RecentRecordText(partial, false));
+        Assert.Equal("钻石一 55LP", BattleOverlayController.RankText(new() { Tier = "DIAMOND", Division = "I", LeaguePoints = 55 }, false));
     }
 
     [Theory]
