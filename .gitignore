@@ -376,3 +376,9 @@ FodyWeavers.xsd
 !/LOL-GameAssistant/Properties/PublishProfiles/Windows-x64.pubxml
 !/LOL-GameAssistant/Properties/PublishProfiles/Windows-x86.pubxml
 !/LOL-GameAssistant/Properties/PublishProfiles/Windows-ARM64.pubxml
+
+
+# Build output artifacts (large binaries, do not commit)
+/output/
+output/
+*.exe
