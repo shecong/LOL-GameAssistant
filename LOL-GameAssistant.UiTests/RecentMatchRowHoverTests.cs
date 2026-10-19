@@ -29,7 +29,7 @@ public sealed class RecentMatchRowHoverTests
     public void LateMouseEnterAfterDisposalCannotRecreateAnimationWindow() =>
         MatchListScrollingTests.OnUiThread(() =>
         {
-            var row = new RecentMatchRow(Service<IGameAssetService>(), Service<IPremadeDetectionService>());
+            var row = new RecentMatchRow(Service<IGameAssetService>());
             row.Dispose();
             typeof(RecentMatchRow).GetMethod("StartHover", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .Invoke(row, new object[] { true });
@@ -44,7 +44,7 @@ public sealed class RecentMatchRowHoverTests
         MatchListScrollingTests.OnUiThread(() =>
         {
             using var form = new Form { ClientSize = new Size(500, 200), Opacity = 0, ShowInTaskbar = false };
-            var row = new RecentMatchRow(Service<IGameAssetService>(), Service<IPremadeDetectionService>())
+            var row = new RecentMatchRow(Service<IGameAssetService>())
             { Bounds = new Rectangle(10, 10, 450, 40) };
             form.Controls.Add(row);
             form.Show();

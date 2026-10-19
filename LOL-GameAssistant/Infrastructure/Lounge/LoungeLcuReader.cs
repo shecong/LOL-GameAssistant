@@ -103,9 +103,6 @@ public sealed class LoungeLcuReader(ILcuRequestSender lcu)
         return result;
     }
 
-    public async Task<string[]> HighlightsAsync(long gameId, string puuid, CancellationToken token) =>
-        ReadHighlights(await ReadObjectAsync($"/lol-match-history/v1/games/{gameId}", token), gameId, puuid);
-
     public static string[] ReadHighlights(JObject? detail, long gameId, string puuid)
     {
         if (detail?.Value<long?>("gameId") != gameId ||
@@ -137,9 +134,6 @@ public sealed class LoungeLcuReader(ILcuRequestSender lcu)
         return string.Join(" / ", result);
     }
 
-    public async Task<string[]> PartyNamesAsync(long gameId, string puuid, string[] party, CancellationToken token) =>
-        ReadPartyNames(await ReadObjectAsync($"/lol-match-history/v1/games/{gameId}", token), gameId, puuid, party);
-
     public static string[] ReadPartyNames(JObject? detail, long gameId, string puuid, string[] party)
     {
         if (detail?.Value<long?>("gameId") != gameId || ReadVictory(detail, gameId, puuid) != true) return [];
@@ -157,12 +151,6 @@ public sealed class LoungeLcuReader(ILcuRequestSender lcu)
                 string tag = player.Value<string>("tagLine") ?? "";
                 return name.Length > 0 && tag.Length > 0 ? name + "#" + tag : name;
             }).Where(n => n.Length > 0).Distinct().Take(4).ToArray();
-    }
-
-    public async Task<bool?> WonAsync(long gameId, string puuid, CancellationToken token)
-    {
-        JObject? detail = await ReadObjectAsync($"/lol-match-history/v1/games/{gameId}", token);
-        return ReadVictory(detail, gameId, puuid);
     }
 
     public Task<JObject?> MatchAsync(long gameId, CancellationToken token) =>

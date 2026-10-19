@@ -17,7 +17,7 @@ public sealed class ServerUpdateReleaseServiceTests
         using var fixture = new Fixture();
         var release = await fixture.Service.GetLatestAsync();
         Assert.Equal(new Version(99, 0, 0), release!.Version);
-        Assert.Equal("https://updates.example.com/app/v99.0.0/update.json", release.ServerManifestUrl!.AbsoluteUri);
+        Assert.Equal($"https://updates.example.com/app/v99.0.0/{UpdatePlatform.Current}/update.json", release.ServerManifestUrl!.AbsoluteUri);
         Assert.Equal("https://updates.example.com/app/update.json", Assert.Single(fixture.Requests).AbsoluteUri);
         Assert.Equal(0, fixture.Github.Calls);
         Assert.True(release.PreferServerDownload);
@@ -26,7 +26,7 @@ public sealed class ServerUpdateReleaseServiceTests
     [Theory]
     [InlineData("unavailable")]
     [InlineData("invalid-json")]
-    [InlineData("invalid-hash")]
+    [InlineData("invalid-schema")]
     [InlineData("oversized")]
     public async Task ServerFailureFallsBackToGithubAndKeepsBothDownloadSources(string failure)
     {
@@ -34,7 +34,7 @@ public sealed class ServerUpdateReleaseServiceTests
         fixture.Failure = failure;
         var release = await fixture.Service.GetLatestAsync();
         Assert.Equal(new Version(98, 0, 0), release!.Version);
-        Assert.Equal("https://updates.example.com/app/v98.0.0/update.json", release.ServerManifestUrl!.AbsoluteUri);
+        Assert.Equal($"https://updates.example.com/app/v98.0.0/{UpdatePlatform.Current}/update.json", release.ServerManifestUrl!.AbsoluteUri);
         Assert.Equal(1, fixture.Github.Calls);
         Assert.False(release.PreferServerDownload);
     }
@@ -61,8 +61,8 @@ public sealed class ServerUpdateReleaseServiceTests
         File.WriteAllText(fixture.ConfigPath, "{\"serverBaseUrl\":\"http://159.75.148.241/\",\"allowHttp\":true}");
         var release = await fixture.Service.GetLatestAsync();
         Assert.True(release!.AllowHttpServer);
-        Assert.Equal("http://159.75.148.241/v99.0.0/update.json", release.ServerManifestUrl!.AbsoluteUri);
-        Assert.Equal("http://159.75.148.241/v99.0.0/LOL-GameAssistant-win-x64.zip",
+        Assert.Equal($"http://159.75.148.241/v99.0.0/{UpdatePlatform.Current}/update.json", release.ServerManifestUrl!.AbsoluteUri);
+        Assert.Equal($"http://159.75.148.241/v99.0.0/{UpdatePlatform.Current}/{UpdatePlatform.Package(UpdatePlatform.Current)}",
             UpdatePackageService.AssetUrl(release, "LOL-GameAssistant-win-x64.zip", useServer: true).AbsoluteUri);
         Assert.Throws<InvalidDataException>(() => UpdatePackageService.AssetUrl(release with { AllowHttpServer = false }, "update.json", useServer: true));
         Assert.Equal(0, fixture.Github.Calls);
@@ -102,14 +102,13 @@ public sealed class ServerUpdateReleaseServiceTests
         });
         var release = await service.GetLatestAsync();
         await responding.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal($"http://127.0.0.1:{port}/app/v99.0.0/update.json", release!.ServerManifestUrl!.AbsoluteUri);
+        Assert.Equal($"http://127.0.0.1:{port}/app/v99.0.0/{UpdatePlatform.Current}/update.json", release!.ServerManifestUrl!.AbsoluteUri);
         Assert.Equal(0, fixture.Github.Calls);
     }
 
     private sealed class Fixture : IDisposable
     {
-        internal static string ManifestJson => JsonSerializer.Serialize(new UpdateManifest(1, "99.0.0", "win-x64",
-            "LOL-GameAssistant-win-x64.zip", 123, new string('a', 64), "LOL-GameGUI.exe"));
+        internal static string ManifestJson => JsonSerializer.Serialize(new UpdateIndex(1, "99.0.0"));
         public string ConfigPath { get; } = Path.Combine(Path.GetTempPath(), "update-source-" + Guid.NewGuid().ToString("N") + ".json");
         public string? Failure { get; set; }
         public List<Uri> Requests { get; } = [];
@@ -127,7 +126,7 @@ public sealed class ServerUpdateReleaseServiceTests
                     Content = new StringContent(Failure switch
                     {
                         "invalid-json" => "invalid",
-                        "invalid-hash" => ManifestJson.Replace(new string('a', 64), "invalid"),
+                        "invalid-schema" => JsonSerializer.Serialize(new UpdateIndex(2, "99.0.0")),
                         "oversized" => new string(' ', 65537),
                         _ => ManifestJson
                     })

@@ -368,6 +368,11 @@ FodyWeavers.xsd
 # Public lounge runtime database (including SQLite WAL files).
 /LOL-GameApi/data/
 
-# Native updater is rebuilt by tools/publish-update.ps1.
+# Prepared native updaters are reused by release packaging.
 /LOL-GameAssistant/Tools/Updater/
 /.artifacts/updates/
+
+# Shared folder-publish profiles contain no credentials.
+!/LOL-GameAssistant/Properties/PublishProfiles/Windows-x64.pubxml
+!/LOL-GameAssistant/Properties/PublishProfiles/Windows-x86.pubxml
+!/LOL-GameAssistant/Properties/PublishProfiles/Windows-ARM64.pubxml

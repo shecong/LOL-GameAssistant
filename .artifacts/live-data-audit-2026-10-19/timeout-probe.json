@@ -1,0 +1,14 @@
+[
+  {
+    "ElapsedMs": 7508,
+    "Status": 200,
+    "Kind": "Recent failed detail",
+    "Bytes": 31263
+  },
+  {
+    "ElapsedMs": 7509,
+    "Status": 200,
+    "Kind": "500 summaries",
+    "Bytes": 788492
+  }
+]

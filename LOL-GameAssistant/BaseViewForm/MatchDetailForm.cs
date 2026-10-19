@@ -591,7 +591,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     tag.Text = "数据不足";
                     tag.SetAssessment(null);
-                    _assetToolTip.SetToolTip(tag, "最近 30 天同模式战绩暂时无法读取，未作表现判定。");
+                    _assetToolTip.SetToolTip(tag, "最近 50 场同模式战绩暂时无法读取，未作表现判定。");
                 }
             }
         }
@@ -609,7 +609,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             tag.Text = RecentPerformanceLabelFormatter.GetText(assessment);
             tag.SetAssessment(assessment.Label);
-            _assetToolTip.SetToolTip(tag, $"同模式近期表现 · {assessment.Score} 分\n{assessment.Detail}");
+            _assetToolTip.SetToolTip(tag, $"{(assessment.UsesAllModes ? "全模式参考（排除自定义）" : "同模式近期表现")} · {assessment.Score} 分\n{assessment.Detail}");
         }
 
         /// <summary>保留评分状态，在动态添加、异步评分和主题切换后使用一致的语义配色。</summary>

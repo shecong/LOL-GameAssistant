@@ -399,6 +399,7 @@ public sealed class BattleOverlayTests
             ]}}
             """);
         var mapped = LOL_GameAssistant.Infrastructure.LeagueClient.LegacyMatchReadModelMapper.ToDomain(raw)!;
+        foreach (var game in mapped.Games!.Games) game.GameCreation = DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds();
         Assert.False(mapped.Games!.Games[0].Participants[0].stats!.HasWinResult);
         var result = BattleOverlayPlayer.Create(new() { Puuid = "me", ChampionId = 22 }, "me", null,
             mapped.Games.Games, 450, "ARAM");
@@ -422,9 +423,10 @@ public sealed class BattleOverlayTests
         Assert.Equal("单双 75%", BattleOverlayController.RankRateText(result, false));
     }
 
+    private static long _gameId;
     private static MatchHistoryGame Game(bool win, int champion, int kills, int deaths, int assists) => new()
     {
-        QueueId = 450, GameMode = "ARAM", GameDuration = 1200,
+        GameId = Interlocked.Increment(ref _gameId), GameCreation = DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds(), QueueId = 450, GameMode = "ARAM", GameDuration = 1200,
         Participants = [new() { championId = champion, participantId = 1,
             stats = new() { Win = win, kills = kills, deaths = deaths, assists = assists } }]
     };

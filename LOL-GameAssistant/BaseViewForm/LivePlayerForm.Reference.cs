@@ -12,7 +12,7 @@ public partial class LivePlayerForm
     internal event EventHandler? OverviewChanged;
     private AntdUI.Label? _historyHeading;
     internal IReadOnlyList<MatchHistoryGame>? RecentEncounterHistory { get; private set; }
-    private RecentModePerformanceAssessment? _loadedAssessment;
+    internal bool RecentEncounterUnavailable { get; private set; }
     private readonly AntdUI.Label _kdaLabel = new() { Name = "lblRecentKda", Text = "KDA —",
         AutoSize = false, AutoEllipsis = true, BackColor = Color.Transparent, Font = new Font(UiMetrics.FontFamily, 8F) };
     private readonly AntdUI.Label _encounterLabel = new() { Name = "lblRecentEncounter", Text = "遇见检测中",
@@ -21,63 +21,48 @@ public partial class LivePlayerForm
 
     internal void SetRecentEncounterHistory(MatchHistoryResponse history)
     {
-        long cutoff = DateTimeOffset.UtcNow.AddDays(-30).ToUnixTimeMilliseconds();
-        RecentEncounterHistory = history.Games?.Games.Where(game => game.GameId > 0 &&
-            game.GameCreation >= cutoff && game.IsCompletedGame()).DistinctBy(game => game.GameId)
-            .OrderByDescending(game => game.GameCreation).Take(HistoryFetchCount).ToArray() ?? [];
+        RecentEncounterHistory = SelectEncounterHistory(history);
+        RecentEncounterUnavailable = false;
         OverviewChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    internal void UpdateRecentEncounter(string? myPuuid, IReadOnlyList<MatchHistoryGame>? ownHistory)
+    internal static IReadOnlyList<MatchHistoryGame> SelectEncounterHistory(MatchHistoryResponse history) =>
+        history.Games?.Games.Where(game => game.GameId > 0 && game.IsCompletedGame() && !game.IsCustomGame())
+            .DistinctBy(game => game.GameId).OrderByDescending(game => game.GameCreation).Take(50).ToArray() ?? [];
+
+    internal void UpdateRecentEncounter(string? myPuuid, IReadOnlyList<MatchHistoryGame>? ownHistory, bool ownUnavailable = false)
     {
         _encounterLabel.Visible = !_isBot && _playerPuuid != myPuuid;
         if (!_encounterLabel.Visible) return;
         var ownIds = ownHistory?.Select(game => game.GameId).ToHashSet();
         var shared = ownIds == null ? [] : RecentEncounterHistory?.Where(game => ownIds.Contains(game.GameId)).ToArray() ?? [];
+        bool historyLoading = RecentEncounterHistory == null && !RecentEncounterUnavailable;
         _encounterLabel.Text = string.IsNullOrWhiteSpace(myPuuid) ? "遇见检测待确认身份"
-            : ownHistory == null || RecentEncounterHistory == null ? "遇见检测中"
+            : historyLoading ? "战绩加载后检测"
+            : ownHistory == null ? ownUnavailable ? "本人战绩暂不可用" : "等待读取本人战绩"
+            : RecentEncounterHistory == null ? RecentEncounterUnavailable ? "玩家战绩暂不可用" : "等待读取玩家战绩"
             : shared.Length > 0 ? $"近期遇到 {shared.Length} 次" : "近期未遇到";
         _encounterLabel.ForeColor = shared.Length > 0 ? UiTheme.Palette.Accent : UiTheme.Palette.TextSecondary;
         _performanceTip.SetToolTip(_encounterLabel,
-            "比对你和该玩家最近已加载的最多 100 场、30 天内有效对局；仅统计相同对局 ID。" +
-            (shared.Length > 0 ? $"最近一次：{DateTimeOffset.FromUnixTimeMilliseconds(shared.Max(game => game.GameCreation)).ToLocalTime():MM-dd HH:mm}" : "未遇到仅代表此统计范围内无共同记录。"));
+            "比对你和该玩家各自最近50场非自定义有效对局，不限日期；仅统计相同对局 ID。" +
+            (!historyLoading && (ownHistory == null ? ownUnavailable : RecentEncounterUnavailable) ? "战绩暂不可用时，可点击上方“获取数据”重试。" :
+            shared.Length > 0 ? $"最近一次：{DateTimeOffset.FromUnixTimeMilliseconds(shared.Max(game => game.GameCreation)).ToLocalTime():MM-dd HH:mm}" : "未遇到仅代表此统计范围内无共同记录。"));
     }
 
     internal void ShowRecentAssessment(RecentModePerformanceAssessment assessment)
     {
         _kdaLabel.Text = assessment.SampleSize > 0
-            ? $"KDA {assessment.Kda:F2} · {assessment.SampleSize}场 · {(assessment.UsesAllModes ? "各模式" : "同模式")}" : "KDA — · 无有效对局";
+            ? $"KDA {assessment.Kda:F2} · {assessment.SampleSize}场 · {(assessment.UsesAllModes ? "各模式" : "同模式")}" : $"KDA — · {assessment.NoKdaSampleReason ?? "无有效KDA样本"}";
         _kdaLabel.ForeColor = UiTheme.Palette.TextPrimary;
-        _performanceTip.SetToolTip(_kdaLabel, assessment.Detail);
-    }
-
-    private void ShowLoadedRecentKda(MatchHistoryResponse history,
-        IReadOnlyList<(MatchDetail detail, MatchParticipant gamer)> results)
-    {
-        long cutoff = DateTimeOffset.UtcNow.AddDays(-30).ToUnixTimeMilliseconds();
-        var eligible = history.Games!.Games.Where(game => game.GameCreation >= cutoff && game.IsCompletedGame())
-            .Select(game => game.GameId).ToHashSet();
-        var samples = results.Where(item => eligible.Contains(item.detail.GameId) && item.gamer.stats?.HasKdaResult == true)
-            .DistinctBy(item => item.detail.GameId).ToArray();
-        var sameMode = samples.Where(item => history.Games.Games.Any(game => game.GameId == item.detail.GameId &&
-            MatchModeComparer.IsSameMode(_currentQueueId, _currentGameMode, game))).ToArray();
-        bool allModes = sameMode.Length == 0;
-        if (!allModes) samples = sameMode;
-        if (samples.Length == 0) return;
-        var assessment = RecentModePerformanceEvaluator.Evaluate("已加载近期对局",
-            samples.Select(item => new MatchPerformanceAssessment(MatchPerformanceTier.Medium, 0, "",
-                item.gamer.stats!.kills, item.gamer.stats.deaths, item.gamer.stats.assists)),
-            samples.Select(item => item.gamer.IsWin())) with { UsesAllModes = allModes };
-        _loadedAssessment = assessment;
-        ShowRecentAssessment(assessment);
+        _performanceTip.SetToolTip(_kdaLabel, $"{_historySnapshot?.ScopeText}\n{assessment.Detail}");
     }
 
     private bool UseLoadedAssessmentOnFailure(string reason)
     {
-        if (_loadedAssessment is not { SampleSize: > 0 } assessment) return false;
+        if (_cachedAssessment is not { SampleSize: > 0 } assessment) return false;
         lblSummary.Text = RecentPerformanceLabelFormatter.GetText(assessment);
         ShowRecentAssessment(assessment);
-        string detail = $"{reason}。当前评分仅统计已加载的有效对局。{assessment.Detail}";
+        string detail = $"{reason}。当前评分保留已获取摘要的计算结果。{assessment.Detail}";
         _performanceTip.SetToolTip(lblSummary, detail);
         _performanceTip.SetToolTip(_kdaLabel, detail);
         PublishRecentPerformance(assessment);

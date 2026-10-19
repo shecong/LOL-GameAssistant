@@ -1,4 +1,6 @@
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Application.Matches;
+using LOL_GameAssistant.Domain.Matches;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -9,12 +11,84 @@ public partial class LiveGameForm
     private readonly AntdUI.Label _gameSubtitle = CreateOverviewLabel();
     private string _modeDescription = "双方阵容";
     private string? _encounterSelfPuuid;
+    private string? _encounterHistoryOwner;
+    private IReadOnlyList<MatchHistoryGame>? _ownEncounterHistory;
+    private bool _ownEncounterUnavailable;
+    private CancellationTokenSource? _encounterRead;
+
+    private void ResetEncounterHistory()
+    {
+        _encounterRead?.Cancel();
+        _encounterRead?.Dispose();
+        _encounterRead = null;
+        _encounterHistoryOwner = null;
+        _ownEncounterHistory = null;
+        _ownEncounterUnavailable = false;
+    }
 
     private void UpdateRecentEncounters()
     {
+        if (IsDisposed) return;
         var cards = panelTeam1.Controls.OfType<LivePlayerForm>().Concat(panelTeam2.Controls.OfType<LivePlayerForm>()).ToArray();
-        var ownHistory = cards.FirstOrDefault(card => card.Puuid == _encounterSelfPuuid)?.RecentEncounterHistory;
-        foreach (var card in cards) card.UpdateRecentEncounter(_encounterSelfPuuid, ownHistory);
+        string owner = $"{PlayerHistorySession.Key}:{_encounterSelfPuuid}";
+        if (_encounterHistoryOwner != owner)
+        {
+            ResetEncounterHistory();
+            _encounterHistoryOwner = owner;
+        }
+        var ownCard = cards.FirstOrDefault(card => card.Puuid == _encounterSelfPuuid);
+        var ownHistory = ownCard?.RecentEncounterHistory ?? _ownEncounterHistory;
+        if (ownHistory == null && (_ownEncounterUnavailable || ownCard?.RecentEncounterUnavailable == true) && !string.IsNullOrWhiteSpace(_encounterSelfPuuid))
+        {
+            // A shared retry may have succeeded after an earlier failure. Recover from it.
+            var snapshot = PlayerHistoryRepository.For(_matchHistoryService).Peek(_encounterSelfPuuid);
+            if (snapshot?.Available == true)
+            {
+                ownHistory = _ownEncounterHistory = LivePlayerForm.SelectEncounterHistory(snapshot.Data!);
+                _ownEncounterUnavailable = false;
+            }
+        }
+        // When self is a roster card, its summary request is the sole authority for load/failure state.
+        // Otherwise (spectating), await the shared repository independently.
+        if (ownCard == null && ownHistory == null && _encounterRead == null && !_ownEncounterUnavailable && !string.IsNullOrWhiteSpace(_encounterSelfPuuid))
+            _ = ReadOwnEncounterHistoryAsync(_encounterSelfPuuid, owner);
+        // The read may complete synchronously from the shared repository.
+        ownHistory ??= _ownEncounterHistory;
+        bool ownUnavailable = ownHistory == null && (ownCard?.RecentEncounterUnavailable ?? _ownEncounterUnavailable);
+        foreach (var card in cards) card.UpdateRecentEncounter(_encounterSelfPuuid, ownHistory, ownUnavailable);
+    }
+
+    private async Task ReadOwnEncounterHistoryAsync(string puuid, string owner)
+    {
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_dataLifetime.Token);
+        _encounterRead = cancellation;
+        try
+        {
+            var snapshot = await PlayerHistoryRepository.For(_matchHistoryService).GetBatchAsync(puuid, cancellation.Token);
+            if (IsDisposed || owner != _encounterHistoryOwner || _encounterRead != cancellation) return;
+            _ownEncounterHistory = snapshot.Available ? LivePlayerForm.SelectEncounterHistory(snapshot.Data!) : null;
+            _ownEncounterUnavailable = !snapshot.Available;
+        }
+        catch (OperationCanceledException)
+        {
+            // Only changing context or disposing this view cancels this wait; neither is a data failure.
+        }
+        catch (Exception error)
+        {
+            if (!IsDisposed && owner == _encounterHistoryOwner && _encounterRead == cancellation)
+                _ownEncounterUnavailable = true;
+            RuntimeDiagnostics.Report("遇见检测", "本人战绩暂不可用", error.Message);
+        }
+        finally
+        {
+            if (_encounterRead == cancellation)
+            {
+                _encounterRead = null;
+                bool canceled = cancellation.IsCancellationRequested;
+                cancellation.Dispose();
+                if (!IsDisposed && !canceled) UpdateRecentEncounters();
+            }
+        }
     }
 
     private static AntdUI.Label CreateOverviewLabel() => new() {

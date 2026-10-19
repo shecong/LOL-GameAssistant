@@ -21,6 +21,7 @@ public sealed class MatchHistoryGame
     public long GameId { get; set; }
     public long GameCreation { get; set; }
     public string GameMode { get; set; } = "";
+    public string GameType { get; set; } = "";
     public int QueueId { get; set; }
     public int GameDuration { get; set; }
     public string EndOfGameResult { get; set; } = "";
@@ -33,6 +34,9 @@ public sealed class MatchHistoryGame
 /// <summary>战绩列表摘要的业务计算。</summary>
 public static class MatchHistoryGameExtensions
 {
+    public static bool IsCustomGame(this MatchHistoryGame game) =>
+        game.GameType.StartsWith("CUSTOM", StringComparison.OrdinalIgnoreCase) || game.QueueId == 3110 ||
+        (game.QueueId == 0 && !string.Equals(game.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase));
     /// <summary>短于该时长且未标记重开的对局按重开处理。</summary>
     private const int MinimumCountedDurationSeconds = 300;
 
@@ -74,6 +78,13 @@ public static class MatchModeComparer
         bool currentKiwi = currentQueueId is 2400 or 3270 || IsKiwi(currentMode);
         bool historyKiwi = history.QueueId is 2400 or 3270 || IsKiwi(history.GameMode);
         if (currentKiwi || historyKiwi) return currentKiwi && historyKiwi;
+
+        // 国服自定义峡谷房间使用 3110；历史排位/匹配使用各自队列号。
+        // 房间本身没有排位类型，以峡谷 PvP 作为参考，排除人机及轮换玩法。
+        if (currentQueueId == 3110 &&
+            (string.IsNullOrWhiteSpace(currentMode) || string.Equals(currentMode.Trim(), "CLASSIC", StringComparison.OrdinalIgnoreCase)))
+            return history.QueueId is 0 or 2 or 4 or 6 or 14 or 400 or 410 or 420 or 430 or 440 or 490 or 3110 &&
+                (string.IsNullOrWhiteSpace(history.GameMode) || string.Equals(history.GameMode.Trim(), "CLASSIC", StringComparison.OrdinalIgnoreCase));
 
         if (currentQueueId > 0 && history.QueueId > 0)
             return currentQueueId == history.QueueId;
@@ -283,6 +294,7 @@ public static class LolGameModeNames
                 430 => "峡谷匹配（盲选）",
                 440 => "峡谷灵活组排",
                 490 => "峡谷快速游戏",
+                3110 => "自定义峡谷",
                 _ => null
             };
             if (!string.IsNullOrEmpty(name)) return name;

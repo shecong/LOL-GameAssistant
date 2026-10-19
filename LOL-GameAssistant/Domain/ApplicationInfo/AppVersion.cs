@@ -1,6 +1,6 @@
 namespace LOL_GameAssistant.Domain.ApplicationInfo;
 
-/// <summary>统一显示和比较发布版本，缺省的版本段按零处理。</summary>
+/// <summary>版本由 build/Version.props 统一编译进程序集，显示和更新比较使用同一值。</summary>
 internal static class AppVersion
 {
     public static Version Current => Normalize(typeof(AppVersion).Assembly.GetName().Version ?? new Version(1, 0, 0));

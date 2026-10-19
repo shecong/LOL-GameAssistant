@@ -31,14 +31,14 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly Func<RecordForm> _recordFactory;
 
         private MatchHistoryResponse? matchlists;
+        private PlayerHistorySnapshot? _historySnapshot;
+        private readonly ToolTip _historyTip = new();
         private Image? _ownedProfileImage;
 
         /// <summary>
-        /// 首页战绩一次拉取的场数上限。
-        /// 原先是一次请求要 9999 局，响应体改为整体缓冲后会造成明显的内存尖峰，
-        /// 收敛为最近 200 局（仍是单次请求，本地分页够用）；更长的历史走"战绩查询"页。
+        /// 首页单次获取摘要；本地分页，当前页才加载详情，评级复用同一批摘要。
         /// </summary>
-        private const int RecentGamesLimit = 200;
+        private const int RecentGamesLimit = RecentModePerformanceService.SummaryLimit;
 
         /// <summary>
         /// 防止客户端后启动时重复刷新首页。
@@ -105,7 +105,7 @@ namespace LOL_GameAssistant.BaseViewForm
             LayoutSummary();
             stackPanel1.SizeChanged += (_, _) => LayoutRecordCards();
             ApplyTheme(UiTheme.Palette);
-            Disposed += (_, _) => { _loads.Dispose(); _pages.Dispose(); _ownedProfileImage?.Dispose(); };
+            Disposed += (_, _) => { _loads.Dispose(); _pages.Dispose(); _ownedProfileImage?.Dispose(); _historyTip.Dispose(); };
         }
 
         private void LanguageChanged(object? sender, EventArgs args) => LayoutSummary();
@@ -247,7 +247,6 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <returns></returns>
         private Task LoadGame() => LoadPlayerAsync(null);
         public Task RefreshAsync() => LoadPlayerAsync(UserStatus == 2 ? userOhterinfo?.Puuid : null);
-        private Task LoadGame(string puuid) => LoadPlayerAsync(puuid);
 
         internal async Task LoadPlayerAsync(string? puuid, string? search = null)
         {
@@ -304,19 +303,35 @@ namespace LOL_GameAssistant.BaseViewForm
                 play_dj.Text = player.SummonerLevel.ToString();
                 play_next.Text = player.XpUntilNextLevel.ToString();
                 play_jd.Value = CalculateLevelProgress(player);
+                _historySnapshot = null;
                 await _gameDataVersionService.EnsureCurrentVersionAsync(token);
                 if (!request.IsCurrent) return;
                 // Show the profile immediately, then fetch independent data together.
                 var iconTask = _profileIconService.GetProfileIconAsync(player.ProfileIconId, token);
                 var rankedTask = _rankedStatsService.GetAsync(player.Puuid, isCurrentUser: puuid == null, cancellationToken: token);
-                var historyTask = _matchHistoryService.GetPageAsync(player.Puuid, 0, RecentGamesLimit - 1, token);
-                await Task.WhenAll(iconTask, rankedTask, historyTask);
+                var historyTask = PlayerHistoryRepository.For(_matchHistoryService).GetBatchAsync(player.Puuid, token);
+                async Task UpdateIconAsync()
+                {
+                    try { var icon = await iconTask; if (request.IsCurrent && icon is { Length: > 0 }) ReplaceProfileIcon(icon); }
+                    catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
+                }
+                async Task UpdateRankAsync()
+                {
+                    try { var ranked = await rankedTask; if (request.IsCurrent) ApplyRankedStats(ranked, _historySnapshot?.Data, player.Puuid); }
+                    catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
+                }
+                _ = UpdateIconAsync();
+                _ = UpdateRankAsync();
+                var snapshot = await historyTask;
                 if (!request.IsCurrent) return;
-                byte[]? icon = await iconTask;
-                var ranked = await rankedTask;
-                var history = await historyTask;
-                if (icon is { Length: > 0 }) ReplaceProfileIcon(icon);
-                ApplyRankedStats(ranked, history, player.Puuid);
+                if (!snapshot.Available) throw new IOException(snapshot.Error ?? "首页战绩摘要暂不可用");
+                var history = snapshot.Data;
+                _historySnapshot = snapshot;
+                if (rankedTask.IsCompletedSuccessfully) ApplyRankedStats(rankedTask.Result, history, player.Puuid);
+                refeash.AccessibleDescription = snapshot.ScopeText;
+                _historyTip.SetToolTip(refeash, snapshot.ScopeText);
+                _historyTip.SetToolTip(lblHistoryTitle, snapshot.ScopeText);
+                _historyTip.SetToolTip(game_pagin, snapshot.ScopeText);
                 matchlists = history;
                 UpdateModeOptions();
                 InitPagin(history);
@@ -353,11 +368,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 stackPanel1.Controls.Remove(control);
                 control.Dispose();
             }
-            if (userinfo == null || matchlists?.Games?.Games == null) return;
+            var history = matchlists;
+            if (userinfo == null || history?.Games?.Games == null) return;
             if (!int.TryParse(this.game_count.Text, out int pageSize) || pageSize <= 0) pageSize = 10;
 
             // 使用已缓存的 matchlists 数据进行本地分页，避免重复调用 API
-            var sortedList = matchlists.Games.Games
+            var sortedList = history.Games.Games
                 .Where(MatchesSelectedMode)
                 .OrderByDescending(p => p.GameCreation)
                 .ToList();
@@ -367,10 +383,19 @@ namespace LOL_GameAssistant.BaseViewForm
             if (skip >= total) { ShowHistoryMessage("暂无符合筛选条件的对局"); return; }
             var pageList = sortedList.Skip(skip).Take(pageSize).ToList();
             ShowHistoryMessage("正在加载近期战绩…");
+            ControlLifetime.ClearAndDispose(stackPanel1);
+            var visibleRecords = pageList.Select(_ => _recordFactory()).ToArray();
+            foreach (var record in visibleRecords)
+            {
+                record.Width = GetRecordCardWidth();
+                record.Margin = new Padding(0, 0, 12, 16);
+                stackPanel1.Controls.Add(record);
+            }
+            LayoutRecordCards();
 
             // 并行加载本页战绩（限制并发，避免瞬时大量请求），完成后按原顺序显示
             using var semaphore = new SemaphoreSlim(4, 4);
-            var tasks = pageList.Select(async head =>
+            var tasks = pageList.Select(async (head, index) =>
             {
                 RecordForm? record = null;
                 bool acquired = false;
@@ -383,15 +408,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 try
                 {
                     if (!request.IsCurrent) return null;
-                    record = _recordFactory();
-                    record.Width = GetRecordCardWidth();
-                    record.Margin = new Padding(0, 0, 12, 16);
-                    await record.setInfo(head, userinfo.Puuid, cancellationToken: token);
+                    record = visibleRecords[index];
+                    await record.setInfo(head, userinfo.Puuid, cancellationToken: token, history: history);
                     return record;
                 }
                 catch
                 {
-                    record?.Dispose();
                     return null;
                 }
                 finally
@@ -405,11 +427,6 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 foreach (var record in records) record?.Dispose();
                 return;
-            }
-            ControlLifetime.ClearAndDispose(stackPanel1);
-            foreach (var record in records)
-            {
-                if (record != null) this.stackPanel1.Controls.Add(record);
             }
             LayoutRecordCards();
             if (stackPanel1.Controls.Count == 0) ShowHistoryMessage("加载失败，请点击刷新重试");

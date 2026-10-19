@@ -223,15 +223,4 @@ namespace LOL_GameAssistant.Helper
         }
     }
 
-    /// <summary>
-    /// 根据id获取英雄名
-    /// </summary>
-    public static class GetChampionHelper
-    {
-        /// <summary>构建英雄选择控件使用的候选项。</summary>
-        public static ChampionOption? GetChampionOption(int id)
-        {
-            return ChampionMap.GetChampion(id);
-        }
-    }
 }

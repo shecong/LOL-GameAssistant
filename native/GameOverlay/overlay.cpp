@@ -45,6 +45,11 @@ std::atomic<LONG> overlayLeft{0}, overlayTop{0}, overlayRight{0}, overlayBottom{
 std::atomic<bool> acceptsMouse{false};
 std::atomic<WNDPROC> previousProc{nullptr};
 std::atomic<HWND> gameWindow{nullptr};
+HHOOK wheelQueueHook=nullptr;
+using RawInputData=UINT(WINAPI*)(HRAWINPUT,UINT,LPVOID,PUINT,UINT);
+using RawInputBuffer=UINT(WINAPI*)(PRAWINPUT,PUINT,UINT);
+RawInputData originalRawInputData=nullptr;
+RawInputBuffer originalRawInputBuffer=nullptr;
 std::atomic<unsigned> consumedButtons{0};
 std::atomic<ULONGLONG> lastRender{0};
 struct HitRegion { std::atomic<LONG> left{0}, top{0}, right{0}, bottom{0}; };
@@ -82,6 +87,7 @@ HRESULT ForwardPresent(IDXGISwapChain* chain,UINT sync,UINT flags,std::unique_lo
 #ifdef SC_OVERLAY_TEST
 std::atomic<LONG> testPointerX{0}, testPointerY{0};
 std::atomic<bool> testPointerEnabled{false};
+std::atomic<float> testSkinScroll{0};
 #endif
 POINT ClientPointer(HWND window) {
 #ifdef SC_OVERLAY_TEST
@@ -96,6 +102,51 @@ bool PointerOverOverlay() {
     for (unsigned i = 0; i < regionCount && i < 2; ++i)
         if (p.x >= regions[i].left && p.x < regions[i].right && p.y >= regions[i].top && p.y < regions[i].bottom) return true;
     return false;
+}
+
+// Games may inspect MSG before DispatchMessage, or poll raw input without
+// dispatching WM_INPUT. WndProc alone cannot prevent those paths from zooming.
+LRESULT CALLBACK WheelQueueProc(int code,WPARAM removed,LPARAM data) {
+    if(code==HC_ACTION && data) {
+        auto message=reinterpret_cast<MSG*>(data);
+        if(message->hwnd==gameWindow && message->message==WM_MOUSEWHEEL && PointerOverOverlay()) {
+            if(removed==PM_REMOVE) wheel.fetch_add(GET_WHEEL_DELTA_WPARAM(message->wParam));
+            message->message=WM_NULL; message->wParam=0; message->lParam=0;
+        }
+    }
+    return CallNextHookEx(nullptr,code,removed,data);
+}
+void MaskOverlayRawWheel(RAWINPUT* input,size_t bytes) {
+    if(!input || bytes<offsetof(RAWINPUT,data)+sizeof(RAWMOUSE) || input->header.dwType!=RIM_TYPEMOUSE || !PointerOverOverlay()) return;
+    auto& mouse=input->data.mouse;
+    if(mouse.usButtonFlags & RI_MOUSE_WHEEL) {
+        mouse.usButtonFlags &= ~RI_MOUSE_WHEEL;
+        if(!(mouse.usButtonFlags & RI_MOUSE_HWHEEL)) mouse.usButtonData=0;
+    }
+}
+void MaskOverlayRawBuffer(RAWINPUT* input,UINT count,UINT capacity) {
+    auto cursor=reinterpret_cast<unsigned char*>(input);
+    size_t remaining=capacity;
+    for(UINT i=0;cursor && i<count && remaining>=sizeof(RAWINPUTHEADER);++i) {
+        auto block=reinterpret_cast<RAWINPUT*>(cursor);
+        if(block->header.dwSize<sizeof(RAWINPUTHEADER) || block->header.dwSize>remaining) break;
+        MaskOverlayRawWheel(block,block->header.dwSize);
+        size_t stride=(size_t(block->header.dwSize)+sizeof(ULONG_PTR)-1)&~(sizeof(ULONG_PTR)-1);
+        if(stride>remaining) break;
+        cursor+=stride; remaining-=stride;
+    }
+}
+UINT WINAPI OnRawInputData(HRAWINPUT handle,UINT command,LPVOID data,PUINT size,UINT headerSize) {
+    UINT result=originalRawInputData(handle,command,data,size,headerSize);
+    if(result!=UINT(-1) && command==RID_INPUT && data && headerSize==sizeof(RAWINPUTHEADER))
+        MaskOverlayRawWheel(static_cast<RAWINPUT*>(data),result);
+    return result;
+}
+UINT WINAPI OnRawInputBuffer(PRAWINPUT data,PUINT size,UINT headerSize) {
+    UINT capacity=data && size ? *size : 0;
+    UINT count=originalRawInputBuffer(data,size,headerSize);
+    if(count!=UINT(-1) && data && headerSize==sizeof(RAWINPUTHEADER)) MaskOverlayRawBuffer(data,count,capacity);
+    return count;
 }
 LRESULT CALLBACK GameWndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     // Only clicks begun inside interactive panels belong to the overlay.
@@ -216,12 +267,19 @@ bool Initialize(IDXGISwapChain* chain, HWND window) {
     ImGui::StyleColorsDark();
     ImGui::GetStyle().WindowRounding = 8;
     if (gameWindow != window) {
+        HMODULE module=nullptr;
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(&WheelQueueProc),&module);
+        HHOOK nextQueueHook=SetWindowsHookExW(WH_GETMESSAGE,WheelQueueProc,module,GetWindowThreadProcessId(window,nullptr));
+        if(!nextQueueHook) return false;
         if (gameWindow && reinterpret_cast<WNDPROC>(GetWindowLongPtrW(gameWindow, GWLP_WNDPROC)) == GameWndProc)
             SetWindowLongPtrW(gameWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(previousProc.load()));
         previousProc = reinterpret_cast<WNDPROC>(GetWindowLongPtrW(window, GWLP_WNDPROC));
         SetLastError(0);
         LONG_PTR previous = SetWindowLongPtrW(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(GameWndProc));
-        if (!previous && GetLastError()) return false;
+        if (!previous && GetLastError()) { UnhookWindowsHookEx(nextQueueHook); return false; }
+        if(wheelQueueHook) UnhookWindowsHookEx(wheelQueueHook);
+        wheelQueueHook=nextQueueHook;
         previousProc = reinterpret_cast<WNDPROC>(previous);
         gameWindow = window;
     }
@@ -359,12 +417,23 @@ int Install() {
     void* present=table[8]; void* resize=table[13];
     MH_STATUS status=MH_Initialize();
     if(status!=MH_OK && status!=MH_ERROR_ALREADY_INITIALIZED) { DestroyWindow(probe); return -3; }
-    status=MH_CreateHook(present,OnPresent,reinterpret_cast<void**>(&originalPresent));
-    if(status==MH_OK) status=MH_CreateHook(resize,OnResize,reinterpret_cast<void**>(&originalResize));
-    if(status==MH_OK) status=MH_QueueEnableHook(present);
-    if(status==MH_OK) status=MH_QueueEnableHook(resize);
+    HMODULE user32=GetModuleHandleW(L"user32.dll");
+    void* rawData=reinterpret_cast<void*>(GetProcAddress(user32,"GetRawInputData"));
+    void* rawBuffer=reinterpret_cast<void*>(GetProcAddress(user32,"GetRawInputBuffer"));
+    struct Hook { void* target; void* callback; void** original; };
+    Hook hooks[]{
+        {present,reinterpret_cast<void*>(&OnPresent),reinterpret_cast<void**>(&originalPresent)},
+        {resize,reinterpret_cast<void*>(&OnResize),reinterpret_cast<void**>(&originalResize)},
+        {rawData,reinterpret_cast<void*>(&OnRawInputData),reinterpret_cast<void**>(&originalRawInputData)},
+        {rawBuffer,reinterpret_cast<void*>(&OnRawInputBuffer),reinterpret_cast<void**>(&originalRawInputBuffer)}
+    };
+    for(auto& hook:hooks) {
+        status=MH_CreateHook(hook.target,hook.callback,hook.original);
+        if(status!=MH_OK) break;
+    }
+    if(status==MH_OK) for(auto& hook:hooks) { status=MH_QueueEnableHook(hook.target); if(status!=MH_OK) break; }
     if(status==MH_OK) status=MH_ApplyQueued();
-    if(status!=MH_OK) { MH_RemoveHook(present); MH_RemoveHook(resize); }
+    if(status!=MH_OK) for(auto& hook:hooks) MH_RemoveHook(hook.target);
     chain.Reset(); probeDevice.Reset(); DestroyWindow(probe); UnregisterClassW(wc.lpszClassName, wc.hInstance);
     return status == MH_OK ? 1 : -3;
 }
@@ -410,6 +479,10 @@ extern "C" __declspec(dllexport) BOOL OverlayTestRegion(unsigned index, RECT* ou
     if (!output || index >= regionCount || index >= 2) return FALSE;
     *output = RECT{regions[index].left,regions[index].top,regions[index].right,regions[index].bottom}; return TRUE;
 }
+extern "C" __declspec(dllexport) LONG OverlayTestWheel() { return wheel.load(); }
+extern "C" __declspec(dllexport) float OverlayTestSkinScroll() { return testSkinScroll.load(); }
+extern "C" __declspec(dllexport) void OverlayTestRawWheel(RAWINPUT* input,UINT bytes) { MaskOverlayRawWheel(input,bytes); }
+extern "C" __declspec(dllexport) void OverlayTestRawBuffer(RAWINPUT* input,UINT count,UINT bytes) { MaskOverlayRawBuffer(input,count,bytes); }
 #endif
 
 extern "C" __declspec(dllexport) LRESULT CALLBACK OverlayBootstrap(int code, WPARAM removed, LPARAM data) {

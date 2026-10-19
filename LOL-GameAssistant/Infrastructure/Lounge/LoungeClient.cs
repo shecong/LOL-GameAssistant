@@ -134,9 +134,6 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
         Notify();
     }
 
-    public async Task SendAsync(string clientId, string text, CancellationToken token = default)
-        => await SendPostAsync(new LoungeSend(clientId, text), token);
-
     public async Task SendPostAsync(LoungeSend post, CancellationToken token = default)
     {
         var hub = _hub;

@@ -15,8 +15,12 @@ public class HttpClientHelper : IDisposable
     public static string? Port => Credentials?.Port;
     public static string? Token => Credentials?.Token;
     internal static LeagueClientCredentials? Credentials => Volatile.Read(ref _credentials);
-    internal static void SetCredentials(LeagueClientCredentials credentials) =>
-        Interlocked.Exchange(ref _credentials, credentials);
+    internal static void SetCredentials(LeagueClientCredentials credentials)
+    {
+        var previous = Interlocked.Exchange(ref _credentials, credentials);
+        if (previous?.Port != credentials.Port || previous.Token != credentials.Token)
+            LOL_GameAssistant.Application.Matches.PlayerHistorySession.SetClient(Guid.NewGuid().ToString("N"));
+    }
 
     // 使用静态 HttpClient 实例避免 Socket 耗尽
     private static readonly HttpClient _httpClient;
@@ -34,7 +38,7 @@ public class HttpClientHelper : IDisposable
         handler.MaxConnectionsPerServer = 50; // 增加连接数限制
 
         _httpClient = new HttpClient(handler);
-        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        _httpClient.Timeout = LOL_GameAssistant.Application.Matches.MatchDataPolicy.TransportTimeout;
         _httpClient.DefaultRequestHeaders.ConnectionClose = false; // 保持长连接
     }
 
@@ -87,28 +91,10 @@ public class HttpClientHelper : IDisposable
         throw new LOL_GameAssistant.Application.LeagueClient.LcuRequestException(failure, result.StatusCode);
     }
 
-    /// <summary>发送 POST 请求，将操作数据提交到目标接口。</summary>
-    public Task<Stream?> PostAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
-    {
-        return SendRequestStreamAsync("POST", endpoint, queryParams, body, cancellationToken);
-    }
-
-    /// <summary>发送 PUT 请求，更新目标资源。</summary>
-    public Task<Stream?> PutAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
-    {
-        return SendRequestStreamAsync("PUT", endpoint, queryParams, body, cancellationToken);
-    }
-
     /// <summary>发送 PATCH 请求，修改目标资源的部分字段。</summary>
     public Task<Stream?> PatchAsync(string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
     {
         return SendRequestStreamAsync("PATCH", endpoint, queryParams, body, cancellationToken);
-    }
-
-    /// <summary>发送 DELETE 请求，删除目标资源。</summary>
-    public Task<Stream?> DeleteAsync(string endpoint, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
-    {
-        return SendRequestStreamAsync("DELETE", endpoint, queryParams, null, cancellationToken);
     }
 
     /// <summary>发送请求并将响应内容作为流返回调用方。</summary>
@@ -171,7 +157,10 @@ public class HttpClientHelper : IDisposable
                 {
                     // 缓冲整个响应体（HttpClient 默认行为）：这样 HttpClient.Timeout 能覆盖到
                     // body 读取，不会出现"响应头已到、读 body 却无限期挂住"的情况。
-                    response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                    using var transportDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    transportDeadline.CancelAfter(endpoint.StartsWith("/lol-match-history/", StringComparison.Ordinal)
+                        ? LOL_GameAssistant.Application.Matches.MatchDataPolicy.TransportTimeout : TimeSpan.FromSeconds(30));
+                    response = await _httpClient.SendAsync(request, transportDeadline.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -239,18 +228,6 @@ public class HttpClientHelper : IDisposable
             }
         }
         return new LcuHttpResult(null, HttpStatusCode.Unauthorized, LcuHttpFailure.HttpStatus);
-    }
-
-    // 批量请求方法 - 新增功能
-    public async Task<List<Stream?>> SendBatchRequestsAsync(
-        List<(string method, string endpoint, Dictionary<string, string>? queryParams, string? body)> requests,
-        int maxConcurrency = 5,
-        CancellationToken cancellationToken = default)
-    {
-        return await SendBatchCoreAsync(requests.Select(request =>
-            new Func<CancellationToken, Task<Stream?>>(token => SendRequestStreamAsync(
-                request.method, request.endpoint, request.queryParams, request.body, token))),
-            maxConcurrency, cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task<List<Stream?>> SendBatchCoreAsync(

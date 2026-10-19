@@ -53,17 +53,30 @@ public sealed class UpdatePackageServiceTests
     }
 
     [Fact]
+    public async Task X64GithubCanStillUseLegacyManifestAttachment()
+    {
+        if (UpdatePlatform.Current != "win-x64") return;
+        using var fixture = new PackageFixture();
+        fixture.LegacyManifestOnly = true;
+        var result = await fixture.Service.PrepareAsync(fixture.Release, null, default);
+        Assert.True(File.Exists(result.JobPath));
+        Assert.Equal(3, fixture.Requests.Count);
+        Assert.EndsWith("/update-win-x64.json", fixture.Requests[0].AbsolutePath);
+        Assert.EndsWith("/update.json", fixture.Requests[1].AbsolutePath);
+    }
+
+    [Fact]
     public async Task ServerSourceDownloadsVersionedManifestAndPackageAndVerifiesThem()
     {
         using var fixture = new PackageFixture();
-        var release = fixture.Release with { ServerManifestUrl = new Uri("https://updates.example.com/app/v" + fixture.Release.Version + "/update.json") };
+        var release = fixture.Release with { ServerManifestUrl = new Uri("https://updates.example.com/app/v" + fixture.Release.Version + "/" + UpdatePlatform.Current + "/update.json") };
         var result = await fixture.Service.PrepareAsync(release, null, default, useServer: true);
         Assert.True(File.Exists(result.JobPath));
         Assert.Equal(2, fixture.Requests.Count);
         Assert.All(fixture.Requests, uri =>
         {
             Assert.Equal("updates.example.com", uri.Host);
-            Assert.StartsWith("/app/v" + fixture.Release.Version + "/", uri.AbsolutePath);
+            Assert.StartsWith("/app/v" + fixture.Release.Version + "/" + UpdatePlatform.Current + "/", uri.AbsolutePath);
         });
         Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "LOL-GameGUI.exe")));
     }
@@ -72,7 +85,7 @@ public sealed class UpdatePackageServiceTests
     public async Task ServerSourceRejectsTamperedPackageAndAllowsRetryUsingGithub()
     {
         using var fixture = new PackageFixture();
-        var release = fixture.Release with { ServerManifestUrl = new Uri("https://updates.example.com/app/v" + fixture.Release.Version + "/update.json") };
+        var release = fixture.Release with { ServerManifestUrl = new Uri("https://updates.example.com/app/v" + fixture.Release.Version + "/" + UpdatePlatform.Current + "/update.json") };
         string hash = fixture.Config.Sha256;
         fixture.Config = fixture.Config with { Sha256 = new string('0', 64) };
         await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Service.PrepareAsync(release, null, default, useServer: true));
@@ -167,6 +180,7 @@ public sealed class UpdatePackageServiceTests
         public UpdatePackageService Service { get; }
         public List<Uri> Requests { get; } = [];
         public HttpStatusCode ConfigStatus { get; set; } = HttpStatusCode.OK;
+        public bool LegacyManifestOnly { get; set; }
         public Action? OnPackageRequest { get; set; }
         private readonly HttpClient _client;
 
@@ -198,7 +212,9 @@ public sealed class UpdatePackageServiceTests
             _client = new HttpClient(new StubHandler(request =>
             {
                 Requests.Add(request.RequestUri!);
-                if (request.RequestUri!.AbsolutePath.EndsWith("update.json"))
+                if (LegacyManifestOnly && request.RequestUri!.AbsolutePath.EndsWith("/" + UpdatePlatform.GithubManifest))
+                    return new HttpResponseMessage(HttpStatusCode.NotFound);
+                if (request.RequestUri!.AbsolutePath.EndsWith(".json"))
                     return new HttpResponseMessage(ConfigStatus) { Content = new StringContent(JsonSerializer.Serialize(Config)) };
                 OnPackageRequest?.Invoke();
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Package) };

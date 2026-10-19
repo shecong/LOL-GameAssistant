@@ -20,6 +20,16 @@ public static class RuntimeDiagnostics
         "LOL-GameAssistant", "diagnostics.log");
 
     public static event EventHandler? Changed;
+    public static void ReportStartup()
+    {
+        var assembly = System.Reflection.Assembly.GetEntryAssembly() ?? typeof(RuntimeDiagnostics).Assembly;
+        string version = assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString() ?? "未知";
+        string path = Environment.ProcessPath ?? AppContext.BaseDirectory;
+        string buildFile = string.IsNullOrWhiteSpace(assembly.Location) ? path : assembly.Location;
+        Report("启动版本", version, $"构建文件时间 {File.GetLastWriteTime(buildFile):yyyy-MM-dd HH:mm:ss} | 运行路径 {path}");
+    }
 
     /// <summary>记录一条运行诊断状态并通知订阅者。</summary>
     public static void Report(string component, string status, string detail)

@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <!-- 每次发布只修改这里，格式为三段数字；编译后统一用于显示、更新比较和打包。 -->
+    <SoftwareVersion>1.0.1</SoftwareVersion>
+    <Version>$(SoftwareVersion)</Version>
+    <AssemblyVersion>$(SoftwareVersion).0</AssemblyVersion>
+    <FileVersion>$(SoftwareVersion).0</FileVersion>
+  </PropertyGroup>
+  <Target Name="ValidateSoftwareVersion" BeforeTargets="GenerateAssemblyInfo;CoreCompile">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(SoftwareVersion)', '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'))"
+           Text="build/Version.props: SoftwareVersion must be a numeric three-part version, for example 1.0.1." />
+    <Error Condition="'$(Version)' != '$(SoftwareVersion)' Or '$(AssemblyVersion)' != '$(SoftwareVersion).0' Or '$(FileVersion)' != '$(SoftwareVersion).0'"
+           Text="Software version properties conflict. Edit build/Version.props instead of overriding Version, AssemblyVersion or FileVersion." />
+  </Target>
+</Project>

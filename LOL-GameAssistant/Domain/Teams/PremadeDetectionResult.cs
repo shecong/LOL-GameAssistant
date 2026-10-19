@@ -61,13 +61,4 @@ public sealed class PremadeDetectionResult
         return status == "单排" ? "未发现" : $"疑似{status}";
     }
 
-    /// <summary>生成队伍组队情况的详细提示。</summary>
-    public string GetTeamQueueDetail(int teamIndex)
-    {
-        var groups = Groups.Where(group => group.TeamIndex == teamIndex).ToList();
-        return groups.Count == 0
-            ? "近期战绩中未检测到固定同队关系"
-            : string.Join("；", groups.Select(group =>
-                $"{group.Puuids.Count} 人组队：{string.Join("、", group.Names)}"));
-    }
 }

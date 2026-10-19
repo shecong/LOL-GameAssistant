@@ -1,127 +1,10 @@
-# 自动更新实现与发布操作
+# 自动更新实现与发布说明
 
-面向实际发布的逐步教程见[自动更新操作手册](自动更新操作手册.md)，包含当前 IP / IIS 配置、VS 发布、上传、验证、首次分发和故障恢复。本文保留实现细节与开发说明。
+完整操作步骤见[自动更新操作手册](自动更新操作手册.md)。当前服务器地址为 `http://159.75.148.241/`，目录采用“版本 → 架构”。
 
-## 组成
+## 配置与地址
 
-主程序仍使用 C# / .NET 10。下载、SHA256 校验、解压和下载进度由主程序完成。更新器使用 C++20 / Win32，静态链接 MSVC 运行库，无 .NET 运行时依赖。`Updater.exe` 随完整包放在主程序旁，安装时复制到独立事务目录运行，所以可以更新安装目录中的更新器自身。
-
-代码入口：
-
-- `LOL-GameAssistant/Infrastructure/ApplicationInfo/UpdatePackageService.cs`：读取配置、流式下载、解压及逐文件验证。
-- `LOL-GameAssistant/Helper/UpdateInstaller.cs`：启动握手、安装中断保护和新版启动确认。
-- `LOL-GameAssistant/BaseViewForm/UpdateAvailableForm.cs`：下载、取消、重启安装及原有下载/QQ群入口。
-- `native/Updater/updater.cpp`：等待旧进程退出、备份、文件替换、旧托管文件删除、启动确认与恢复。
-- `tools/publish-update.ps1`：统一构建和生成发布附件。
-
-## 用户流程
-
-检测到新版本后，主窗口和关于页继续显示“有新版本更新”。用户可选择“下载更新”、GitHub 下载、QQ群获取或关闭提示。下载阶段不退出主程序，也不修改已安装文件。下载校验完成后，按钮变为“重启并安装”，由用户再次点击决定安装时间。
-
-选人、对局进行中和重连阶段禁止安装，但可以下载。关闭窗口或点击取消可以中止下载；取消后重新打开更新窗口即可重试。网络、配置或校验失败时继续使用旧版。
-
-主程序与更新器通过带随机 token 的 Win32 命名事件握手。更新器先验证任务和文件，主程序收到 ready 后才退出。更新器最多等待旧进程退出 60 秒，不会为了更新强制结束游戏或其他现有进程。文件占用最多重试约 10 秒，失败则恢复；请关闭仍占用运行包的配套工具后再试。
-
-## 构建环境
-
-开发机安装：
-
-1. Windows x64、PowerShell 7。
-2. .NET 10 SDK，用于构建主程序。
-3. Visual Studio 2022 或更新版本 / Build Tools，勾选“使用 C++ 的桌面开发”，包括 MSVC x64 编译器和 Windows 10/11 SDK。
-
-用户电脑运行原生更新器不需要安装 SDK、.NET 或 VC++ Redistributable。主程序发布为自包含完整包，包含自己的 .NET 运行时。
-
-单独编译和验证更新器：
-
-```powershell
-pwsh -File native/Updater/build.ps1
-pwsh -File native/Updater/build.ps1 -Test
-```
-
-生成位置：`native/Updater/bin/Updater.exe`，脚本同时复制到 `LOL-GameAssistant/Tools/Updater/Updater.exe`。主程序构建/发布会将其复制到输出根目录。首次启用自动安装之前，必须分发一次包含此更新器的新完整包；旧运行包缺少更新器时会提示手动获取，不执行下载的未知更新器。
-
-## 一次完整发布
-
-版本必须比当前已发布版本大。以下以 `6.1.0` 为例，不代表已经发布这个版本。
-
-```powershell
-# 从仓库根目录运行；会编译更新器、发布主程序并生成附件。
-pwsh -File tools/publish-update.ps1 -Version 6.1.0
-```
-
-默认输出：
-
-```text
-.artifacts/updates/6.1.0/
-  LOL-GameAssistant-win-x64.zip  # 上传
-  update.json                   # 上传
-  package/                      # 打包中间目录，不上传
-  publish/                      # dotnet publish 输出，不上传
-```
-
-输出目录已存在时脚本停止，避免意外覆盖包；重建时使用 `-OutputDirectory` 指定新的目录。也可对已有的干净发布目录打包：
-
-```powershell
-pwsh -File tools/publish-update.ps1 -Version 6.1.0 `
-  -PublishDirectory E:/releases/6.1.0/publish `
-  -OutputDirectory E:/releases/6.1.0/assets
-```
-
-已有发布目录的 EXE 文件版本必须匹配 `6.1.0.0`。不要拿开发运行目录打包，里面可能包含个人配置；脚本拒绝已知用户数据目录和 `settings.json`。`PublishDirectory` 中的所有其他非 PDB 文件都视为受管理程序文件。
-
-接着在 GitHub 仓库 `shecong/LOL-GameAssistant` 创建一个草稿 Release：
-
-1. 标签填 `v6.1.0`（或用脚本 `-Tag 6.1.0` 保持标签一致）。
-2. 填写更新说明。
-3. 上传上述 ZIP 和 `update.json`，两个附件名必须保持不变。
-4. 确认两个附件都上传完成，再发布正式 Release 并设为 Latest。
-
-仅生成 Git tag 或上传 GitHub 自动生成的源码 ZIP 不支持自动安装。已发布的同版本包应保持不变；修复包发布新版本。脚本通过构建参数注入程序集版本，关于页和版本比较使用发布的真实版本；建议同步项目 `<Version>` 方便开发时显示。
-
-## 服务器下载（保留 GitHub）
-
-支持 Nginx、IIS、对象存储或 CDN 托管静态文件，无需编写服务端接口。配置服务器后优先读取服务器版本，连接失败、配置无效或超时时回退 GitHub。更新弹窗增加“下载源”，服务器检查成功时默认选服务器，检查失败回退后默认选 GitHub，也可手动切换。下载失败会保留错误信息，用户可切换源重试；安装、SHA256 校验和回滚逻辑共用。
-
-程序目录中的 `update-source.json` 配置如下（空字符串表示仅使用 GitHub）：
-
-```json
-{
-  "serverBaseUrl": "https://download.example.com/lol-assistant/"
-}
-```
-
-此文件随 VS 文件夹发布复制到输出目录，可在发布前修改项目中的同名文件；它属于随软件发布的部署配置，后续版本应保持相同地址。默认要求 HTTPS；公网 HTTP 需要显式设置 `allowHttp: true`。地址不能含查询参数、账号密码或片段。HTTP 下 SHA256 只能检查文件完整性，无法防止配置和 ZIP 同时遭到网络篡改；后续可迁移 HTTPS。
-
-也可通过打包参数写入更新包中的配置，已有的 VS 发布目录不会被修改：
-
-```powershell
-pwsh -File tools/publish-update.ps1 -Version 6.1.0 `
-  -PublishDirectory E:/releases/6.1.0/publish `
-  -OutputDirectory E:/releases/6.1.0/assets `
-  -ServerBaseUrl "https://download.example.com/lol-assistant/"
-```
-
-将生成的同一组 ZIP 和 `update.json` 上传 GitHub，也部署到服务器：
-
-```text
-https://download.example.com/lol-assistant/
-  update.json                     # 最新版本指针：与最新版本目录中的配置内容相同
-  v6.1.0/
-    update.json
-    LOL-GameAssistant-win-x64.zip
-  v6.2.0/
-    update.json
-    LOL-GameAssistant-win-x64.zip
-```
-
-每次先上传完整的 `v版本号/` 目录并确认可下载，最后用同一份 `update.json` 覆盖根目录文件。根目录配置建议设置 `Cache-Control: no-cache`；版本目录保持不变，可长期缓存。不能只替换 ZIP 而保留旧哈希；修复包请增加版本号。Web 服务器应允许匿名 GET，并正确返回 ZIP 内容，不能返回登录页面或下载中转 HTML。
-
-检查请求根目录 `update.json`，实际下载固定请求 `v版本号/update.json` 和同目录 ZIP，避免用户下载期间发布新版本导致配置与 ZIP 错配。没有服务器配置时，现有 GitHub 行为保持不变。服务器尚未配置真实域名和上传凭据，本仓库不会自动部署文件。
-
-### 当前 IP / IIS 根目录部署
-
-当前项目的 `update-source.json` 已设置为：
+程序目录 `update-source.json`：
 
 ```json
 {
@@ -130,73 +13,59 @@ https://download.example.com/lol-assistant/
 }
 ```
 
-将文件放到 IIS 对应网站的物理根目录（以默认 `C:\inetpub\wwwroot` 为例；实际以网站“基本设置”中的物理路径为准）：
+IIS 根目录 `update.json` 是最新版本索引，仅包含 `schemaVersion: 1`、`version`。完整更新配置位于 `v版本号/win-x64|win-x86|win-arm64/update.json`，同目录提供对应 ZIP。根索引和完整配置不可互换。
 
 ```text
-C:\inetpub\wwwroot\
-  update.json
-  v6.1.0\
-    update.json
-    LOL-GameAssistant-win-x64.zip
+/update.json
+/v6.1.1/win-x64/update.json
+/v6.1.1/win-x64/LOL-GameAssistant-win-x64.zip
+/v6.1.1/win-x86/update.json
+/v6.1.1/win-x86/LOL-GameAssistant-win-x86.zip
+/v6.1.1/win-arm64/update.json
+/v6.1.1/win-arm64/LOL-GameAssistant-win-arm64.zip
 ```
 
-根目录的 `update.json` 与 `v6.1.0` 内的内容相同。发布新版本时保留旧版本目录，先上传新的版本目录，最后更新根目录配置。
+`UpdatePlatform` 基于 `RuntimeInformation.ProcessArchitecture`，不是系统架构。配置、ZIP 名称、主程序 PE 架构均需匹配当前进程。不会通过自动更新切换架构。
 
-VS 发布后可以运行：
+GitHub 使用固定发布标签和独立附件：`update-win-x64.json`、`update-win-x86.json`、`update-win-arm64.json`，分别指向同标签对应 ZIP。x64 新配置附件 404 时回退旧 `update.json`；其他架构不做此回退。GitHub 版本检查仍保留 API 到网页重定向回退，不需要个人令牌。
+
+## 发布命令与输出
+
+BAT 入口将成品平铺到 E:/release-assets/版本号/：各架构 ZIP、update-win-*.json、根索引 update.json 和发布结果.txt。没有时间戳或重复架构目录；中间文件位于项目 .artifacts/updates/pack-work。IIS 上传时仍按 v版本号/架构/ 部署，完整配置在服务器改名为 update.json；GitHub 直接上传同层 ZIP 与 update-win-*.json。下面底层脚本示例默认保留嵌套布局；-FlatOutput 由 BAT 内部使用，根索引由 BAT 在全部任务成功后写入。
 
 ```powershell
-pwsh -File tools/publish-update.ps1 -Version 6.1.0 `
-  -PublishDirectory E:/releases/6.1.0/publish `
-  -OutputDirectory E:/releases/6.1.0/assets `
-  -ServerBaseUrl "http://159.75.148.241/" -AllowHttpServer
+pwsh -File native/Updater/build.ps1 -Runtime win-x64
+pwsh -File tools/publish-update.ps1 -Runtime win-x64 `
+  -PublishDirectory 'E:/releases/6.1.1/win-x64/publish' `
+  -OutputDirectory 'E:/releases/6.1.1/win-x64/assets' `
+  -ServerBaseUrl 'http://159.75.148.241/' -AllowHttpServer
 ```
 
-IIS 网站需要绑定 HTTP 80 端口且主机名留空（或另建匹配 IP 的绑定），允许匿名读取静态文件，云服务器安全组和 Windows 防火墙放行该端口。无需开启目录浏览。确认 `.json` 的 MIME 类型是 `application/json`、`.zip` 是 `application/zip`；已有映射无需重复添加。浏览器应能直接读取 `http://159.75.148.241/update.json`，并下载 `http://159.75.148.241/v6.1.0/LOL-GameAssistant-win-x64.zip`。
+`-Runtime` 支持三个 RID，默认 x64。版本统一读取 build/Version.props 的 SoftwareVersion，VS 自动生成程序集和文件版本。-Version 可省略，传入时必须与配置相同。默认复用 Tools/Updater/运行时/Updater.exe，也可用 -UpdaterPath 指定；仓库缺少时可读取已有发布目录中的更新器。仅 -RebuildUpdater 会重编更新器。已有发布目录时不重新发布主程序；不指定 `-PublishDirectory` 时执行自包含单文件发布。输出目录必须不存在。脚本检查 EXE 文件版本及主程序、更新器的 PE 架构，不能只改 JSON 冒充其他平台。
 
-## 更新配置
+输出包括：IIS 根索引 `update.json`、GitHub 完整配置 `update-运行时.json`、IIS `v版本号/运行时/` 中的 ZIP 和完整配置、中间目录 `work/`。x64 额外输出 `github-legacy/update.json` 作为可选的旧客户端 GitHub 兼容附件，不能当作 IIS 根索引上传。
 
-`build/update.example.json` 是说明用样例；实际上传的配置由发布脚本计算，不要手填示例中的体积或全零哈希。
+各架构独立打包，先合并上传所有准备发布的版本 / 架构目录，最后单独发布根索引。不要直接把整个输出目录覆盖到网站。GitHub 使用同版本同架构 ZIP，完整配置按架构独立命名。
 
-```json
-{
-  "schemaVersion": 1,
-  "version": "6.1.0",
-  "runtime": "win-x64",
-  "package": "LOL-GameAssistant-win-x64.zip",
-  "size": 12345678,
-  "sha256": "64位十六进制SHA256，脚本自动生成",
-  "entryExecutable": "LOL-GameGUI.exe"
-}
-```
+VS 提供 `Windows-x64`、`Windows-x86`、`Windows-ARM64` 文件夹发布配置。原生更新器输出位于 `native/Updater/bin/运行时/`，副本位于 `LOL-GameAssistant/Tools/Updater/运行时/`，VS 按 RID 复制到程序根目录。
 
-下载地址使用检测出的固定标签，而不是下载过程中可能变化的 Latest：
+主程序仍使用 .NET 10。更新器为 C++20 / Win32，使用 /MT 静态链接，不依赖 .NET 或 VC++ Redistributable。日常发布复用现成更新器，不要求 MSVC；只有首次构建或源码变更后显式 -RebuildUpdater 才需要 MSVC、SDK 及对应架构编译器。更新模块支持多架构不代表所有业务组件已完成移植；SkinCore、GameOverlay 现有构建脚本仍面向 x64，其他架构需要独立验收 OCR 和原生依赖。本机已于 2026-10-18 安装 ARM64 编译工具，并成功生成原生 ARM64 更新器，实际运行仍需目标机器验收。
 
-```text
-https://github.com/shecong/LOL-GameAssistant/releases/download/v6.1.0/update.json
-https://github.com/shecong/LOL-GameAssistant/releases/download/v6.1.0/LOL-GameAssistant-win-x64.zip
-```
+## 下载与可选安装
 
-版本检测仍保留现有 API + 网页重定向回退。附件下载直接使用 GitHub Release 的网页下载地址，无需个人访问令牌，也不依赖 API 配额。SHA256 用于检查文件完整性；信任来源是 HTTPS 下的该 GitHub 仓库，不能替代发布签名。若需要更强的发布身份验证，后续可加入签名清单。
+检测到新版后，主程序与关于页显示“有新版本更新”。服务器索引读取失败回退 GitHub；成功返回旧版本时不会再取 GitHub 的更高版本。弹窗可切换下载源，下载失败可切换后重试。索引不包含架构可用列表，缺少对应架构目录时下载会返回 404，发布者应同步准备已支持的架构。
 
-ZIP 根目录直接放程序，不再套一层目录：
+下载、哈希校验和解压由主程序完成。验证固定版本的完整配置、大小、ZIP SHA256、逐文件清单、主程序文件版本和 PE 架构后准备任务，用户再点击“重启并安装”。下载期间不退出程序，选人 / 对局 / 重连阶段禁止安装。取消后重新打开窗口即可再试。
 
-```text
-LOL-GameGUI.exe
-Updater.exe
-Tools/SkinCore/...
-Resources/...
-update-files.txt
-```
+ZIP 根目录直接放主程序、Updater.exe、update-source.json、全部依赖和 `update-files.txt`，不能多套一层目录。清单为 UTF-8，每行 SHA256、TAB、相对路径，不包含自身。下载器拒绝路径穿越、符号链接、重复路径、清单外文件、错误哈希及版本平台不符。
 
-`update-files.txt` 由脚本生成，每行 `SHA256<TAB>相对路径`，UTF-8 无 BOM。下载器拒绝重复路径、目录穿越、符号链接、清单外文件、错误哈希和主程序版本不符；更新器替换前再次验证。清单不包含自身，通过本地任务中的清单 SHA256 校验。
+公网 HTTP 需显式 allowHttp；SHA256 提供完整性检查，不能防止 HTTP 配置和 ZIP 同时被网络篡改。HTTPS 也不等于发布签名，本版没有签名清单。
 
 ## 事务与恢复
 
-每次任务位于 `安装目录/.update/<随机token>/`，临时包、stage、backup、runner、`job.ini`、`rollback.tsv`、`state.txt`、`updater.log` 都在这里。主程序运行目录需要可写；主程序本来就以管理员身份运行，原生更新器继承权限，手动恢复时请求 UAC。
+任务位于 `安装目录/.update/<token>/`，包含 package.zip、stage、backup、runner、job.ini、rollback.tsv、state.txt、updater.log。主程序只运行本机自带的原生更新器副本。
 
-本地任务使用 UTF-16 INI（不是远端的 update.json），以便原生程序无需携带 JSON 依赖。路径由任务所在目录推导，程序不能传任意安装目的地。`ParentPid` 和 `ParentStart` 一起验证旧进程身份。
-
-状态流转：
+`job.ini` 使用 UTF-16，记录 token、主程序版本、父进程 PID 与创建时间、文件清单哈希，安装路径由任务目录推导。更新器验证任务后发送 ready，主程序才退出；等待旧进程最多 60 秒。
 
 ```text
 ready → backing_up → applying → starting → completed
@@ -204,32 +73,21 @@ ready → backing_up → applying → starting → completed
                                └─恢复失败→ recovery_failed
 ```
 
-先备份所有将被修改或删除的托管文件并写入持久化恢复清单，再逐个使用临时文件 + `MoveFileExW` 替换。整包替换不是一次原子操作，断电或强制结束后需要按记录恢复。仅删除上个 `update-files.txt` 中存在而新版本移除的文件；未被清单管理的用户文件不删除。
+先完整备份并持久化恢复清单，再逐文件替换。整个包不是一次原子操作，断电后按日志恢复。只删除上版清单中存在、新版移除的托管文件；不覆盖用户设置、日志、缓存和未托管文件。
 
-新版在主窗口初始化并经过一次消息循环后发出启动确认。更新器等待最多 60 秒，并继续观察约 1.5 秒；未确认或提前退出则结束本次刚启动的新版、恢复旧文件并重新启动旧版。该确认只覆盖主窗口启动，不代表所有联网功能正常。
+新版主窗口初始化并经历一次消息循环后确认启动。更新器等待最多 60 秒，并继续观察约 1.5 秒；启动未确认或提前退出则尝试恢复旧文件并重启旧版。确认不代表所有业务功能通过。
 
-配置通常位于 `%LocalAppData%/LOL-GameAssistant/settings.json`，更新不触碰它。日志、缓存和根目录旧 `settings.json` 也不覆盖。程序文件可以恢复，但跨版本的配置格式迁移仍应保持向后兼容；本版不回滚用户数据。
+中断恢复：关闭助手，双击根目录 Updater.exe；损坏时使用对应 `.update/<token>/runner/Updater.exe --recover job.ini`。备份损坏时停止并保留现场。正常主程序发现 active-job 标记会要求恢复。
 
-### 安装失败或断电后
+成功和失败任务保留日志与备份，不自动清理。任务为 completed / rolledback 且 active-job.txt 已消失后才可清理对应历史目录。用户设置通常位于 `%LocalAppData%/LOL-GameAssistant/settings.json`，文件回滚不回滚用户数据。
 
-1. 关闭助手。
-2. 双击安装目录中的 `Updater.exe`，自动读取 `.update/active-job.txt` 并恢复。
-3. 如果安装目录的更新器损坏，运行事务中保留的副本：
+## 验证
 
 ```powershell
-& 'E:/LOL-GameAssistant/.update/<token>/runner/Updater.exe' `
-  --recover 'E:/LOL-GameAssistant/.update/<token>/job.ini'
+pwsh -File native/Updater/build.ps1 -Runtime win-x64 -Test
+pwsh -File native/Updater/build.ps1 -Runtime win-x86 -Test
+dotnet test LOL-GameAssistant.UiTests/LOL-GameAssistant.UiTests.csproj `
+  --filter 'FullyQualifiedName~Update|FullyQualifiedName~AboutPageTests'
 ```
 
-必须使用该任务的真实路径。恢复先验证全部备份，备份缺失或损坏时停止并保留现场，不删除剩余备份。正常主程序检测到未完成任务时会提示恢复，避免在部分替换状态下继续运行。
-
-成功与失败任务都保留日志和备份便于排查，本版不自动删除事务目录。确认 `state.txt` 是 `completed` 或 `rolledback`、且 `active-job.txt` 已消失后，可手动删除对应的历史 token 目录释放空间。不要在安装/恢复过程中清理 `.update`。
-
-## 验证命令
-
-```powershell
-pwsh -File native/Updater/build.ps1 -Test
-dotnet test LOL-GameAssistant.UiTests/LOL-GameAssistant.UiTests.csproj --filter 'FullyQualifiedName~Update'
-```
-
-建议发布前在单独的测试目录里安装旧版并更新一次，检查取消下载、错误 SHA256、文件占用、新版启动失败和恢复操作。不要直接在源码目录中执行替换测试。
+运行原生测试需要主机能执行目标架构程序。ARM64 应在对应环境运行，不能把交叉编译等同于运行验收。正式发布前按操作手册完成服务器下载及低版本测试副本的实际更新验证。

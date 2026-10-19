@@ -318,15 +318,18 @@ internal sealed class BattleOverlayController : IDisposable
             DrawText(g, en ? "Waiting for the game roster…" : "正在等待本局阵容，进入对局后自动加载…",
                 new RectangleF(300, 250, 600, 50), 14, Color.LightGray);
         string queue = RankSourceText(_session?.QueueId ?? 0, en);
-        DrawText(g, en ? $"Rank / season: {queue} · Champion rate: same queue/mode within last 100 games · Recent: up to 10 valid games"
-            : $"段位 / 赛季战绩：{queue}  ·  英雄胜率：最近100场中的同队列 / 模式样本  ·  近期：最多10场有效对局",
+        DrawText(g, en ? $"Rank / season: {queue} · Last 50 KDA / champion rate: same mode first, all modes if unavailable, excluding custom · Up to 500 summaries"
+            : $"段位 / 赛季战绩：{queue}  ·  近50场KDA / 英雄胜率：同模式优先，无样本转全模式（排除自定义） · 最多500条摘要",
             new RectangleF(26, 630, 1070, 22), 9, Color.FromArgb(147, 164, 188));
         int ready = _players.Values.Count(player => !player.Member.IsBot &&
             !string.IsNullOrWhiteSpace(player.Member.Puuid) && player.HistoryLoaded && player.HistoryComplete);
         int total = (_session?.TeamOne ?? []).Concat(_session?.TeamTwo ?? [])
             .Count(member => !member.IsBot && !string.IsNullOrWhiteSpace(member.Puuid));
-        DrawText(g, en ? $"History verified: {ready}/{total} · Aggregate KDA · Vision score, not wards placed · Missing values: —"
-            : $"战绩已核验 {ready}/{total} 人 · KDA 按总击杀助攻 / 总死亡计算 · 视野为得分，非插眼数 · 缺失显示 —",
+        int cached = _players.Values.Count(player => player.HistoryFromCache);
+        var latest = _players.Values.Select(player => player.HistoryAcquiredAt).Max();
+        string timestamp = latest?.ToLocalTime().ToString("HH:mm") ?? "—";
+        DrawText(g, en ? $"Summaries: {ready}/{total} · Cached: {cached} · Latest: {timestamp} · Limited sample · Aggregate KDA · Missing: —"
+            : $"摘要已就绪 {ready}/{total} 人 · 缓存 {cached} 人 · 最近获取 {timestamp} · 有限样本 · KDA按总击杀助攻 / 总死亡计算 · 缺失显示 —",
             new RectangleF(26, 654, 1070, 20), 9, Color.FromArgb(127, 143, 165));
     }
 
@@ -339,7 +342,7 @@ internal sealed class BattleOverlayController : IDisposable
             new RectangleF(x + 12, 65, 420, 26), 12, accent, true);
         DrawText(g, en ? "Player / Champion" : "玩家 / 英雄", new RectangleF(x + 10, 101, 162, 22), 9, Color.LightSlateGray);
         DrawText(g, en ? "Rank / Season" : "段位 / 赛季", new RectangleF(x + 186, 101, 100, 22), 9, Color.LightSlateGray);
-        DrawText(g, en ? "Recent / KDA" : "近期 / KDA", new RectangleF(x + 299, 101, 110, 22), 9, Color.LightSlateGray);
+        DrawText(g, en ? "Recent / Last 50 KDA" : "近10场 / 近50场KDA", new RectangleF(x + 299, 101, 110, 22), 9, Color.LightSlateGray);
         DrawText(g, en ? "Live / Vision" : "本局 / 视野", new RectangleF(x + 422, 101, 105, 22), 9, Color.LightSlateGray);
         for (int index = 0; index < Math.Max(5, members.Count); index++)
         {
@@ -378,7 +381,8 @@ internal sealed class BattleOverlayController : IDisposable
                     g.FillRectangle(brush, x + 299 + i * 10, y + 15, 7, 13);
                 }
             else DrawText(g, "—", new RectangleF(x + 299, y + 9, 110, 22), 10, Color.LightSlateGray);
-            DrawText(g, player?.RecentKda is double kda ? $"KDA {kda:0.00}" : "KDA —",
+            string kdaScope = player?.History.Assessment?.UsesAllModes == true ? (en ? "All KDA" : "全模式KDA") : "近50场 KDA";
+            DrawText(g, player?.RecentKda is double kda ? $"{kdaScope} {kda:0.00}" : $"{kdaScope} —",
                 new RectangleF(x + 299, y + 32, 110, 20), 9, Color.LightGray);
             DrawText(g, RecentRecordText(player, en), new RectangleF(x + 299, y + 51, 110, 13), 7,
                 player is { HistoryLoaded: true, HistoryComplete: false } ? Color.FromArgb(234, 205, 145) : Color.LightSlateGray);

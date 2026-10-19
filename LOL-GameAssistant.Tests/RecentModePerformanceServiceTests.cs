@@ -8,145 +8,117 @@ namespace LOL_GameAssistant.Tests;
 public sealed class RecentModePerformanceServiceTests
 {
     [Fact]
-    public async Task SmallerVisibleFirstPageContinuesAtTwentyWithoutLosingThirtyDaySamples()
+    public async Task RequestsOneBatchOfFiveHundredWithoutDetailsOrPagination()
     {
-        long recent = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds();
-        var games = Enumerable.Range(1, 125).Select(id => Game(id, recent, 450)).ToList();
-        var source = new FakeHistory(games);
-        var first = await source.GetPageAsync("self", 0, 19);
-        var result = await new RecentModePerformanceService(source).EvaluateAsync(
-            "self", 450, "ARAM", "大乱斗", firstPage: first, firstPageSize: 20);
-        Assert.Equal(125, result.SampleSize);
-        Assert.Equal(3, source.PageRequests);
+        var source = new FakeHistory(Enumerable.Range(1, 600).Select(id => Game(id)).ToList());
+        var result = await new RecentModePerformanceService(source).EvaluateAsync("self", 450, "ARAM", "大乱斗");
+        Assert.Equal(50, result.SampleSize);
+        Assert.Equal([(0, 499)], source.Requests);
+        Assert.Equal(0, source.DetailRequests);
     }
 
     [Fact]
-    public async Task BackgroundScoringLeavesCapacityForVisibleRowsAndCancellationReleasesSlots()
+    public async Task ProvidedBatchIsUsedWithoutFetchingAnyOtherPages()
     {
-        var games = Enumerable.Range(1, 6).Select(id => Game(id, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 450)).ToList();
-        foreach (var game in games) game.Participants.Clear();
-        int active = 0;
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var source = new FakeHistory(games) { DetailLoader = async (_, token) =>
-        {
-            if (Interlocked.Increment(ref active) == 4) started.TrySetResult();
-            try { await Task.Delay(Timeout.InfiniteTimeSpan, token); return null; }
-            finally { Interlocked.Decrement(ref active); }
-        } };
-        using var cancellation = new CancellationTokenSource();
-        var service = new RecentModePerformanceService(source);
-        var first = service.EvaluateAsync("first", 450, "ARAM", "大乱斗", cancellationToken: cancellation.Token);
-        var second = service.EvaluateAsync("second", 450, "ARAM", "大乱斗", cancellationToken: cancellation.Token);
-        try
-        {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(4, Volatile.Read(ref active));
-            Assert.Equal(16, MatchDetailConcurrency.Gate.CurrentCount);
-        }
-        finally
-        {
-            cancellation.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.WhenAll(first, second));
-        }
-        Assert.Equal(0, active);
-        Assert.Equal(20, MatchDetailConcurrency.Gate.CurrentCount);
-        Assert.Equal(4, MatchDetailConcurrency.BackgroundGate.CurrentCount);
+        var source = new FakeHistory([]);
+        var first = new MatchHistoryResponse { Games = new() { GameCount = 500,
+            Games = Enumerable.Range(1, 20).Select(id => Game(id)).ToList() } };
+        var result = await new RecentModePerformanceService(source).EvaluateAsync("self", 450, "ARAM", "大乱斗", first);
+        Assert.Equal(20, result.SampleSize);
+        Assert.Empty(source.Requests);
+        Assert.Contains("已获取的 20 条摘要", result.Detail);
     }
 
     [Fact]
-    public async Task ReadsEveryPageWithinThirtyDaysAndCountsAllSameModeGames()
+    public async Task FiltersDatesRemakesOtherModesDuplicatesAndMissingFieldsWithoutDetailRequests()
     {
-        long recent = DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeMilliseconds();
-        long old = DateTimeOffset.UtcNow.AddDays(-31).ToUnixTimeMilliseconds();
-        var games = Enumerable.Range(1, 105).Select(id => Game(id, recent, 450)).ToList();
-        games.Add(Game(106, old, 450));
-        var source = new FakeHistory(games);
-
-        RecentModePerformanceAssessment result = await new RecentModePerformanceService(source)
-            .EvaluateAsync("self", 450, "ARAM", "极地大乱斗");
-
-        Assert.Equal(105, result.SampleSize);
-        Assert.Equal(2, source.PageRequests);
-        Assert.Equal(RecentPerformanceLabel.Upper, result.Label);
+        var valid = Game(1);
+        var old = Game(2); old.GameCreation = DateTimeOffset.UtcNow.AddDays(-31).ToUnixTimeMilliseconds();
+        var remake = Game(3); remake.GameDuration = 90;
+        var different = Game(4); different.QueueId = 420;
+        var missingWin = Game(5); missingWin.Participants[0].stats!.HasWinResult = false;
+        var missingKda = Game(6); missingKda.Participants[0].stats!.HasKdaResult = false;
+        var negative = Game(7); negative.Participants[0].stats!.deaths = -1;
+        var source = new FakeHistory([valid, valid, old, remake, different, missingWin, missingKda, negative]);
+        var result = await new RecentModePerformanceService(source).EvaluateAsync("self", 450, "ARAM", "大乱斗");
+        Assert.Equal(3, result.SampleSize);
+        Assert.Equal(4, result.WinSampleSize);
+        Assert.Equal(100, result.WinRate);
+        Assert.Equal(4.5, result.Kda);
+        Assert.Equal(0, source.DetailRequests);
     }
 
     [Fact]
-    public async Task FiltersOlderModesAndRemakesBeforeScoringAvailableGames()
+    public async Task ExplicitZeroKdaSummaryIsAValidSample()
     {
-        long recent = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds();
-        long old = DateTimeOffset.UtcNow.AddDays(-31).ToUnixTimeMilliseconds();
-        var games = Enumerable.Range(1, 4).Select(id => Game(id, recent, 450)).ToList();
-        games.Add(Game(5, recent, 420));
-        games.Add(Game(6, old, 450));
-        MatchHistoryGame remake = Game(7, recent, 450);
-        remake.GameDuration = 90;
-        games.Add(remake);
+        var zero = Game(1); zero.Participants[0].stats = new() { Win = false };
+        var source = new FakeHistory([zero]);
+        var result = await new RecentModePerformanceService(source).EvaluateAsync("self", 450, "ARAM", "大乱斗");
+        Assert.Equal(1, result.SampleSize);
+        Assert.Equal(0, result.Kda);
+        Assert.Equal(0, result.WinRate);
+        Assert.Equal(0, source.DetailRequests);
+    }
 
-        RecentModePerformanceAssessment result = await new RecentModePerformanceService(new FakeHistory(games))
-            .EvaluateAsync("self", 450, "ARAM", "极地大乱斗");
-
-        Assert.Equal(4, result.SampleSize);
-        Assert.True(result.HasEnoughSample);
-        Assert.Equal(RecentPerformanceLabel.Upper, result.Label);
+    [Fact]
+    public async Task MissingBatchThrowsInsteadOfInventingAnEmptyRecord()
+    {
+        var source = new FakeHistory([]) { Unavailable = true };
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new RecentModePerformanceService(source).EvaluateAsync("self", 450, "ARAM", "大乱斗"));
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task LiveFallbackUsesOtherModesOnlyWhenSameModeHasNoValidSamples(bool sameMode)
+    public async Task UsesOtherModesOnlyWhenSameModeHasNoValidSamples(bool sameMode)
     {
-        long recent = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var games = new List<MatchHistoryGame> { Game(1, recent, 420) };
-        if (sameMode) games.Add(Game(2, recent, 450));
-        var result = await new RecentModePerformanceService(new FakeHistory(games))
+        var other = Game(1); other.QueueId = 420;
+        var rows = new List<MatchHistoryGame> { other };
+        if (sameMode) rows.Add(Game(2));
+        var result = await new RecentModePerformanceService(new FakeHistory(rows))
             .EvaluateAsync("self", 450, "ARAM", "大乱斗", fallbackToAllModes: true);
         Assert.Equal(1, result.SampleSize);
-        Assert.Equal(4.5, result.Kda);
-        Assert.True(result.HasEnoughSample);
         Assert.Equal(!sameMode, result.UsesAllModes);
-        Assert.Equal(RecentPerformanceLabel.Upper, result.Label);
-        if (!sameMode) Assert.Contains("各模式", result.Detail);
+        Assert.Equal(RecentPerformanceLabel.InsufficientData, result.Label);
     }
 
-    private static MatchHistoryGame Game(int id, long created, int queueId) => new()
+    [Fact]
+    public async Task MissingKdaDoesNotFetchDetailsOrBecomeAZeroSample()
     {
-        GameId = id,
-        GameCreation = created,
-        GameMode = "ARAM",
-        QueueId = queueId,
-        GameDuration = 1200,
-        Participants = [new MatchParticipant
-        {
-            participantId = 1,
-            stats = new MatchParticipantStats { kills = 10, deaths = 4, assists = 8, Win = true }
-        }]
+        var game = Game(1); game.Participants[0].stats!.HasKdaResult = false;
+        var source = new FakeHistory([game]);
+        var result = await new RecentModePerformanceService(source).EvaluateAsync("self", 450, "ARAM", "大乱斗");
+        Assert.Equal(0, result.SampleSize);
+        Assert.Equal(1, result.WinSampleSize);
+        Assert.False(game.Participants[0].stats!.HasKdaResult);
+        Assert.Equal(0, source.DetailRequests);
+    }
+
+    private static MatchHistoryGame Game(int id) => new()
+    {
+        GameId = id, GameCreation = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds(),
+        QueueId = 450, GameMode = "ARAM", GameDuration = 1200,
+        Participants = [new() { participantId = 1, stats = new() { kills = 10, deaths = 4, assists = 8, Win = true } }]
     };
 
     private sealed class FakeHistory(List<MatchHistoryGame> games) : IMatchHistoryService
     {
-        public Func<long, CancellationToken, Task<MatchDetail?>>? DetailLoader { get; init; }
-        public int PageRequests { get; private set; }
-
+        public List<(int Begin, int End)> Requests { get; } = [];
+        public int DetailRequests { get; private set; }
+        public bool Unavailable { get; init; }
         public Task<MatchHistoryResponse?> GetPageAsync(string puuid, int beginIndex, int endIndex,
             CancellationToken cancellationToken = default)
         {
-            PageRequests++;
-            return Task.FromResult<MatchHistoryResponse?>(new MatchHistoryResponse
-            {
-                Games = new MatchHistoryGames
-                {
-                    GameCount = games.Count,
-                    Games = games.Skip(beginIndex).Take(endIndex - beginIndex + 1).ToList()
-                }
-            });
+            Requests.Add((beginIndex, endIndex));
+            return Task.FromResult<MatchHistoryResponse?>(Unavailable ? null : new() { Games = new()
+            { GameCount = games.Count, Games = games.Skip(beginIndex).Take(endIndex - beginIndex + 1).ToList() } });
         }
-
         public Task<MatchHistoryResponse?> GetAllAsync(string puuid, int maxGames = 5000,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
         public Task<MatchDetail?> GetDetailAsync(long gameId, bool useCache = true,
-            CancellationToken cancellationToken = default) => DetailLoader?.Invoke(gameId, cancellationToken) ?? throw new NotSupportedException();
-
+            CancellationToken cancellationToken = default)
+        { DetailRequests++; throw new InvalidOperationException("Scoring must not request details"); }
         public void ClearDetailCache() { }
     }
 }

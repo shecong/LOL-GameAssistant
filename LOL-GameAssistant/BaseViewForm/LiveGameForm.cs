@@ -1,6 +1,7 @@
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Players;
+using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ChampionSelect;
@@ -27,6 +28,9 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ILobbyService _lobbyService;
         private readonly IPlayerProfileService _playerProfileService;
         private readonly IChampionSelectService _championSelectService;
+        private readonly IMatchHistoryService _matchHistoryService;
+        private readonly CancellationTokenSource _dataLifetime = new();
+        private int _dataDisposed;
 
         // 选人聊天只在一套确定的十人阵容全部完成近期战绩计算后发送一次，避免卡片异步完成时刷屏。
         private readonly Dictionary<string, PlayerRecentPerformanceEventArgs> _champSelectAssessments = new(StringComparer.Ordinal);
@@ -63,6 +67,18 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Label _teamQueueTag1;
         private readonly AntdUI.Label _teamQueueTag2;
         private readonly ToolTip _teamQueueTip = new();
+        private readonly System.Windows.Forms.Label _dataFetchNotice = new()
+        {
+            Name = "dataFetchNotice",
+            AutoSize = false,
+            BackColor = Color.Transparent,
+            Dock = DockStyle.Right,
+            Width = 340,
+            Padding = new Padding(10, 0, 10, 0),
+            Font = new Font(UiMetrics.FontFamily, 9F),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Text = "近期晚间因官方对 AI 获取数据的管控，\n晚上 9 点后可能出现对局数据获取失败。"
+        };
         private const int PlayerCardHeight = 440;
         private const int PlayerCardPreferredWidth = 560;
         private const int PlayerCardSingleColumnMaxWidth = 640;
@@ -82,11 +98,12 @@ namespace LOL_GameAssistant.BaseViewForm
         internal LiveGameForm(
             ILobbyService lobbyService,
             IPlayerProfileService playerProfileService,
-            IChampionSelectService championSelectService)
+            IChampionSelectService championSelectService, IMatchHistoryService? matchHistoryService = null)
         {
             _lobbyService = lobbyService;
             _playerProfileService = playerProfileService;
             _championSelectService = championSelectService;
+            _matchHistoryService = matchHistoryService ?? AppCompositionRoot.MatchHistoryService;
             InitializeComponent();
             rootGrid.Padding = new Padding(12);
             rootGrid.RowStyles[0].Height = 76;
@@ -118,7 +135,9 @@ namespace LOL_GameAssistant.BaseViewForm
             };
             infoBar.Controls.Add(fetch);
             fetch.BringToFront();
-            // Fill 控件最后分配剩余空间，给两个右侧操作按钮留出宽度。
+            infoBar.Controls.Add(_dataFetchNotice);
+            _dataFetchNotice.BringToFront();
+            // Fill 控件最后分配剩余空间，给右侧说明和操作按钮留出宽度。
             lblGameInfo.BringToFront();
             lblTeamTitle1.AutoSize = lblTeamTitle2.AutoSize = false;
             panelTeam1.SizeChanged += (_, _) => LayoutPlayerCards();
@@ -139,6 +158,10 @@ namespace LOL_GameAssistant.BaseViewForm
             Resize += (_, _) => LayoutPlayerCards();
             this.Disposed += (_, _) =>
             {
+                if (Interlocked.Exchange(ref _dataDisposed, 1) != 0) return;
+                _dataLifetime.Cancel();
+                _dataLifetime.Dispose();
+                ResetEncounterHistory();
                 ResetHistoryParties();
                 _autoRefreshTimer?.Dispose();
                 _teamQueueTip.Dispose();
@@ -189,6 +212,9 @@ namespace LOL_GameAssistant.BaseViewForm
             lblTeamTitle1.ForeColor = Color.White;
             lblTeamTitle2.ForeColor = Color.White;
             lblGameInfo.ForeColor = palette.TextPrimary;
+            _dataFetchNotice.ForeColor = palette.IsDark
+                ? Color.FromArgb(255, 213, 128)
+                : Color.FromArgb(148, 96, 0);
             _teamOverview1.ForeColor = _teamOverview2.ForeColor = Color.FromArgb(190, 215, 232);
             _gameSubtitle.ForeColor = palette.TextSecondary;
             column1.BorderWidth = column2.BorderWidth = 1;
@@ -270,6 +296,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_refreshing || IsDisposed) return;
             // 名单一致时普通刷新会保留卡片；手动获取必须重新读取每位玩家。
             _lastSignature = "";
+            ResetEncounterHistory();
             LivePlayerForm.ClearSharedCaches();
             await AddView(force: true);
         }
@@ -279,6 +306,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         public void ResetRosterCache(bool clearPartySnapshots = true)
         {
+            ResetEncounterHistory();
             _rosterSnapshots.Clear();
             if (clearPartySnapshots) ClearPartySnapshots();
             _lastSignature = "";
@@ -568,6 +596,13 @@ namespace LOL_GameAssistant.BaseViewForm
             string signature = BuildRosterSignature(team1, team2);
 
             _encounterSelfPuuid = myPuuid;
+            if (IsHandleCreated && (signature != _lastSignature ||
+                _encounterHistoryOwner != $"{PlayerHistorySession.Key}:{myPuuid}"))
+            {
+                var players = team1.Concat(team2).Where(member => !member.IsBot).Select(member => member.Puuid)
+                    .Append(myPuuid ?? "").Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.Ordinal).ToArray();
+                _ = PrefetchRosterHistoryAsync(players);
+            }
 
             // 阶段重试和手动刷新也复用原位控件，避免移除再添加引起背景闪白和滚动位置跳动。
             if (signature == _lastSignature && _lastRenderedPhase == Program.GameMain.gameFlowPhase &&
@@ -645,7 +680,25 @@ namespace LOL_GameAssistant.BaseViewForm
             _teamTitleBase2 = lblTeamTitle2.Text;
             ApplyPremadeResult(partyDetection);
             UpdateRecentEncounters();
+            _ = LoadPlayerCardsConcurrentlyAsync();
         }
+
+        private Task PrefetchRosterHistoryAsync(string[] players)
+        {
+            var token = _dataLifetime.Token;
+            return Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(players.Select(puuid => PlayerHistoryRepository.For(_matchHistoryService)
+                        .GetBatchAsync(puuid, token)));
+                }
+                catch (OperationCanceledException) { }
+            });
+        }
+
+        internal Task LoadPlayerCardsConcurrentlyAsync() => Task.WhenAll(panelTeam1.Controls.OfType<LivePlayerForm>()
+            .Concat(panelTeam2.Controls.OfType<LivePlayerForm>()).Select(card => card.EnsureDataLoadedAsync()));
 
         /// <summary>确认当前队伍的每张卡片仍与玩家、队列和敌我关系兼容，才允许原位刷新。</summary>
         internal static bool CanKeepPlayerCards(
@@ -1032,8 +1085,8 @@ namespace LOL_GameAssistant.BaseViewForm
             RecentModePerformanceAssessment? assessment = result.Assessment;
             string name = string.IsNullOrWhiteSpace(result.DisplayName) ? "未知玩家" : result.DisplayName.Trim();
             if (assessment == null) return $"{name}：战绩暂未获取";
-            if (assessment.SampleSize == 0) return $"{name}：近30天同模式无样本";
-            return $"{name}：{RecentPerformanceLabelFormatter.GetText(assessment)} {assessment.Score}分 · KDA {assessment.Kda:F2} · 胜率 {assessment.WinRate:F0}%";
+            if (assessment.SampleSize == 0) return $"{name}：近50场同模式无样本";
+            return $"{name}：{(assessment.UsesAllModes ? "全模式参考 · " : "")}{RecentPerformanceLabelFormatter.GetText(assessment)} {assessment.Score}分 · KDA {assessment.Kda:F2} · 胜率 {(assessment.HasWinRate ? assessment.WinRate.ToString("F0") + "%" : "—")}";
         }
 
         /// <summary>将选人阶段测评内容发送到客户端聊天。</summary>
@@ -1278,7 +1331,8 @@ namespace LOL_GameAssistant.BaseViewForm
                     isAlly,
                     teamKnown,
                     currentQueueId,
-                    currentGameMode)
+                    currentGameMode, _playerProfileService, AppCompositionRoot.ProfileIconService,
+                    _matchHistoryService, AppCompositionRoot.GameAssetService, AppCompositionRoot.RankedStatsService)
                 {
                     Width = PlayerCardPreferredWidth,
                     Height = PlayerCardHeight,

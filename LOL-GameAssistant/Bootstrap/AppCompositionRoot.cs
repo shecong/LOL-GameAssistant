@@ -34,6 +34,18 @@ namespace LOL_GameAssistant.Bootstrap;
 /// </summary>
 public static class AppCompositionRoot
 {
+    static AppCompositionRoot()
+    {
+        MatchAnalysisSettings.Policy = () =>
+        {
+            var settings = ApplicationSettingsStore.Load();
+            return new(50, settings.RecentPerformanceMinimumGames);
+        };
+        PlayerHistoryRepository.For(MatchHistoryService).Diagnostic += detail =>
+            LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("战绩共享仓库", "读取", detail);
+        MatchHistoryRequestPolicy.Shared.Diagnostic = detail =>
+            LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("战绩请求队列", "读取", detail);
+    }
     public static LOL_GameAssistant.Application.Skins.ISkinCoreService SkinCoreService { get; } =
         new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreService(
             new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore")),
@@ -153,7 +165,7 @@ public static class AppCompositionRoot
     public static ILocalCacheManagementService LocalCacheManagementService { get; } = new LocalCacheManagementService(matchCaches:
         [(BaseViewForm.LivePlayerForm.MeasureSharedCaches, BaseViewForm.LivePlayerForm.ClearSharedCaches),
          (BaseViewForm.MatchHistoryCard.MeasureSharedCache, BaseViewForm.MatchHistoryCard.ClearSharedCache),
-         (BattleOverlayService.MeasureHistoryCache, BattleOverlayService.ClearHistoryCache)]);
+         (PlayerHistoryRepository.For(MatchHistoryService).Measure, PlayerHistoryRepository.For(MatchHistoryService).Clear)]);
 
     private static readonly ILaneKnowledgeService LaneKnowledgeService = new FileLaneKnowledgeService();
 

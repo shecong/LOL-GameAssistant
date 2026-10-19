@@ -81,6 +81,13 @@ public sealed class SettingsAutoSaveAndCacheTests
             checkedProperty.SetValue(control, original);
             Assert.Equal(before + 2, saves);
         }
+        var minimum = Field<AntdUI.InputNumber>(form, "_ratingMinimumGames");
+        Assert.Equal(10, minimum.Value);
+        int beforeMinimum = saves;
+        minimum.Value = 15;
+        Assert.Equal(beforeMinimum + 1, saves);
+        Assert.Equal(15, latest.RecentPerformanceMinimumGames);
+        Assert.Equal("", latest.Ai.BaseUrl);
         // 不在测试中改变 Windows 登录启动注册表；启动开关使用同一个保存绑定。
         Assert.DoesNotContain(Children(form).OfType<AntdUI.Button>(), button => button.Text is "保存客户端设置" or "保存窗口设置");
     });

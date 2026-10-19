@@ -47,7 +47,8 @@ public sealed class UiRedesignTests
                     ? Task.FromResult<MatchDetail?>(match)
                     : Task.FromResult<MatchHistoryResponse?>(new() { Games = new() { Games = Enumerable.Range(101, 10).Select(gameId => new MatchHistoryGame {
                         GameId = gameId, GameCreation = DateTimeOffset.UtcNow.AddHours(-1).ToUnixTimeMilliseconds(),
-                        QueueId = 420, GameMode = "CLASSIC", GameDuration = 1456 }).ToList() } })),
+                        QueueId = 420, GameMode = "CLASSIC", GameDuration = 1456,
+                        Participants = [match.participants[id - 1]] }).ToList() } })),
                 assets, Service<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(rank)))
                 { Margin = new Padding(0, 0, 10, 10), Height = 440 };
             cards.Add(card);
@@ -220,6 +221,51 @@ public sealed class UiRedesignTests
         using var live = new LiveGameForm();
         Assert.Contains(Field<Control>(live, "infoBar").Controls.Cast<Control>(), control => control.Name == "fetchAllPlayers");
         Capture(live, "live-game");
+    });
+
+    [Fact]
+    public void MatchSettingsCardsReflowWithoutHorizontalScrolling() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var settings = new SettingForm(Service<IGameClientLauncher>((_, _) => null),
+            Service<IApplicationSettingsStore>((method, _) => method.Name == "Load" ? new AssistantSettings() :
+                method.Name == "GetStoragePath" ? "preview-settings.json" : null),
+            Service<ISettingsSecretProtector>((_, _) => null), Service<IClientFeatureService>((_, _) => null));
+        var load = (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), settings,
+            typeof(SettingForm).GetMethod("SettingForm_Load", BindingFlags.NonPublic | BindingFlags.Instance)!);
+        settings.Load -= load;
+        using var host = new Form { ShowInTaskbar = false };
+        settings.Dock = DockStyle.Fill;
+        host.Controls.Add(settings);
+        host.Show();
+        var page = settings.Controls.Find("matchSettingsDashboard", true).Single();
+        var columns = (TableLayoutPanel)settings.Controls.Find("matchSettingsColumns", true).Single();
+        var right = columns.Controls[1];
+        var selected = Field<AntdUI.Switch>(settings, "swi_gametrue");
+        selected.Checked = true;
+        foreach (int width in new[] { 1440, 900, 1280, 1440 })
+        {
+            host.ClientSize = new Size(width, 850);
+            host.PerformLayout();
+            System.Windows.Forms.Application.DoEvents();
+            Assert.Equal(width == 900 ? 1 : 0, columns.GetRow(right));
+            Assert.True(columns.Right <= page.ClientSize.Width);
+            Assert.True(selected.Checked);
+            foreach (string name in new[] { "matchQueueCard", "matchAfterCard", "matchActionsCard", "matchBanCard", "matchPickCard", "matchAramCard" })
+            {
+                Control card = settings.Controls.Find(name, true).Single();
+                Assert.True(card.Height > 100);
+                Assert.True(card.Right <= card.Parent!.ClientSize.Width);
+            }
+            string? output = Environment.GetEnvironmentVariable("UI_REDESIGN_PREVIEW");
+            if (!string.IsNullOrEmpty(output))
+            {
+                Directory.CreateDirectory(output);
+                UiTheme.Apply(settings);
+                using var bitmap = new Bitmap(settings.Width, settings.Height);
+                settings.DrawToBitmap(bitmap, settings.ClientRectangle);
+                bitmap.Save(Path.Combine(output, $"settings-{width}.png"));
+            }
+        }
     });
 
     private static MatchHistoryCard CreateCard(MatchDetail match) => new(match, "player-1",

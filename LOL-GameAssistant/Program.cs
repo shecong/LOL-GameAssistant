@@ -41,6 +41,7 @@ namespace LOL_GameAssistant
                 return;
             }
             if (Volatile.Read(ref replaceRequested) != 0) return;
+            RuntimeDiagnostics.ReportStartup();
 
             // 设置全局异常处理
             System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);

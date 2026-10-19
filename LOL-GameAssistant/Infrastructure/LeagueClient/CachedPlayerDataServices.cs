@@ -5,6 +5,7 @@ using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Players;
 using LOL_GameAssistant.Domain.Ranked;
 using LOL_GameAssistant.Infrastructure.GameData;
+using System.Collections.Concurrent;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
@@ -26,7 +27,11 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
     {
         PlayerProfile? player = await _inner.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!string.IsNullOrWhiteSpace(player?.Puuid)) _currentPuuid = player.Puuid;
+        if (!string.IsNullOrWhiteSpace(player?.Puuid))
+        {
+            _currentPuuid = player.Puuid;
+            PlayerHistorySession.SetAccount(player.Puuid);
+        }
         // 尚未确认本次客户端登录身份时，不以其他账号的资料替代当前账号。
         return _currentPuuid == null ? player : await _cache.GetLatestOrCachedAsync(
             $"puuid:{_currentPuuid}", () => Task.FromResult(player), cancellationToken).ConfigureAwait(false);
@@ -78,11 +83,14 @@ internal sealed class CachedRankedStatsService : IRankedStatsService
 }
 
 /// <summary>按玩家、分页区间和对局 ID 保存战绩，空响应不覆盖已有记录。</summary>
-internal sealed class CachedMatchHistoryService : IMatchHistoryService
+internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerHistorySnapshotSource
 {
     private readonly IMatchHistoryService _inner;
     private readonly LocalDataCache<MatchHistoryResponse> _pages;
     private readonly LocalDataCache<MatchDetail> _details;
+    private sealed record StoredBatch(DateTimeOffset AcquiredAt, MatchHistoryResponse Data);
+    private readonly LocalDataCache<StoredBatch> _snapshots;
+    private readonly ConcurrentDictionary<(string Puuid, int Begin, int End), Lazy<Task<MatchHistoryResponse?>>> _pendingPages = new();
 
     internal CachedMatchHistoryService(IMatchHistoryService inner, string? root = null)
     {
@@ -92,11 +100,50 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService
             value => value.Games?.Games?.Count > 0 && value.Games.Games.All(game => game != null && game.GameId > 0));
         _details = new(Path.Combine(directory, "player-data", "details"), TimeSpan.FromDays(30),
             value => value.GameId > 0 && value.participants?.Count > 0);
+        _snapshots = new(Path.Combine(directory, "player-data", "snapshots"), TimeSpan.FromDays(30),
+            value => value.Data.Games != null);
     }
 
-    public Task<MatchHistoryResponse?> GetPageAsync(string puuid, int beginIndex, int endIndex, CancellationToken cancellationToken = default) =>
-        _pages.GetLatestOrCachedAsync($"{puuid}:{beginIndex}:{endIndex}",
-            () => _inner.GetPageAsync(puuid, beginIndex, endIndex, cancellationToken), cancellationToken);
+    public async Task<PlayerHistorySnapshot> ReadSnapshotAsync(string puuid, CancellationToken cancellationToken)
+    {
+        bool fresh = false;
+        string? failure = null;
+        var stored = await _snapshots.GetLatestOrCachedAsync($"{PlayerHistorySession.Key}:{puuid}", async () =>
+        {
+            try
+            {
+                var page = await _inner.GetPageAsync(puuid, 0, MatchDataPolicy.SummaryLimit - 1, cancellationToken).ConfigureAwait(false);
+                if (page?.Games == null) throw new IOException("战绩摘要未返回有效数据");
+                fresh = true;
+                return new StoredBatch(DateTimeOffset.UtcNow, page);
+            }
+            catch (Exception error) { failure = error.Message; throw; }
+        }, cancellationToken).ConfigureAwait(false);
+        return new(puuid, stored?.Data, stored?.AcquiredAt ?? DateTimeOffset.UtcNow,
+            stored == null ? HistoryDataState.Unavailable : fresh ? HistoryDataState.Ready : HistoryDataState.Cached, failure);
+    }
+
+    public Task<MatchHistoryResponse?> GetPageAsync(string puuid, int beginIndex, int endIndex, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = (puuid, beginIndex, endIndex);
+        Lazy<Task<MatchHistoryResponse?>>? candidate = null;
+        candidate = new(() => ReadPageAsync(key, candidate!));
+        // A closed card only cancels its own wait, not the batch shared with another view.
+        return _pendingPages.GetOrAdd(key, candidate).Value.WaitAsync(cancellationToken);
+    }
+
+    private async Task<MatchHistoryResponse?> ReadPageAsync((string Puuid, int Begin, int End) key,
+        Lazy<Task<MatchHistoryResponse?>> request)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        try
+        {
+            return await _pages.GetLatestOrCachedAsync($"{key.Puuid}:{key.Begin}:{key.End}",
+                () => _inner.GetPageAsync(key.Puuid, key.Begin, key.End, deadline.Token), deadline.Token).ConfigureAwait(false);
+        }
+        finally { _pendingPages.TryRemove(new KeyValuePair<(string, int, int), Lazy<Task<MatchHistoryResponse?>>>(key, request)); }
+    }
 
     // 全量导出仍要求完整读取，不将历史分页缓存当作完整的导出结果。
     public Task<MatchHistoryResponse?> GetAllAsync(string puuid, int maxGames = 5000, CancellationToken cancellationToken = default) =>
@@ -104,9 +151,9 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService
 
     public Task<MatchDetail?> GetDetailAsync(long gameId, bool useCache = true, CancellationToken cancellationToken = default) =>
         useCache
-            ? _details.GetAsync(gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ? _details.GetAsync(PlayerHistorySession.Key + ":" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 () => _inner.GetDetailAsync(gameId, true, cancellationToken), cancellationToken)
-            : _details.GetLatestOrCachedAsync(gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            : _details.GetLatestOrCachedAsync(PlayerHistorySession.Key + ":" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 () => _inner.GetDetailAsync(gameId, false, cancellationToken), cancellationToken);
 
     public void ClearDetailCache() => _inner.ClearDetailCache();

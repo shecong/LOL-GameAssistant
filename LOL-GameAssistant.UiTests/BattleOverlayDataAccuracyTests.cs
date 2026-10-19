@@ -60,27 +60,26 @@ public sealed class BattleOverlayDataAccuracyTests
     }
 
     [Fact]
-    public async Task CompleteWinningSummaryIsCorrectedByPlayersLosingDetail()
+    public async Task CompleteSummariesSupplyWinLossAndKdaWithoutAnyDetailRequests()
     {
+        int details = 0;
         var win = Sample();
-        var loss = Sample(); loss.GameId = 2;
-        var service = Service((method, args) => method.Name == "GetPageAsync"
-            ? Task.FromResult<MatchHistoryResponse?>(Page(win, loss))
-            : Task.FromResult<MatchDetail?>(Detail(new()
-            {
-                kills = 3, deaths = 1, assists = 2, Win = (long)args[0]! == 1
-            })));
+        var loss = Sample(); loss.GameId = 2; loss.Participants[0].stats!.Win = false;
+        var service = Service((method, _) =>
+        {
+            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(Page(win, loss));
+            details++; return Task.FromResult<MatchDetail?>(null);
+        });
         var player = await service.GetPlayerAsync(Member, Session, CancellationToken.None);
         Assert.Equal(50d, player.ChampionWinRate);
-        Assert.Equal(1, player.ChampionWins);
-        Assert.Equal(1, player.ChampionLosses);
         Assert.Equal(new[] { true, false }, player.RecentResults);
+        Assert.Equal(5d, player.RecentKda);
         Assert.True(player.HistoryComplete);
-        Assert.True(loss.Participants[0].stats!.Win);
+        Assert.Equal(0, details);
     }
 
     [Fact]
-    public async Task AnotherPlayersDetailCannotOverridePlayersSummary()
+    public async Task SummaryIsUsedWithoutConsultingAnotherPlayersDetail()
     {
         var wrong = Detail(new() { Win = false });
         wrong.participantIdentities[0].player!.Puuid = "other";
@@ -89,56 +88,50 @@ public sealed class BattleOverlayDataAccuracyTests
             : Task.FromResult<MatchDetail?>(wrong));
         var player = await service.GetPlayerAsync(Member, Session, CancellationToken.None);
         Assert.Equal(new[] { true }, player.RecentResults);
-        Assert.False(player.HistoryComplete);
+        Assert.True(player.HistoryComplete);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task MissingOrUnconfirmedKdaFetchesActualPlayersDetail(bool partialNonzero)
+    public async Task MissingKdaRemainsUnknownWithoutFetchingDetails(bool partialNonzero)
     {
-        var sample = Sample();
-        sample.Participants[0].stats!.kills = partialNonzero ? 3 : 0;
+        var sample = Sample(); sample.Participants[0].stats!.kills = partialNonzero ? 3 : 0;
         sample.Participants[0].stats!.HasKdaResult = false;
         int details = 0;
         var service = Service((method, args) =>
         {
             if (method.Name == "GetPageAsync")
             {
-                Assert.Equal(49, args[2]);
+                Assert.Equal(499, args[2]);
                 return Task.FromResult<MatchHistoryResponse?>(Page(sample));
             }
-            details++;
-            return Task.FromResult<MatchDetail?>(Detail(new() { kills = 8, deaths = 2, assists = 10, Win = true }));
+            details++; return Task.FromResult<MatchDetail?>(Detail(new() { kills = 8, deaths = 2, assists = 10 }));
         });
         var player = await service.GetPlayerAsync(Member, Session, CancellationToken.None);
-        Assert.Equal(1, details);
-        Assert.Equal(9d, player.RecentKda);
+        Assert.Equal(0, details);
+        Assert.Null(player.RecentKda);
         Assert.Equal(100d, player.ChampionWinRate);
-        Assert.True(player.HistoryComplete);
-        Assert.False(sample.Participants[0].stats!.HasKdaResult); // Cached source was not mutated.
+        Assert.False(sample.Participants[0].stats!.HasKdaResult);
     }
 
     [Fact]
-    public async Task FailedDetailLeavesKdaUnknownButKeepsConfirmedWin()
+    public async Task UnknownKdaKeepsConfirmedWinWithoutInventingZero()
     {
-        var sample = Sample();
-        sample.Participants[0].stats!.kills = 0;
-        sample.Participants[0].stats!.assists = 0;
-        sample.Participants[0].stats!.deaths = 0;
-        var service = Service((method, _) => method.Name == "GetPageAsync"
-            ? Task.FromResult<MatchHistoryResponse?>(Page(sample)) : Task.FromResult<MatchDetail?>(null));
+        var sample = Sample(); sample.Participants[0].stats = new() { Win = true, HasKdaResult = false };
+        var service = Service((method, _) =>
+        {
+            Assert.Equal("GetPageAsync", method.Name);
+            return Task.FromResult<MatchHistoryResponse?>(Page(sample));
+        });
         var player = await service.GetPlayerAsync(Member, Session, CancellationToken.None);
         Assert.Null(player.RecentKda);
         Assert.Equal(new[] { true }, player.RecentResults);
         Assert.Equal(1, player.ChampionWins);
-        Assert.False(player.HistoryComplete);
-        Assert.True(player.NeedsRetry);
-        Assert.True(sample.Participants[0].stats!.HasKdaResult);
     }
 
     [Fact]
-    public async Task DetailConfirmedZeroKdaIsValid()
+    public async Task ExplicitZeroKdaSummaryIsValidWithoutDetailConfirmation()
     {
         var sample = Sample();
         sample.Participants[0].stats = new() { Win = true };
@@ -161,16 +154,19 @@ public sealed class BattleOverlayDataAccuracyTests
     }
 
     [Fact]
-    public async Task DetailKdaAndConfirmedSummaryWinCanBeCombined()
+    public async Task UnknownSummaryWinDoesNotBecomeALossOrTriggerDetails()
     {
-        var sample = Sample(); sample.Participants[0].stats!.HasKdaResult = false;
-        var service = Service((method, _) => method.Name == "GetPageAsync"
-            ? Task.FromResult<MatchHistoryResponse?>(Page(sample))
-            : Task.FromResult<MatchDetail?>(Detail(new() { kills = 5, deaths = 2, assists = 7, HasWinResult = false })));
+        var sample = Sample(); sample.Participants[0].stats!.HasWinResult = false;
+        var service = Service((method, _) =>
+        {
+            Assert.Equal("GetPageAsync", method.Name);
+            return Task.FromResult<MatchHistoryResponse?>(Page(sample));
+        });
         var player = await service.GetPlayerAsync(Member, Session, CancellationToken.None);
-        Assert.Equal(6d, player.RecentKda);
-        Assert.Equal(1, player.ChampionWins);
-        Assert.True(player.HistoryComplete);
+        Assert.Empty(player.RecentResults);
+        Assert.Equal(0, player.ChampionGames);
+        Assert.Equal(5d, player.RecentKda);
+        Assert.Null(player.ChampionWinRate);
     }
 
     [Fact]
@@ -287,7 +283,7 @@ public sealed class BattleOverlayDataAccuracyTests
 
     private static MatchHistoryGame Sample() => new()
     {
-        GameId = 1, QueueId = 450, GameMode = "ARAM", GameDuration = 1200,
+        GameId = 1, GameCreation = DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds(), QueueId = 450, GameMode = "ARAM", GameDuration = 1200,
         Participants = [new() { participantId = 1, championId = 22, stats = new() { kills = 3, deaths = 1, assists = 2, Win = true } }]
     };
     private static MatchHistoryResponse Page(params MatchHistoryGame[] games) => new() { Games = new() { Games = games.ToList() } };

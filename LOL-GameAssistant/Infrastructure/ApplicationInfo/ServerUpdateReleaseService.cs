@@ -47,11 +47,11 @@ internal sealed class ServerUpdateReleaseService : IUpdateReleaseService
                     HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 byte[] bytes = await UpdatePackageService.ReadLimitedAsync(response.Content, 64 * 1024, cancellationToken).ConfigureAwait(false);
-                var config = JsonSerializer.Deserialize<UpdateManifest>(bytes, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                var config = JsonSerializer.Deserialize<UpdateIndex>(bytes, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                     ?? throw new InvalidDataException("服务器更新配置为空。");
-                if (!Version.TryParse(config.Version, out var version)) throw new InvalidDataException("服务器版本号无效。");
+                if (config.SchemaVersion != 1 || !Version.TryParse(config.Version, out var version) || version.Build < 0 || version.Revision > 0)
+                    throw new InvalidDataException("服务器索引格式或版本号无效。");
                 var release = CreateRelease(version);
-                UpdatePackageService.ValidateManifest(config, release, requireNewer: false);
                 return release with { ServerManifestUrl = VersionManifest(server, version), AllowHttpServer = allowHttp };
             }
         }
@@ -77,7 +77,7 @@ internal sealed class ServerUpdateReleaseService : IUpdateReleaseService
 
     private static Uri VersionManifest(Uri server, Version version) =>
         new(server, "v" + (version.Revision > 0 ? version.ToString()
-            : new Version(version.Major, version.Minor, Math.Max(0, version.Build)).ToString(3)) + "/update.json");
+            : new Version(version.Major, version.Minor, Math.Max(0, version.Build)).ToString(3)) + "/" + UpdatePlatform.Current + "/update.json");
 
     internal static void ValidateServerUrl(Uri url, bool allowHttp = false)
     {

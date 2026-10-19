@@ -56,40 +56,26 @@ namespace LOL_GameAssistant.BaseViewForm
             };
         }
 
-        /// <summary>加载首页战绩卡片的英雄及对局信息。</summary>
-        private void RecordForm_Load(object sender, EventArgs e)
-        {
-        }
-
         /// <summary>
-        /// 加载单场战绩信息（支持传入已缓存的对局详情，避免重复请求）。
+        /// 加载单场详情；首页传入整批摘要，供评级复用而不重新请求列表。
         /// </summary>
-        public async Task setInfo(MatchHistoryGame? head, String? puuid, MatchDetail? detail = null, CancellationToken cancellationToken = default)
+        public async Task setInfo(MatchHistoryGame? head, String? puuid, MatchDetail? detail = null,
+            CancellationToken cancellationToken = default, MatchHistoryResponse? history = null)
         {
             using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
             cancellationToken = operation.Token;
             if (head == null || string.IsNullOrEmpty(puuid)) return;
             _playerPuuid = puuid;
-
-            _gameDetail = detail ?? await _matchHistoryService.GetDetailAsync(head.GameId, cancellationToken: cancellationToken);
+            ShowSummary(head, puuid);
+            if (history != null) await ApplyRecentModePerformanceTagAsync(head, puuid, history, cancellationToken);
+            try { _gameDetail = detail ?? await PlayerHistoryRepository.For(_matchHistoryService).GetDetailAsync(head.GameId, cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception error) { RuntimeDiagnostics.Report("首页详情", "暂不可用", error.Message); _gameDetail = null; }
             cancellationToken.ThrowIfCancellationRequested();
             if (IsDisposed) return;
             if (_gameDetail == null)
             {
-                var summary = head.GetParticipant(puuid);
-                _isWin = summary?.stats == null ? null : summary.IsWin();
-                game_win.Text = _isWin == null ? "对局" : _isWin == true ? "胜利" : "失败";
-                game_type.Text = head.GetModeText();
-                game_name.Text = "对局摘要";
-                game_msg.Text = summary?.stats == null ? "KDA —" : summary.GetKdaText();
-                game_duration.Text = head.GameDuration > 0 ? $"{head.GameDuration / 60}:{head.GameDuration % 60:D2}" : "时长 —";
-                game_time.Text = head.GameCreation > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(head.GameCreation).ToLocalTime().ToString("yyyy-MM-dd") : "时间 —";
-                game_cs.Text = summary?.stats == null ? "补刀 —" : $"补刀 {summary.stats.totalMinionsKilled}";
-                game_damage.Text = summary?.stats == null ? "伤害 —" : $"伤害 {summary.stats.totalDamageDealtToChampions:N0}";
-                game_gold.Text = summary?.stats == null ? "金币 —" : $"金币 {summary.stats.goldEarned:N0}";
-                lblAlly.Visible = lblEnemy.Visible = flowAlly.Visible = flowEnemy.Visible = false;
-                _performanceTag.Text = "详情暂不可用";
-                ApplyTheme(UiTheme.Palette);
+                game_name.Text = "摘要 · 详情暂不可用";
                 return;
             }
 
@@ -97,7 +83,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (gamer == null) return;
 
             bool win = gamer.IsWin();
-            _isWin = win;
+            _isWin = gamer.stats?.HasWinResult == true ? win : null;
             ApplyTheme(UiTheme.Palette);
             try
             {
@@ -105,20 +91,20 @@ namespace LOL_GameAssistant.BaseViewForm
                 ReplaceImage(game_pic, await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(gamer.championId, cancellationToken)));
                 cancellationToken.ThrowIfCancellationRequested();
                 if (IsDisposed) return;
-                this.game_win.Text = win ? "胜利" : "失败";
+                this.game_win.Text = _isWin == null ? "胜负未知" : win ? "胜利" : "失败";
                 this.game_win.ForeColor = win ? System.Drawing.Color.FromArgb(76, 175, 80) : System.Drawing.Color.FromArgb(244, 67, 54);
                 this.game_type.Text = _gameDetail.GetModeText();
                 this.game_time.Text = (_gameDetail.gameCreationDate?.Length >= 10 ? _gameDetail.gameCreationDate.Substring(0, 10) : _gameDetail.gameCreationDate) ?? "未知";
                 this.game_dj.Text = Convert.ToString(gamer.stats?.champLevel);
                 this.game_name.Text = _gameDetail.GetPlayerIdentity(puuid)?.gameName ?? "未知";
-                this.game_msg.Text = gamer.GetKdaText();
+                this.game_msg.Text = gamer.stats?.HasKdaResult == true ? gamer.GetKdaText() : "KDA —";
                 this.game_duration.Text = _gameDetail.GetDurationText();
                 var stats = gamer.stats;
                 int cs = (stats?.totalMinionsKilled ?? 0) + (stats?.neutralMinionsKilled ?? 0);
                 this.game_cs.Text = $"补刀 {cs}";
                 this.game_damage.Text = $"伤害 {stats?.totalDamageDealtToChampions ?? 0}";
                 this.game_gold.Text = $"金币 {stats?.goldEarned ?? 0}";
-                await ApplyRecentModePerformanceTagAsync(_gameDetail, puuid, cancellationToken);
+                await ApplyRecentModePerformanceTagAsync(head, puuid, history, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (IsDisposed) return;
                 ReplaceImage(pic_D, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell1Id, cancellationToken)));
@@ -144,15 +130,32 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        /// <summary>最近 30 天同模式全部有效对局共用统一评分逻辑。</summary>
-        private async Task ApplyRecentModePerformanceTagAsync(MatchDetail currentGame, string puuid, CancellationToken token)
+        private void ShowSummary(MatchHistoryGame head, string puuid)
         {
-            string queueText = string.IsNullOrWhiteSpace(currentGame.queueId)
-                ? currentGame._queueId : currentGame.queueId;
-            int.TryParse(queueText, out int queueId);
+            var summary = head.GetParticipant(puuid);
+            _isWin = summary?.stats?.HasWinResult == true ? summary.IsWin() : null;
+            game_win.Text = _isWin == null ? "胜负未知" : _isWin == true ? "胜利" : "失败";
+            game_type.Text = head.GetModeText();
+            game_name.Text = "对局摘要 · 详情加载中";
+            game_msg.Text = summary?.stats?.HasKdaResult == true ? summary.GetKdaText() : "KDA —";
+            game_duration.Text = head.GameDuration > 0 ? $"{head.GameDuration / 60}:{head.GameDuration % 60:D2}" : "时长 —";
+            game_time.Text = head.GameCreation > 0 && head.GameCreation <= DateTimeOffset.MaxValue.ToUnixTimeMilliseconds()
+                ? DateTimeOffset.FromUnixTimeMilliseconds(head.GameCreation).ToLocalTime().ToString("yyyy-MM-dd") : "时间 —";
+            game_cs.Text = summary?.stats == null ? "补刀 —" : $"补刀 {summary.stats.totalMinionsKilled}";
+            game_damage.Text = summary?.stats == null ? "伤害 —" : $"伤害 {summary.stats.totalDamageDealtToChampions:N0}";
+            game_gold.Text = summary?.stats == null ? "金币 —" : $"金币 {summary.stats.goldEarned:N0}";
+            lblAlly.Visible = lblEnemy.Visible = flowAlly.Visible = flowEnemy.Visible = false;
+            ApplyTheme(UiTheme.Palette);
+        }
+
+        /// <summary>按已获取摘要中最近50场同模式有效对局评分，不为卡片重复读取摘要。</summary>
+        private async Task ApplyRecentModePerformanceTagAsync(MatchHistoryGame currentGame, string puuid,
+            MatchHistoryResponse? history, CancellationToken token)
+        {
             var service = new RecentModePerformanceService(_matchHistoryService);
             RecentModePerformanceAssessment assessment = await service.EvaluateAsync(
-                puuid, queueId, currentGame.gameMode, currentGame.GetModeText(), cancellationToken: token);
+                puuid, currentGame.QueueId, currentGame.GameMode, currentGame.GetModeText(),
+                firstPage: history, cancellationToken: token);
             token.ThrowIfCancellationRequested();
             if (IsDisposed) return;
             ApplyPostGamePerformanceTag(assessment);

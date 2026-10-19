@@ -7,6 +7,50 @@ namespace LOL_GameAssistant.Tests;
 
 public sealed class MatchHistoryRequestPolicyTests
 {
+    [Fact]
+    public async Task DefaultPolicyRunsSixIndependentRequestsBeforeWaitingForCapacity()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var policy = new MatchHistoryRequestPolicy();
+        int started = 0, active = 0, maximum = 0;
+        var tasks = Enumerable.Range(0, 10).Select(id => policy.ExecuteAsync(async token =>
+        {
+            Interlocked.Increment(ref started);
+            int current = Interlocked.Increment(ref active);
+            Interlocked.Exchange(ref maximum, Math.Max(Volatile.Read(ref maximum), current));
+            await release.Task.WaitAsync(token);
+            Interlocked.Decrement(ref active);
+            return id;
+        }, CancellationToken.None)).ToArray();
+        Assert.Equal(6, started);
+        Assert.Equal(6, active);
+        release.SetResult();
+        Assert.Equal(Enumerable.Range(0, 10), await Task.WhenAll(tasks));
+        Assert.InRange(maximum, 2, 6);
+        Assert.Equal(0, active);
+    }
+
+    [Fact]
+    public async Task LargeBatchCanUseALongerBudgetWithoutChangingSmallRequestTimeouts()
+    {
+        int calls = 0;
+        var policy = new MatchHistoryRequestPolicy(requestTimeout: TimeSpan.FromMilliseconds(20),
+            backoff: _ => Task.CompletedTask);
+        int value = await policy.ExecuteAsync(async token =>
+        {
+            calls++;
+            await Task.Delay(70, token);
+            return 42;
+        }, default, requestTimeout: TimeSpan.FromSeconds(2));
+        Assert.Equal(42, value);
+        Assert.Equal(1, calls);
+        await Assert.ThrowsAsync<LcuRequestException>(() => policy.ExecuteAsync(async token =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return 0;
+        }, default));
+    }
+
     [Theory]
     [InlineData(LcuFailure.Timeout, null)]
     [InlineData(LcuFailure.Network, null)]

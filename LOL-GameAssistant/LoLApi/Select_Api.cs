@@ -195,22 +195,5 @@ namespace LOL_GameAssistant.LoLApi
             return unavailable;
         }
 
-        /// <summary>
-        /// 通过英雄名获取英雄ID
-        /// </summary>
-        public static int? GetChampionIdByName(string championName)
-        {
-            var map = Helper.ChampionMap.GetChampionMap();
-            foreach (var entry in map)
-            {
-                if (string.Equals(entry.Value.RealName, championName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(entry.Value.Label, championName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(entry.Value.Nickname, championName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return entry.Key;
-                }
-            }
-            return null;
-        }
     }
 }

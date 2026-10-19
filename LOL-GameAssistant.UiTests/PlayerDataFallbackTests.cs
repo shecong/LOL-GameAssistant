@@ -175,6 +175,36 @@ public sealed class PlayerDataFallbackTests
         return proxy;
     }
 
+    [Fact]
+    public async Task ConcurrentHistoryReadersShareTheNetworkAndCallerCancellationIsIsolated()
+    {
+        using var folder = new Folder();
+        var response = new TaskCompletionSource<MatchHistoryResponse?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int requests = 0;
+        CancellationToken sourceToken = default;
+        var inner = Service<IMatchHistoryService>((method, args) =>
+        {
+            Assert.Equal("GetPageAsync", method.Name);
+            Interlocked.Increment(ref requests);
+            sourceToken = (CancellationToken)args[3]!;
+            started.TrySetResult();
+            return response.Task.WaitAsync(sourceToken);
+        });
+        var cached = new CachedMatchHistoryService(inner, folder.Path);
+        using var cancellation = new CancellationTokenSource();
+        var first = cached.GetPageAsync("shared", 0, 499, cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var second = cached.GetPageAsync("shared", 0, 499);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        Assert.False(sourceToken.IsCancellationRequested);
+        var expected = new MatchHistoryResponse { Games = new() { Games = [new() { GameId = 123 }] } };
+        response.SetResult(expected);
+        Assert.Same(expected, await second);
+        Assert.Equal(1, requests);
+    }
+
     private sealed class Folder : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "player-cache-test-" + Guid.NewGuid().ToString("N"));

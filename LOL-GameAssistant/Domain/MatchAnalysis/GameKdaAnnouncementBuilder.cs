@@ -23,8 +23,8 @@ public static class GameKdaAnnouncementBuilder
         var assessment = player.Assessment;
         if (assessment == null) return $"{prefix} 战绩暂未获取，没数据就不瞎下结论。";
         string scope = assessment.UsesAllModes ? "各模式" : "同模式";
-        if (assessment.SampleSize <= 0) return $"{prefix} 近30天{scope}无样本，暂不测评。";
-        string stats = $"近30天{scope}{assessment.SampleSize}场 KDA{FormatKda(assessment.Kda, 2)}";
+        if (assessment.SampleSize <= 0) return $"{prefix} 近50场{scope}无样本，暂不测评。";
+        string stats = $"近50场{scope}{assessment.SampleSize}场 KDA{FormatKda(assessment.Kda, 2)}";
         if (!assessment.HasEnoughSample) return $"{prefix} {stats}，样本不足，先别急着封神或判刑。";
         string remark = GameKdaRemarkLibrary.Select(assessment.Label, customRemarks);
         var placeholders = new Dictionary<string, string>
@@ -33,7 +33,7 @@ public static class GameKdaAnnouncementBuilder
             ["position"] = position.ToString(), ["kda"] = FormatKda(assessment.Kda, 2),
             ["samples"] = assessment.SampleSize.ToString(), ["score"] = assessment.Score.ToString(),
             ["label"] = RecentPerformanceLabelFormatter.GetText(assessment),
-            ["winrate"] = assessment.WinRate.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            ["winrate"] = assessment.HasWinRate ? assessment.WinRate.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) : "未知"
         };
         remark = System.Text.RegularExpressions.Regex.Replace(remark, @"\{(name|team|position|kda|samples|score|label|winrate)\}",
             match => placeholders[match.Groups[1].Value.ToLowerInvariant()], System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -86,11 +86,12 @@ public static class GameKdaAnnouncementBuilder
         if (name.Length > nameLimit) name = name[..nameLimit] + "…";
         if (player.Assessment == null) return $"{name} 战绩暂未获取";
         if (player.Assessment is not { SampleSize: > 0 } assessment)
-            return compact ? $"{name} 同模式无样本" : $"{name} 近30天同模式无样本";
+            return compact ? $"{name} 同模式无样本" : $"{name} 近50场同模式无样本";
+        if (assessment.UsesAllModes) name += "[全模式]";
         if (!assessment.HasEnoughSample)
             return compact
-                ? $"{name} 样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}"
-                : $"{name} 样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} KDA{FormatKda(assessment.Kda, 2)}";
+                ? $"{name} 样本不足{assessment.SampleSize}/{assessment.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}"
+                : $"{name} 样本不足{assessment.SampleSize}/{assessment.RequiredSampleSize} KDA{FormatKda(assessment.Kda, 2)}";
         string label = RecentPerformanceLabelFormatter.GetText(assessment);
         return compact
             ? $"{name} {label}{assessment.Score} {(terse ? "K" : "KDA")}{FormatKda(assessment.Kda, 1)}"
@@ -108,10 +109,11 @@ public static class GameKdaAnnouncementBuilder
             null => "战绩暂未获取",
             not { SampleSize: > 0 } => "同模式无样本",
             { HasEnoughSample: false } assessment =>
-                $"样本不足{assessment.SampleSize}/{RecentModePerformanceEvaluator.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}",
+                $"样本不足{assessment.SampleSize}/{assessment.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}",
             { } assessment =>
                 $"{RecentPerformanceLabelFormatter.GetText(assessment)}{assessment.Score} K{FormatKda(assessment.Kda, 1)}"
         };
+        if (player.Assessment?.UsesAllModes == true) detail = "全模式 " + detail;
         int nameWidth = Math.Max(2, MaximumBodyWidth - DisplayWidth(teamLabel) - 2 - DisplayWidth(detail));
         return $"{teamLabel} {ShortenToDisplayWidth(name, nameWidth)} {detail}";
     }

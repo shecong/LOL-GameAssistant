@@ -16,12 +16,29 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class LivePlayerHistoryLoadingTests
 {
     [Fact]
-    public void VisibleCardsRequestOnlyTwentySummariesInitially() => MatchListScrollingTests.OnUiThread(() =>
+    public void CustomClassicLobbyShowsKdaFromRankedSummaries() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var batch = Page(DateTime.UtcNow.Ticks, 10);
+        foreach (var game in batch.Games!.Games)
+        {
+            game.GameDuration = 1200;
+            game.Participants = [new() { stats = new() { kills = 5, deaths = 2, assists = 8, Win = true } }];
+        }
+        var card = CreateCard((method, _) => method.Name == "GetPageAsync"
+            ? Task.FromResult<MatchHistoryResponse?>(batch) : Task.FromResult<MatchDetail?>(null), queueId: 3110);
+        using var form = Mount(card);
+        Assert.Contains("KDA 6.50", Child(card, "lblRecentKda").Text);
+        Assert.Contains("10场", Child(card, "lblRecentKda").Text);
+        Assert.Equal("上等马", Child(card, "lblSummary").Text);
+    });
+
+    [Fact]
+    public void VisibleCardsRequestOneBatchOfFiveHundredSummaries() => MatchListScrollingTests.OnUiThread(() =>
     {
         var card = CreateCard((method, args) => {
             Assert.Equal("GetPageAsync", method.Name);
             Assert.Equal(0, (int)args[1]!);
-            Assert.Equal(19, (int)args[2]!);
+            Assert.Equal(499, (int)args[2]!);
             return Task.FromResult<MatchHistoryResponse?>(new() { Games = new() });
         });
         using var form = Mount(card);
@@ -38,26 +55,26 @@ public sealed class LivePlayerHistoryLoadingTests
                 Participants = [new() { stats = new() { kills = 5, deaths = 2, assists = 8, Win = true } }]
             }] } }) : Task.FromResult<MatchDetail?>(null));
         using var form = Mount(card);
-        Assert.Equal("上等马", Child(card, "lblSummary").Text);
+        Assert.Equal("数据不足", Child(card, "lblSummary").Text);
         Assert.Contains("KDA 6.50", Child(card, "lblRecentKda").Text);
         Assert.Contains("1场", Child(card, "lblRecentKda").Text);
     });
 
     [Fact]
-    public void HeaderShowsKdaAndRecentEncounterWithoutCountingDuplicateOrOldMatches() => MatchListScrollingTests.OnUiThread(() =>
+    public void HeaderShowsKdaAndRecentEncounterWithoutCountingDuplicateMatches() => MatchListScrollingTests.OnUiThread(() =>
     {
         var pending = new TaskCompletionSource<MatchHistoryResponse?>();
         var card = CreateCard((_, _) => pending.Task, puuid: "encounter-other");
         card.Width = 320;
         using var form = Mount(card);
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        MatchHistoryGame Game(long id, long created) => new() { GameId = id, GameCreation = created, GameDuration = 1200 };
+        MatchHistoryGame Game(long id, long created) => new() { GameId = id, QueueId = 420, GameCreation = created, GameDuration = 1200 };
         card.SetRecentEncounterHistory(new() { Games = new() { Games = [Game(1, now), Game(1, now),
             Game(2, DateTimeOffset.UtcNow.AddDays(-31).ToUnixTimeMilliseconds()), Game(3, now)] } });
         card.UpdateRecentEncounter("self", null);
-        Assert.Equal("遇见检测中", Child(card, "lblRecentEncounter").Text);
+        Assert.Equal("等待读取本人战绩", Child(card, "lblRecentEncounter").Text);
         card.UpdateRecentEncounter("self", [Game(1, now), Game(2, now)]);
-        Assert.Equal("近期遇到 1 次", Child(card, "lblRecentEncounter").Text);
+        Assert.Equal("近期遇到 2 次", Child(card, "lblRecentEncounter").Text);
         card.UpdateRecentEncounter("self", [Game(99, now)]);
         Assert.Equal("近期未遇到", Child(card, "lblRecentEncounter").Text);
         var result = RecentModePerformanceEvaluator.Evaluate("测试", [new(MatchPerformanceTier.Upper, 90, "", 10, 4, 8)], [true]);
@@ -104,7 +121,7 @@ public sealed class LivePlayerHistoryLoadingTests
     });
 
     [Fact]
-    public void UnavailableDetailsStopShimmerAndOfferRetry() => MatchListScrollingTests.OnUiThread(() =>
+    public void IncompleteSummaryStillShowsARowWithoutFetchingDetails() => MatchListScrollingTests.OnUiThread(() =>
     {
         long gameId = DateTime.UtcNow.Ticks;
         var card = CreateCard((method, _) => method.Name == "GetPageAsync"
@@ -112,47 +129,42 @@ public sealed class LivePlayerHistoryLoadingTests
             : Task.FromResult<MatchDetail?>(null));
         using var form = Mount(card);
         Assert.Empty(Child(card, "panelMatches").Controls.OfType<ShimmerPanel>());
-        Assert.NotNull(Child(card, "btnRetryHistory"));
-        Assert.Equal("获取失败", Child(card, "lblSummary").Text);
+        Assert.Single(Child(card, "panelMatches").Controls.OfType<RecentMatchRow>());
+        Assert.Equal("数据不足", Child(card, "lblSummary").Text);
     });
 
     [Fact]
-    public void PendingAndFailedScoringKeepLoadedRows() => MatchListScrollingTests.OnUiThread(() =>
+    public void FiveHundredSummariesAreScoredAndTenNewestRowsDoNotFetchDetails() => MatchListScrollingTests.OnUiThread(() =>
     {
-        var nextPage = new TaskCompletionSource<MatchHistoryResponse?>();
         long firstId = DateTime.UtcNow.Ticks;
-        var page = new MatchHistoryResponse
-        {
-            Games = new()
-            {
-                GameCount = 101,
-                Games = Enumerable.Range(0, 100).Select(index => new MatchHistoryGame
-                {
-                    GameId = firstId + index, GameCreation = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    QueueId = 420, GameMode = "CLASSIC"
-                }).ToList()
-            }
-        };
         string puuid = Guid.NewGuid().ToString();
-        var card = CreateCard((method, args) => method.Name == "GetPageAsync"
-            ? ((int)args[1]! == 0 ? Task.FromResult<MatchHistoryResponse?>(page) : nextPage.Task)
-            : Task.FromResult<MatchDetail?>(new()
+        var page = Page(firstId, 500);
+        foreach (var game in page.Games!.Games)
+        {
+            game.QueueId = 430;
+            game.GameDuration = 1200;
+            game.Participants = [new() { participantId = 1,
+                stats = new() { kills = 5, deaths = 2, assists = 8, Win = true } }];
+        }
+        int batchRequests = 0;
+        var detailRequests = new List<long>();
+        var card = CreateCard((method, args) =>
+        {
+            if (method.Name == "GetPageAsync")
             {
-                GameId = (long)args[0]!, gameDuration = 1200, queueId = "420",
-                participantIdentities = [new() { participantId = 1, player = new() { Puuid = puuid } }],
-                participants = [new() { participantId = 1, stats = new() { kills = 5, deaths = 2, assists = 8 } }]
-            }), puuid: puuid);
+                Assert.Equal(0, args[1]); Assert.Equal(499, args[2]);
+                batchRequests++;
+                return Task.FromResult<MatchHistoryResponse?>(page);
+            }
+            long id = (long)args[0]!;
+            detailRequests.Add(id);
+            return Task.FromResult<MatchDetail?>(Detail(id, puuid));
+        }, puuid: puuid);
         using var form = Mount(card);
-        var panel = Child(card, "panelMatches");
-        Assert.False(nextPage.Task.IsCompleted);
-        Assert.Equal(10, panel.Controls.OfType<RecentMatchRow>().Count());
-        Assert.Empty(panel.Controls.OfType<ShimmerPanel>());
-        Assert.Equal("评分中", Child(card, "lblSummary").Text);
-        Assert.False((bool)typeof(LivePlayerForm).GetField("_loading", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(card)!);
-        nextPage.SetException(new IOException("scoring failed"));
-        System.Windows.Forms.Application.DoEvents();
-        Assert.Equal(10, panel.Controls.OfType<RecentMatchRow>().Count());
-        Assert.Equal("上等马", Child(card, "lblSummary").Text);
+        Assert.Equal(1, batchRequests);
+        Assert.Empty(detailRequests);
+        Assert.Equal(10, Child(card, "panelMatches").Controls.OfType<RecentMatchRow>().Count());
+        Assert.Contains("50场", Child(card, "lblRecentKda").Text);
         Assert.Contains("KDA 6.50", Child(card, "lblRecentKda").Text);
     });
 
@@ -199,131 +211,128 @@ public sealed class LivePlayerHistoryLoadingTests
     });
 
     [Fact]
-    public void EachFinishedDetailAppearsImmediatelyAndRowsStayNewestFirst() => MatchListScrollingTests.OnUiThread(() =>
+    public void SummaryRowsStayNewestFirstWithoutAnyDetailRequests() => MatchListScrollingTests.OnUiThread(() =>
     {
-        string puuid = Guid.NewGuid().ToString();
-        long newestId = DateTime.UtcNow.Ticks;
-        var newest = new TaskCompletionSource<MatchDetail?>();
-        var older = new TaskCompletionSource<MatchDetail?>();
-        var card = CreateCard((method, args) => method.Name == "GetPageAsync"
-            ? Task.FromResult<MatchHistoryResponse?>(Page(newestId, 2))
-            : ((long)args[0]! == newestId ? newest.Task : older.Task), puuid: puuid);
+        long firstId = DateTime.UtcNow.Ticks;
+        int details = 0;
+        var history = Page(firstId, 10);
+        history.Games!.Games.Reverse();
+        var card = CreateCard((method, _) =>
+        {
+            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(history);
+            details++; return Task.FromResult<MatchDetail?>(null);
+        });
         using var form = Mount(card);
-        var panel = Child(card, "panelMatches");
-        older.SetResult(Detail(newestId + 1, puuid));
-        System.Windows.Forms.Application.DoEvents();
-        var olderRow = Assert.Single(panel.Controls.OfType<RecentMatchRow>());
-        Assert.False(newest.Task.IsCompleted);
-        Assert.Empty(panel.Controls.OfType<ShimmerPanel>());
-        newest.SetResult(Detail(newestId, puuid));
-        System.Windows.Forms.Application.DoEvents();
-        var rows = panel.Controls.OfType<RecentMatchRow>().ToArray();
-        Assert.Equal(2, rows.Length);
-        Assert.Same(olderRow, rows[1]);
+        var rows = Child(card, "panelMatches").Controls.OfType<RecentMatchRow>().ToArray();
+        Assert.Equal(10, rows.Length);
+        Assert.Equal(0, details);
+        Assert.Equal(firstId, SecondPhaseRegressionTests.Field<long>(rows[0], "_summaryGameId"));
+        Assert.Equal(firstId + 9, SecondPhaseRegressionTests.Field<long>(rows[9], "_summaryGameId"));
+        Assert.Equal("未知", Child(rows[0], "lblResult").Text);
+        Assert.Equal("—/—/—", Child(rows[0], "lblKda").Text);
         Assert.True(rows[0].Top < rows[1].Top);
     });
 
     [Fact]
-    public void PlayerQueuesAtMostTwoDetailsAtOnce() => MatchListScrollingTests.OnUiThread(() =>
+    public void OpeningOneSummaryRowFetchesOnlyItsDetailAndReusesIt() => MatchListScrollingTests.OnUiThread(() =>
     {
-        string puuid = Guid.NewGuid().ToString();
         long firstId = DateTime.UtcNow.Ticks;
-        var requests = new List<long>();
-        var pending = Enumerable.Range(0, 4).ToDictionary(index => firstId + index,
-            _ => new TaskCompletionSource<MatchDetail?>());
+        string puuid = Guid.NewGuid().ToString();
+        var requested = new List<long>();
         var card = CreateCard((method, args) =>
         {
-            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(Page(firstId, 4));
+            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(Page(firstId, 10));
             long id = (long)args[0]!;
-            requests.Add(id);
-            return pending[id].Task;
-        }, puuid: puuid);
-        using var form = Mount(card);
-        Assert.Equal(2, requests.Count);
-        pending[firstId].SetResult(Detail(firstId, puuid));
-        System.Windows.Forms.Application.DoEvents();
-        Assert.Equal(3, requests.Count);
-        Assert.False(pending[firstId + 1].Task.IsCompleted);
-        foreach (var (id, response) in pending) response.TrySetResult(Detail(id, puuid));
-        System.Windows.Forms.Application.DoEvents();
-        Assert.Equal(4, requests.Count);
-        Assert.Equal(4, Child(card, "panelMatches").Controls.OfType<RecentMatchRow>().Count());
-    });
-
-    [Fact]
-    public void TransientDetailFailureRetriesWithoutDiscardingOtherRows() => MatchListScrollingTests.OnUiThread(() =>
-    {
-        string puuid = Guid.NewGuid().ToString();
-        long id = DateTime.UtcNow.Ticks;
-        int detailRequests = 0;
-        var card = CreateCard((method, _) => method.Name == "GetPageAsync"
-            ? Task.FromResult<MatchHistoryResponse?>(Page(id, 1))
-            : (++detailRequests == 1
-                ? Task.FromResult<MatchDetail?>(null)
-                : Task.FromResult<MatchDetail?>(Detail(id, puuid))), puuid: puuid);
-        using var form = Mount(card);
-        Assert.Equal(2, detailRequests);
-        Assert.Single(Child(card, "panelMatches").Controls.OfType<RecentMatchRow>());
-        Assert.Empty(Child(card, "panelMatches").Controls.OfType<ShimmerPanel>());
-    });
-
-    [Fact]
-    public void TimedOutDetailRetriesWhileCompletedRowRemainsVisible() => MatchListScrollingTests.OnUiThread(() =>
-    {
-        string puuid = Guid.NewGuid().ToString();
-        long id = DateTime.UtcNow.Ticks;
-        var stalled = new TaskCompletionSource<MatchDetail?>();
-        int slowRequests = 0;
-        CancellationToken firstToken = default;
-        var card = CreateCard((method, args) =>
-        {
-            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(Page(id, 2));
-            long requestedId = (long)args[0]!;
-            if (requestedId != id) return Task.FromResult<MatchDetail?>(Detail(requestedId, puuid));
-            if (++slowRequests == 1)
-            {
-                firstToken = (CancellationToken)args[2]!;
-                return stalled.Task.WaitAsync(firstToken);
-            }
+            requested.Add(id);
             return Task.FromResult<MatchDetail?>(Detail(id, puuid));
         }, puuid: puuid);
         using var form = Mount(card);
-        var panel = Child(card, "panelMatches");
-        var existingRow = Assert.Single(panel.Controls.OfType<RecentMatchRow>());
-        DateTime deadline = DateTime.UtcNow.AddSeconds(8);
-        while (slowRequests < 2 && DateTime.UtcNow < deadline)
-        {
-            System.Windows.Forms.Application.DoEvents();
-            Thread.Sleep(10);
-        }
-        System.Windows.Forms.Application.DoEvents();
-        Assert.True(firstToken.IsCancellationRequested);
-        Assert.Equal(2, slowRequests);
-        Assert.Equal(2, panel.Controls.OfType<RecentMatchRow>().Count());
-        Assert.Contains(existingRow, panel.Controls.OfType<RecentMatchRow>());
+        Assert.Empty(requested);
+        var rows = Child(card, "panelMatches").Controls.OfType<RecentMatchRow>().ToArray();
+        var task = rows[3].LoadDetailAsync();
+        SecondPhaseRegressionTests.Pump(task);
+        Assert.Equal(firstId + 3, task.Result!.GameId);
+        Assert.Equal(new[] { firstId + 3 }, requested);
+        SecondPhaseRegressionTests.Pump(rows[3].LoadDetailAsync());
+        Assert.Single(requested);
+        Assert.Null(SecondPhaseRegressionTests.Field<MatchDetail?>(rows[0], "_detail"));
     });
 
     [Fact]
-    public void DisposingCardCancelsRequestsAndDoesNotStartQueuedDetails() => MatchListScrollingTests.OnUiThread(() =>
+    public void FailedClickedDetailCanBeRetriedWithoutRemovingSummaryRows() => MatchListScrollingTests.OnUiThread(() =>
     {
         long id = DateTime.UtcNow.Ticks;
+        string puuid = Guid.NewGuid().ToString();
         int requests = 0;
-        var tokens = new List<CancellationToken>();
-        var pending = new TaskCompletionSource<MatchDetail?>();
-        var card = CreateCard((method, args) =>
-        {
-            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(Page(id, 4));
-            requests++;
-            var token = (CancellationToken)args[2]!;
-            tokens.Add(token);
-            return pending.Task.WaitAsync(token);
-        });
+        var card = CreateCard((method, _) => method.Name == "GetPageAsync"
+            ? Task.FromResult<MatchHistoryResponse?>(Page(id, 2))
+            : Task.FromResult<MatchDetail?>(++requests == 1 ? null : Detail(id, puuid)), puuid: puuid);
         using var form = Mount(card);
+        var panel = Child(card, "panelMatches");
+        var row = panel.Controls.OfType<RecentMatchRow>().First();
+        var failed = row.LoadDetailAsync();
+        SecondPhaseRegressionTests.Pump(failed);
+        Assert.Null(failed.Result);
+        Assert.Equal(2, panel.Controls.OfType<RecentMatchRow>().Count());
+        var retried = row.LoadDetailAsync();
+        SecondPhaseRegressionTests.Pump(retried);
+        Assert.Equal(id, retried.Result!.GameId);
         Assert.Equal(2, requests);
-        card.Dispose();
-        System.Windows.Forms.Application.DoEvents();
-        Assert.All(tokens, token => Assert.True(token.IsCancellationRequested));
-        Assert.Equal(2, requests);
+    });
+
+    [Fact]
+    public void PendingClickedDetailDoesNotBlockOtherRowsOrChangeTheAssessment() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        long firstId = DateTime.UtcNow.Ticks;
+        string puuid = Guid.NewGuid().ToString();
+        var pending = new TaskCompletionSource<MatchDetail?>();
+        int requests = 0;
+        var card = CreateCard((method, _) =>
+        {
+            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(Page(firstId, 10));
+            requests++; return pending.Task;
+        }, puuid: puuid);
+        using var form = Mount(card);
+        Assert.False(SecondPhaseRegressionTests.Field<bool>(card, "_loading"));
+        Assert.Equal(0, requests);
+        string assessment = Child(card, "lblRecentKda").Text;
+        var rows = Child(card, "panelMatches").Controls.OfType<RecentMatchRow>().ToArray();
+        var first = rows[0].LoadDetailAsync();
+        var second = rows[0].LoadDetailAsync();
+        Assert.Equal(1, requests);
+        Assert.False(first.IsCompleted);
+        Assert.Equal(10, rows.Length);
+        Assert.Equal(assessment, Child(card, "lblRecentKda").Text);
+        pending.SetResult(Detail(firstId, puuid));
+        SecondPhaseRegressionTests.Pump(Task.WhenAll(first, second));
+        Assert.Equal(1, requests);
+    });
+    [Fact]
+    public void ClosingFirstCardDoesNotCancelAnotherCardsSharedHistoryBatch() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        string puuid = Guid.NewGuid().ToString();
+        var response = new TaskCompletionSource<MatchHistoryResponse?>();
+        int requests = 0;
+        CancellationToken sourceToken = default;
+        object? Handler(MethodInfo method, object?[] args)
+        {
+            Assert.Equal("GetPageAsync", method.Name);
+            requests++;
+            sourceToken = (CancellationToken)args[3]!;
+            return response.Task.WaitAsync(sourceToken);
+        }
+        var source = Service<IMatchHistoryService>(Handler);
+        var first = CreateCard(Handler, puuid: puuid, source: source);
+        var second = CreateCard(Handler, puuid: puuid, source: source);
+        using var firstForm = Mount(first);
+        using var secondForm = Mount(second);
+        Assert.Equal(1, requests);
+        first.Dispose();
+        Assert.False(sourceToken.IsCancellationRequested);
+        response.SetResult(new() { Games = new() });
+        SecondPhaseRegressionTests.PumpUntil(() => Child(second, "panelMatches").Controls.Cast<Control>()
+            .Any(control => control.Text == "暂无战绩"));
+        Assert.Equal(1, requests);
     });
 
     private static MatchHistoryResponse Page(long firstId, int count) => new()
@@ -347,11 +356,12 @@ public sealed class LivePlayerHistoryLoadingTests
     };
 
     private static LivePlayerForm CreateCard(Func<MethodInfo, object?[], object?> history,
-        string? puuid = null, Task<byte[]?>? icon = null, Task<PlayerProfile?>? profile = null) => new(
-        puuid ?? Guid.NewGuid().ToString(), "测试玩家", 0, "", false, false, true, 430, "CLASSIC",
+        string? puuid = null, Task<byte[]?>? icon = null, Task<PlayerProfile?>? profile = null,
+        IMatchHistoryService? source = null, int queueId = 430) => new(
+        puuid ?? Guid.NewGuid().ToString(), "测试玩家", 0, "", false, false, true, queueId, "CLASSIC",
         Service<IPlayerProfileService>((_, _) => profile ?? Task.FromResult<PlayerProfile?>(new("", "测试玩家", "", 1, 100, 0, 0))),
         Service<IProfileIconService>((_, _) => icon ?? Task.FromResult<byte[]?>(null)),
-        Service<IMatchHistoryService>(history),
+        source ?? Service<IMatchHistoryService>(history),
         Service<IGameAssetService>((_, _) => Task.FromResult<GameAsset?>(null)));
 
     private static T Service<T>(Func<MethodInfo, object?[], object?> handler) where T : class

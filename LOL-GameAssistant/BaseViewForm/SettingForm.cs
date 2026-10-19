@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.LeagueClient;
+using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.LeagueClient;
@@ -12,7 +12,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// <summary>设置页：读取、编辑并保存助手各功能的配置。</summary>
     public partial class SettingForm : UserControl, IThemeAware
     {
-        public DateTime? lastOpenGameTime = null;
+
         private AssistantSettings _config;
         private bool _isLoading = true;
         private bool _autoSaveEventsBound;
@@ -132,6 +132,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Checkbox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
         private readonly AntdUI.Checkbox _gameKdaAnnouncementEnabled = new() { Text = "对局中发送双方玩家近期 KDA 评估", AutoSize = true };
         private readonly AntdUI.Checkbox _gameKdaOnePlayerPerLine = new() { Text = "每名玩家单独发送一条（单人一行）", AutoSize = true };
+        private readonly AntdUI.InputNumber _ratingMinimumGames = new() { Name = "ratingMinimumGames", Minimum = 1, Maximum = 50, Value = 10, Width = 100 };
         private readonly AntdUI.Input _champSelectKdaAnnouncementTemplate = new() { Dock = DockStyle.Fill, Multiline = true, Height = 86 };
         private readonly AntdUI.Select _provider = new() { List = true, DropDownArrow = true, Width = 210 };
 
@@ -458,50 +459,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>创建匹配及对局自动操作的设置区域。</summary>
         private Control CreateMatchSegment()
-        {
-            var panel = CreateSegmentPanel();
-            var layout = CreateSegmentLayout();
-            panel.Controls.Add(layout);
-            int row = 0;
-            AddSectionHeader(layout, row++, "匹配与对局");
-            AddSegmentRow(layout, row++, "自动匹配：", swi_open);
-            AddSegmentRow(layout, row++, "自动接受：", swi_gametrue);
-            AddSegmentRow(layout, row++, "接受延迟（毫秒）：", CreateAcceptDelayRow(), "在最小与最大值之间随机延迟；均为 0 时立即接受。");
-            AddSegmentRow(layout, row++, "对局自动刷新：", swi_auto_refresh);
-            flow_auto_refresh.Height = 40;
-            label_refresh_interval.Height = 32;
-            input_auto_refresh.Height = 32;
-            AddSegmentRow(layout, row++, "刷新间隔：", flow_auto_refresh);
-            AddSegmentRow(layout, row++, "对局结束提醒：", swi_notify_end);
-            AddSectionHeader(layout, row++, "英雄选择");
-            AddSegmentRow(layout, row++, "自动禁英雄：", swi_jyyx);
-            AddSegmentRow(layout, row++, "禁用英雄列表：", setting_select_jyx);
-            flow_ban_preview.Height = 96;
-            AddSegmentRow(layout, row++, "禁用预览：", flow_ban_preview);
-            layout.SetColumnSpan(flow_ban_preview, 1);
-            AddSegmentRow(layout, row++, "自动选英雄：", swi_xyx);
-            AddSegmentRow(layout, row++, "仅预选，不锁定：", _preselectOnly, "开启后只预选英雄，不会自动锁定。");
-            AddSegmentRow(layout, row++, "补位跳过选人：", _skipFill, "客户端明确标记补位时，跳过自动选人。");
-            AddSegmentRow(layout, row++, "选用英雄列表：", setting_select_xyx);
-            flow_pick_preview.Height = 96;
-            AddSegmentRow(layout, row++, "选用预览：", flow_pick_preview);
-            layout.SetColumnSpan(flow_pick_preview, 1);
-            AddSegmentRow(layout, row++, "大乱斗自动交换：", _autoSwapAramBench,
-                "仅在大乱斗选人阶段，备战席有更高优先级英雄时交换。");
-            AddSegmentRow(layout, row++, "备战席优先级：", _aramBenchPriority,
-                "按选取顺序排列优先级；先选的英雄优先。取消选择后可重新排序。");
-            AddSectionHeader(layout, row++, "赛后操作");
-            AddSegmentRow(layout, row++, "自动点赞：", _autoHonor);
-            AddSegmentRow(layout, row++, "自动返回大厅：", _autoReturn);
-            AddSegmentRow(layout, row++, "返回后继续匹配：", _returnAndSearch, "需同时开启自动返回大厅，返回后尝试开始匹配。");
-            AddSectionHeader(layout, row++, "大厅与选人操作");
-            AddSegmentRow(layout, row++, "队列 ID：", _quickQueue, "快速创建大厅的队列 ID，默认 430 为匹配模式。");
-            AddSegmentRow(layout, row++, "操作：", CreateMatchActions());
-            AddSegmentRow(layout, row++, "操作结果：", _matchToolsStatus);
-            AddSegmentRow(layout, row++, "说明：", CreateNote("本页的开关、延迟、队列和英雄列表会自动保存。"));
-            layout.ResumeLayout(true);
-            return panel;
-        }
+            => CreateMatchDashboard();
 
         /// <summary>向设置布局追加分组标题。</summary>
         private static void AddSectionHeader(TableLayoutPanel layout, int row, string text)
@@ -697,7 +655,7 @@ namespace LOL_GameAssistant.BaseViewForm
             var overlayNote = CreateNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
             var privacyNote = CreateNote("隐私说明：AI 开关修改后立即保存。启用并配置好服务后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据。");
             var opggNote = CreateNote("开启后，助手会在选人阶段弹出图文方案。只有选中并点击应用才会写入客户端。若符文页已满，只会替换本助手创建的旧页；没有可替换页时会提示先在客户端释放额度。替换失败会尝试恢复原页。");
-            var kdaAnnouncementNote = CreateNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者统计最近 30 天内同模式全部有效对局，满 5 场按累计 KDA 分档；不足 5 场标“样本不足”。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
+            var kdaAnnouncementNote = CreateNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者使用已获取最多 500 条摘要中最近 50 场同模式有效对局；KDA 和胜率分别排除缺失字段。默认满 10 场按累计 KDA 分档，样本下限可在下方调整；不足时标“数据不足”。同模式无有效KDA样本时自动使用全模式参考，并排除自定义对局。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
 
             AddSegmentRow(layout, 0, "AI 时间线：", _recommendationEnabled,
                 "开启后按设定间隔采集对局上下文并请求 AI 生成时间线建议；关闭则不请求，也不发送任何数据。");
@@ -713,6 +671,10 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 6, "对局发送排版：", _gameKdaOnePlayerPerLine,
                 "勾选后每名玩家各发一条，游戏聊天中每人占一行；不勾选时蓝方、红方各发一条。同时用于自动发送和快捷键手动发送。");
             AddSegmentRow(layout, 7, "KDA 说明：", kdaAnnouncementNote);
+            var ratingPolicyPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+            ratingPolicyPanel.Controls.Add(_ratingMinimumGames);
+            AddSegmentRow(layout, 24, "评级样本下限：", ratingPolicyPanel,
+                "首页、对局、伴随窗和浮窗共用；默认至少10场同模式有效KDA才评级。无同模式有效KDA时自动统计全模式，排除自定义。");
             AddSegmentRow(layout, 8, "服务商：", providerPanel,
                 "这一行有三个按钮：“获取 API Key”打开服务商密钥页；“获取可用模型”用当前密钥读取服务端支持的模型名；“测试连接”用当前填写的服务商、模型与密钥发一次最小请求。");
             AddSegmentRow(layout, 9, "模型名称：", _model,
@@ -743,8 +705,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 "仅海克斯大乱斗的窗口或无边框模式显示；独占全屏自动隐藏并停止扫描。可识别增幅卡片并比较胜率。");
             AddSegmentRow(layout, 23, "选人伴随窗：", _champSelectCompanionEnabled,
                 "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
-            AddSaveRow(layout, 24, "保存 AI 连接与密钥");
-            AddSegmentRow(layout, 25, "保存方式：", CreateNote("所有开关立即保存；服务商、地址、模型与密钥填写完成后使用上方按钮保存。"));
+            AddSaveRow(layout, 25, "保存 AI 连接与密钥");
+            AddSegmentRow(layout, 26, "保存方式：", CreateNote("所有开关立即保存；服务商、地址、模型与密钥填写完成后使用上方按钮保存。"));
             layout.ResumeLayout(true);
             return panel;
         }
@@ -882,6 +844,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _champSelectKdaAnnouncementEnabled.Checked = _config.ChampSelectKdaAnnouncementEnabled;
             _gameKdaAnnouncementEnabled.Checked = _config.GameKdaAnnouncementEnabled;
             _gameKdaOnePlayerPerLine.Checked = _config.GameKdaOnePlayerPerLine;
+            _ratingMinimumGames.Value = Math.Clamp(_config.RecentPerformanceMinimumGames, 1, 50);
             _gameKdaOnePlayerPerLine.Enabled = true;
             _champSelectKdaAnnouncementTemplate.Text = _config.ChampSelectKdaAnnouncementTemplate;
             _provider.SelectedValue = ai.Provider;
@@ -1153,28 +1116,6 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        /// <summary>按当前客户端启动配置发起启动操作。</summary>
-        private void LaunchLeagueClient(bool showMessage)
-        {
-            GameClientLaunchResult result = _gameClientLauncher.Start(_config.GameClientPath);
-            SetClientStatus(result);
-            string resolvedDirectory = _gameClientLauncher.NormalizeConfiguredDirectory(result.ExecutablePath);
-            if (!string.IsNullOrWhiteSpace(resolvedDirectory) &&
-                !string.Equals(_config.GameClientPath, resolvedDirectory, StringComparison.OrdinalIgnoreCase))
-            {
-                _config.GameClientPath = resolvedDirectory;
-                _clientPath.Text = _config.GameClientPath;
-                SaveConfigPreservingSelections();
-            }
-
-            Program.GameMain.infoMsg.AddMsg(result.Message);
-            if (showMessage)
-            {
-                if (result.Started) LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain, result.Message);
-                else LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, result.Message);
-            }
-        }
-
         /// <summary>更新客户端启动或连接的状态提示。</summary>
         private void SetClientStatus(GameClientLaunchResult result)
         {
@@ -1335,35 +1276,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 pic.Disposed += (_, _) => pic.Image?.Dispose();
                 toolTip1.SetToolTip(pic, name);
                 panel.Controls.Add(pic);
-            }
-        }
-
-        #endregion 本地缓存
-
-        #region 定时执行方法
-
-        /// <summary>启用自动匹配时发起匹配请求，并用十秒间隔抑制重复调用。</summary>
-        public static void OpenGame(SettingForm form)
-        {
-            var now = DateTime.Now;
-            var lastOpen = form.lastOpenGameTime;
-            // 直接读取持久化配置，避免“设置页从未打开时 _config 未加载”导致自动匹配不生效
-            if ((lastOpen == null || (now - lastOpen.Value).TotalSeconds >= 10) &&
-                AppCompositionRoot.ApplicationSettingsStore.Load().AutoMatch)
-            {
-                _ = RunLobbyActionAsync(() => AppCompositionRoot.LobbyService.StartMatchmakingAsync());
-                form.lastOpenGameTime = now;
-            }
-        }
-
-        /// <summary>启用自动接受时向客户端提交接受匹配请求。</summary>
-        private static async Task RunLobbyActionAsync(Func<Task> action)
-        {
-            try { await action().ConfigureAwait(false); }
-            catch (Exception ex)
-            {
-                RuntimeDiagnostics.WriteException(ex);
-                RuntimeDiagnostics.Report("大厅操作", "失败", ex.Message);
             }
         }
 

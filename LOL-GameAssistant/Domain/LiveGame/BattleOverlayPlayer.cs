@@ -15,6 +15,8 @@ public sealed record BattleOverlayPlayer(GameTeamMember Member, string Name, Ran
     public bool RankLoaded { get; init; }
     public bool HistoryLoaded { get; init; }
     public bool HistoryComplete { get; init; }
+    public DateTimeOffset? HistoryAcquiredAt { get; init; }
+    public bool HistoryFromCache { get; init; }
     public bool NeedsRetry => !ProfileLoaded || !RankLoaded || !HistoryLoaded || !HistoryComplete;
 
     /// <summary>Only merge independent sources for the same player and champion context.</summary>
@@ -30,7 +32,9 @@ public sealed record BattleOverlayPlayer(GameTeamMember Member, string Name, Ran
             ProfileLoaded = ProfileLoaded || previous.ProfileLoaded,
             RankLoaded = RankLoaded || previous.RankLoaded,
             HistoryLoaded = keepHistory ? previous.HistoryLoaded : HistoryLoaded,
-            HistoryComplete = keepHistory ? previous.HistoryComplete : HistoryComplete
+            HistoryComplete = keepHistory ? previous.HistoryComplete : HistoryComplete,
+            HistoryAcquiredAt = keepHistory ? previous.HistoryAcquiredAt : HistoryAcquiredAt,
+            HistoryFromCache = keepHistory ? previous.HistoryFromCache : HistoryFromCache
         };
     }
     public int ChampionWins => History.ChampionWins;

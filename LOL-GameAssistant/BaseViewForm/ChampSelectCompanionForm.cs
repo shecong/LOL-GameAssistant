@@ -12,6 +12,7 @@ using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ChampionSelect;
 using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.Matches;
+using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Ranked;
 using LOL_GameAssistant.Helper;
 
@@ -64,6 +65,8 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     private bool? _isMayhem;
     private bool _isAram;
     private ChampionSelectionSnapshot? _lastSelection;
+    private int _analysisQueueId;
+    private string _analysisMode = "";
     private CancellationTokenSource? _trackingCancellation;
     private int _trackingGeneration;
     private int _selectionRevision;
@@ -273,7 +276,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         int generation = _trackingGeneration;
         try
         {
-            string roster = string.Join("|", selection.MyTeam.Select(member => member.Puuid));
+            string roster = $"{_analysisQueueId}:{_analysisMode}:" + string.Join("|", selection.MyTeam.Select(member => member.Puuid));
             if (roster == _lastRoster && _cards.Controls.Count > 0 &&
                 DateTimeOffset.UtcNow - _lastRosterDataAt < TimeSpan.FromSeconds(30)) return;
             _lastRoster = roster;
@@ -286,24 +289,30 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
             var allies = selection.MyTeam
                 .Where(member => member.CellId != selection.LocalPlayerCellId)
                 .Take(4).ToArray();
-            var summaries = await Task.WhenAll(allies.Select(LoadAllyAsync));
-            if (!IsCurrentTracking(generation) || roster != _lastRoster || languageRevision != _languageRevision) return;
-            _lastRosterDataAt = DateTimeOffset.UtcNow;
             _cards.SuspendLayout();
+            var cards = new List<AntdUI.Label>();
             try
             {
                 ControlLifetime.ClearAndDispose(_cards);
-                foreach (string summary in summaries)
+                foreach (var ally in allies)
                 {
-                    _cards.Controls.Add(new AntdUI.Label
+                    var card = new AntdUI.Label
                     {
-                        Text = summary, Width = Math.Max(200, _cards.ClientSize.Width - 20),
-                        Height = 82, Padding = new Padding(8), Margin = new Padding(0, 0, 0, 5),
+                        Text = UiLanguage.T("队友资料加载中…"), Width = Math.Max(200, _cards.ClientSize.Width - 20),
+                        Height = 106, Padding = new Padding(8), Margin = new Padding(0, 0, 0, 5),
                         BackColor = Color.FromArgb(38, 47, 67), ForeColor = Color.White
-                    });
+                    };
+                    cards.Add(card);
+                    _cards.Controls.Add(card);
                 }
             }
             finally { _cards.ResumeLayout(); }
+            await Task.WhenAll(allies.Select((ally, index) => LoadAllyAsync(ally, text =>
+            {
+                if (IsCurrentTracking(generation) && roster == _lastRoster && languageRevision == _languageRevision && !cards[index].IsDisposed)
+                    cards[index].Text = text;
+            })));
+            if (IsCurrentTracking(generation) && roster == _lastRoster) _lastRosterDataAt = DateTimeOffset.UtcNow;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex) { if (IsCurrentTracking(generation)) _automation.Text = UiLanguage.T($"队友数据暂不可用：{ex.Message}"); }
@@ -328,6 +337,8 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
             int queueId = game?.QueueId is > 0 ? game.QueueId : lobby?.QueueId ?? 0;
             string mode = !string.IsNullOrWhiteSpace(game?.GameMode) ? game.GameMode : lobby?.GameMode ?? "";
             if (queueId == 0 && string.IsNullOrWhiteSpace(mode)) return;
+            _analysisQueueId = queueId;
+            _analysisMode = mode;
             _isMayhem = queueId is 2400 or 3270 || mode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase);
             _isAram = queueId == 450 || string.Equals(mode, "ARAM", StringComparison.OrdinalIgnoreCase);
             _lastBench = "<unloaded>";
@@ -479,43 +490,48 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     }
 
     /// <summary>加载单名队友的资料和近期表现信息。</summary>
-    private async Task<string> LoadAllyAsync(ChampionSelectionMember member)
+    private async Task<string> LoadAllyAsync(ChampionSelectionMember member, Action<string>? update = null)
     {
         if (string.IsNullOrWhiteSpace(member.Puuid)) return UiLanguage.IsEnglish
             ? "Anonymous ally\nWaiting for client data" : "未公开身份的队友\n等待客户端提供资料";
         string name = UiLanguage.IsEnglish ? "Ally" : "队友";
         string rank = UiLanguage.IsEnglish ? "Rank unavailable" : "段位未获取";
         string recent = UiLanguage.IsEnglish ? "Recent matches unavailable" : "近期战绩未获取";
-        try
+        void Publish() => update?.Invoke($"{name}\n{rank}\n{recent}");
+        async Task ProfileAsync()
         {
-            var profile = await _players.GetByPuuidAsync(member.Puuid);
-            name = profile?.RiotId ?? name;
+            try { var profile = await _players.GetByPuuidAsync(member.Puuid); name = profile?.RiotId ?? name; }
+            catch { }
+            Publish();
         }
-        catch { }
-        try
+        async Task RankAsync()
         {
-            RankedOverview? overview = await _ranked.GetAsync(member.Puuid);
-            RankedQueue? solo = overview?.GetQueue(RankedQueues.Solo5x5);
-            rank = RankedDisplayFormatter.FormatSoloQueue(solo, UiLanguage.IsEnglish);
-        }
-        catch { }
-        try
-        {
-            MatchHistoryResponse? history = await _matches.GetPageAsync(member.Puuid, 0, 20);
-            var games = history?.Games?.Games.Where(game => game.IsCompletedGame()).ToArray() ?? [];
-            var results = games.Select(game => game.GetParticipant(member.Puuid)?.stats)
-                .Where(stats => stats != null).ToArray();
-            if (results.Length > 0)
+            try
             {
-                double winRate = results.Count(stats => stats!.Win) * 100d / results.Length;
-                double kda = results.Sum(stats => stats!.kills + stats.assists) /
-                    (double)Math.Max(1, results.Sum(stats => stats!.deaths));
-                recent = UiLanguage.IsEnglish
-                    ? $"Last {results.Length} · Win rate {winRate:0}% · KDA {kda:0.0}"
-                    : $"近 {results.Length} 场 · 胜率 {winRate:0}% · KDA {kda:0.0}";
+                RankedOverview? overview = await _ranked.GetAsync(member.Puuid);
+                rank = RankedDisplayFormatter.FormatSoloQueue(overview?.GetQueue(RankedQueues.Solo5x5), UiLanguage.IsEnglish);
             }
+            catch { }
+            Publish();
         }
-        catch { }
+        async Task HistoryAsync()
+        {
+            if (_analysisQueueId == 0 && string.IsNullOrWhiteSpace(_analysisMode)) { recent = UiLanguage.T("等待模式信息"); Publish(); return; }
+            try
+            {
+                var result = await new LOL_GameAssistant.Application.Matches.PlayerAnalysisCoordinator(_matches)
+                    .GetAsync(member.Puuid, _analysisQueueId, _analysisMode,
+                        LolGameModeNames.GetModeText(_analysisQueueId.ToString(), _analysisMode),
+                        token: _trackingCancellation?.Token ?? CancellationToken.None);
+                var assessment = result.Statistics.Assessment;
+                string rate = assessment.HasWinRate ? $"{assessment.WinRate:0.#}%" : "—";
+                recent = $"近50场{(assessment.UsesAllModes ? "各模式参考" : "同模式")} · KDA {(assessment.SampleSize > 0 ? assessment.Kda.ToString("0.00") : "—")} · 胜率 {rate}\n" +
+                    $"{RecentPerformanceLabelFormatter.GetText(assessment)} · {result.Snapshot.ScopeText}";
+            }
+            catch { }
+            Publish();
+        }
+        await Task.WhenAll(ProfileAsync(), RankAsync(), HistoryAsync());
         return $"{name}\n{rank}\n{recent}";
     }
 
@@ -527,7 +543,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         int height = Math.Min(Math.Clamp(client.Height * 3 / 4, 390, 490), work.Height);
         int rightSpace = work.Right - client.Right;
         int leftSpace = client.Left - work.Left;
-        int x = rightSpace >= width || rightSpace >= leftSpace ? client.Right : client.Left - width;
+        int x = leftSpace >= width || leftSpace >= rightSpace ? client.Left - width : client.Right;
         x = Math.Clamp(x, work.Left, work.Right - width);
         int y = Math.Clamp(client.Top, work.Top, work.Bottom - height);
         if (Bounds != new Rectangle(x, y, width, height)) Bounds = new Rectangle(x, y, width, height);

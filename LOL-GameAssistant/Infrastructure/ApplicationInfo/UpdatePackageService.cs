@@ -49,10 +49,9 @@ internal sealed class UpdatePackageService
             throw new IOException("存在未完成的安装，请先运行程序目录中的 Updater.exe 恢复，再重试。 ");
 
         progress?.Report(new(0, 0, "正在读取更新配置"));
-        using var configResponse = await _client.GetAsync(AssetUrl(release, "update.json", useServer),
-            HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        using var configResponse = await GetManifestAsync(release, useServer, cancellationToken).ConfigureAwait(false);
         if (configResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
-            throw new HttpRequestException("该下载源尚未提供此版本的自动更新配置，请切换下载源或到 QQ 群获取完整包。", null, configResponse.StatusCode);
+            throw new HttpRequestException("该下载源尚未提供此架构和版本的自动更新配置，请切换下载源或到 QQ 群获取完整包。", null, configResponse.StatusCode);
         configResponse.EnsureSuccessStatusCode();
         byte[] configBytes = await ReadLimitedAsync(configResponse.Content, 64 * 1024, cancellationToken).ConfigureAwait(false);
         var config = JsonSerializer.Deserialize<UpdateManifest>(configBytes, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
@@ -70,6 +69,7 @@ internal sealed class UpdatePackageService
             progress?.Report(new(config.Size, config.Size, "正在解压并验证文件"));
             await Task.Run(() => ExtractAndVerify(zip, stage, cancellationToken), cancellationToken).ConfigureAwait(false);
             string entry = Path.Combine(stage, config.EntryExecutable);
+            UpdatePlatform.ValidateExecutable(entry);
             var binaryVersion = FileVersionInfo.GetVersionInfo(entry);
             var actualVersion = new Version(binaryVersion.FileMajorPart, binaryVersion.FileMinorPart,
                 Math.Max(0, binaryVersion.FileBuildPart), Math.Max(0, binaryVersion.FilePrivatePart));
@@ -97,16 +97,29 @@ internal sealed class UpdatePackageService
 
     internal static void ValidateManifest(UpdateManifest config, UpdateRelease release, bool requireNewer = true)
     {
-        if (config.SchemaVersion != 1 || config.Runtime != "win-x64" ||
+        if (config.SchemaVersion != 1 || config.Runtime != UpdatePlatform.Current ||
             !Version.TryParse(config.Version, out var version) ||
             AppVersion.Normalize(version) != AppVersion.Normalize(release.Version) ||
             (requireNewer && !AppVersion.IsNewer(version, AppVersion.Current)) ||
             config.Size <= 0 || config.Size > MaximumPackageSize ||
             config.EntryExecutable != "LOL-GameGUI.exe" ||
-            !string.Equals(config.Package, "LOL-GameAssistant-win-x64.zip", StringComparison.Ordinal))
+            !string.Equals(config.Package, UpdatePlatform.Package(UpdatePlatform.Current), StringComparison.Ordinal))
             throw new InvalidDataException("更新配置与目标版本或平台不匹配。");
         if (config.Sha256 is not { Length: 64 } || !config.Sha256.All(Uri.IsHexDigit))
             throw new InvalidDataException("更新包缺少有效的 SHA256。");
+    }
+
+    private async Task<HttpResponseMessage> GetManifestAsync(UpdateRelease release, bool useServer, CancellationToken ct)
+    {
+        var response = await _client.GetAsync(AssetUrl(release, useServer ? "update.json" : UpdatePlatform.GithubManifest, useServer),
+            HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        // 兼容此前只有 update.json 的 x64 GitHub 附件；不对其他架构猜测包类型。
+        if (!useServer && UpdatePlatform.Current == "win-x64" && response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            response.Dispose();
+            return await _client.GetAsync(AssetUrl(release, "update.json"), HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        }
+        return response;
     }
 
     private async Task DownloadAsync(Uri url, string path, UpdateManifest config,

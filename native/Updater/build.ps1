@@ -1,21 +1,32 @@
-param([switch]$Test)
+param([switch]$Test, [ValidateSet('win-x64', 'win-x86', 'win-arm64')][string]$Runtime = 'win-x64', [switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
+$updaterArch = $Runtime.Substring(4)
 $updaterVsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path -LiteralPath $updaterVsWhere)) { throw 'Install Visual Studio C++ Build Tools (Desktop development with C++) and Windows SDK.' }
 $updaterVs = & $updaterVsWhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-if (-not $updaterVs) { throw 'Visual Studio C++ x64 tools not found.' }
+if (-not $updaterVs) { throw 'Visual Studio C++ build tools not found.' }
 $updaterVc = (Get-ChildItem -LiteralPath "$updaterVs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
+if (-not (Test-Path -LiteralPath "$updaterVc\bin\Hostx64\$updaterArch\cl.exe")) {
+    throw "缺少 MSVC $updaterArch 编译器，不能生成 $Runtime 更新器。打开 Visual Studio Installer → 修改 → 单个组件，安装对应的 MSVC $updaterArch 编译工具后重试。"
+}
 $updaterSdk = "${env:ProgramFiles(x86)}\Windows Kits\10"
-$updaterSdkVersion = (Get-ChildItem -LiteralPath "$updaterSdk\Lib" -Directory | Where-Object { Test-Path -LiteralPath "$($_.FullName)\um\x64\kernel32.lib" } | Sort-Object Name -Descending | Select-Object -First 1).Name
+$updaterSdkVersion = (Get-ChildItem -LiteralPath "$updaterSdk\Lib" -Directory | Where-Object { Test-Path -LiteralPath "$($_.FullName)\um\$updaterArch\kernel32.lib" } | Sort-Object Name -Descending | Select-Object -First 1).Name
 if (-not $updaterSdkVersion) { throw 'Windows SDK not found.' }
+foreach ($updaterRequiredLibrary in @("$updaterVc\lib\$updaterArch\libcmt.lib", "$updaterSdk\Lib\$updaterSdkVersion\ucrt\$updaterArch\ucrt.lib")) {
+    if (-not (Test-Path -LiteralPath $updaterRequiredLibrary)) { throw "缺少 $Runtime 编译库：$updaterRequiredLibrary，请在 Visual Studio Installer 中补齐对应工具和 Windows SDK。" }
+}
+if ($CheckOnly) {
+    Write-Host "原生更新器构建环境检查通过：$Runtime"
+    return
+}
 $updaterOriginalPath = $env:PATH
 $updaterOriginalLib = $env:LIB
 $updaterOriginalInclude = $env:INCLUDE
-$updaterOutput = Join-Path $PSScriptRoot 'bin'
+$updaterOutput = Join-Path $PSScriptRoot "bin\$Runtime"
 New-Item -ItemType Directory -Path $updaterOutput -Force | Out-Null
 try {
-    $env:PATH = "$updaterVc\bin\Hostx64\x64;$env:PATH"
-    $env:LIB = "$updaterVc\lib\x64;$updaterSdk\Lib\$updaterSdkVersion\ucrt\x64;$updaterSdk\Lib\$updaterSdkVersion\um\x64"
+    $env:PATH = "$updaterVc\bin\Hostx64\$updaterArch;$env:PATH"
+    $env:LIB = "$updaterVc\lib\$updaterArch;$updaterSdk\Lib\$updaterSdkVersion\ucrt\$updaterArch;$updaterSdk\Lib\$updaterSdkVersion\um\$updaterArch"
     $env:INCLUDE = "$updaterVc\include;$updaterSdk\Include\$updaterSdkVersion\ucrt;$updaterSdk\Include\$updaterSdkVersion\shared;$updaterSdk\Include\$updaterSdkVersion\um"
     Push-Location $updaterOutput
     try {
@@ -28,7 +39,7 @@ try {
             & cl.exe /nologo /utf-8 /O2 /MT /EHsc /std:c++20 /W4 /DUNICODE /D_UNICODE "$PSScriptRoot\updater.cpp" "/Fe:$updaterOutput\Updater.exe" /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib shell32.lib bcrypt.lib comctl32.lib "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'"
             if ($LASTEXITCODE -ne 0) { throw 'Updater compilation failed.' }
             $updaterRepository = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-            $updaterDestination = Join-Path $updaterRepository 'LOL-GameAssistant\Tools\Updater'
+            $updaterDestination = Join-Path $updaterRepository "LOL-GameAssistant\Tools\Updater\$Runtime"
             New-Item -ItemType Directory -Path $updaterDestination -Force | Out-Null
             Copy-Item -LiteralPath "$updaterOutput\Updater.exe" -Destination $updaterDestination
             Get-Item -LiteralPath "$updaterOutput\Updater.exe" | Select-Object FullName, Length

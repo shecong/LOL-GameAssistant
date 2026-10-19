@@ -46,6 +46,7 @@ internal static class LegacyMatchReadModelMapper
                         GameId = item.GameId,
                         GameCreation = item.GameCreation,
                         GameMode = item.GameMode ?? "",
+                        GameType = item.GameType ?? "",
                         QueueId = item.QueueId,
                         GameDuration = item.GameDuration,
                         EndOfGameResult = item.EndOfGameResult ?? "",

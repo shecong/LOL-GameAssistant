@@ -1,6 +1,6 @@
 namespace LOL_GameAssistant.Domain.ApplicationInfo;
 
-/// <summary>Release 的 update.json，只描述同一标签下的固定附件。</summary>
+/// <summary>单一版本和架构的完整更新配置，与根目录最新版本索引分开。</summary>
 public sealed record UpdateManifest(int SchemaVersion, string Version, string Runtime,
     string Package, long Size, string Sha256, string EntryExecutable);
 

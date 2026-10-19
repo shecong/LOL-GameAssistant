@@ -167,16 +167,6 @@ namespace LOL_GameAssistant.LoLApi
         }
 
         /// <summary>
-        /// 获取召唤师图标（DataDragon）。
-        /// </summary>
-        public static async Task<Stream> GetGameUserImg(string key)
-        {
-            HttpClientHelper client = new HttpClientHelper();
-            Stream? responseStream = await client.GetAsync($"https://ddragon.leagueoflegends.com/cdn/{gameversion}/img/profileicon/{key}.png").ConfigureAwait(false);
-            return responseStream ?? Stream.Null;
-        }
-
-        /// <summary>
         /// 获取装备图标。
         /// </summary>
         public static async Task<Stream> GetGameZBImg(string key)
@@ -290,30 +280,5 @@ namespace LOL_GameAssistant.LoLApi
             return responseStream ?? Stream.Null;
         }
 
-        /// <summary>
-        /// 获取英雄头像（带内存缓存，供多个控件共享）。
-        /// </summary>
-        public static async Task<Image?> GetGameChampionIconAsync(int championId)
-        {
-            if (championId <= 0) return null;
-            if (ChampionIconCache.TryGetValue(championId, out var cached)) return cached;
-
-            try
-            {
-                using Stream? stream = await GetGameYXImg(championId).ConfigureAwait(false);
-                if (stream == null || stream == Stream.Null) return null;
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms).ConfigureAwait(false);
-                ms.Position = 0;
-                using var temp = Image.FromStream(ms);
-                var image = new Bitmap(temp);
-                ChampionIconCache[championId] = image;
-                return image;
-            }
-            catch
-            {
-                return null;
-            }
-        }
     }
 }

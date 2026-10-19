@@ -1,7 +1,0 @@
-﻿        private class RawGameStat
-        {
-            public string Mode = "";
-            public double Kda;
-            public bool Win;
-            public int ChampionId;
-        }

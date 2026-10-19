@@ -37,6 +37,7 @@ public partial class SettingForm
         Check(_champSelectKdaAnnouncementEnabled, (s, v) => s.ChampSelectKdaAnnouncementEnabled = v);
         Check(_gameKdaAnnouncementEnabled, (s, v) => s.GameKdaAnnouncementEnabled = v);
         Check(_gameKdaOnePlayerPerLine, (s, v) => s.GameKdaOnePlayerPerLine = v);
+        _ratingMinimumGames.ValueChanged += (_, _) => PersistValue(s => s.RecentPerformanceMinimumGames = (int)_ratingMinimumGames.Value);
         Check(_dynamicRefresh, (s, v) => s.Ai.DynamicRefreshEnabled = v);
         Check(_showPopup, (s, v) => s.Ai.ShowRecommendationPopup = v);
         Check(_overlayEnabled, (s, v) => s.Ai.RecommendationOverlayEnabled = v);

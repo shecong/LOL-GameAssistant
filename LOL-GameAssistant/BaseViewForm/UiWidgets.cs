@@ -237,7 +237,7 @@ namespace LOL_GameAssistant.BaseViewForm
     }
 
     /// <summary>
-    /// 轻量动画工具：缓动、展开、滑入、悬停颜色过渡。
+    /// 轻量动画工具：缓动与颜色插值。
     /// </summary>
     public static class UiAnimation
     {
@@ -255,119 +255,5 @@ namespace LOL_GameAssistant.BaseViewForm
                 (int)(from.B + (to.B - from.B) * t));
         }
 
-        /// <summary>
-        /// 高度展开动画（适合 FlowLayoutPanel 中的卡片，逐帧 PerformLayout）。
-        /// </summary>
-        public static void ExpandIn(Control control, int fromHeight = 0, int durationMs = 280, int delayMs = 0)
-        {
-            var timer = new System.Windows.Forms.Timer { Interval = 15 };
-            int targetHeight = control.Height;
-            int startHeight = fromHeight;
-            control.Height = startHeight;
-            DateTime startTime = DateTime.UtcNow.AddMilliseconds(delayMs);
-
-            timer.Tick += (_, _) =>
-            {
-                double elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                if (elapsed < 0) return;
-                double t = Math.Min(1, elapsed / durationMs);
-                control.Height = startHeight + (int)((targetHeight - startHeight) * EaseOutCubic(t));
-                control.Parent?.PerformLayout();
-                if (t >= 1)
-                {
-                    timer.Stop();
-                    timer.Dispose();
-                    control.Height = targetHeight;
-                    control.Parent?.PerformLayout();
-                }
-            };
-            timer.Start();
-        }
-
-        /// <summary>
-        /// 水平滑入动画（适用于手工定位的控件）。
-        /// </summary>
-        public static void SlideIn(Control control, int fromOffsetX = -18, int durationMs = 220, int delayMs = 0)
-        {
-            var timer = new System.Windows.Forms.Timer { Interval = 15 };
-            int targetX = control.Left;
-            int startX = targetX + fromOffsetX;
-            control.Left = startX;
-            DateTime startTime = DateTime.UtcNow.AddMilliseconds(delayMs);
-
-            timer.Tick += (_, _) =>
-            {
-                double elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                if (elapsed < 0) return;
-                double t = Math.Min(1, elapsed / durationMs);
-                control.Left = startX + (int)((targetX - startX) * EaseOutCubic(t));
-                if (t >= 1)
-                {
-                    timer.Stop();
-                    timer.Dispose();
-                    control.Left = targetX;
-                }
-            };
-            timer.Start();
-        }
-
-        /// <summary>
-        /// 为控件及其所有子控件挂载悬停背景色过渡。
-        /// </summary>
-        public static void AttachHoverBackColor(Control root, Color normal, Color hover, int durationMs = 160)
-        {
-            var timer = new System.Windows.Forms.Timer { Interval = 15 };
-            DateTime start = DateTime.UtcNow;
-            Color from = normal;
-            Color to = normal;
-            bool active = false;
-
-            timer.Tick += (_, _) =>
-            {
-                if (!active) return;
-                double t = Math.Min(1, (DateTime.UtcNow - start).TotalMilliseconds / durationMs);
-                root.BackColor = LerpColor(from, to, EaseOutCubic(t));
-                if (t >= 1)
-                {
-                    active = false;
-                    timer.Stop();
-                }
-            };
-
-            // 进入子控件时更新所属容器的悬停状态。
-            void Enter(object? s, EventArgs e)
-            {
-                from = root.BackColor;
-                to = hover;
-                start = DateTime.UtcNow;
-                active = true;
-                timer.Start();
-            }
-
-            // 离开子控件时检查并更新容器的悬停状态。
-            void Leave(object? s, EventArgs e)
-            {
-                from = root.BackColor;
-                to = normal;
-                start = DateTime.UtcNow;
-                active = true;
-                timer.Start();
-            }
-
-            root.MouseEnter += Enter;
-            root.MouseLeave += Leave;
-            AttachToChildren(root, c => { c.MouseEnter += Enter; c.MouseLeave += Leave; });
-            root.Disposed += (_, _) => timer.Dispose();
-        }
-
-        /// <summary>向子控件递归绑定需要共享的交互行为。</summary>
-        private static void AttachToChildren(Control root, Action<Control> attach)
-        {
-            foreach (Control child in root.Controls)
-            {
-                attach(child);
-                AttachToChildren(child, attach);
-            }
-        }
     }
 }

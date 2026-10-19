@@ -51,9 +51,9 @@ public sealed class BattleOverlayRefactorTests
         var history = Enumerable.Range(1, 110).Select(id => Sample(id, id % 2 == 0)).ToList();
         history[0].QueueId = 430;
         var stats = BattleHistoryStatistics.Analyze(history, "me", 22, 450, "ARAM");
-        Assert.Equal(100, stats.WindowGames);
-        Assert.Equal(99, stats.ModeGames);
-        Assert.Equal(99, stats.ChampionGames);
+        Assert.Equal(110, stats.WindowGames);
+        Assert.Equal(50, stats.ModeGames);
+        Assert.Equal(50, stats.ChampionGames);
         Assert.Equal(10, stats.RecentGames);
     }
 
@@ -62,8 +62,8 @@ public sealed class BattleOverlayRefactorTests
     {
         var missing = Sample(1, true); missing.Participants[0].stats!.HasKdaResult = false;
         var stats = BattleHistoryStatistics.Analyze([missing, Sample(2, false)], "me", 22, 450, "ARAM");
-        Assert.Null(stats.RecentKda);
-        Assert.Null(stats.AverageKills);
+        Assert.Equal(5d, stats.RecentKda);
+        Assert.Equal(3d, stats.AverageKills);
         Assert.Equal(1, stats.RecentWins);
         Assert.Equal(1, stats.RecentLosses);
     }
@@ -85,58 +85,56 @@ public sealed class BattleOverlayRefactorTests
     }
 
     [Fact]
-    public async Task PlayersSharingAMatchUseOneDetailRequestAndTheirOwnStatistics()
+    public async Task PlayersSharingAMatchUseTheirOwnSummaryWithoutDetails()
     {
-        var pending = new TaskCompletionSource<MatchDetail?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        int requests = 0;
-        var service = Service((method, _) =>
+        int details = 0;
+        var service = Service((method, args) =>
         {
-            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(Page(Sample(1, true)));
-            Interlocked.Increment(ref requests);
-            return pending.Task;
+            if (method.Name == "GetPageAsync")
+                return Task.FromResult<MatchHistoryResponse?>(Page(Sample(1, (string)args[0]! == "me")));
+            details++;
+            return Task.FromResult<MatchDetail?>(Detail());
         });
-        var other = new GameTeamMember { Puuid = "other", ChampionId = 22 };
-        Task<BattleOverlayPlayer> first = service.GetPlayerAsync(Member, Session, CancellationToken.None);
-        Task<BattleOverlayPlayer> second = service.GetPlayerAsync(other, Session, CancellationToken.None);
-        Assert.Equal(1, requests);
-        pending.SetResult(Detail());
-        var players = await Task.WhenAll(first, second);
+        var players = await Task.WhenAll(service.GetPlayerAsync(Member, Session, CancellationToken.None),
+            service.GetPlayerAsync(new() { Puuid = "other", ChampionId = 22 }, Session, CancellationToken.None));
         Assert.Equal(100d, players[0].ChampionWinRate);
         Assert.Equal(0d, players[1].ChampionWinRate);
-        Assert.Equal(1, requests);
+        Assert.Equal(0, details);
     }
 
     [Fact]
-    public async Task CancellingOnePlayerDoesNotCancelSharedDetailForAnother()
+    public async Task CancellingOneReaderDoesNotCancelTheSharedSummaryBatch()
     {
-        var pending = new TaskCompletionSource<MatchDetail?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        CancellationToken requestToken = default;
+        var pending = new TaskCompletionSource<MatchHistoryResponse?>(TaskCreationOptions.RunContinuationsAsynchronously);
         int requests = 0;
+        CancellationToken requestToken = default;
         var service = Service((method, args) =>
         {
-            if (method.Name == "GetPageAsync") return Task.FromResult<MatchHistoryResponse?>(Page(Sample(1, true)));
+            Assert.Equal("GetPageAsync", method.Name);
             requests++;
-            requestToken = (CancellationToken)args[2]!;
+            requestToken = (CancellationToken)args[3]!;
             return pending.Task;
         });
         using var cancellation = new CancellationTokenSource();
         var first = service.GetPlayerAsync(Member, Session, cancellation.Token);
-        var second = service.GetPlayerAsync(new() { Puuid = "other", ChampionId = 22 }, Session, CancellationToken.None);
+        var second = service.GetPlayerAsync(Member, Session, CancellationToken.None);
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
         Assert.False(requestToken.IsCancellationRequested);
-        pending.SetResult(Detail());
+        pending.SetResult(Page(Sample(1, true)));
         Assert.True((await second).HistoryComplete);
         Assert.Equal(1, requests);
     }
 
     [Fact]
-    public async Task FailedDetailIsRetriedAndSuccessfulDetailIsReused()
+    public async Task FailedSummaryIsRetriedAndSuccessfulBatchIsReused()
     {
         int requests = 0;
-        var service = Service((method, _) => method.Name == "GetPageAsync"
-            ? Task.FromResult<MatchHistoryResponse?>(Page(Sample(1, true)))
-            : Task.FromResult<MatchDetail?>(++requests == 1 ? null : Detail()));
+        var service = Service((method, _) =>
+        {
+            Assert.Equal("GetPageAsync", method.Name);
+            return Task.FromResult<MatchHistoryResponse?>(++requests == 1 ? null : Page(Sample(1, true)));
+        });
         Assert.False((await service.GetPlayerAsync(Member, Session, CancellationToken.None)).HistoryComplete);
         Assert.True((await service.GetPlayerAsync(Member, Session, CancellationToken.None)).HistoryComplete);
         Assert.True((await service.GetPlayerAsync(Member, Session, CancellationToken.None)).HistoryComplete);
@@ -157,75 +155,62 @@ public sealed class BattleOverlayRefactorTests
     }
 
     [Theory]
-    [InlineData(50, 2)]
-    [InlineData(20, 5)]
-    public async Task HistoryPagesThroughServerCapsToTheHundredGameWindow(int cap, int expectedRequests)
+    [InlineData(20)]
+    [InlineData(200)]
+    public async Task ReadsOneFiveHundredRowBatchAndUsesTheActualReturnedCount(int cap)
     {
         int requests = 0;
         var loader = new BattleOverlayHistoryLoader(Proxy<IMatchHistoryService>((method, args) =>
         {
-            if (method.Name != "GetPageAsync") return Task.FromResult<MatchDetail?>(Detail());
+            Assert.Equal("GetPageAsync", method.Name);
+            Assert.Equal(0, args[1]);
+            Assert.Equal(499, args[2]);
             requests++;
-            int offset = (int)args[1]!;
-            Assert.Equal(Math.Min(offset + 50, 100) - 1, args[2]);
-            var page = Page(Enumerable.Range(offset + 1, Math.Min(cap, 100 - offset))
-                .Select(id => Sample(id, true)).ToArray());
-            page.Games!.GameCount = 180;
+            var page = Page(Enumerable.Range(1, cap).Select(id => Sample(id, true)).ToArray());
+            page.Games!.GameCount = 999;
             return Task.FromResult<MatchHistoryResponse?>(page);
         }));
         var result = await loader.LoadAsync(Member, Session, CancellationToken.None);
         Assert.True(result.Complete);
-        Assert.Equal(100, result.WindowGames);
-        Assert.Equal(expectedRequests, requests);
+        Assert.Equal(cap, result.WindowGames);
+        Assert.Equal(1, requests);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FailedOrRepeatedSecondPagePreservesPartialHistoryAndRequestsRetry(bool repeated)
+    [Fact]
+    public async Task DuplicateSummariesAreNotCountedTwiceAndDoNotTriggerPagination()
     {
-        var first = Page(Enumerable.Range(1, 50).Select(id => Sample(id, true)).ToArray());
-        first.Games!.GameCount = 100;
         int requests = 0;
         var loader = new BattleOverlayHistoryLoader(Proxy<IMatchHistoryService>((method, _) =>
         {
-            if (method.Name != "GetPageAsync") return Task.FromResult<MatchDetail?>(Detail());
-            return Task.FromResult<MatchHistoryResponse?>(++requests == 1 || repeated ? first : null);
+            Assert.Equal("GetPageAsync", method.Name);
+            requests++;
+            return Task.FromResult<MatchHistoryResponse?>(Page(Sample(1, true), Sample(1, true), Sample(2, false)));
         }));
         var result = await loader.LoadAsync(Member, Session, CancellationToken.None);
         Assert.True(result.Loaded);
-        Assert.False(result.Complete);
-        Assert.Equal(50, result.WindowGames);
-        Assert.Equal(2, requests);
+        Assert.True(result.Complete);
+        Assert.Equal(2, result.WindowGames);
+        Assert.Equal(1, requests);
     }
 
     [Fact]
     public async Task ClearingHistoryWhileLoadingKeepsTheNewRequestWhenOldRequestFails()
     {
-        var oldResponse = new TaskCompletionSource<MatchDetail?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var newResponse = new TaskCompletionSource<MatchDetail?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var secondStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldResponse = new TaskCompletionSource<MatchHistoryResponse?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var newResponse = new TaskCompletionSource<MatchHistoryResponse?>(TaskCreationOptions.RunContinuationsAsynchronously);
         int requests = 0;
         var loader = new BattleOverlayHistoryLoader(Proxy<IMatchHistoryService>((method, _) =>
         {
-            if (method.Name == "GetPageAsync")
-            {
-                var page = Page(Sample(1, true)); page.Games!.GameCount = 1;
-                return Task.FromResult<MatchHistoryResponse?>(page);
-            }
-            if (Interlocked.Increment(ref requests) == 1) { firstStarted.SetResult(); return oldResponse.Task; }
-            secondStarted.TrySetResult(); return newResponse.Task;
+            Assert.Equal("GetPageAsync", method.Name);
+            return ++requests == 1 ? oldResponse.Task : newResponse.Task;
         }));
         var oldLoad = loader.LoadAsync(Member, Session, CancellationToken.None);
-        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         loader.ClearCache();
         var newLoad = loader.LoadAsync(Member, Session, CancellationToken.None);
-        await secondStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         oldResponse.SetResult(null);
         Assert.False((await oldLoad).Complete);
         var sharedLoad = loader.LoadAsync(Member, Session, CancellationToken.None);
-        newResponse.SetResult(Detail());
+        newResponse.SetResult(Page(Sample(1, true)));
         Assert.True((await newLoad).Complete);
         Assert.True((await sharedLoad).Complete);
         Assert.Equal(2, requests);
@@ -236,7 +221,7 @@ public sealed class BattleOverlayRefactorTests
 
     private static MatchHistoryGame Sample(long id, bool win, int kills = 3, int deaths = 1, int assists = 2) => new()
     {
-        GameId = id, GameCreation = 1000 - id, QueueId = 450, GameMode = "ARAM", GameDuration = 1200,
+        GameId = id, GameCreation = DateTimeOffset.UtcNow.AddMinutes(-id).ToUnixTimeMilliseconds(), QueueId = 450, GameMode = "ARAM", GameDuration = 1200,
         Participants = [new() { participantId = 1, championId = 22,
             stats = new() { kills = kills, deaths = deaths, assists = assists, Win = win } }]
     };

@@ -14,8 +14,6 @@ public sealed class BattleOverlayService(IPlayerProfileService profiles, IRanked
     IMatchHistoryService history)
 {
     private readonly BattleOverlayHistoryLoader _history = new(history);
-    internal (int Entries, long Bytes) MeasureHistoryCache() => _history.MeasureCache();
-    internal void ClearHistoryCache() => _history.ClearCache();
 
     public async Task<BattleOverlayPlayer> GetPlayerAsync(GameTeamMember member, ActiveGameSnapshot session,
         CancellationToken cancellationToken, Action<BattleOverlayPlayer>? onUpdated = null)
@@ -51,12 +49,14 @@ public sealed class BattleOverlayService(IPlayerProfileService profiles, IRanked
         async Task LoadHistoryAsync()
         {
             var recent = await _history.LoadAsync(member, session, cancellationToken);
-            var stats = BattleHistoryStatistics.Analyze(recent.Games, member.Puuid, member.ChampionId, session.QueueId, session.GameMode)
+            var stats = BattleHistoryStatistics.Analyze(recent.Games, member.Puuid, member.ChampionId, session.QueueId, session.GameMode,
+                MatchAnalysisSettings.Policy())
                 with { WindowGames = recent.WindowGames };
             lock (sync)
             {
                 current = current with { History = stats, HistoryLoaded = recent.Loaded,
-                    HistoryComplete = recent.Complete && stats.UnknownResults == 0 };
+                    HistoryComplete = recent.Complete && stats.UnknownResults == 0,
+                    HistoryAcquiredAt = recent.AcquiredAt, HistoryFromCache = recent.FromCache };
                 Publish();
             }
         }

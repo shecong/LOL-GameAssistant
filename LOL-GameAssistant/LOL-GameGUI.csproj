@@ -1,16 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="../build/OcrDependencies.props" />
+  <Import Project="../build/Version.props" />
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>LOL_GameAssistant</RootNamespace>
-    <Version>1.0.0</Version>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Platforms>AnyCPU;x64</Platforms>
+    <Platforms>AnyCPU;x64;x86;ARM64</Platforms>
+    <UpdaterRuntime Condition="'$(RuntimeIdentifier)' == ''">win-x64</UpdaterRuntime>
+    <UpdaterRuntime Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</UpdaterRuntime>
     <ApplicationIcon>Resources\Brand\sc-icon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
@@ -46,7 +48,7 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
-    <Content Include="Tools\Updater\Updater.exe" Condition="Exists('Tools\Updater\Updater.exe')">
+    <Content Include="Tools\Updater\$(UpdaterRuntime)\Updater.exe" Condition="Exists('Tools\Updater\$(UpdaterRuntime)\Updater.exe')">
       <Link>Updater.exe</Link>
       <TargetPath>Updater.exe</TargetPath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -64,8 +66,7 @@
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\native\GameOverlay\build.ps1&quot;" />
   </Target>
   <Target Name="RequireNativeGameOverlayForPublish" BeforeTargets="PrepareForPublish">
-    <Error Condition="!Exists('$(MSBuildProjectDirectory)\Tools\GameOverlay\sc-game-overlay.dll') Or !Exists('$(MSBuildProjectDirectory)\Tools\GameOverlay\sc-game-overlay-host.exe')"
-           Text="Game overlay binaries are missing. Run native/GameOverlay/build.ps1 or publish with -p:BuildGameOverlay=true." />
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\Tools\GameOverlay\sc-game-overlay.dll') Or !Exists('$(MSBuildProjectDirectory)\Tools\GameOverlay\sc-game-overlay-host.exe')" Text="Game overlay binaries are missing. Run native/GameOverlay/build.ps1 or publish with -p:BuildGameOverlay=true." />
   </Target>
   <ItemGroup>
     <InternalsVisibleTo Include="LOL-GameAssistant.UiTests" />

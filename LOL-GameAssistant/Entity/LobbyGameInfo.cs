@@ -530,42 +530,4 @@ namespace LOL_GameAssistant.Entity
         public string TargetRegion { get; set; } = "";
     }
 
-    /// <summary>
-    /// 游戏位置枚举（根据JSON数据推断）
-    /// </summary>
-    public enum GamePosition
-    {
-        NONE,
-        TOP,
-        JUNGLE,
-        MIDDLE,
-        BOTTOM,
-        UTILITY,
-        FILL
-    }
-
-    /// <summary>
-    /// 机器人难度枚举（根据JSON数据推断）
-    /// </summary>
-    public enum BotDifficulty
-    {
-        NONE,
-        RSEASY,
-        RSINTERMEDIATE,
-        RSHARD,
-        RSUBERHARD
-    }
-
-    /// <summary>
-    /// 游戏模式枚举（根据JSON数据推断）
-    /// </summary>
-    public enum GameMode
-    {
-        PRACTICETOOL,
-        CLASSIC,
-        ARAM,
-        URF,
-        ONEFORALL,
-        NEXUSBLITZ
-    }
 }

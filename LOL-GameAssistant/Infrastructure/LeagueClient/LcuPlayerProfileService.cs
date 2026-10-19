@@ -3,6 +3,7 @@ using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Domain.Players;
 using LOL_GameAssistant.Infrastructure.LeagueClient.Dto;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
@@ -33,7 +34,21 @@ public sealed class LcuPlayerProfileService : IPlayerProfileService
     {
         if (string.IsNullOrWhiteSpace(gameName) || string.IsNullOrWhiteSpace(tagLine)) return null;
         string escapedName = Uri.EscapeDataString(gameName.Trim());
-        string escapedTag = Uri.EscapeDataString(tagLine.Trim());
+        string escapedTag = Uri.EscapeDataString(tagLine.Trim().TrimStart('#'));
+
+        // 当前客户端通过 alias 查询 Riot ID；summoners 的 name 查询不接受 tagLine 参数。
+        string? aliasJson = await _requestSender.GetStringAsync(
+            $"/lol-summoner/v1/alias/lookup?gameName={escapedName}&tagLine={escapedTag}", cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(aliasJson))
+        {
+            var alias = JObject.Parse(aliasJson);
+            string? puuid = alias.Value<string>("puuid");
+            if (!string.IsNullOrWhiteSpace(puuid))
+            {
+                return await GetByPuuidAsync(puuid, cancellationToken).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("已找到该 Riot ID，但当前客户端无法读取其召唤师资料。请确认该玩家与当前登录大区一致；也可能是客户端资料服务暂时不可用。");
+            }
+        }
 
         // 国服不同客户端版本对三种查询路由的支持不同，按兼容顺序回退。
         return await GetAsync($"/lol-summoner/v1/summoners?name={escapedName}&tagLine={escapedTag}", cancellationToken).ConfigureAwait(false)

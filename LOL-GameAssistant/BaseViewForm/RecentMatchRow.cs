@@ -1,37 +1,33 @@
 using LOL_GameAssistant.Application.GameData;
-using LOL_GameAssistant.Application.Teams;
+using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Domain.Matches;
-using LOL_GameAssistant.Domain.Teams;
 using LOL_GameAssistant.Helper;
 using System.Drawing.Drawing2D;
 
 namespace LOL_GameAssistant.BaseViewForm
 {
     /// <summary>
-    /// 单场战绩行：本人战绩 + 模式 + 日期 + KDA + 胜负；查询页可展开显示队友信息。
+    /// 单场战绩摘要行：英雄、模式、KDA、胜负及时长；打开时按需读取完整详情。
     /// </summary>
     public partial class RecentMatchRow : UserControl, IThemeAware
     {
         public const int RowHeight = 40;
-        public const int TeamRowHeight = 126;
 
         private MatchDetail? _detail;
+        private long _summaryGameId;
+        private bool _openingDetail;
+        private readonly IMatchHistoryService? _matchHistoryService;
+        private readonly CancellationTokenSource _lifetime = new();
         private string? _puuid;
         private readonly IGameAssetService _gameAssetService;
-        private readonly IPremadeDetectionService _premadeDetectionService;
-        private readonly AntdUI.Panel _teamInfoPanel;
-        private readonly AntdUI.Label _teamTitle;
-        private readonly AntdUI.Label _teamQueueTag;
-        private readonly FlowLayoutPanel _teammatesPanel;
-        private ToolTip? _teamQueueTip;
+
         private readonly ToolTip _championTip = new();
         private Image? _ownedChampionImage;
-        private bool _showTeammateInfo;
+
         private bool _championAndModeOnly;
-        private bool _teamQueueDetectionStarted;
-        private static readonly SemaphoreSlim TeamQueueDetectionGate = new(2, 2);
+
         private Color _baseBack = Color.FromArgb(250, 250, 250);
         private Color _hoverBack = Color.FromArgb(235, 242, 252);
         private Color _accent = Color.FromArgb(150, 150, 150);
@@ -43,76 +39,21 @@ namespace LOL_GameAssistant.BaseViewForm
         private double _hoverT;
         private bool _isHovered;
         private bool _isWin;
-
-        /// <summary>
-        /// 是否在本场记录下方显示本人所在队伍的队友信息。
-        /// </summary>
-        [System.ComponentModel.Browsable(false)]
-        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-        public bool ShowTeammateInfo
-        {
-            get => _showTeammateInfo;
-            set
-            {
-                _showTeammateInfo = value;
-                _teamInfoPanel.Visible = value;
-                _teamQueueTag.Visible = value;
-                Height = value ? TeamRowHeight : RowHeight;
-                LayoutRow();
-            }
-        }
+        private bool _hasWinResult = true;
 
         /// <summary>初始化 RecentMatchRow 的实例状态。</summary>
-        public RecentMatchRow() : this(AppCompositionRoot.GameAssetService, AppCompositionRoot.PremadeDetectionService)
+        public RecentMatchRow() : this(AppCompositionRoot.GameAssetService)
         {
         }
 
         /// <summary>战绩行通过应用端口读取英雄资源，避免直接依赖静态 LCU API。</summary>
         internal RecentMatchRow(
             IGameAssetService gameAssetService,
-            IPremadeDetectionService premadeDetectionService)
+            IMatchHistoryService? matchHistoryService = null)
         {
             _gameAssetService = gameAssetService;
-            _premadeDetectionService = premadeDetectionService;
+            _matchHistoryService = matchHistoryService;
             InitializeComponent();
-
-            _teamInfoPanel = new AntdUI.Panel
-            {
-                BackColor = Color.Transparent,
-                Visible = false
-            };
-            _teamTitle = new AntdUI.Label
-            {
-                AutoSize = false,
-                BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(90, 90, 90),
-                Text = "队友信息",
-                TextAlign = ContentAlignment.MiddleLeft
-            };
-            _teamQueueTag = new AntdUI.Label
-            {
-                AutoSize = false,
-                BackColor = Color.FromArgb(238, 238, 238),
-                Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(100, 100, 100),
-                Text = "检测中",
-                TextAlign = ContentAlignment.MiddleCenter,
-                Visible = false
-            };
-            _teammatesPanel = new FlowLayoutPanel
-            {
-                BackColor = Color.Transparent,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                AutoScroll = false,
-                Margin = Padding.Empty,
-                Padding = Padding.Empty
-            };
-            _teamInfoPanel.Controls.Add(_teammatesPanel);
-            _teamInfoPanel.Controls.Add(_teamTitle);
-            _teamInfoPanel.Controls.Add(_teamQueueTag);
-            Controls.Add(_teamInfoPanel);
 
             SetStyle(
                 ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -126,7 +67,7 @@ namespace LOL_GameAssistant.BaseViewForm
             VisibleChanged += (_, _) => { if (!Visible) StopHover(); };
 
             _championTip.SetToolTip(picChampion, "双击查看对局详情");
-            Disposed += (_, _) => { _championTip.Dispose(); _teamQueueTip?.Dispose(); _ownedChampionImage?.Dispose(); };
+            Disposed += (_, _) => { _lifetime.Cancel(); _lifetime.Dispose(); _championTip.Dispose(); _ownedChampionImage?.Dispose(); };
 
             this.DoubleClick += (_, _) => OpenDetail();
             this.MouseEnter += (_, _) => StartHover(true);
@@ -148,8 +89,8 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_referenceLayout) { LayoutReferenceRow(); return; }
             int w = Math.Max(1, ClientSize.Width);
             int x = 10;
-            int iconY = _showTeammateInfo ? 5 : Math.Max(3, (Height - 34) / 2);
-            int labelY = _showTeammateInfo ? 10 : Math.Max(6, (Height - 20) / 2);
+            int iconY = Math.Max(3, (Height - 34) / 2);
+            int labelY = Math.Max(6, (Height - 20) / 2);
 
             picChampion.Location = new Point(x, iconY);
             x += 34 + (_championAndModeOnly ? 6 : 8);
@@ -205,23 +146,6 @@ namespace LOL_GameAssistant.BaseViewForm
             lblDuration.Location = new Point(durationLeft, labelY);
             lblDuration.Width = durationWidth;
 
-            if (_showTeammateInfo)
-            {
-                _teamInfoPanel.Location = new Point(10, 47);
-                _teamInfoPanel.Size = new Size(Math.Max(1, w - 20), Math.Max(70, Height - 51));
-                _teamTitle.Location = new Point(0, 0);
-                _teamTitle.Size = new Size(66, 25);
-                int queueTagWidth = Math.Clamp(
-                    TextRenderer.MeasureText(_teamQueueTag.Text, _teamQueueTag.Font).Width + 14,
-                    66,
-                    112);
-                _teamQueueTag.Location = new Point(0, 29);
-                _teamQueueTag.Size = new Size(queueTagWidth, 22);
-                int teammateLeft = queueTagWidth + 4;
-                _teammatesPanel.Location = new Point(teammateLeft, 0);
-                _teammatesPanel.Size = new Size(Math.Max(1, _teamInfoPanel.ClientSize.Width - teammateLeft), 56);
-                ResizeTeammateCards();
-            }
         }
 
         /// <summary>窗口或控件尺寸变化时重新计算内容布局。</summary>
@@ -238,326 +162,40 @@ namespace LOL_GameAssistant.BaseViewForm
             LayoutRow();
         }
 
-        /// <summary>读取并绑定近期战绩行的展示数据。</summary>
-        public async Task SetDataAsync(MatchDetail detail, MatchParticipant gamer, string? puuid,
-            bool championAndModeOnly = false)
+        /// <summary>列表只绑定查询者本人的摘要；完整十人详情留到用户打开时获取。</summary>
+        public async Task SetSummaryAsync(MatchHistoryGame summary, string puuid)
         {
+            _detail = null;
+            _summaryGameId = summary.GameId;
+            _puuid = puuid;
+            _championAndModeOnly = true;
+            var participant = summary.GetParticipant(puuid);
+            _hasWinResult = participant?.stats?.HasWinResult == true;
+            _isWin = _hasWinResult && participant!.IsWin();
+            lblResult.Text = !_hasWinResult ? "未知" : _isWin ? "胜利" : "失败";
+            int champion = participant?.championId ?? 0;
+            string name = champion > 0 ? GetChampionDisplayName(champion) : "英雄未知";
+            string mode = summary.GetModeText();
+            lblChampion.Text = _referenceLayout ? name : $"{name}\n{mode}";
+            lblMode.Text = mode;
+            lblKda.Text = participant?.stats?.HasKdaResult == true ? participant.GetKdaText() : "—/—/—";
+            lblDuration.Text = summary.GameDuration > 0 ? $"{summary.GameDuration / 60}:{summary.GameDuration % 60:D2}" : "—";
+            lblDate.Text = "";
+            _championTip.SetToolTip(picChampion, $"{name} · {mode}\n{lblKda.Text} · {lblDuration.Text}\n双击获取完整对局详情");
+            _championTip.SetToolTip(lblChampion, "双击获取完整对局详情");
+            ApplyTheme(UiTheme.Palette);
+            LayoutRow();
+            if (champion <= 0) return;
             try
             {
-                _detail = detail;
-                _puuid = puuid;
-                _championAndModeOnly = championAndModeOnly;
-
-                bool win = gamer.IsWin();
-                _isWin = win;
-                ApplyTheme(UiTheme.Palette);
-                bool dark = UiTheme.Palette.IsDark;
-                lblResult.Text = win ? "胜利" : "失败";
-                lblResult.ForeColor = win
-                    ? (dark ? Color.FromArgb(129, 199, 132) : Color.FromArgb(46, 125, 50))
-                    : (dark ? Color.FromArgb(239, 154, 154) : Color.FromArgb(198, 40, 40));
-                string championName = GetChampionDisplayName(gamer.championId);
-                var playerIdentity = detail.GetPlayerIdentity(puuid);
-                string playerName = !string.IsNullOrWhiteSpace(playerIdentity?.gameName)
-                    ? playerIdentity.gameName
-                    : !string.IsNullOrWhiteSpace(playerIdentity?.summonerName)
-                        ? playerIdentity.summonerName
-                        : "本人";
-                string modeText = detail.GetModeText();
-                lblChampion.Text = _referenceLayout ? championName : championAndModeOnly ? $"{championName}\n{modeText}" : $"{playerName} · {championName}";
-                lblMode.Text = modeText;
-                lblDate.Text = detail.gameCreationDate?.Length >= 10 ? detail.gameCreationDate.Substring(0, 10) : "未知";
-                lblKda.Text = gamer.GetKdaText();
-                lblDuration.Text = detail.GetDurationText();
-
-                string champName = GetChampionDisplayName(gamer.championId);
-                string caption = championAndModeOnly ? $"{champName} · {modeText}" : $"{playerName} · {champName} · {modeText}";
-                _championTip.SetToolTip(picChampion, $"{caption} · {detail.GetDurationText()}\n{gamer.GetKdaText()} · {(win ? "胜利" : "失败")}\n双击查看对局详情");
-                _championTip.SetToolTip(lblChampion, caption + "\n双击查看对局详情");
-                LayoutRow();
-
-                if (_showTeammateInfo)
-                {
-                    BuildTeammateInfo(detail, gamer, puuid);
-                    SetTeamQueueStatus("检测中", "正在根据近期同队记录识别本场队伍类型");
-                }
-
-                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(gamer.championId));
-                if (icon != null && !IsDisposed)
-                {
-                    picChampion.Image = icon;
-                    _ownedChampionImage?.Dispose();
-                    _ownedChampionImage = icon;
-                }
-                else
-                {
-                    icon?.Dispose();
-                }
-                Invalidate();
+                var icon = ToImage(await _gameAssetService.GetChampionIconAsync(champion, _lifetime.Token));
+                if (IsDisposed) { icon?.Dispose(); return; }
+                picChampion.Image = icon;
+                _ownedChampionImage?.Dispose();
+                _ownedChampionImage = icon;
             }
-            catch
-            {
-                // 单行加载失败不影响其它行
-            }
-        }
-
-        /// <summary>
-        /// 异步识别本场本人队伍是单排还是多排。检测使用近期同队记录，结果为推断值。
-        /// </summary>
-        public async Task DetectTeamQueueStatusAsync()
-        {
-            if (!_showTeammateInfo || _teamQueueDetectionStarted || _detail == null || string.IsNullOrEmpty(_puuid)) return;
-            _teamQueueDetectionStarted = true;
-
-            var detail = _detail;
-            string puuid = _puuid;
-            try
-            {
-                var current = detail.GetParticipant(puuid);
-                if (current == null)
-                {
-                    SetTeamQueueStatus("未知", "未找到本场玩家的队伍信息");
-                    return;
-                }
-
-                var identities = detail.participantIdentities;
-                var team = detail.participants
-                    .Where(participant => participant.teamId == current.teamId)
-                    .Select(participant =>
-                    {
-                        var player = identities.FirstOrDefault(identity => identity.participantId == participant.participantId)?.player;
-                        return (Puuid: player?.puuid ?? "", Name: player?.gameName ?? player?.summonerName ?? "");
-                    })
-                    .Where(player => !string.IsNullOrWhiteSpace(player.Puuid))
-                    .ToList();
-
-                if (team.Count < 2)
-                {
-                    SetTeamQueueStatus("未知", "本场可用队友信息不足，无法判断是否多排");
-                    return;
-                }
-
-                await TeamQueueDetectionGate.WaitAsync();
-                try
-                {
-                    var result = await _premadeDetectionService.DetectAsync(
-                        team.Select(member => new TeamMemberIdentity(member.Puuid, member.Name)).ToArray(),
-                        Array.Empty<TeamMemberIdentity>());
-                    if (IsDisposed || !ReferenceEquals(detail, _detail)) return;
-
-                    SetTeamQueueStatus(result.GetInferredTeamStatus(0), result.GetTeamQueueDetail(0));
-                }
-                finally
-                {
-                    TeamQueueDetectionGate.Release();
-                }
-            }
-            catch
-            {
-                if (!IsDisposed && ReferenceEquals(detail, _detail))
-                {
-                    SetTeamQueueStatus("未知", "组队检测暂不可用");
-                }
-            }
-        }
-
-        /// <summary>更新当前战绩行的组队状态提示。</summary>
-        private void SetTeamQueueStatus(string status, string detail)
-        {
-            _teamQueueTag.Text = status;
-            (_teamQueueTag.BackColor, _teamQueueTag.ForeColor) = status switch
-            {
-                "未发现" => (Color.FromArgb(238, 238, 238), Color.FromArgb(100, 100, 100)),
-                "检测中" => (Color.FromArgb(227, 242, 253), Color.FromArgb(25, 118, 210)),
-                "未知" => (Color.FromArgb(255, 243, 224), Color.FromArgb(230, 126, 34)),
-                _ => (Color.FromArgb(255, 236, 179), Color.FromArgb(191, 104, 0))
-            };
-            _teamQueueTip ??= new ToolTip();
-            _teamQueueTip.SetToolTip(_teamQueueTag, $"{status}：{detail}");
-        }
-
-        /// <summary>
-        /// 在记录行下方显示本人所在队伍的 4 名队友及其英雄、KDA 和胜负信息。
-        /// </summary>
-        private void BuildTeammateInfo(
-            MatchDetail detail,
-            MatchParticipant gamer,
-            string? puuid)
-        {
-            ControlLifetime.ClearAndDispose(_teammatesPanel);
-
-            var identities = detail.participantIdentities;
-            var teammates = detail.participants
-                .Where(p => p.teamId == gamer.teamId)
-                .Where(p => p.participantId != gamer.participantId)
-                .OrderBy(p => p.participantId)
-                .ToList();
-
-            _teamTitle.Text = teammates.Count > 0 ? $"队友（{teammates.Count}）" : "队友信息";
-            if (teammates.Count == 0)
-            {
-                _teammatesPanel.Controls.Add(new AntdUI.Label
-                {
-                    AutoSize = false,
-                    BackColor = Color.Transparent,
-                    ForeColor = SystemColors.GrayText,
-                    Size = new Size(180, 56),
-                    Text = "未获取到队友信息",
-                    TextAlign = ContentAlignment.MiddleLeft
-                });
-                return;
-            }
-
-            int cardWidth = CalculateTeammateCardWidth(teammates.Count);
-            foreach (var teammate in teammates)
-            {
-                var identity = identities.FirstOrDefault(i => i.participantId == teammate.participantId)?.player;
-                _teammatesPanel.Controls.Add(CreateTeammateCard(teammate, identity, cardWidth));
-            }
-            ResizeTeammateCards();
-        }
-
-        /// <summary>计算队友预览卡片的合适宽度。</summary>
-        private int CalculateTeammateCardWidth(int count)
-        {
-            if (count <= 0) return 48;
-            const int cardSpacing = 6;
-            int available = Math.Max(0, _teammatesPanel.ClientSize.Width - count * cardSpacing);
-            return Math.Max(48, available / count);
-        }
-
-        /// <summary>按战绩行可用空间调整队友卡片。</summary>
-        private void ResizeTeammateCards()
-        {
-            var cards = _teammatesPanel.Controls.OfType<AntdUI.Panel>().ToList();
-            if (cards.Count == 0) return;
-
-            int cardWidth = CalculateTeammateCardWidth(cards.Count);
-            foreach (var card in cards)
-            {
-                LayoutTeammateCard(card, cardWidth);
-            }
-        }
-
-        /// <summary>创建一名队友的战绩预览卡片。</summary>
-        private Control CreateTeammateCard(
-            MatchParticipant participant,
-            MatchPlayer? identity,
-            int cardWidth)
-        {
-            var card = new AntdUI.Panel
-            {
-                BackColor = Color.FromArgb(42, 255, 255, 255),
-                Margin = new Padding(0, 0, 6, 0),
-                Size = new Size(cardWidth, 56)
-            };
-
-            var avatar = new RoundPictureBox
-            {
-                BorderColor = Color.FromArgb(125, 125, 125),
-                BorderWidth = 1,
-                Location = new Point(5, 12),
-                Size = new Size(32, 32)
-            };
-            _ = LoadAvatarAsync(avatar, participant.championId);
-            card.Controls.Add(avatar);
-
-            string name = identity?.gameName ?? identity?.summonerName ?? $"玩家{participant.participantId}";
-            string champion = GetChampionDisplayName(participant.championId);
-            bool win = participant.IsWin();
-            var nameLabel = new AntdUI.Label
-            {
-                AutoEllipsis = true,
-                BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold),
-                Location = new Point(43, 5),
-                Size = new Size(Math.Max(0, cardWidth - 48), 20),
-                Text = name
-            };
-            var detailLabel = new AntdUI.Label
-            {
-                AutoEllipsis = true,
-                BackColor = Color.Transparent,
-                ForeColor = win ? Color.FromArgb(46, 125, 50) : Color.FromArgb(198, 40, 40),
-                Location = new Point(43, 27),
-                Size = new Size(Math.Max(0, cardWidth - 48), 20),
-                Text = $"{champion} · {participant.GetKdaText()} · {(win ? "胜" : "负")}"
-            };
-            card.Controls.Add(nameLabel);
-            card.Controls.Add(detailLabel);
-
-            var tip = new ToolTip();
-            card.Disposed += (_, _) => { tip.Dispose(); avatar.Image?.Dispose(); };
-            tip.SetToolTip(card, $"{name}\n{champion} · KDA {participant.GetKdaText()} · {(win ? "胜利" : "失败")}\n双击查看本局详情");
-            tip.SetToolTip(nameLabel, tip.GetToolTip(card));
-            tip.SetToolTip(detailLabel, tip.GetToolTip(card));
-            WireOpenDetail(card);
-            WireOpenDetail(avatar);
-            WireOpenDetail(nameLabel);
-            WireOpenDetail(detailLabel);
-            LayoutTeammateCard(card, cardWidth);
-            return card;
-        }
-
-        /// <summary>
-        /// 队友信息不足以展示文字时保留英雄头像与完整悬停提示，避免小面板中的标签越界。
-        /// </summary>
-        private static void LayoutTeammateCard(AntdUI.Panel card, int cardWidth)
-        {
-            const int compactThreshold = 118;
-            card.Size = new Size(cardWidth, 56);
-
-            var avatar = card.Controls.OfType<RoundPictureBox>().FirstOrDefault();
-            var labels = card.Controls.OfType<AntdUI.Label>().ToList();
-            bool compact = cardWidth < compactThreshold;
-            if (avatar != null)
-            {
-                int avatarSize = compact ? 30 : 32;
-                avatar.Size = new Size(avatarSize, avatarSize);
-                avatar.Location = compact
-                    ? new Point(Math.Max(0, (cardWidth - avatarSize) / 2), 13)
-                    : new Point(5, 12);
-            }
-
-            foreach (var label in labels)
-            {
-                label.Visible = !compact;
-            }
-            if (compact || labels.Count < 2) return;
-
-            int textLeft = 43;
-            int textWidth = Math.Max(0, cardWidth - textLeft - 5);
-            labels[0].Location = new Point(textLeft, 5);
-            labels[0].Size = new Size(textWidth, 20);
-            labels[1].Location = new Point(textLeft, 27);
-            labels[1].Size = new Size(textWidth, 20);
-        }
-
-        /// <summary>为卡片和子控件绑定打开对局详情的操作。</summary>
-        private void WireOpenDetail(Control control)
-        {
-            control.DoubleClick += (_, _) => OpenDetail();
-        }
-
-        /// <summary>异步加载英雄或玩家头像并更新控件。</summary>
-        private async Task LoadAvatarAsync(RoundPictureBox box, int championId)
-        {
-            try
-            {
-                Image? icon = ToImage(await _gameAssetService.GetChampionIconAsync(championId));
-                if (icon != null && !box.IsDisposed)
-                {
-                    box.Image = icon;
-                }
-                else
-                {
-                    icon?.Dispose();
-                }
-            }
-            catch
-            {
-                // 队友头像加载失败不影响文字信息。
-            }
+            catch (OperationCanceledException) when (IsDisposed) { }
+            catch (Exception error) { RuntimeDiagnostics.Report("近期战绩图标", "暂不可用", error.GetType().Name); }
         }
 
         /// <summary>根据英雄标识取得展示名称。</summary>
@@ -616,7 +254,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _isHovered = false;
             _baseBack = palette.IsDark ? (_referenceLayout ? Color.FromArgb(25, 38, 47) : palette.SurfaceRaised) : _isWin
                 ? Color.FromArgb(236, 247, 238) : Color.FromArgb(253, 238, 238);
-            _accent = _isWin ? Color.FromArgb(76, 175, 80) : Color.FromArgb(229, 57, 53);
+            _accent = !_hasWinResult ? palette.TextSecondary : _isWin ? Color.FromArgb(76, 175, 80) : Color.FromArgb(229, 57, 53);
             _hoverBack = UiAnimation.LerpColor(_baseBack, _accent, palette.IsDark ? .14 : .08);
             BackColor = _baseBack;
             if (_referenceLayout)
@@ -689,10 +327,39 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>打开当前对局的完整详情。</summary>
-        private void OpenDetail()
+        internal async Task<MatchDetail?> LoadDetailAsync()
         {
-            if (_detail == null || string.IsNullOrEmpty(_puuid)) return;
-            MatchDetailForm.OpenAndHandle(_detail, _puuid, this);
+            if (_detail != null) return _detail;
+            if (_summaryGameId <= 0 || IsDisposed || string.IsNullOrEmpty(_puuid)) return null;
+            var detail = await PlayerHistoryRepository.For(_matchHistoryService ?? AppCompositionRoot.MatchHistoryService)
+                .GetDetailAsync(_summaryGameId, _lifetime.Token);
+            if (detail?.GameId == _summaryGameId && detail.GetParticipant(_puuid) != null) _detail = detail;
+            return _detail;
+        }
+
+        private async void OpenDetail()
+        {
+            if (_openingDetail || IsDisposed || string.IsNullOrEmpty(_puuid)) return;
+            _openingDetail = true;
+            if (_detailArrow != null) _detailArrow.Text = "…";
+            try
+            {
+                var detail = await LoadDetailAsync();
+                if (IsDisposed) return;
+                if (detail != null) MatchDetailForm.OpenAndHandle(detail, _puuid, this);
+                else _championTip.SetToolTip(lblChampion, "详情暂不可用，双击重试");
+            }
+            catch (OperationCanceledException) when (IsDisposed) { }
+            catch (Exception error)
+            {
+                RuntimeDiagnostics.Report("打开对局详情", "暂不可用", error.Message);
+                if (!IsDisposed) _championTip.SetToolTip(lblChampion, "详情获取失败，双击重试");
+            }
+            finally
+            {
+                _openingDetail = false;
+                if (!IsDisposed && _detailArrow != null) _detailArrow.Text = "›";
+            }
         }
     }
 }

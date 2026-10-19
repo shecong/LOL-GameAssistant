@@ -244,8 +244,3 @@ public class WebSocketClient : IDisposable, IAsyncDisposable
         GC.SuppressFinalize(this);
     }
 }
-
-public class SimpleWebSocketClient : WebSocketClient
-{
-    public SimpleWebSocketClient(string url, string? token = null) : base(url, token) { }
-}

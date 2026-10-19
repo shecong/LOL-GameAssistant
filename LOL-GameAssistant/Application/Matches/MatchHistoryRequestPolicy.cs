@@ -9,26 +9,30 @@ internal sealed class MatchHistoryRequestPolicy
     private readonly SemaphoreSlim _gate;
     private readonly TimeSpan _requestTimeout;
     private readonly Func<CancellationToken, Task> _backoff;
+    internal Action<string>? Diagnostic { get; set; }
 
-    internal MatchHistoryRequestPolicy(int concurrency = 3, TimeSpan? requestTimeout = null,
+    internal MatchHistoryRequestPolicy(int concurrency = MatchDataPolicy.SummaryConcurrency, TimeSpan? requestTimeout = null,
         Func<CancellationToken, Task>? backoff = null)
     {
         _gate = new(concurrency, concurrency);
-        _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(12);
+        _requestTimeout = requestTimeout ?? MatchDataPolicy.SmallRequestTimeout;
         _backoff = backoff ?? (token => Task.Delay(TimeSpan.FromMilliseconds(350), token));
     }
 
-    internal async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> request, CancellationToken token)
+    internal async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> request, CancellationToken token,
+        TimeSpan? requestTimeout = null)
     {
         for (int attempt = 0; ; attempt++)
         {
             token.ThrowIfCancellationRequested();
+            var elapsed = System.Diagnostics.Stopwatch.StartNew();
             await _gate.WaitAsync(token).ConfigureAwait(false);
+            long queued = elapsed.ElapsedMilliseconds;
             bool retry = false;
             try
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-                timeout.CancelAfter(_requestTimeout);
+                timeout.CancelAfter(requestTimeout ?? _requestTimeout);
                 try
                 {
                     var result = await request(timeout.Token).ConfigureAwait(false);
@@ -45,7 +49,11 @@ internal sealed class MatchHistoryRequestPolicy
                     retry = true;
                 }
             }
-            finally { _gate.Release(); }
+            finally
+            {
+                _gate.Release();
+                Diagnostic?.Invoke($"摘要尝试 {attempt + 1} · 排队 {queued}ms · 请求 {elapsed.ElapsedMilliseconds - queued}ms · 重试 {retry}");
+            }
             // Release capacity while backing off so other players can load their lists.
             if (retry) await _backoff(token).ConfigureAwait(false);
         }

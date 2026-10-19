@@ -11,6 +11,7 @@ namespace LOL_GameAssistant.LoLApi
     {
         private static readonly object DetailCacheSync = new();
         private static long _detailCacheGeneration;
+        private static string? _detailCacheContext;
         internal static (int Entries, long Bytes) MeasureGameDetailCache()
         {
             lock (DetailCacheSync)
@@ -24,8 +25,11 @@ namespace LOL_GameAssistant.LoLApi
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrEmpty(puuid)) return null;
+            bool largeBatch = !int.TryParse(endIndex, out int end) ||
+                end - (int.TryParse(begIndex, out int begin) ? begin : 0) + 1 >= 100;
             return await MatchHistoryRequestPolicy.Shared.ExecuteAsync(
-                token => ReadUserGamePageAsync(puuid, begIndex, endIndex, token), cancellationToken).ConfigureAwait(false);
+                token => ReadUserGamePageAsync(puuid, begIndex, endIndex, token), cancellationToken,
+                requestTimeout: largeBatch ? MatchDataPolicy.SummaryTimeout : null).ConfigureAwait(false);
         }
 
         private static async Task<GameHeadModel.MatchHistoryResponse?> ReadUserGamePageAsync(
@@ -123,6 +127,13 @@ namespace LOL_GameAssistant.LoLApi
             long generation;
             lock (DetailCacheSync)
             {
+                string context = PlayerHistorySession.Key;
+                if (_detailCacheContext != context)
+                {
+                    _detailCacheContext = context;
+                    _detailCacheGeneration++;
+                    DetailCache.Clear();
+                }
                 generation = _detailCacheGeneration;
                 if (useCache && DetailCache.TryGetValue(gameId, out var cached)) return cached;
             }
@@ -143,16 +154,6 @@ namespace LOL_GameAssistant.LoLApi
                 }
             }
             return game;
-        }
-
-        /// <summary>
-        /// 获取单场对局详情（字符串 ID 重载，带缓存）。
-        /// </summary>
-        public static async Task<GameDetailModel.GameInfo?> GetGameDetail(string? gameId, bool useCache = true,
-            CancellationToken cancellationToken = default)
-        {
-            if (!long.TryParse(gameId, out long id)) return null;
-            return await GetGameDetail(id, useCache, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>

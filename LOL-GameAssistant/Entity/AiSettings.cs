@@ -51,33 +51,6 @@ public class AiSettings
     /// <summary>判断当前服务配置是否需要使用 Claude 消息协议。</summary>
     public bool UsesClaudeProtocol => Provider == AiProvider.Claude;
 
-    /// <summary>取得当前 AI 服务提供商的请求地址。</summary>
-    public string GetBaseUrl()
-    {
-        if (!string.IsNullOrWhiteSpace(BaseUrl)) return BaseUrl.Trim().TrimEnd('/');
-
-        return Provider switch
-        {
-            AiProvider.OpenAI => "https://api.openai.com/v1",
-            AiProvider.Claude => "https://api.anthropic.com",
-            AiProvider.DeepSeek => "https://api.deepseek.com/v1",
-            AiProvider.GLM => "https://open.bigmodel.cn/api/paas/v4",
-            AiProvider.Doubao => "https://ark.cn-beijing.volces.com/api/v3",
-            _ => ""
-        };
-    }
-
-    /// <summary>取得当前 AI 服务提供商的密钥管理地址。</summary>
-    public string GetKeyPortalUrl() => Provider switch
-    {
-        AiProvider.OpenAI => "https://platform.openai.com/api-keys",
-        AiProvider.Claude => "https://console.anthropic.com/",
-        AiProvider.DeepSeek => "https://www.deepseek.com/platform/",
-        AiProvider.GLM => "https://open.bigmodel.cn/",
-        AiProvider.Doubao => "https://console.volcengine.com/ark/apiKey",
-        _ => ""
-    };
-
     /// <summary>将配置或文本输入规范化为后续处理使用的形式。</summary>
     public void Normalize()
     {

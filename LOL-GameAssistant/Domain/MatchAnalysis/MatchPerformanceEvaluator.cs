@@ -56,6 +56,10 @@ public sealed record RecentModePerformanceAssessment(
     RecentPerformanceLabel Label = RecentPerformanceLabel.InsufficientData)
 {
     public bool UsesAllModes { get; init; }
+    public int? WinSampleSize { get; init; }
+    public string? NoKdaSampleReason { get; init; }
+    public int RequiredSampleSize { get; init; } = RecentModePerformanceEvaluator.RequiredSampleSize;
+    public bool HasWinRate => (WinSampleSize ?? SampleSize) > 0;
 }
 
 /// <summary>将近期表现评估转换为界面使用的档位文本。</summary>
@@ -166,9 +170,9 @@ public static class RecentModePerformanceEvaluator
         performanceList = performanceList.Take(sampleSize).ToList();
         resultList = resultList.Take(sampleSize).ToList();
         double winRate = resultList.Count(item => item) * 100D / sampleSize;
-        int totalKills = performanceList.Sum(item => item.Kills);
-        int totalDeaths = performanceList.Sum(item => item.Deaths);
-        int totalAssists = performanceList.Sum(item => item.Assists);
+        long totalKills = performanceList.Sum(item => (long)item.Kills);
+        long totalDeaths = performanceList.Sum(item => (long)item.Deaths);
+        long totalAssists = performanceList.Sum(item => (long)item.Assists);
         double kda = (totalKills + totalAssists) / (double)Math.Max(1, totalDeaths);
         bool hasEnoughSample = sampleSize >= requiredSampleSize;
         int score = GetStrictScore(kda);

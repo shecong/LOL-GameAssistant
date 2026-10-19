@@ -8,6 +8,11 @@
 using Microsoft::WRL::ComPtr;
 using namespace overlay;
 static void Check(bool condition, const char* message) { if (!condition) { printf("FAIL: %s\n", message); fflush(stdout); ExitProcess(1); } }
+static unsigned gameWheelMessages=0;
+static LRESULT CALLBACK TestWndProc(HWND window,UINT message,WPARAM wParam,LPARAM lParam) {
+    if(message==WM_MOUSEWHEEL) ++gameWheelMessages;
+    return DefWindowProcW(window,message,wParam,lParam);
+}
 
 int main(int argc, char** argv) {
     bool exclusive=false,borderless=false,flip=false;
@@ -26,7 +31,7 @@ int main(int argc, char** argv) {
     strcpy_s(frame->statusText, "DirectX 11 全屏覆盖层渲染验证");
     strcpy_s(frame->recommendations, "白银 / 黄金 / 棱彩\n双刀流 50.8% · 119,846 场\n连拨击锤 50.6% · 115,327 场");
     strcpy_s(frame->offered, "本次识别\n1. 双刀流\n2. 连拨击锤");
-    WNDCLASSW wc{}; wc.lpfnWndProc = DefWindowProcW; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = L"SC.Overlay.Smoke";
+    WNDCLASSW wc{}; wc.lpfnWndProc = TestWndProc; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = L"SC.Overlay.Smoke";
     RegisterClassW(&wc);
     HWND window = CreateWindowExW(WS_EX_NOACTIVATE, wc.lpszClassName, L"SC Overlay Render Test", borderless ? WS_POPUP : WS_OVERLAPPEDWINDOW,
         10, 10, 1280, 720, nullptr, nullptr, wc.hInstance, nullptr);
@@ -183,6 +188,23 @@ int main(int argc, char** argv) {
     }
     Check(frame->command==2 && GetForegroundWindow()==window,"click collapsed entry without Alt preserves game focus");
     frame->command=0;
+    frame->collapsed=0; present(); present();
+    RECT headerPanel{}; Check(region(0,&headerPanel),"get expanded panel hit region");
+    const POINT headerClicks[]={{5,5},{45,23},{220,23},{350,23},{45,50}};
+    for(const auto& point:headerClicks) {
+        setPointer(headerPanel.left+point.x,headerPanel.top+point.y,TRUE);
+        present(); SendMessageW(window,WM_LBUTTONDOWN,MK_LBUTTON,0); present();
+        SendMessageW(window,WM_LBUTTONUP,0,0); present();
+        Check(frame->command==2 && GetForegroundWindow()==window,"entire header collapses without losing game focus");
+        frame->command=0;
+    }
+    setPointer(headerPanel.left+180,headerPanel.top+23,TRUE); present();
+    SendMessageW(window,WM_LBUTTONDOWN,MK_LBUTTON,0); present();
+    setPointer(headerPanel.left+140,headerPanel.top+53,TRUE); present();
+    SendMessageW(window,WM_LBUTTONUP,0,0); present();
+    RECT movedPanel{}; Check(region(0,&movedPanel),"get dragged panel hit region");
+    Check(frame->command==0 && movedPanel.left<headerPanel.left && movedPanel.top>headerPanel.top,
+        "dragging header moves panel without collapsing");
     auto aux=reinterpret_cast<Auxiliary*>(reinterpret_cast<unsigned char*>(frame)+AuxOffset);
     frame->mayhemEnabled=0; aux->flags=2|4|8;
     strcpy_s(aux->coachTitle,"当前建议"); strcpy_s(aux->coachBody,"独立于增幅侧栏显示");
@@ -194,6 +216,64 @@ int main(int argc, char** argv) {
     setPointer(picker.left+35,picker.top+100,TRUE);
     present(); SendMessageW(window,WM_LBUTTONDOWN,MK_LBUTTON,0); present(); SendMessageW(window,WM_LBUTTONUP,0,0); present();
     Check(aux->command==1 && aux->argument==0 && aux->commandVersion==42,"skin selection command includes list version");
+    auto pendingWheel=reinterpret_cast<LONG(*)()>(GetProcAddress(module,"OverlayTestWheel"));
+    auto skinScroll=reinterpret_cast<float(*)()>(GetProcAddress(module,"OverlayTestSkinScroll"));
+    auto maskRaw=reinterpret_cast<void(*)(RAWINPUT*,UINT)>(GetProcAddress(module,"OverlayTestRawWheel"));
+    auto maskBuffer=reinterpret_cast<void(*)(RAWINPUT*,UINT,UINT)>(GetProcAddress(module,"OverlayTestRawBuffer"));
+    Check(pendingWheel && skinScroll && maskRaw && maskBuffer,"wheel test fixtures");
+    aux->skinCount=40;
+    for(int i=0;i<40;++i) sprintf_s(aux->skinNames[i],"Skin %d",i);
+    present(); present();
+    const float initialScroll=skinScroll();
+    Check(PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WORD(-WHEEL_DELTA)),0)!=FALSE,"post picker wheel");
+    MSG wheelMessage{};
+    for(int i=0;i<2;++i) {
+        Check(PeekMessageW(&wheelMessage,window,WM_MOUSEWHEEL,WM_MOUSEWHEEL,PM_NOREMOVE) && wheelMessage.message==WM_NULL,
+            "game cannot inspect picker wheel before dispatch");
+        Check(pendingWheel()==0,"peeking does not duplicate wheel input");
+    }
+    Check(PeekMessageW(&wheelMessage,window,WM_MOUSEWHEEL,WM_MOUSEWHEEL,PM_REMOVE) && wheelMessage.message==WM_NULL,
+        "picker wheel removed before game receives it");
+    Check(pendingWheel()==-WHEEL_DELTA,"wheel delivered to overlay exactly once");
+    DispatchMessageW(&wheelMessage); present(); present();
+    Check(gameWheelMessages==0 && skinScroll()>initialScroll,"picker scrolls without game zoom input");
+    float downScroll=skinScroll();
+    PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),0); present(); present();
+    Check(gameWheelMessages==0 && skinScroll()<downScroll,"upward picker wheel also stays inside overlay");
+    RAWINPUT raw{}; raw.header.dwType=RIM_TYPEMOUSE; raw.header.dwSize=sizeof(raw);
+    raw.data.mouse.usButtonFlags=RI_MOUSE_WHEEL|RI_MOUSE_LEFT_BUTTON_DOWN;
+    raw.data.mouse.usButtonData=WHEEL_DELTA; raw.data.mouse.lLastX=23; raw.data.mouse.lLastY=-17;
+    RAWINPUT originalRaw=raw;
+    maskRaw(&raw,sizeof(raw));
+    Check(raw.data.mouse.usButtonFlags==RI_MOUSE_LEFT_BUTTON_DOWN && raw.data.mouse.usButtonData==0 &&
+        raw.data.mouse.lLastX==23 && raw.data.mouse.lLastY==-17,"raw wheel masked while buttons and motion survive");
+    raw=originalRaw; maskRaw(&raw,sizeof(RAWINPUTHEADER));
+    Check(memcmp(&raw,&originalRaw,sizeof(raw))==0,"truncated raw input untouched");
+    raw=originalRaw; raw.data.mouse.usButtonFlags=RI_MOUSE_HWHEEL; originalRaw=raw; maskRaw(&raw,sizeof(raw));
+    Check(memcmp(&raw,&originalRaw,sizeof(raw))==0,"horizontal raw wheel untouched");
+    alignas(RAWINPUT) unsigned char rawBuffer[sizeof(RAWINPUT)*2]{};
+    auto keyboard=reinterpret_cast<RAWINPUT*>(rawBuffer);
+    keyboard->header.dwType=RIM_TYPEKEYBOARD;
+    keyboard->header.dwSize=UINT(offsetof(RAWINPUT,data)+sizeof(RAWKEYBOARD));
+    keyboard->data.keyboard.VKey='A';
+    size_t next=(keyboard->header.dwSize+sizeof(ULONG_PTR)-1)&~(sizeof(ULONG_PTR)-1);
+    auto mouse=reinterpret_cast<RAWINPUT*>(rawBuffer+next);
+    *mouse=raw; mouse->data.mouse.usButtonFlags=RI_MOUSE_WHEEL;
+    unsigned char savedKeyboard[sizeof(RAWINPUT)]{}; memcpy(savedKeyboard,keyboard,next);
+    maskBuffer(keyboard,2,UINT(next+sizeof(RAWINPUT)));
+    Check(memcmp(savedKeyboard,keyboard,next)==0 && mouse->data.mouse.usButtonFlags==0,"buffered raw wheel masked without altering keyboard");
+    setPointer(picker.right+20,picker.top+100,TRUE);
+    PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),0);
+    Check(PeekMessageW(&wheelMessage,window,WM_MOUSEWHEEL,WM_MOUSEWHEEL,PM_REMOVE) && wheelMessage.message==WM_MOUSEWHEEL,
+        "wheel outside picker reaches game queue");
+    DispatchMessageW(&wheelMessage);
+    raw=originalRaw; raw.data.mouse.usButtonFlags=RI_MOUSE_WHEEL; originalRaw=raw; maskRaw(&raw,sizeof(raw));
+    Check(gameWheelMessages==1 && pendingWheel()==0 && memcmp(&raw,&originalRaw,sizeof(raw))==0,
+        "game wheel and raw input work outside picker");
+    aux->flags=0; present(); present(); setPointer(picker.left+35,picker.top+100,TRUE);
+    PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),0); present();
+    raw=originalRaw; maskRaw(&raw,sizeof(raw));
+    Check(gameWheelMessages==2 && memcmp(&raw,&originalRaw,sizeof(raw))==0,"closed picker restores game wheel");
     aux->command=0; aux->flags=0; frame->mayhemEnabled=1;
     setPointer(0,0,FALSE); if(previousForeground && previousForeground!=window) SetForegroundWindow(previousForeground);
     Check(SUCCEEDED(chain->ResizeBuffers(2, 1024, 768, DXGI_FORMAT_UNKNOWN, 0)), "resize has no retained backbuffers");
@@ -213,7 +293,7 @@ int main(int argc, char** argv) {
         frame->uiBuilds-builds,frame->targetCreates-creates,frame->lastCpuUs,
         double(finished.QuadPart-started.QuadPart)*1000/hz.QuadPart/300);
     frame->enabled = 0;
-    printf("PASS: DX11 render, UTF-8 Chinese UI, state restore, capture, disable, heartbeat, 48x48 collapse, mouse without Alt, auxiliary panels, versioned skin selection, resolution change\n");
+    printf("PASS: DX11 render, UTF-8 Chinese UI, state restore, capture, disable, heartbeat, 48x48 collapse, mouse without Alt, auxiliary panels, versioned skin selection, wheel queue routing, raw wheel masking, resolution change\n");
     DestroyWindow(window);
     // The production module intentionally stays pinned until process exit.
     UnmapViewOfFile(frame); CloseHandle(mapping); CloseHandle(mutex);

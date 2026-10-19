@@ -1,0 +1,19 @@
+﻿path,bytes,tracked,reason
+_class.txt,190,True,旧 RawGameStat 类代码片段，无构建/运行入口引用
+_method.txt,5659,True,旧 RebuildStatsCharts 方法代码片段，无构建/运行入口引用
+_fix.ps1,8235,True,一次性修改 BattleQueryForm 的修复脚本，无构建/发布调用
+LOL-GameAssistant/_fix_battlequery.py,4668,True,一次性战绩页修复脚本，无构建/发布调用
+LOL-GameAssistant/Resources/01.jpg,2893,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/02.jpg,3431,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/03.jpg,3563,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/04.jpg,4292,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/05.jpg,4133,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/06.jpg,5095,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/07.jpg,5258,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/08.jpg,5541,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/09.jpg,6207,True,旧段位图片；当前 resx 对应键已改为命名 PNG，未找到文件名引用
+LOL-GameAssistant/Resources/bronze.png,106008,True,与 bronze2.png 的 SHA256 完全一致；未找到自身引用；必须保留 resx 实际使用的 bronze2.png
+LOL-GameAssistant/Resources/bronze1.png,106008,True,与 bronze2.png 的 SHA256 完全一致；未找到自身引用；必须保留 resx 实际使用的 bronze2.png
+LOL-GameAssistant/Resources/bronze3.png,106008,True,与 bronze2.png 的 SHA256 完全一致；未找到自身引用；必须保留 resx 实际使用的 bronze2.png
+LOL-GameAssistant/icon_16x16.ico,601,True,未找到引用；项目 ApplicationIcon 与运行时嵌入图标均使用 Resources/Brand/sc-icon.ico
+LOL-GameAssistant/Tools/Updater/Updater.exe,393728,False,旧平铺更新器副本；当前 csproj 与打包脚本改用 Tools/Updater/运行时/Updater.exe

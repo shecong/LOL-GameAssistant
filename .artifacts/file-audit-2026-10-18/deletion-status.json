@@ -1,0 +1,10 @@
+{
+  "status": "blocked_by_automatic_approval_review",
+  "action": "Batch recursive deletion of verified unused files, build caches and historical outputs",
+  "reason": "blocked by policy; no more specific reason returned",
+  "plannedTargets": 47,
+  "plannedFiles": 14530,
+  "plannedBytes": 19587785496,
+  "missingTargetsAfterRejectedCommand": 0,
+  "deletedByAssistant": 0
+}

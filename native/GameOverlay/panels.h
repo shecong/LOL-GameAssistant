@@ -97,9 +97,32 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
             ImGui::PopStyleColor();
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("点击展开增幅推荐 · 沿右侧上下拖动");
         } else {
-            ImGui::TextColored(ImVec4(.82f,.72f,1,1),"海克斯大乱斗"); ImGui::SameLine(ImGui::GetWindowWidth()-72);
-            if (ImGui::SmallButton("收起")) current.pendingCommand=2;
-            ImGui::TextDisabled("增幅推荐"); ImGui::Separator();
+            // One hit target covers the entire header, including its padding.
+            // A drag moves the panel; only a click sends the collapse command.
+            static bool headerDragged = false;
+            float lineHeight = ImGui::GetTextLineHeight();
+            ImGui::SetCursorPos(ImVec2(0,0));
+            bool headerPressed = ImGui::InvisibleButton("CollapseHeader",
+                ImVec2(size.x,style.WindowPadding.y+lineHeight*2+style.ItemSpacing.y));
+            if (ImGui::IsItemActivated()) headerDragged = false;
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0,6)) {
+                headerDragged = true;
+                auto p = ImGui::GetWindowPos(), delta = ImGui::GetIO().MouseDelta;
+                ImGui::SetWindowPos(ImVec2(p.x+delta.x,p.y+delta.y));
+                ClampPanel(size);
+                verticalPosition = ImGui::GetWindowPos().y;
+            }
+            if (headerPressed && !headerDragged) current.pendingCommand=2;
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                ImGui::SetTooltip("点击收起增幅推荐 · 拖动移动面板");
+            }
+            auto p = ImGui::GetWindowPos();
+            auto draw = ImGui::GetWindowDrawList();
+            draw->AddText(ImVec2(p.x+14,p.y+14),ImGui::GetColorU32(ImVec4(.82f,.72f,1,1)),"海克斯大乱斗");
+            draw->AddText(ImVec2(p.x+size.x-72,p.y+14),ImGui::GetColorU32(ImGuiCol_Text),"收起");
+            draw->AddText(ImVec2(p.x+14,p.y+14+lineHeight+style.ItemSpacing.y),ImGui::GetColorU32(ImGuiCol_TextDisabled),"增幅推荐");
+            ImGui::Separator();
             ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",frame.statusText); ImGui::PopTextWrapPos();
             ImGui::BeginDisabled(frame.scanning != 0);
             if (ImGui::Button(frame.scanning ? "正在识别…" : "扫描当前增幅",ImVec2(-1,35))) current.pendingCommand=1;
@@ -186,7 +209,11 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
             if(ImGui::Selectable(aux.skinNames[i],aux.skinSelected==i,0,ImVec2(0,32))) command(1,i);
             ImGui::PopID();
         }
-        ImGui::EndDisabled(); ImGui::EndChild();
+        ImGui::EndDisabled();
+#ifdef SC_OVERLAY_TEST
+        testSkinScroll=ImGui::GetScrollY();
+#endif
+        ImGui::EndChild();
         ImGui::BeginDisabled(!aux.skinCanRefresh); if(ImGui::Button("重新读取")) command(2); ImGui::EndDisabled();
         ImGui::SameLine(); ImGui::BeginDisabled(!aux.skinReady); if(ImGui::Button("恢复基础皮肤")) command(3); ImGui::EndDisabled();
         ImGui::BeginChild("Status",ImVec2(0,0)); ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinStatus); ImGui::PopTextWrapPos(); ImGui::EndChild();

@@ -52,58 +52,6 @@ namespace LOL_GameAssistant.LoLApi
             /// <summary>puuid → 开黑小组（不在任何小组的玩家无记录）。</summary>
             public Dictionary<string, PremadeGroupInfo> GroupByPuuid { get; set; } = new();
 
-            /// <summary>
-            /// 生成某支队伍的开黑人数摘要，如“2+2”表示两支双排，返回空串表示无开黑。
-            /// </summary>
-            public string GetTeamSummary(int teamIndex)
-            {
-                var sizes = Groups
-                    .Where(g => g.TeamIndex == teamIndex)
-                    .Select(g => g.Puuids.Count)
-                    .OrderByDescending(x => x)
-                    .ToList();
-                return sizes.Count == 0 ? "" : string.Join("+", sizes);
-            }
-
-            /// <summary>
-            /// 返回队伍的排队状态标签。无固定队友时为“单排”，单个固定小组时显示具体人数，
-            /// 存在多个小组时以“多排 2+2”等形式标识。
-            /// </summary>
-            public string GetTeamQueueStatus(int teamIndex)
-            {
-                var sizes = Groups
-                    .Where(group => group.TeamIndex == teamIndex)
-                    .Select(group => group.Puuids.Count)
-                    .OrderByDescending(size => size)
-                    .ToList();
-                if (sizes.Count == 0) return "单排";
-
-                if (sizes.Count == 1)
-                {
-                    return sizes[0] switch
-                    {
-                        2 => "双排",
-                        3 => "三排",
-                        4 => "四排",
-                        5 => "五排",
-                        _ => "多排"
-                    };
-                }
-
-                return $"多排 {string.Join("+", sizes)}";
-            }
-
-            /// <summary>
-            /// 生成可用于悬停说明的队伍检测详情。
-            /// </summary>
-            public string GetTeamQueueDetail(int teamIndex)
-            {
-                var groups = Groups.Where(group => group.TeamIndex == teamIndex).ToList();
-                if (groups.Count == 0) return "近期战绩中未检测到固定同队关系";
-
-                return string.Join("；", groups.Select(group =>
-                    $"{group.Puuids.Count} 人组队：{string.Join("、", group.Names)}"));
-            }
         }
 
         /// <summary>
@@ -262,12 +210,5 @@ namespace LOL_GameAssistant.LoLApi
             return await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// 清空战绩缓存（对局结束或切换玩家时调用）。
-        /// </summary>
-        public static void ClearCache()
-        {
-            HistoryCache.Clear();
-        }
     }
 }
