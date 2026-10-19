@@ -71,9 +71,23 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
     }
 
     /// <summary>从可点赞队友中选择目标并提交点赞。</summary>
-    public async Task<ClientFeatureResult> HonorRandomEligibleAllyAsync(CancellationToken cancellationToken = default)
+    public Task<ClientFeatureResult> HonorRandomEligibleAllyAsync(CancellationToken cancellationToken = default) => HonorCoreAsync("random", null, cancellationToken);
+
+    public async Task<ClientFeatureResult> HonorEligibleAllyAsync(string strategy, CancellationToken token = default)
     {
-        string? json = await _lcu.GetStringAsync("/lol-honor-v2/v1/ballot", cancellationToken).ConfigureAwait(false);
+        if (strategy == "manual") return ClientFeatureResult.Success("保留手动荣誉投票");
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            string? ballot = await _lcu.GetStringAsync("/lol-honor-v2/v1/ballot", token).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(ballot) && ballot != "null" && ballot != "{}") return await HonorCoreAsync(strategy, ballot, token).ConfigureAwait(false);
+            await Task.Delay(500, token).ConfigureAwait(false);
+        }
+        return ClientFeatureResult.Failure("等待荣誉投票超时；未提交，可在结算完成后重试");
+    }
+
+    private async Task<ClientFeatureResult> HonorCoreAsync(string strategy, string? knownBallot, CancellationToken cancellationToken)
+    {
+        string? json = knownBallot ?? await _lcu.GetStringAsync("/lol-honor-v2/v1/ballot", cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(json)) return ClientFeatureResult.Failure("当前没有可点赞的对局。");
 
         try
@@ -85,7 +99,14 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
             if (gameId <= 0 || allies.Count == 0 || voteCount == 0)
                 return ClientFeatureResult.Failure("当前没有可点赞的队友或可用票数。");
 
-            var candidates = allies.OfType<JObject>().OrderBy(_ => Random.Shared.Next()).Take(voteCount).ToArray();
+            var friendIds = new HashSet<string>();
+            if (strategy == "friends")
+            {
+                string? friends = await _lcu.GetStringAsync("/lol-chat/v1/friends", cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(friends) && JToken.Parse(friends) is JArray list)
+                    foreach (var friend in list.OfType<JObject>()) if (friend.Value<string>("puuid") is { Length: > 0 } id) friendIds.Add(id);
+            }
+            var candidates = allies.OfType<JObject>().OrderByDescending(p => friendIds.Contains(p.Value<string>("puuid") ?? "")).ThenBy(_ => Random.Shared.Next()).Take(voteCount).ToArray();
             int honored = 0;
             string[] categories = ["HEART", "COOL", "SHOTCALLER"];
             foreach (JObject ally in candidates)
@@ -103,7 +124,7 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
                 if (await _lcu.PostAsync("/lol-honor-v2/v1/honor-player", payload, cancellationToken).ConfigureAwait(false)) honored++;
             }
             return honored > 0
-                ? ClientFeatureResult.Success($"已随机点赞 {honored} 位队友。")
+                ? ClientFeatureResult.Success($"已按{(strategy == "friends" ? "好友优先" : "随机")}策略点赞 {honored} 位队友。")
                 : ClientFeatureResult.Failure("点赞请求未被客户端接受。");
         }
         catch (JsonException)
@@ -180,11 +201,13 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
         await _settingsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            string initialFolder = await GetAccountBackupDirectoryAsync(cancellationToken).ConfigureAwait(false);
             var game = await ReadSettings("game-settings", cancellationToken).ConfigureAwait(false);
             var input = await ReadSettings("input-settings", cancellationToken).ConfigureAwait(false);
             if (game == null) return ClientFeatureResult.Failure("未读取到游戏设置，未保存空备份");
             var capabilities = await _capabilities.RefreshAsync(cancellationToken).ConfigureAwait(false);
             string folder = await GetAccountBackupDirectoryAsync(cancellationToken).ConfigureAwait(false);
+            if (folder != initialFolder) return ClientFeatureResult.Failure("账号已变化，未保存设置备份");
             Directory.CreateDirectory(folder); string target = Path.Combine(folder, safeName + ".json"), temp = target + ".tmp";
             await File.WriteAllTextAsync(temp, new JObject { ["formatVersion"] = 2, ["createdAt"] = DateTimeOffset.UtcNow,
                 ["clientVersion"] = capabilities.Build, ["gameSettings"] = game, ["inputSettings"] = input }.ToString(), cancellationToken).ConfigureAwait(false);

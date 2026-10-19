@@ -13,8 +13,23 @@ internal sealed class ChampionSelectSessionCache
     private bool _fromEvent;
     private long _revision;
     private Task<ChampSelectSession?>? _pending;
+    private long _epoch;
+    private readonly Dictionary<string, (DateTimeOffset At, Task<HashSet<int>?> Request)> _championSets = new();
     internal long Revision { get { lock (_sync) return _revision; } }
-    internal void Clear() { lock (_sync) { _revision++; _value = null; _pending = null; _updated = default; } }
+    internal void Clear() { lock (_sync) { _revision++; _epoch++; _value = null; _pending = null; _updated = default; _championSets.Clear(); } }
+    internal long Epoch { get { lock (_sync) return _epoch; } }
+    internal Task<HashSet<int>?> GetChampionSetAsync(string route, Func<CancellationToken, Task<HashSet<int>?>> load, CancellationToken token)
+    {
+        Task<HashSet<int>?> request;
+        lock (_sync)
+        {
+            if (_championSets.TryGetValue(route, out var cached) && !cached.Request.IsFaulted && !cached.Request.IsCanceled && DateTimeOffset.UtcNow - cached.At < TimeSpan.FromSeconds(1)) request = cached.Request;
+            else { request = ReadSet(load); _championSets[route] = (DateTimeOffset.UtcNow, request); }
+        }
+        return request.WaitAsync(token);
+    }
+    private static async Task<HashSet<int>?> ReadSet(Func<CancellationToken, Task<HashSet<int>?>> load)
+    { using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(8)); return await load(deadline.Token).ConfigureAwait(false); }
     internal void Observe(string data, string eventType)
     {
         if (eventType.Equals("Delete", StringComparison.OrdinalIgnoreCase) || data == "null") { Clear(); return; }

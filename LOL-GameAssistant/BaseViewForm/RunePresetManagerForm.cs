@@ -33,6 +33,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
     private int _detailVersion;
     private IReadOnlyList<PersonalRunePreset> _clientPages = [];
     private List<PersonalRunePreset> _presets = new();
+    private readonly int? _championFilter;
     /// <summary>个人符文方案列表使用的显示行。</summary>
     private sealed record PresetRow(string Label);
     /// <summary>设置选择项的协议键及中英文显示名称。</summary>
@@ -55,8 +56,9 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
     ];
 
     /// <summary>初始化 RunePresetManagerForm 的实例状态，并保存传入的依赖或数据。</summary>
-    public RunePresetManagerForm(IApplicationSettingsStore settings, IOpggBuildApplyService builds, IAiCoachingService context, IGameAssetService? assets = null)
+    public RunePresetManagerForm(IApplicationSettingsStore settings, IOpggBuildApplyService builds, IAiCoachingService context, IGameAssetService? assets = null, int? championId = null)
     {
+        _championFilter = championId;
         _assets = assets ?? AppCompositionRoot.GameAssetService;
         _settings = settings;
         _builds = builds;
@@ -106,7 +108,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         editor.Controls.Add(_runePreview);
         editor.SizeChanged += (_, _) =>
         {
-            _name.Width = Math.Max(220, editor.ClientSize.Width - 28);
+            _name.Width = _items.Width = actions.Width = Math.Max(220, editor.ClientSize.Width - 28);
             _runePreview.Width = Math.Max(220, editor.ClientSize.Width - 28);
         };
         root.Controls.Add(editor, 1, 0);
@@ -170,6 +172,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
     {
         var saved = _settings.Load().PersonalRunePresets;
         _presets = (_categories.SelectIndex == 3 ? _clientPages : saved.AsEnumerable())
+            .Where(preset => _categories.SelectIndex == 3 || !_championFilter.HasValue || preset.ChampionId == _championFilter)
             .Where(preset => _categories.SelectIndex != 1 || preset.LastAppliedAt.HasValue)
             .Where(preset => _categories.SelectIndex != 2 || preset.AutoApply)
             .OrderByDescending(preset => preset.LastAppliedAt).ThenBy(preset => preset.ChampionId).ThenByDescending(preset => preset.Priority).ToList();
@@ -286,9 +289,6 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         var settings = _settings.Load();
         var target = settings.PersonalRunePresets.FirstOrDefault(item => item.Id == preset.Id);
         if (target == null) { _status.Text = "此项为客户端页面预览。请在选人时捕获后再保存为个人方案。"; return; }
-        target.Name = name;
-        target.Mode = (_mode.SelectedValue as Choice)?.Key ?? target.Mode;
-        target.Position = (_position.SelectedValue as Choice)?.Key ?? target.Position;
         var blocks = new List<PersonalItemBlock>();
         foreach (string line in (_items.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -297,6 +297,9 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
             if (ids.Count is 0 or > 10 || blocks.Count >= 12) { _status.Text = "每组需有 1～10 件装备，最多 12 组"; return; }
             blocks.Add(new PersonalItemBlock(pieces[0].Trim(), ids));
         }
+        target.Name = name;
+        target.Mode = (_mode.SelectedValue as Choice)?.Key ?? target.Mode;
+        target.Position = (_position.SelectedValue as Choice)?.Key ?? target.Position;
         target.ItemBlocks = blocks;
         target.Priority = (int)_priority.Value;
         target.AutoApply = _auto.Checked;

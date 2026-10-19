@@ -111,6 +111,7 @@ public sealed partial class LcuClientFeatureService
         await _settingsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            string accountFolder = await GetAccountBackupDirectoryAsync(cancellationToken).ConfigureAwait(false);
             var backup = await ReadBackup(name, cancellationToken).ConfigureAwait(false);
             if (backup == null) return ClientFeatureResult.Failure("未找到该备份");
             if (gameSettings && backup["gameSettings"] is not JObject || inputSettings && backup["inputSettings"] is not JObject) return ClientFeatureResult.Failure("备份不含所选类别，请取消没有记录的类别");
@@ -118,20 +119,26 @@ public sealed partial class LcuClientFeatureService
             var previousInput = inputSettings ? await ReadSettings("input-settings", cancellationToken).ConfigureAwait(false) : null;
             if (gameSettings && previousGame == null || inputSettings && previousInput == null) return ClientFeatureResult.Failure("无法读取恢复前状态，未写入任何设置");
             string folder = await GetAccountBackupDirectoryAsync(cancellationToken).ConfigureAwait(false); Directory.CreateDirectory(folder);
+            if (accountFolder != folder) return ClientFeatureResult.Failure("账号已变化，未恢复设置");
+            async Task<bool> WriteForAccount(string category, JObject value, CancellationToken token)
+            {
+                if (await GetAccountBackupDirectoryAsync(token).ConfigureAwait(false) != accountFolder) throw new InvalidOperationException("账号已变化，已停止设置写入与回滚");
+                return await WriteAndVerify(category, value, token).ConfigureAwait(false);
+            }
             await File.WriteAllTextAsync(Path.Combine(folder, "恢复前_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_ffff") + ".json"),
                 new JObject { ["formatVersion"] = 2, ["createdAt"] = DateTimeOffset.UtcNow, ["gameSettings"] = previousGame, ["inputSettings"] = previousInput }.ToString(), cancellationToken).ConfigureAwait(false);
             var attempted = new List<(string Category, JObject Old)>();
             try
             {
-                if (gameSettings) { attempted.Add(("game-settings", previousGame!)); if (!await WriteAndVerify("game-settings", (JObject)backup["gameSettings"]!, cancellationToken).ConfigureAwait(false)) throw new InvalidOperationException("游戏设置未通过读取核验"); }
-                if (inputSettings) { attempted.Add(("input-settings", previousInput!)); if (!await WriteAndVerify("input-settings", (JObject)backup["inputSettings"]!, cancellationToken).ConfigureAwait(false)) throw new InvalidOperationException("按键设置未通过读取核验"); }
+                if (gameSettings) { attempted.Add(("game-settings", previousGame!)); if (!await WriteForAccount("game-settings", (JObject)backup["gameSettings"]!, cancellationToken).ConfigureAwait(false)) throw new InvalidOperationException("游戏设置未通过读取核验"); }
+                if (inputSettings) { attempted.Add(("input-settings", previousInput!)); if (!await WriteForAccount("input-settings", (JObject)backup["inputSettings"]!, cancellationToken).ConfigureAwait(false)) throw new InvalidOperationException("按键设置未通过读取核验"); }
                 return ClientFeatureResult.Success("所选设置已恢复并通过读取核验；恢复前快照已保留");
             }
             catch (Exception e)
             {
                 using var rollback = new CancellationTokenSource(TimeSpan.FromSeconds(15)); bool restored = true;
                 foreach (var item in attempted.AsEnumerable().Reverse())
-                    try { restored &= await WriteAndVerify(item.Category, item.Old, rollback.Token).ConfigureAwait(false); } catch { restored = false; }
+                    try { restored &= await WriteForAccount(item.Category, item.Old, rollback.Token).ConfigureAwait(false); } catch { restored = false; }
                 if (e is OperationCanceledException && cancellationToken.IsCancellationRequested && restored) throw;
                 return ClientFeatureResult.Failure(e.Message + (restored ? "；已核验恢复原状态" : "；部分原状态恢复未确认，请用恢复前快照检查"));
             }

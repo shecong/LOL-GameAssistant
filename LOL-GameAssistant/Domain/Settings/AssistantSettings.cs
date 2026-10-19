@@ -85,6 +85,7 @@ public sealed class AssistantSettings
     public bool AutoReturnToLobby { get; set; }
     public bool AutoReturnStartMatchmaking { get; set; }
     public bool AutoHonor { get; set; }
+    public string HonorStrategy { get; set; } = "random";
     public int QuickLobbyQueueId { get; set; } = 430;
     public Dictionary<string, int> OpggManualBuildSelections { get; set; } = new();
     public List<PersonalRunePreset> PersonalRunePresets { get; set; } = new();
@@ -98,6 +99,7 @@ public sealed class AssistantSettings
     {
         Ai ??= new CloudAiSettings();
         ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
+        HonorStrategy = HonorStrategy is "friends" or "manual" ? HonorStrategy : "random";
         LanguageMode = LanguageMode == "en-US" ? "en-US" : "zh-CN";
         GameClientPath ??= "";
         RememberedHeroSkins ??= new();

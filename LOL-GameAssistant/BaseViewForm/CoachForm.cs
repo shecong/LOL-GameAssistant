@@ -278,6 +278,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         try
         {
             AiGameContext context = await _aiCoachingService.CollectContextAsync(cancellationToken);
+            if (AppCompositionRoot.Automation.IsPaused) return;
             if (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0)
                 return;
             string modeKey = Infrastructure.LeagueClient.OpggBuildApplyService.NormalizeMode(context.GameMode, context.QueueId);
@@ -564,6 +565,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             ? await _aiCoachingService.CollectContextAsync(cancellationToken)
             : await GetManualBuildContextAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+        if (automatic && AppCompositionRoot.Automation.IsPaused) return OpggBuildApplyResult.Failure("本局自动化已暂停，未应用方案");
         OpggBuildApplyResult result;
         bool canApply = CanApplyBuildContext(context, latest, option.Mode, previewOnly);
         RuntimeDiagnostics.Report("OP.GG 应用校验", canApply ? "通过" : "拒绝",

@@ -12,6 +12,7 @@ public partial class SettingForm
     private readonly AntdUI.Switch _preselectOnly = new();
     private readonly AntdUI.Switch _skipFill = new();
     private readonly AntdUI.Switch _autoHonor = new();
+    private readonly AntdUI.Select _honorStrategy = new() { Width = 210, Height = 36, ReadOnly = true };
     private readonly AntdUI.Switch _autoReturn = new();
     private readonly AntdUI.Switch _returnAndSearch = new();
     private readonly AntdUI.InputNumber _quickQueue = new() { Minimum = 1, Maximum = 3000, Value = 430, Height = 32 };
@@ -67,6 +68,8 @@ public partial class SettingForm
         _preselectOnly.Checked = _config.AutoPickPreselectOnly;
         _skipFill.Checked = _config.SkipAutoPickOnFill;
         _autoHonor.Checked = _config.AutoHonor;
+        if (_honorStrategy.Items.Count == 0) _honorStrategy.Items.AddRange(new object[] { "随机队友", "好友优先", "保留手动投票" });
+        _honorStrategy.SelectedIndex = _config.HonorStrategy switch { "friends" => 1, "manual" => 2, _ => 0 };
         _autoReturn.Checked = _config.AutoReturnToLobby;
         _returnAndSearch.Checked = _config.AutoReturnStartMatchmaking;
         _quickQueue.Value = Math.Clamp(_config.QuickLobbyQueueId, 1, 3000);
@@ -85,6 +88,7 @@ public partial class SettingForm
         _config.AutoPickPreselectOnly = _preselectOnly.Checked;
         _config.SkipAutoPickOnFill = _skipFill.Checked;
         _config.AutoHonor = _autoHonor.Checked;
+        _config.HonorStrategy = _honorStrategy.SelectedIndex switch { 1 => "friends", 2 => "manual", _ => "random" };
         _config.AutoReturnToLobby = _autoReturn.Checked;
         _config.AutoReturnStartMatchmaking = _returnAndSearch.Checked;
         _config.QuickLobbyQueueId = (int)_quickQueue.Value;

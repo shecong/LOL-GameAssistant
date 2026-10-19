@@ -9,6 +9,7 @@ namespace LOL_GameAssistant.LoLApi
     /// </summary>
     public static class Select_Api
     {
+        private static readonly SemaphoreSlim ActionGate = new(1, 1);
         /// <summary>
         /// 获取当前选人会话
         /// </summary>
@@ -33,6 +34,14 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<bool> PerformActionAsync(
             long actionId, int championId, bool completed = true, CancellationToken cancellationToken = default)
         {
+            await ActionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+            var cache = Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared;
+            long epoch = cache.Epoch;
+            var session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+            var current = session?.Actions.SelectMany(x => x).FirstOrDefault(x => x.Id == actionId && x.ActorCellId == session.LocalPlayerCellId);
+            if (current == null || current.Completed || !current.IsInProgress || epoch != cache.Epoch) return false;
             using var client = new HttpClientHelper();
             var body = JsonConvert.SerializeObject(new { championId, completed });
             using Stream? response = await client.PatchAsync(
@@ -43,6 +52,8 @@ namespace LOL_GameAssistant.LoLApi
             bool succeeded = response != null;
             if (succeeded) Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared.MarkAction(actionId, championId, completed);
             return succeeded;
+            }
+            finally { ActionGate.Release(); }
         }
 
         /// <summary>
@@ -151,8 +162,11 @@ namespace LOL_GameAssistant.LoLApi
         /// LCU 会为不同阶段给出可选/可禁英雄；请求不可用时回退到会话内校验，
         /// 避免因客户端版本差异导致自动化完全失效。
         /// </summary>
-        private static async Task<HashSet<int>?> GetChampionIdSetAsync(
-            string endpoint, CancellationToken cancellationToken)
+        private static Task<HashSet<int>?> GetChampionIdSetAsync(string endpoint, CancellationToken cancellationToken) =>
+            Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared.GetChampionSetAsync(endpoint,
+                token => LoadChampionIdSetAsync(endpoint, token), cancellationToken);
+
+        private static async Task<HashSet<int>?> LoadChampionIdSetAsync(string endpoint, CancellationToken cancellationToken)
         {
             using var client = new HttpClientHelper();
             using Stream? responseStream = await client.GetAsync(

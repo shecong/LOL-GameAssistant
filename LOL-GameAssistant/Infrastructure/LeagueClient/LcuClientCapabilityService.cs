@@ -62,6 +62,7 @@ public sealed class LcuClientCapabilityService(ILcuRequestSender lcu) : IClientC
     {
         var snapshot = await RefreshAsync(token).ConfigureAwait(false);
         string route = path.Split('?')[0];
+        if (_observations.TryGetValue((method.ToUpperInvariant(), route), out var observed)) return observed;
         var matches = snapshot.Capabilities.Where(x => Matches(x.Path, route)).ToArray();
         var declared = _snapshot?.Capabilities.Where(x => Matches(x.Path, route)).ToArray() ?? [];
         return matches.FirstOrDefault(x => x.Method.Equals(method, StringComparison.OrdinalIgnoreCase)) ??
@@ -69,5 +70,5 @@ public sealed class LcuClientCapabilityService(ILcuRequestSender lcu) : IClientC
                 declared.Length == 0 ? "当前目录未列出该路径，不能仅据此断定不支持" : $"目录列出的方法：{string.Join("、", declared.Select(x => x.Method))}");
     }
     internal static bool Matches(string template, string route) =>
-        Regex.IsMatch(route, "^" + Regex.Replace(Regex.Escape(template), @"\\\{[^}]+\\\}", "[^/]+") + "$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        Regex.IsMatch(route, "^" + string.Join("[^/]+", Regex.Split(template, @"\{[^}]+\}").Select(Regex.Escape)) + "$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 }

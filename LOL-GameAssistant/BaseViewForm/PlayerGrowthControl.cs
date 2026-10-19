@@ -27,7 +27,7 @@ internal sealed class PlayerGrowthControl : UserControl, IThemeAware
     private readonly AntdUI.Button _mark = new() { Text = "切换主练标记", AutoSize = true };
     private readonly AntdUI.Button _detail = new() { Text = "查看对局详情", AutoSize = true };
     private readonly AntdUI.Button _replay = new() { Text = "回放状态 / 下载", AutoSize = true };
-    private readonly FlowLayoutPanel _filters = new() { Dock = DockStyle.Top, Height = 135, WrapContents = true, Padding = new Padding(8) };
+    private readonly FlowLayoutPanel _filters = new() { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Padding = new Padding(8) };
     private PlayerGrowthSnapshot? _snapshot;
     private ChampionArchiveEntry[] _visibleChampions = [];
     private GrowthMatch[] _visibleMatches = [];
@@ -45,7 +45,13 @@ internal sealed class PlayerGrowthControl : UserControl, IThemeAware
         _search.TextChanged += (_, _) => Render(); _training.CheckedChanged += (_, _) => Render(); _owned.CheckedChanged += (_, _) => Render();
         var refresh = new AntdUI.Button { Text = "刷新样本", AutoSize = true }; refresh.Click += async (_, _) => await LoadAsync(true);
         var preset = new AntdUI.Button { Text = "配置个人方案", AutoSize = true };
-        preset.Click += (_, _) => { using var form = new RunePresetManagerForm(AppCompositionRoot.ApplicationSettingsStore, AppCompositionRoot.OpggBuildApplyService, AppCompositionRoot.AiCoachingService); form.ShowDialog(FindForm()); };
+        preset.Click += (_, _) =>
+        {
+            int index = _table.SelectedIndex;
+            int? id = _pool && index >= 0 && index < _visibleChampions.Length ? _visibleChampions[index].ChampionId : SelectedMatch()?.ChampionId;
+            using var form = new RunePresetManagerForm(AppCompositionRoot.ApplicationSettingsStore, AppCompositionRoot.OpggBuildApplyService, AppCompositionRoot.AiCoachingService, championId: id);
+            form.ShowDialog(FindForm());
+        };
         _filters.Controls.AddRange([_mode, _search, _training, _owned, refresh, _mark, _detail, _replay, preset, _note, _onlyNotes, _saveNote]);
         _onlyNotes.CheckedChanged += (_, _) => Render();
         _table.SelectIndexChanged += (_, _) => { var match = SelectedMatch(); if (match != null) _note.Text = _snapshot?.ReviewNotes.GetValueOrDefault(match.GameId) ?? ""; };
@@ -67,13 +73,14 @@ internal sealed class PlayerGrowthControl : UserControl, IThemeAware
             catch (Exception e) { if (!IsDisposed) _scope.Text = e.Message; }
         };
         _replay.Click += (_, _) => { var selected = SelectedMatch(); if (selected != null) { using var f = new ReplayManagerForm(selected.GameId, AppCompositionRoot.ClientFeatureService); f.ShowDialog(FindForm()); } };
-        Disposed += (_, _) => _requests.Dispose(); ApplyTheme(UiTheme.Palette); ConfigureColumns();
+        Disposed += (_, _) => _requests.Dispose(); UiTheme.Apply(this); ConfigureColumns();
     }
     private GrowthMatch? SelectedMatch() { int i = _table.SelectedIndex; return !_pool && i >= 0 && i < _visibleMatches.Length ? _visibleMatches[i] : null; }
     public async Task ShowAsync(string? puuid, bool pool, string mode)
     {
         bool changed = _puuid != puuid || _selectedMode != mode;
         _pool = pool; _puuid = puuid; _selectedMode = mode;
+        _summary.Height = pool ? 52 : 80;
         _search.Visible = _training.Visible = _owned.Visible = _mark.Visible = pool;
         _detail.Visible = _replay.Visible = _note.Visible = _onlyNotes.Visible = _saveNote.Visible = !pool; ConfigureColumns();
         if (changed || _snapshot == null) { _snapshot = null; _table.DataSource = null; await LoadAsync(false); } else Render();
@@ -132,5 +139,9 @@ internal sealed class PlayerGrowthControl : UserControl, IThemeAware
                 Number(m.Kda), Number(m.CsPerMinute), Number(m.DamagePerMinute), Number(m.VisionPerMinute))).ToArray();
         }
     }
-    public void ApplyTheme(ThemePalette p) { BackColor = p.Surface; _table.BackColor = p.SurfaceRaised; _scope.ForeColor = p.TextSecondary; _summary.ForeColor = p.TextPrimary; }
+    public void ApplyTheme(ThemePalette p)
+    {
+        BackColor = p.Surface; _table.BackColor = p.SurfaceRaised; _scope.ForeColor = p.TextSecondary; _summary.ForeColor = p.TextPrimary;
+        _training.ForeColor = _owned.ForeColor = _onlyNotes.ForeColor = _table.ForeColor = p.TextPrimary;
+    }
 }

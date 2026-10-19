@@ -6,6 +6,8 @@ namespace LOL_GameAssistant.Application.ClientFeatures;
 /// </summary>
 public interface IClientFeatureService
 {
+    Task<ClientFeatureResult> HonorEligibleAllyAsync(string strategy, CancellationToken token = default) =>
+        strategy == "manual" ? Task.FromResult(ClientFeatureResult.Success("保留手动荣誉投票")) : HonorRandomEligibleAllyAsync(token);
     Task<ClientReplayState> GetReplayStateAsync(long gameId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ClientReplayState(gameId, ReplayAvailability.Unknown, null, "当前服务未提供回放状态"));
     Task<ClientFeatureResult> ClaimRewardAsync(string grantId, IReadOnlyList<string> selections, CancellationToken cancellationToken = default) =>

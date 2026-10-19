@@ -15,6 +15,9 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
     private readonly IPlayerProfileService _inner;
     private readonly LocalDataCache<PlayerProfile> _cache;
     private string? _currentPuuid;
+    private long _generation;
+    private readonly object _accountSync = new();
+    public void ResetClientContext() { lock (_accountSync) { Interlocked.Increment(ref _generation); _currentPuuid = null; } _inner.ResetClientContext(); }
 
     internal CachedPlayerProfileService(IPlayerProfileService inner, string? root = null)
     {
@@ -25,16 +28,24 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
 
     public async Task<PlayerProfile?> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
+        long generation = Volatile.Read(ref _generation);
         PlayerProfile? player = await _inner.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!string.IsNullOrWhiteSpace(player?.Puuid))
+        string? puuid;
+        lock (_accountSync)
         {
-            _currentPuuid = player.Puuid;
-            PlayerHistorySession.SetAccount(player.Puuid);
+            if (generation != Volatile.Read(ref _generation)) return null;
+            if (!string.IsNullOrWhiteSpace(player?.Puuid))
+            {
+                _currentPuuid = player.Puuid;
+                PlayerHistorySession.SetAccount(player.Puuid);
+            }
+            puuid = _currentPuuid;
         }
         // 尚未确认本次客户端登录身份时，不以其他账号的资料替代当前账号。
-        return _currentPuuid == null ? player : await ReadWithMetadata(
-            $"puuid:{_currentPuuid}", () => Task.FromResult(player), cancellationToken).ConfigureAwait(false);
+        var result = puuid == null ? player : await ReadWithMetadata(
+            $"puuid:{puuid}", () => Task.FromResult(player), cancellationToken).ConfigureAwait(false);
+        return generation == Volatile.Read(ref _generation) ? result : null;
     }
 
     public Task<PlayerProfile?> GetByPuuidAsync(string puuid, CancellationToken cancellationToken = default) =>
@@ -59,6 +70,7 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
 internal sealed class CachedRankedStatsService : IRankedStatsService
 {
     private string? _currentPuuid;
+    public void ResetClientContext() { _currentPuuid = null; _inner.ResetClientContext(); }
     private readonly IRankedStatsService _inner;
     private readonly LocalDataCache<Snapshot> _cache;
     // 显式快照保证只读字典属性中的队列数据也能从磁盘完整恢复。

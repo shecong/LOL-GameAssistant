@@ -20,7 +20,7 @@ public sealed class LcuPartyService(ILcuRequestSender lcu) : IPartyService
         var data = await Read("/lol-game-queues/v1/queues", token).ConfigureAwait(false);
         return Objects(data is JObject root ? root["queues"] : data).Select(q => new PartyQueue(q.Value<int?>("id") ?? 0,
             q.Value<string>("name") ?? q.Value<string>("description") ?? $"队列 {q["id"]}",
-            q.Value<bool?>("isQueueEnabled") != false && !string.Equals(q.Value<string>("queueAvailability"), "Unavailable", StringComparison.OrdinalIgnoreCase),
+            q.Value<bool?>("isQueueEnabled") != false && (q.Value<bool?>("isQueueEnabled") == true || string.Equals(q.Value<string>("queueAvailability"), "Available", StringComparison.OrdinalIgnoreCase)) && !string.Equals(q.Value<string>("queueAvailability"), "Unavailable", StringComparison.OrdinalIgnoreCase),
             q.Value<string>("queueAvailability") ?? "客户端未提供开放原因"))
             .Where(q => q.Id > 0).OrderByDescending(q => q.Enabled).ThenBy(q => q.Id).ToArray();
     }

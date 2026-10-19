@@ -23,6 +23,7 @@ internal sealed class PartyHubForm : AntdUI.Window, IThemeAware
         _service = service; _suggestedName = suggestedName; Text = "开黑大厅"; Size = new Size(820, 620); MinimumSize = new Size(640, 530); StartPosition = FormStartPosition.CenterParent;
         var body = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 275, Padding = new Padding(14), WrapContents = true, FlowDirection = FlowDirection.LeftToRight };
         var title = new AntdUI.Label { Text = "选择模式 → 创建大厅 → 邀请好友 → 设置位置 → 开始匹配", Width = 720, Height = 40 };
+        body.SizeChanged += (_, _) => title.Width = Math.Max(300, body.ClientSize.Width - 34);
         body.Controls.Add(title); body.SetFlowBreak(title, true);
         void Button(string label, Func<CancellationToken, Task<PartyActionResult>> action) { var b = new AntdUI.Button { Text = label, AutoSize = true }; b.Click += async (_, _) => await Run(action); body.Controls.Add(b); }
         body.Controls.Add(_queues); Button("创建所选大厅", t => _queues.SelectedValue is Choice<int> q ? _service.CreateAsync(q.Value, t) : Task.FromResult(new PartyActionResult(false, "请先刷新并选择当前可用模式")));
@@ -50,7 +51,8 @@ internal sealed class PartyHubForm : AntdUI.Window, IThemeAware
             _queues.SelectedValue = _queues.Items.OfType<Choice<int>>().FirstOrDefault(q => q.Value == (selected ?? state.QueueId));
             if (_queues.SelectedIndex < 0 && _queues.Items.Count > 0) _queues.SelectedIndex = 0;
             _friends.Items.Clear(); foreach (var f in state.Friends.Where(f => f.Online)) _friends.Items.Add(new Choice<string>(f.Puuid, f.Name));
-            _friends.SelectedValue = _friends.Items.OfType<Choice<string>>().FirstOrDefault(f => string.Equals(f.Label, _suggestedName, StringComparison.OrdinalIgnoreCase));
+            var suggested = _friends.Items.OfType<Choice<string>>().Where(f => string.Equals(f.Label, _suggestedName, StringComparison.OrdinalIgnoreCase)).ToArray();
+            _friends.SelectedValue = suggested.Length == 1 ? suggested[0] : null;
             _invitations.Items.Clear(); foreach (var i in state.Invitations) _invitations.Items.Add(new Choice<string>(i.Id, i.Name)); if (_invitations.Items.Count > 0) _invitations.SelectedIndex = 0;
             _members.Text = $"当前队列：{state.QueueId}\n\n" + string.Join("\n", state.Members.Select(m => $"{(m.Leader ? "★ 队长" : "队员")} · {m.Name} · {m.Position}"));
             _state.Text = state.Message + (_suggestedName == null ? "" : $"\n招募对象：{_suggestedName}；仅在当前好友列表中精确匹配，同名不替代身份验证。");

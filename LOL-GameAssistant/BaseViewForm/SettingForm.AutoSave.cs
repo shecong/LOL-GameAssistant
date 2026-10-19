@@ -23,6 +23,7 @@ public partial class SettingForm
         Switch(_preselectOnly, (s, v) => s.AutoPickPreselectOnly = v);
         Switch(_skipFill, (s, v) => s.SkipAutoPickOnFill = v);
         Switch(_autoHonor, (s, v) => s.AutoHonor = v);
+        _honorStrategy.SelectedIndexChanged += (_, _) => PersistValue(s => s.HonorStrategy = _honorStrategy.SelectedIndex switch { 1 => "friends", 2 => "manual", _ => "random" });
         Switch(_autoReturn, (s, v) => s.AutoReturnToLobby = v);
         Switch(_returnAndSearch, (s, v) => s.AutoReturnStartMatchmaking = v);
         Check(_autoSwapAramBench, (s, v) => s.AutoSwapAramBench = v);

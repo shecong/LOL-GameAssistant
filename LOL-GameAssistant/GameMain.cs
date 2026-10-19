@@ -638,6 +638,12 @@ namespace LOL_GameAssistant
         private void WebSocketChange(bool connected)
         {
             if (RunOnUiThread(() => WebSocketChange(connected))) return;
+            AppCompositionRoot.ClientCapabilities.Invalidate();
+            AppCompositionRoot.OpggBuildApplyService.ResetClientContext();
+            AppCompositionRoot.PlayerProfileService.ResetClientContext();
+            AppCompositionRoot.RankedStatsService.ResetClientContext();
+            LOL_GameAssistant.Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared.Clear();
+            AppCompositionRoot.Automation.Reset();
             Interlocked.Increment(ref _gameFlowRevision);
 
             if (connected)
@@ -834,6 +840,22 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>根据持久化延迟范围安排一次自动接受；同一轮 Ready Check 不重复排队。</summary>
+        internal void ResumeAutomations()
+        {
+            AppCompositionRoot.Automation.Resume();
+            if (gameFlowPhase == GameFlowPhase.ReadyCheck) ScheduleAutoAccept();
+            if (gameFlowPhase == GameFlowPhase.ChampSelect)
+            {
+                _autoActionCts?.Cancel();
+                _autoActionCts = null;
+                _autoActionStartedForChampSelect = false;
+                _ = AutoBanPickLoopAsync();
+            }
+            if (gameFlowPhase == GameFlowPhase.Lobby) _ = TryAutoMatchAsync();
+            if (gameFlowPhase is GameFlowPhase.EndOfGame or GameFlowPhase.WaitingForStats)
+                _ = RunPostGameAutomationsAsync(_settingsStore.Load());
+        }
+
         private void ScheduleAutoAccept()
         {
             if (_readyCheckDeclinedByUser || _autoAcceptCts != null) return;
@@ -904,7 +926,7 @@ namespace LOL_GameAssistant
         /// <summary>在对局结束后执行已启用的自动操作。</summary>
         private async Task RunPostGameAutomationsAsync(AssistantSettings config)
         {
-            await AppCompositionRoot.Automation.RunAsync(config.AutoHonor, config.AutoReturnToLobby, config.AutoReturnStartMatchmaking);
+            await AppCompositionRoot.Automation.RunAsync(config.AutoHonor, config.AutoReturnToLobby, config.AutoReturnStartMatchmaking, strategy: config.HonorStrategy);
             foreach (var step in AppCompositionRoot.Automation.Snapshot()) AddInfoMessage($"{step.Name} · {step.State} · {step.Detail}");
         }
 
@@ -1131,6 +1153,7 @@ namespace LOL_GameAssistant
         /// <summary>按已配置的英雄优先级尝试交换大乱斗备选英雄。</summary>
         private async Task TryAutoSwapAramBenchAsync(AssistantSettings settings, CancellationToken cancellationToken)
         {
+            if (AppCompositionRoot.Automation.IsPaused) return;
             int[] priority = ResolveChampionIds(settings.AramBenchPriorityChampions).Distinct().ToArray();
             if (priority.Length == 0) return;
             LobbySnapshot? lobby = await _lobbyService.GetLobbyAsync(cancellationToken);
@@ -1147,6 +1170,7 @@ namespace LOL_GameAssistant
                 member.CellId == selection.LocalPlayerCellId)?.ChampionId ?? 0;
             if (current <= 0) return;
             int? target = AramBenchPriorityResolver.Choose(current, selection.BenchChampionIds, priority);
+            if (AppCompositionRoot.Automation.IsPaused) return;
             if (!target.HasValue) return;
             string attemptKey = $"{current}:{target.Value}";
             if (attemptKey == _lastAramBenchSwapKey &&

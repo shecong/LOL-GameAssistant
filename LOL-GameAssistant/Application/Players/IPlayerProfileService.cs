@@ -5,6 +5,7 @@ namespace LOL_GameAssistant.Application.Players;
 /// <summary>查询当前或指定召唤师资料的应用服务。</summary>
 public interface IPlayerProfileService
 {
+    void ResetClientContext() { }
     /// <summary>读取当前登录召唤师的资料。</summary>
     Task<PlayerProfile?> GetCurrentAsync(CancellationToken cancellationToken = default);
 

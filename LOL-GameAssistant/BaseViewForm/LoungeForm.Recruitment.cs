@@ -1,4 +1,4 @@
-using LOL.Lounge;
+﻿using LOL.Lounge;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.Lounge;
 
@@ -168,12 +168,12 @@ public sealed partial class LoungeForm
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 156));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
         var description = new TextBox { Name = "Description", Dock = DockStyle.Fill, ReadOnly = true,
             Multiline = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, TabStop = false };
         var participants = new ListBox { Name = "Participants", Dock = DockStyle.Fill, HorizontalScrollbar = true };
         var feedback = new Label { Name = "Feedback", Dock = DockStyle.Fill, Text = "报名占用一个名额。复制游戏 ID 后，在 LOL 客户端添加好友组队；段位和位置请双方确认。" };
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
         var join = new Button { Name = "Join", Text = "报名加入", AutoSize = true };
         var leave = new Button { Name = "Leave", Text = "退出报名", AutoSize = true };
         var close = new Button { Name = "CloseRecruitment", Text = "结束招募", AutoSize = true };

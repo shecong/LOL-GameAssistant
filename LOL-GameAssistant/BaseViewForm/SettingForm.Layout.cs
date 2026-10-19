@@ -99,6 +99,7 @@ public partial class SettingForm
 
         var after = Card(left, "matchAfterCard", "赛后操作");
         Row(after, "自动点赞", _autoHonor);
+        Row(after, "点赞策略", _honorStrategy, "候选与票数以客户端为准；手动投票会阻止自动返回大厅打断操作。");
         Row(after, "自动返回大厅", _autoReturn);
         Row(after, "返回后继续匹配", _returnAndSearch, "需同时开启自动返回大厅。");
 

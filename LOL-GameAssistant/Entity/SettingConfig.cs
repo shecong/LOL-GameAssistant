@@ -169,6 +169,7 @@ namespace LOL_GameAssistant.Entity
 
         [JsonProperty("autoHonor")]
         public bool AutoHonor { get; set; } = false;
+        public string HonorStrategy { get; set; } = "random";
 
         [JsonProperty("quickLobbyQueueId")]
         public int QuickLobbyQueueId { get; set; } = 430;
