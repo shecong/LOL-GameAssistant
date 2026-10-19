@@ -15,6 +15,7 @@ internal static class AugmentImageRecognizer
         (int Id, string Name)[] names, CancellationToken cancellationToken = default)
     {
         var ids = new List<int>(3);
+        var cards = new List<AugmentCardScan>(3);
         var recognized = new List<string>(3);
         int cardWidth = game.Width * 19 / 100;
         foreach (int centerPercent in new[] { 31, 50, 69 })
@@ -87,12 +88,14 @@ internal static class AugmentImageRecognizer
             if (best is { Score: < 1 } && support.GetValueOrDefault(best.Id) < 2 &&
                 names.Any(item => item.Id == best.Id && item.Name.Count(char.IsLetterOrDigit) <= 3)) best = null;
             recognized.Add(string.Join("\n", cardReadings));
+            cards.Add(new(cards.Count, best?.Id, string.Join("\n", cardReadings), ranked.Select(c => new AugmentScanCandidate(c.Id, c.Score)).ToArray()));
             if (best != null) ids.Add(best.Id);
         }
         string text = string.Join("\n---\n", recognized);
-        return ids.Count == 0
+        var result = ids.Count == 0
             ? new AugmentScanResult(ids, "没有识别到增幅选项；请在三张卡片显示时重试。", text)
             : new AugmentScanResult(ids, $"已识别 {ids.Count} 个增幅选项。", text);
+        return result with { Cards = cards };
     }
 
     /// <summary>直接传递 BGR 像素，避免 PNG 编码及外部文件依赖。</summary>

@@ -57,6 +57,15 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
         return ReadOrLoadAsync(key, load, generation, networkFirst: true, cancellationToken);
     }
 
+    internal async Task<(T? Value, bool Cached, DateTimeOffset? AcquiredAt)> GetLatestWithMetadataAsync(
+        string key, Func<Task<T?>> load, CancellationToken token = default)
+    {
+        bool fresh = false;
+        var value = await GetLatestOrCachedAsync(key, async () => { var result = await load().ConfigureAwait(false); fresh = result != null && _valid(result); return result; }, token).ConfigureAwait(false);
+        DateTimeOffset? at; lock (_sync) at = _memory.TryGetValue(key, out var entry) ? entry.SavedAt : null;
+        return (value, value != null && !fresh, at);
+    }
+
     /// <summary>检查缓存时间和数据有效性，排除过期或时间异常的条目。</summary>
     private bool Fresh(Entry entry) => entry.SavedAt <= _clock.GetUtcNow() &&
         _clock.GetUtcNow() - entry.SavedAt < _ttl && entry.Value != null && _valid(entry.Value);

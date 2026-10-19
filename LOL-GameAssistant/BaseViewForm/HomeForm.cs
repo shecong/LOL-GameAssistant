@@ -301,6 +301,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 inp_playname.Text = player.RiotId;
                 play_QF.Text = "";
                 play_dj.Text = player.SummonerLevel.ToString();
+                _historyTip.SetToolTip(play_dj, player.SourceText);
                 play_next.Text = player.XpUntilNextLevel.ToString();
                 play_jd.Value = CalculateLevelProgress(player);
                 _historySnapshot = null;

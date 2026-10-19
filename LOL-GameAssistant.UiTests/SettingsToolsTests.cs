@@ -226,10 +226,10 @@ public sealed class SettingsToolsTests
         host.Controls.Add(tools);
         host.Show();
         var navigation = Children(tools).OfType<AntdUI.Segmented>().Single();
-        Assert.Equal(5, navigation.Items.Count);
+        Assert.Equal(6, navigation.Items.Count);
         Assert.DoesNotContain(Children(tools).OfType<AntdUI.Button>(), button =>
             button.Text is "保存自动化设置" or "快速创建大厅" or "取消当前匹配" or "退出英雄选择" or "交换极地大乱斗备战英雄");
-        for (int index = 0; index < 5; index++)
+        for (int index = 0; index < navigation.Items.Count; index++)
         {
             navigation.SelectIndex = index;
             System.Windows.Forms.Application.DoEvents();

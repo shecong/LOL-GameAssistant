@@ -6,6 +6,14 @@ namespace LOL_GameAssistant.Application.ClientFeatures;
 /// </summary>
 public interface IClientFeatureService
 {
+    Task<ClientReplayState> GetReplayStateAsync(long gameId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ClientReplayState(gameId, ReplayAvailability.Unknown, null, "当前服务未提供回放状态"));
+    Task<ClientFeatureResult> ClaimRewardAsync(string grantId, IReadOnlyList<string> selections, CancellationToken cancellationToken = default) =>
+        Task.FromResult(ClientFeatureResult.Failure("当前服务未提供奖励选择"));
+    Task<ClientBackupPreview> PreviewBackupAsync(string name, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ClientBackupPreview(name, false, false, [], "当前服务未提供备份预览"));
+    Task<ClientFeatureResult> RestoreBackupSelectionAsync(string name, bool gameSettings, bool inputSettings, CancellationToken cancellationToken = default) =>
+        RestoreGameSettingsBackupAsync(name, cancellationToken);
     /// <summary>向客户端提交拒绝当前匹配确认的请求。</summary>
     Task<ClientFeatureResult> DeclineReadyCheckAsync(CancellationToken cancellationToken = default);
 
@@ -86,7 +94,18 @@ public sealed record ClientRewardGrant(
     string GrantId,
     string Title,
     int AvailableChoices,
-    IReadOnlyList<string> RewardIds);
+    IReadOnlyList<string> RewardIds)
+{
+    public IReadOnlyList<ClientRewardChoice> Choices { get; init; } = [];
+    public int MinimumSelections { get; init; } = 1;
+}
+
+public sealed record ClientRewardChoice(string Id, string Name, string Description);
+public enum ReplayAvailability { Unknown, Downloadable, Downloading, Ready, Unavailable }
+public sealed record ClientReplayState(long GameId, ReplayAvailability State, double? Progress, string Message);
+public sealed record ClientBackupDifference(string Category, string Key, string Current, string Saved);
+public sealed record ClientBackupPreview(string Name, bool HasGameSettings, bool HasInputSettings,
+    IReadOnlyList<ClientBackupDifference> Differences, string Message);
 
 /// <summary>游戏设置备份的标识及展示信息。</summary>
 public sealed record ClientSettingsBackup(string Name, DateTimeOffset CreatedAt);

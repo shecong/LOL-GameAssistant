@@ -5,6 +5,9 @@ namespace LOL_GameAssistant.Application.Builds;
 /// <summary>从 OP.GG 公共英雄数据获取推荐，并写入本机 League Client 的符文页和物品集。</summary>
 public interface IOpggBuildApplyService
 {
+    void ResetClientContext() { }
+    Task<OpggBuildApplyResult> RestoreLastConfigurationAsync(CancellationToken token = default) =>
+        Task.FromResult(OpggBuildApplyResult.Failure("没有可恢复的配置快照"));
     /// <summary>读取本机客户端现有符文页，供符文库浏览。</summary>
     Task<IReadOnlyList<PersonalRunePreset>> GetLocalRunePagesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<PersonalRunePreset>>(Array.Empty<PersonalRunePreset>());

@@ -7,6 +7,8 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>推荐方案缓存六小时，游戏更新自动换缓存；所有客户端写入仍交由原服务执行。</summary>
 internal sealed class CachedOpggBuildApplyService : IOpggBuildApplyService
 {
+    public void ResetClientContext() => _inner.ResetClientContext();
+    public Task<OpggBuildApplyResult> RestoreLastConfigurationAsync(CancellationToken token = default) => _inner.RestoreLastConfigurationAsync(token);
     private readonly IOpggBuildApplyService _inner;
     private readonly Func<string> _version;
     private readonly LocalDataCache<OpggBuildChoices> _cache;

@@ -8,4 +8,16 @@ public interface IAugmentScanner
 }
 
 /// <summary>强化扫描识别出的标识、状态说明和原始识别文本。</summary>
-public sealed record AugmentScanResult(IReadOnlyList<int> AugmentIds, string Message, string? RecognizedText = null);
+public sealed record AugmentScanResult(IReadOnlyList<int> AugmentIds, string Message, string? RecognizedText = null)
+{
+    public IReadOnlyList<AugmentCardScan> Cards { get; init; } = [];
+}
+public sealed record AugmentScanCandidate(int Id, double MatchScore);
+public sealed record AugmentCardScan(int Position, int? Id, string Text, IReadOnlyList<AugmentScanCandidate> Candidates, bool Corrected = false);
+public sealed record AugmentCatalogChoice(int Id, string Name);
+public interface IAugmentReviewService
+{
+    AugmentScanResult? LastScan { get; }
+    IReadOnlyList<AugmentCatalogChoice> Choices { get; }
+    Task<AugmentScanResult> CorrectAsync(int position, int id, CancellationToken token = default);
+}

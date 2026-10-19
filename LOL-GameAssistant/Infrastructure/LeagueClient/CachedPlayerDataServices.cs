@@ -33,21 +33,26 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
             PlayerHistorySession.SetAccount(player.Puuid);
         }
         // 尚未确认本次客户端登录身份时，不以其他账号的资料替代当前账号。
-        return _currentPuuid == null ? player : await _cache.GetLatestOrCachedAsync(
+        return _currentPuuid == null ? player : await ReadWithMetadata(
             $"puuid:{_currentPuuid}", () => Task.FromResult(player), cancellationToken).ConfigureAwait(false);
     }
 
     public Task<PlayerProfile?> GetByPuuidAsync(string puuid, CancellationToken cancellationToken = default) =>
-        _cache.GetLatestOrCachedAsync($"puuid:{puuid}",
+        ReadWithMetadata($"puuid:{puuid}",
             () => _inner.GetByPuuidAsync(puuid, cancellationToken), cancellationToken);
 
     public Task<PlayerProfile?> FindByRiotIdAsync(string gameName, string tagLine, CancellationToken cancellationToken = default) =>
-        _cache.GetLatestOrCachedAsync($"riot:{gameName.Trim()}#{tagLine.Trim().TrimStart('#')}",
+        ReadWithMetadata($"riot:{gameName.Trim()}#{tagLine.Trim().TrimStart('#')}",
             () => _inner.FindByRiotIdAsync(gameName, tagLine, cancellationToken), cancellationToken);
 
     public Task<PlayerProfile?> FindByNameAsync(string gameName, CancellationToken cancellationToken = default) =>
-        _cache.GetLatestOrCachedAsync($"name:{gameName.Trim()}",
+        ReadWithMetadata($"name:{gameName.Trim()}",
             () => _inner.FindByNameAsync(gameName, cancellationToken), cancellationToken);
+    private async Task<PlayerProfile?> ReadWithMetadata(string key, Func<Task<PlayerProfile?>> read, CancellationToken token)
+    {
+        var result = await _cache.GetLatestWithMetadataAsync(key, read, token).ConfigureAwait(false);
+        return result.Value is { } profile ? profile with { IsCached = result.Cached, AcquiredAt = result.AcquiredAt } : null;
+    }
 }
 
 /// <summary>排位数据为空时复用该玩家的本地段位；无段位的非空队列仍正常更新。</summary>
@@ -69,13 +74,14 @@ internal sealed class CachedRankedStatsService : IRankedStatsService
     public async Task<RankedOverview?> GetAsync(string puuid, bool isCurrentUser = false, CancellationToken cancellationToken = default)
     {
         if (isCurrentUser) _currentPuuid = puuid;
-        Snapshot? value = await _cache.GetLatestOrCachedAsync($"record-v2:{puuid}", async () =>
+        var readResult = await _cache.GetLatestWithMetadataAsync($"record-v2:{puuid}", async () =>
         {
             var ranked = await _inner.GetAsync(puuid, isCurrentUser || _currentPuuid == puuid, cancellationToken).ConfigureAwait(false);
             return ranked == null ? null : new Snapshot(ranked.Queues, ranked.SeasonEndsAt);
         }, cancellationToken).ConfigureAwait(false);
+        var value = readResult.Value;
         if (value == null) return null;
-        var result = new RankedOverview();
+        var result = new RankedOverview { IsCached = readResult.Cached, AcquiredAt = readResult.AcquiredAt };
         foreach (var item in value.Queues) result.Queues[item.Key] = item.Value;
         foreach (var item in value.SeasonEndsAt) result.SeasonEndsAt[item.Key] = item.Value;
         return result;

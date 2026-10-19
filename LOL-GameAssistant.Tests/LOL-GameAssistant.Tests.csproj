@@ -57,6 +57,7 @@
     <Compile Include="..\LOL-GameAssistant\Application\LeagueClient\LcuResponse.cs" Link="Application\LeagueClient\LcuResponse.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\GameData\AsyncByteCache.cs" Link="Infrastructure\GameData\AsyncByteCache.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\OpggBuildApplyService.cs" Link="Infrastructure\LeagueClient\OpggBuildApplyService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\OpggBuildApplyService.PersonalItems.cs" Link="Infrastructure\LeagueClient\OpggBuildApplyService.PersonalItems.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\LcuQuickShoutService.cs" Link="Infrastructure\LeagueClient\LcuQuickShoutService.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\GameClientExecutablePaths.cs" Link="Infrastructure\LeagueClient\GameClientExecutablePaths.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Ai\CloudRecommendationParser.cs" Link="Infrastructure\Ai\CloudRecommendationParser.cs" />

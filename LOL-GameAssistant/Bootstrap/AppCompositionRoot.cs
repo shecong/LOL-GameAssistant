@@ -45,12 +45,16 @@ public static class AppCompositionRoot
             LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("战绩共享仓库", "读取", detail);
         MatchHistoryRequestPolicy.Shared.Diagnostic = detail =>
             LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("战绩请求队列", "读取", detail);
+        Automation.Changed += step => LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("自动化 · " + step.Name, step.State, step.Detail);
+        if (LcuRequestSender is LcuHttpRequestSender requests) requests.RequestCompleted += ClientCapabilities.Observe;
     }
     public static LOL_GameAssistant.Application.Skins.ISkinCoreService SkinCoreService { get; } =
         new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreService(
             new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore")),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
+    public static IClientCapabilityService ClientCapabilities { get; } = new LcuClientCapabilityService(LcuRequestSender);
+    public static IPartyService PartyService { get; } = new LcuPartyService(LcuRequestSender);
 
     public static LOL_GameAssistant.Application.Skins.IChampionSkinResourceService ChampionSkinResourceService { get; } =
         new LcuChampionSkinResourceService(LcuRequestSender, () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
@@ -116,7 +120,10 @@ public static class AppCompositionRoot
         new LegacyGameAssetService(), () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
 
     public static IGameOverlayBridge GameOverlay { get; } = new NativeGameOverlayBridge();
-    public static IAugmentScanner AugmentScanner { get; } = new LocalAugmentScanner(GameOverlay);
+    private static readonly AugmentReviewScanner ReviewedAugments = new(new LocalAugmentScanner(GameOverlay),
+        () => AugmentCatalog.GetAll().Where(c => c.Id >= 1000).Select(c => new AugmentCatalogChoice(c.Id, c.Name)).ToArray());
+    public static IAugmentScanner AugmentScanner { get; } = ReviewedAugments;
+    public static IAugmentReviewService AugmentReview { get; } = ReviewedAugments;
     public static IAugmentInfoService AugmentInfoService { get; } = new AugmentInfoService();
 
     /// <summary>英雄 ID 与展示名称目录。</summary>
@@ -138,12 +145,12 @@ public static class AppCompositionRoot
 
     /// <summary>回放、奖励、赛后、社交与快捷大厅等外置客户端增强功能。</summary>
     public static IClientFeatureService ClientFeatureService { get; } =
-        new LcuClientFeatureService(LcuRequestSender);
+        new LcuClientFeatureService(LcuRequestSender, ClientCapabilities);
 
     /// <summary>OP.GG 公开推荐到本机 LCU 符文页和自定义物品集的一键配置。</summary>
     public static IOpggBuildApplyService OpggBuildApplyService { get; } =
-        new CachedOpggBuildApplyService(new OpggBuildApplyService(LcuRequestSender, ChampionCatalog, RememberAppliedRune),
-            () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
+        new VerifiedBuildApplyService(new CachedOpggBuildApplyService(new OpggBuildApplyService(LcuRequestSender, ChampionCatalog, RememberAppliedRune),
+            () => LOL_GameAssistant.LoLApi.Game_Api.gameversion), LcuRequestSender);
 
     private static void RememberAppliedRune(LOL_GameAssistant.Domain.Builds.PersonalRunePreset applied)
     {
@@ -152,7 +159,7 @@ public static class AppCompositionRoot
             preset.Mode == applied.Mode && preset.Position == applied.Position && preset.PrimaryStyleId == applied.PrimaryStyleId &&
             preset.SubStyleId == applied.SubStyleId && preset.RunePerkIds.SequenceEqual(applied.RunePerkIds));
         if (existing == null) settings.PersonalRunePresets.Add(applied);
-        else existing.LastAppliedAt = applied.LastAppliedAt;
+        else { existing.LastAppliedAt = applied.LastAppliedAt; existing.ItemBlocks = applied.ItemBlocks; }
         ApplicationSettingsStore.Save(settings);
     }
 
@@ -197,4 +204,6 @@ public static class AppCompositionRoot
     /// <summary>独立于页面生命周期的局内建议调度器。</summary>
     public static IRecommendationCoordinator RecommendationCoordinator { get; } =
         new RecommendationCoordinator(AiCoachingService, AiRecommendationProvider);
+    public static IPlayerGrowthService PlayerGrowthService { get; } = new LcuPlayerGrowthService(MatchHistoryService, ChampionCatalog, LcuRequestSender);
+    public static Application.Automation.PostGameAutomation Automation { get; } = new(ClientFeatureService, PartyService);
 }

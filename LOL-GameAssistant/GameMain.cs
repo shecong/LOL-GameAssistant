@@ -345,7 +345,7 @@ namespace LOL_GameAssistant
         /// <summary>自动匹配不依赖设置编辑器的创建或加载。</summary>
         private async Task TryAutoMatchAsync()
         {
-            if (!_settingsStore.Load().AutoMatch ||
+            if (AppCompositionRoot.Automation.IsPaused || !_settingsStore.Load().AutoMatch ||
                 DateTimeOffset.UtcNow - _lastAutoMatchAttempt < TimeSpan.FromSeconds(10)) return;
             _lastAutoMatchAttempt = DateTimeOffset.UtcNow;
             try { await _lobbyService.StartMatchmakingAsync(); }
@@ -739,6 +739,8 @@ namespace LOL_GameAssistant
                 return;
             }
 
+            AppCompositionRoot.Automation.NotifyPhase(statustype);
+            if (!string.Equals(statustype, "ChampSelect", StringComparison.OrdinalIgnoreCase)) Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared.Clear();
             string phase = statustype.ToLowerInvariant();
             long revision = Interlocked.Increment(ref _gameFlowRevision);
 
@@ -837,7 +839,7 @@ namespace LOL_GameAssistant
             if (_readyCheckDeclinedByUser || _autoAcceptCts != null) return;
 
             AssistantSettings config = _settingsStore.Load();
-            if (!config.AutoAccept) return;
+            if (AppCompositionRoot.Automation.IsPaused || !config.AutoAccept) return;
 
             _autoAcceptCts = new CancellationTokenSource();
             _ = AcceptReadyCheckAfterDelayAsync(config, _autoAcceptCts);
@@ -854,7 +856,7 @@ namespace LOL_GameAssistant
                 if (delay > 0)
                     await Task.Delay(delay, source.Token).ConfigureAwait(true);
 
-                if (source.Token.IsCancellationRequested || _readyCheckDeclinedByUser ||
+                if (AppCompositionRoot.Automation.IsPaused || source.Token.IsCancellationRequested || _readyCheckDeclinedByUser ||
                     gameFlowPhase != GameFlowPhase.ReadyCheck)
                 {
                     return;
@@ -902,25 +904,8 @@ namespace LOL_GameAssistant
         /// <summary>在对局结束后执行已启用的自动操作。</summary>
         private async Task RunPostGameAutomationsAsync(AssistantSettings config)
         {
-            try
-            {
-                if (config.AutoHonor)
-                {
-                    ClientFeatureResult honor = await _clientFeatureService.HonorRandomEligibleAllyAsync();
-                    AddInfoMessage(honor.Message);
-                }
-
-                if (config.AutoReturnToLobby)
-                {
-                    ClientFeatureResult result = await _clientFeatureService.ReturnToLobbyAsync(config.AutoReturnStartMatchmaking);
-                    AddInfoMessage(result.Message);
-                }
-            }
-            catch (Exception ex)
-            {
-                RuntimeDiagnostics.Report("赛后自动化", "执行失败", ex.Message);
-                AddInfoMessage($"赛后自动化失败：{ex.Message}");
-            }
+            await AppCompositionRoot.Automation.RunAsync(config.AutoHonor, config.AutoReturnToLobby, config.AutoReturnStartMatchmaking);
+            foreach (var step in AppCompositionRoot.Automation.Snapshot()) AddInfoMessage($"{step.Name} · {step.State} · {step.Detail}");
         }
 
         /// <summary>
@@ -929,7 +914,7 @@ namespace LOL_GameAssistant
         /// </summary>
         private async Task AutoBanPickLoopAsync()
         {
-            if (_autoActionStartedForChampSelect) return;
+            if (AppCompositionRoot.Automation.IsPaused || _autoActionStartedForChampSelect) return;
             _autoActionStartedForChampSelect = true;
             var actionCts = new CancellationTokenSource();
             _autoActionCts = actionCts;
@@ -950,7 +935,7 @@ namespace LOL_GameAssistant
                     : Task.CompletedTask;
 
                 // 禁用窗口通常很短，快速检查直到首次成功；成功后不再重复提交。
-                while (autoBanEnabled && cachedBanIds.Count > 0 &&
+                while (!AppCompositionRoot.Automation.IsPaused && autoBanEnabled && cachedBanIds.Count > 0 &&
                        gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
                 {
                     try
@@ -1005,10 +990,11 @@ namespace LOL_GameAssistant
         {
             const int RetryDelayMilliseconds = 100;
 
-            while (gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
+            while (!AppCompositionRoot.Automation.IsPaused && gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
             {
                 try
                 {
+                    if (AppCompositionRoot.Automation.IsPaused) return;
                     if (config.SkipAutoPickOnFill && await ShouldSkipAutoPickForFillAsync(token))
                     {
                         AddInfoMessage("检测到补位，已跳过自动选人");

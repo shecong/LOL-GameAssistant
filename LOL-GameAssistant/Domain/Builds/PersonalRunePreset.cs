@@ -16,12 +16,15 @@ public sealed class PersonalRunePreset
     public int SubStyleId { get; set; }
     public List<int> RunePerkIds { get; set; } = new();
     public List<int> SummonerSpellIds { get; set; } = new();
+    public List<PersonalItemBlock> ItemBlocks { get; set; } = new();
 
     /// <summary>检查符文方案是否包含应用所需的有效字段。</summary>
     public bool IsValid => ChampionId > 0 && PrimaryStyleId > 0 && SubStyleId > 0 &&
         RunePerkIds?.Count >= 6 && (SummonerSpellIds?.Count == 2 || Source == "应用记录" && SummonerSpellIds?.Count == 0) &&
         SummonerSpellIds!.All(id => id > 0);
 }
+
+public sealed record PersonalItemBlock(string Title, List<int> ItemIds);
 
 /// <summary>按英雄、模式和分路解析优先使用的个人符文方案。</summary>
 public static class PersonalRunePresetResolver

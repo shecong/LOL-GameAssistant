@@ -14,6 +14,7 @@ internal sealed class MatchReplayActions : UserControl
     private readonly AntdUI.Button _watch;
     private readonly ToolTip _tips = new();
     private bool _busy;
+    private readonly ContextMenuStrip _stateMenu = new();
 
     internal MatchReplayActions(long gameId, IClientFeatureService? features = null)
     {
@@ -29,6 +30,10 @@ internal sealed class MatchReplayActions : UserControl
         _tips.SetToolTip(_watch, UiLanguage.T("请求客户端启动已下载完成的回放。"));
         _download.Click += async (_, _) => await RunAsync(false);
         _watch.Click += async (_, _) => await RunAsync(true);
+        _stateMenu.Items.Add("查看回放状态与进度", null, (_, _) => { using var form = new ReplayManagerForm(_gameId, _features); form.ShowDialog(FindForm()); });
+        _download.ContextMenuStrip = _watch.ContextMenuStrip = _stateMenu;
+        _tips.SetToolTip(_download, UiLanguage.T("请求下载；右键查看状态与进度"));
+        _tips.SetToolTip(_watch, UiLanguage.T("确认已下载完成后观看；右键查看状态"));
     }
 
     internal async Task RunAsync(bool watch)
@@ -69,7 +74,7 @@ internal sealed class MatchReplayActions : UserControl
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _requests.Dispose(); _tips.Dispose(); }
+        if (disposing) { _requests.Dispose(); _tips.Dispose(); _stateMenu.Dispose(); }
         base.Dispose(disposing);
     }
 }

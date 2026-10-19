@@ -30,7 +30,18 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
         _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Status), "状态") { Width = "110" });
         _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Detail), "详情") { Width = "620" });
         _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.UpdatedAt), "更新时间") { Width = "155" });
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 94, Padding = new Padding(8), WrapContents = true };
+        var capability = new AntdUI.Button { Text = "刷新接口能力", AutoSize = true };
+        capability.Click += async (_, _) => { capability.Enabled = false; try { var result = await LOL_GameAssistant.Bootstrap.AppCompositionRoot.ClientCapabilities.RefreshAsync(force: true); if (!IsDisposed) { RuntimeDiagnostics.Report("客户端接口能力", result.HasSchema ? "已读取" : "待核实", $"{result.Message} · 构建 {result.Build} · 地区 {result.Region}"); } } catch (Exception e) { if (!IsDisposed) RuntimeDiagnostics.Report("客户端接口能力", "读取失败", e.Message); } finally { if (!IsDisposed) capability.Enabled = true; } };
+        var pause = new AntdUI.Button { Text = "本局暂停自动化", AutoSize = true }; pause.Click += (_, _) => LOL_GameAssistant.Bootstrap.AppCompositionRoot.Automation.Pause();
+        var resume = new AntdUI.Button { Text = "恢复自动化", AutoSize = true }; resume.Click += (_, _) => LOL_GameAssistant.Bootstrap.AppCompositionRoot.Automation.Resume();
+        var retry = new AntdUI.Button { Text = "重试赛后失败步骤", AutoSize = true }; retry.Click += async (_, _) => await LOL_GameAssistant.Bootstrap.AppCompositionRoot.Automation.RetryFailedAsync();
+        actions.Controls.AddRange([capability, pause, resume, retry]);
+        var directory = new AntdUI.Button { Text = "查看接口可用原因", AutoSize = true };
+        directory.Click += (_, _) => { using var form = new ClientCapabilitiesForm(LOL_GameAssistant.Bootstrap.AppCompositionRoot.ClientCapabilities); form.ShowDialog(FindForm()); };
+        actions.Controls.Add(directory);
         Controls.Add(_list);
+        Controls.Add(actions);
         Controls.Add(_hint);
         _logTip.SetToolTip(_hint, RuntimeDiagnostics.GetLogPath());
         _timer.Tick += (_, _) => RefreshSnapshot();

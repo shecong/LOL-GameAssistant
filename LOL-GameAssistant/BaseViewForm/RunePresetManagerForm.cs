@@ -18,11 +18,12 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
     private readonly IAiCoachingService _context;
     private readonly IChampionCatalog _champions = AppCompositionRoot.ChampionCatalog;
     private readonly AntdUI.Table _list = new() { Dock = DockStyle.Fill, VisibleHeader = false, Bordered = true };
-    private readonly AntdUI.Input _name = new() { Width = 400, Height = 40 };
+    private readonly AntdUI.Input _name = new() { Name = "presetName", Width = 400, Height = 40 };
     private readonly AntdUI.Select _mode = new() { ReadOnly = true, Width = 155, Height = 40 };
     private readonly AntdUI.Select _position = new() { ReadOnly = true, Width = 125, Height = 40 };
     private readonly AntdUI.InputNumber _priority = new() { Minimum = -100, Maximum = 100, Width = 80, Height = 36 };
     private readonly AntdUI.Checkbox _auto = new() { Text = "选人时自动使用", AutoSize = true };
+    private readonly AntdUI.Input _items = new() { Width = 420, Height = 90, Multiline = true, PlaceholderText = "每行：装备组名称:物品ID,物品ID；留空仅应用符文和技能" };
     private readonly AntdUI.Label _detail = new() { AutoSize = true, MaximumSize = new Size(400, 0) };
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Bottom, Height = 42, TextAlign = ContentAlignment.MiddleLeft };
     private readonly AntdUI.Segmented _categories = new() { Dock = DockStyle.Top, Height = 260, Vertical = true, Full = false, SelectIndex = 0 };
@@ -90,12 +91,16 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         editor.Controls.Add(new AntdUI.Label { Text = "优先级（数值越高越先使用）", AutoSize = true });
         editor.Controls.Add(_priority);
         editor.Controls.Add(_auto);
+        editor.Controls.Add(new AntdUI.Label { Text = "个人装备块（应用前可预览修改范围）", AutoSize = true });
+        editor.Controls.Add(_items);
         var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Width = 385 };
         var capture = new AntdUI.Button { Text = "从当前选人捕获", AutoSize = true };
         var save = new AntdUI.Button { Text = "保存修改", AutoSize = true };
         var apply = new AntdUI.Button { Text = "立即应用", AutoSize = true };
         var delete = new AntdUI.Button { Text = "删除方案", AutoSize = true };
-        actions.Controls.AddRange(new Control[] { capture, save, apply, delete });
+        var undo = new AntdUI.Button { Text = "恢复应用前配置", AutoSize = true };
+        undo.Click += async (_, _) => { try { var result = await _builds.RestoreLastConfigurationAsync(_lifetime.Token); if (!IsDisposed) _status.Text = result.Message; } catch (OperationCanceledException) { } catch (Exception e) { if (!IsDisposed) _status.Text = e.Message; } };
+        actions.Controls.AddRange(new Control[] { capture, save, apply, delete, undo });
         editor.Controls.Add(actions);
         editor.Controls.Add(_detail);
         editor.Controls.Add(_runePreview);
@@ -192,6 +197,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         _position.SelectedValue = Positions.FirstOrDefault(item => item.Key == preset.Position);
         _priority.Value = Math.Clamp(preset.Priority, -100, 100);
         _auto.Checked = preset.AutoApply;
+        _items.Text = string.Join(Environment.NewLine, (preset.ItemBlocks ?? []).Select(b => b.Title + ":" + string.Join(",", b.ItemIds)));
         _detail.Text = preset.Source == "客户端符文页" ? "客户端现有符文页 · 可查看符文名称与效果" :
             $"{preset.Source} · {ModeLabel(preset.Mode)} / {PositionLabel(preset.Position)}\n" +
             (preset.LastAppliedAt is { } applied ? $"最近应用：{applied.LocalDateTime:yyyy-MM-dd HH:mm}" : "尚无应用记录");
@@ -283,6 +289,15 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         target.Name = name;
         target.Mode = (_mode.SelectedValue as Choice)?.Key ?? target.Mode;
         target.Position = (_position.SelectedValue as Choice)?.Key ?? target.Position;
+        var blocks = new List<PersonalItemBlock>();
+        foreach (string line in (_items.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pieces = line.Trim().Split(':', 2); if (pieces.Length != 2 || string.IsNullOrWhiteSpace(pieces[0])) { _status.Text = "装备块格式：名称:物品ID,物品ID"; return; }
+            var ids = new List<int>(); foreach (string item in pieces[1].Split(',', StringSplitOptions.RemoveEmptyEntries)) { if (!int.TryParse(item.Trim(), out int id) || id <= 0) { _status.Text = "装备 ID 必须为正整数"; return; } ids.Add(id); }
+            if (ids.Count is 0 or > 10 || blocks.Count >= 12) { _status.Text = "每组需有 1～10 件装备，最多 12 组"; return; }
+            blocks.Add(new PersonalItemBlock(pieces[0].Trim(), ids));
+        }
+        target.ItemBlocks = blocks;
         target.Priority = (int)_priority.Value;
         target.AutoApply = _auto.Checked;
         _settings.Save(settings);

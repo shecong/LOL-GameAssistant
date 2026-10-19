@@ -10,12 +10,12 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// <summary>
 /// 设置页中的本机客户端工具。交互控件统一采用 AntdUI，图片控件仅用于展示 LCU 返回的资源。
 /// </summary>
-public sealed class ClientToolsForm : UserControl, IThemeAware
+public sealed partial class ClientToolsForm : UserControl, IThemeAware
 {
     private readonly IClientFeatureService _features;
     private readonly IChampionInsightsService _championInsights;
     private readonly AntdUI.Segmented _toolsNavigation = new() { Dock = DockStyle.Top, Height = 42, Full = true };
-    private static readonly string[] ToolCategories = ["回放与备份", "资料与外观", "好友活动", "英雄数据", "本地缓存"];
+    private static readonly string[] ToolCategories = ["回放与备份", "资料与外观", "好友活动", "英雄数据", "本地缓存", "开黑大厅"];
     private readonly LocalCacheToolsControl _cacheTools;
     private readonly IProfileIconService _profileIcons;
     private readonly List<AntdUI.Panel> _cards = [];
@@ -92,7 +92,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         foreach (string category in ToolCategories)
             navigation.Items.Add(new AntdUI.SegmentedItem { Text = category });
         Control[][] groups = [[CreateReplayCard(), CreateRewardsCard(), CreateBackupsCard()],
-            [CreateProfileCard()], [CreateFriendsCard(), CreateFriendDirectoryCard()], [CreateInsightsCard()], [CreateCacheCard()]];
+            [CreateProfileCard()], [CreateFriendsCard(), CreateFriendDirectoryCard()], [CreateInsightsCard(), CreateAugmentReviewCard()], [CreateCacheCard()], [CreatePartyCard()]];
         foreach (Control[] group in groups)
             foreach (Control card in group) AddCard(content, card);
         // 切换客户端工具中当前展示的功能分类。
@@ -161,7 +161,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
     /// <summary>构建录像下载和观看操作区域。</summary>
     private Control CreateReplayCard()
     {
-        AntdUI.Panel card = Card("对局回放", 104, out FlowLayoutPanel body);
+        AntdUI.Panel card = Card("对局回放", 155, out FlowLayoutPanel body);
         body.Controls.Add(_replayGameId);
         body.Controls.Add(Button("下载回放", async (_, _) =>
         {
@@ -189,7 +189,7 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
     private Control CreateRewardsCard()
     {
         AntdUI.Panel card = Card("待领取奖励", 104, out FlowLayoutPanel body);
-        body.Controls.Add(ActionButton("一键领取待选奖励", () => _features.ClaimAllPendingRewardsAsync()));
+        body.Controls.Add(Button("预览与选择待选奖励", (_, _) => { using var form = new RewardSelectionForm(_features); form.ShowDialog(FindForm()); }));
         return card;
     }
 
@@ -207,10 +207,10 @@ public sealed class ClientToolsForm : UserControl, IThemeAware
         }));
         body.SetFlowBreak(body.Controls[body.Controls.Count - 1], true);
         body.Controls.Add(_backupList);
-        body.Controls.Add(Button("恢复选中备份", async (_, _) =>
+        body.Controls.Add(Button("恢复选中备份", (_, _) =>
         {
             if (!TryGetSelectedBackup(out string? name)) return;
-            await RunAsync(() => _features.RestoreGameSettingsBackupAsync(name!));
+            using var form = new BackupPreviewForm(name!, _features); form.ShowDialog(FindForm());
         }));
         body.Controls.Add(Button("删除选中备份", async (_, _) =>
         {

@@ -13,6 +13,9 @@ public sealed record PlayerProfile(
     int XpSinceLastLevel,
     int XpUntilNextLevel)
 {
+    public bool IsCached { get; init; }
+    public DateTimeOffset? AcquiredAt { get; init; }
+    public string SourceText => $"{(IsCached ? "缓存资料" : "接口资料")} · {AcquiredAt?.ToLocalTime().ToString("MM-dd HH:mm") ?? "时间未记录"}";
     /// <summary>供界面和复制功能使用的 Riot ID。</summary>
     public string RiotId => string.IsNullOrWhiteSpace(TagLine) ? GameName : $"{GameName}#{TagLine}";
 }

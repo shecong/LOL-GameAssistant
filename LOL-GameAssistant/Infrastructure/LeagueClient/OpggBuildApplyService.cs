@@ -14,7 +14,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// 数据来自 OP.GG 的公开英雄接口；写入仅使用本机 LCU 的符文页与自定义物品集端点。
 /// 不读取游戏内存、不注入游戏进程。只替换本助手创建的符文页；用户页面保持原样。
 /// </summary>
-public sealed class OpggBuildApplyService : IOpggBuildApplyService
+public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
 {
     private const string ManagedRunePrefix = "LOL助手 OP.GG · ";
     private const string PersonalRunePrefix = "LOL助手 个人 · ";
@@ -79,6 +79,21 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
                 selection.Value<int?>("spell2Id") ?? 0
             }
         };
+        try
+        {
+            var self = await ReadObjectAsync("/lol-summoner/v1/current-summoner", cancellationToken).ConfigureAwait(false);
+            if (self?.Value<long?>("summonerId") is > 0)
+            {
+                var itemSets = await ReadObjectAsync($"/lol-item-sets/v1/item-sets/{self.Value<long>("summonerId")}/sets", cancellationToken).ConfigureAwait(false);
+                var candidates = (itemSets?["itemSets"] as JArray ?? []).OfType<JObject>().Where(x => x["associatedChampions"]?.Values<int>().Contains(championId) == true).ToArray();
+                // 多份物品集时不猜用户想要哪份，仍允许在方案编辑器中手动填写装备块。
+                if (candidates.Length == 1)
+                    preset.ItemBlocks = (candidates[0]["blocks"] as JArray ?? []).OfType<JObject>().Select(b => new PersonalItemBlock(b.Value<string>("type") ?? "装备",
+                        (b["items"] as JArray ?? []).OfType<JObject>().SelectMany(i => Enumerable.Repeat(int.TryParse(i.Value<string>("id"), out int itemId) ? itemId : 0, Math.Clamp(i.Value<int?>("count") ?? 1, 1, 10))).Where(id => id > 0).ToList())).ToList();
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { }
         return preset.IsValid ? preset : null;
     }
 
@@ -94,10 +109,11 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             await ApplyRunePageAsync(build, preset.Name, cancellationToken, PersonalRunePrefix).ConfigureAwait(false);
             try { preset.LastAppliedAt = DateTimeOffset.Now; _recordAppliedRune?.Invoke(preset); }
             catch { /* 符文已写入，记录失败不会触发重复应用。 */ }
+            string itemMessage = await ApplyPersonalItemsAsync(preset, cancellationToken).ConfigureAwait(false);
             string spells = await ApplySummonerSpellsAsync(preset.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
             return spells.StartsWith("客户端未写入", StringComparison.Ordinal)
                 ? OpggBuildApplyResult.Failure($"符文已应用，但{spells}。请检查选人界面。")
-                : OpggBuildApplyResult.Success($"已应用个人方案“{preset.Name}”：符文和召唤师技能已配置。");
+                : OpggBuildApplyResult.Success($"已应用个人方案“{preset.Name}”：符文和召唤师技能已配置；{itemMessage}。");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) { return OpggBuildApplyResult.Failure($"个人方案应用失败：{ex.Message}"); }
@@ -110,7 +126,8 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             Position = PersonalRunePresetResolver.NormalizePosition(role), PrimaryStyleId = option.PrimaryStyleId,
             SubStyleId = option.SubStyleId, RunePerkIds = option.RunePerkIds.ToList(),
             SummonerSpellIds = option.SummonerSpellIds?.ToList() ?? [], Source = "应用记录", AutoApply = false,
-            LastAppliedAt = DateTimeOffset.Now };
+            LastAppliedAt = DateTimeOffset.Now,
+            ItemBlocks = new List<PersonalItemBlock> { new("出门装", option.StarterItemIds.ToList()), new("核心装", option.CoreItemIds.ToList()), new("可选装备", option.SituationalItemIds.ToList()) } };
         if (!preset.IsValid) return;
         try { _recordAppliedRune(preset); }
         catch { /* 本地记录失败不改变客户端已经成功写入的结果。 */ }
@@ -694,7 +711,7 @@ public sealed class OpggBuildApplyService : IOpggBuildApplyService
             throw new InvalidOperationException("无法读取现有物品集，已停止写入以避免覆盖客户端原有配置。");
         var preservedSets = (wrapper?["itemSets"] as JArray ?? new JArray())
             .OfType<JObject>()
-            .Where(itemSet => !(itemSet.Value<string>("title") ?? "").StartsWith(ManagedItemPrefix, StringComparison.Ordinal))
+            .Where(itemSet => !((itemSet.Value<string>("title") ?? "").StartsWith(ManagedItemPrefix, StringComparison.Ordinal) && itemSet["associatedChampions"]?.Values<int>().Contains(championId) == true))
             .ToList();
 
         var newSet = new JObject

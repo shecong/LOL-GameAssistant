@@ -178,7 +178,17 @@ public sealed partial class LoungeForm
         var leave = new Button { Name = "Leave", Text = "退出报名", AutoSize = true };
         var close = new Button { Name = "CloseRecruitment", Text = "结束招募", AutoSize = true };
         var copy = new Button { Text = "复制发起人 ID", AutoSize = true };
-        buttons.Controls.AddRange([join, leave, close, copy]);
+        var party = new Button { Name = "OpenPartyHub", Text = "进入开黑大厅", AutoSize = true };
+        buttons.Controls.AddRange([join, leave, close, copy, party]);
+        party.Click += (_, _) =>
+        {
+            var state = _client.Recruitments.FirstOrDefault(r => r.MessageId == id); if (state == null) return;
+            if (_client.CurrentRegion != state.Recruitment.Region) { feedback.Text = "当前账号大区与招募不一致，请先切换大区"; return; }
+            string suggested = state.OwnerName;
+            if (state.OwnerId == _client.CurrentPlayerId && participants.SelectedIndex >= 0 && participants.SelectedIndex < state.Participants.Length)
+                suggested = state.Participants[participants.SelectedIndex].Name;
+            using var hub = new PartyHubForm(LOL_GameAssistant.Bootstrap.AppCompositionRoot.PartyService, suggested); hub.ShowDialog(dialog);
+        };
         layout.Controls.Add(description, 0, 0); layout.Controls.Add(participants, 0, 1);
         layout.Controls.Add(feedback, 0, 2); layout.Controls.Add(buttons, 0, 3);
         dialog.Controls.Add(layout);

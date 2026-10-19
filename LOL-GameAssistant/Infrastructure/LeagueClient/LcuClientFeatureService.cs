@@ -9,7 +9,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// 外置助手可安全复用的客户端操作集合。
 /// 不做 DOM/XHR Hook，也不读取游戏进程内存；所有写入均通过本机 LCU 完成。
 /// </summary>
-public sealed class LcuClientFeatureService : IClientFeatureService
+public sealed partial class LcuClientFeatureService : IClientFeatureService
 {
     private const string BackupsDirectoryName = "game-settings-backups";
     private readonly ILcuRequestSender _lcu;
@@ -21,7 +21,10 @@ public sealed class LcuClientFeatureService : IClientFeatureService
     private sealed record ProfileSkinAsset(long SkinId, string Name, string ChampionName, string ImagePath, bool IsOwned);
 
     /// <summary>初始化 LcuClientFeatureService 的实例状态，并保存传入的依赖或数据。</summary>
-    public LcuClientFeatureService(ILcuRequestSender lcu) => _lcu = lcu;
+    private readonly IClientCapabilityService _capabilities;
+    private readonly string? _backupRoot;
+    public LcuClientFeatureService(ILcuRequestSender lcu, IClientCapabilityService? capabilities = null, string? backupRoot = null)
+    { _lcu = lcu; _capabilities = capabilities ?? new LcuClientCapabilityService(lcu); _backupRoot = backupRoot; }
 
     /// <summary>向客户端提交拒绝当前匹配确认的请求。</summary>
     public async Task<ClientFeatureResult> DeclineReadyCheckAsync(CancellationToken cancellationToken = default) =>
@@ -116,10 +119,13 @@ public sealed class LcuClientFeatureService : IClientFeatureService
             : PostResultAsync($"/lol-replays/v1/rofls/{gameId}/download", "{}", "已开始下载回放。", "下载回放失败", cancellationToken);
 
     /// <summary>请求观看指定对局录像。</summary>
-    public Task<ClientFeatureResult> WatchReplayAsync(long gameId, CancellationToken cancellationToken = default) =>
-        gameId <= 0
-            ? Task.FromResult(ClientFeatureResult.Failure("Game ID 无效。"))
-            : PostResultAsync($"/lol-replays/v1/rofls/{gameId}/watch", "{}", "已请求启动回放。", "启动回放失败，请先下载完整回放", cancellationToken);
+    public async Task<ClientFeatureResult> WatchReplayAsync(long gameId, CancellationToken cancellationToken = default)
+    {
+        if (gameId <= 0) return ClientFeatureResult.Failure("Game ID 无效。");
+        var state = await GetReplayStateAsync(gameId, cancellationToken).ConfigureAwait(false);
+        if (state.State != ReplayAvailability.Ready) return ClientFeatureResult.Failure("回放尚未确认下载完成：" + state.Message);
+        return await PostResultAsync($"/lol-replays/v1/rofls/{gameId}/watch", "{}", "已请求启动回放。", "启动回放失败", cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>读取待领取奖励列表。</summary>
     public async Task<IReadOnlyList<ClientRewardGrant>> GetPendingRewardsAsync(CancellationToken cancellationToken = default)
@@ -143,31 +149,15 @@ public sealed class LcuClientFeatureService : IClientFeatureService
     /// <summary>逐项领取当前可领取的奖励。</summary>
     public async Task<ClientFeatureResult> ClaimAllPendingRewardsAsync(CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<ClientRewardGrant> pending = await GetPendingRewardsAsync(cancellationToken).ConfigureAwait(false);
-        if (pending.Count == 0) return ClientFeatureResult.Failure("没有待领取的选择奖励。");
-
-        int claimed = 0;
-        foreach (ClientRewardGrant grant in pending)
+        var grants = await GetPendingRewardsAsync(cancellationToken).ConfigureAwait(false);
+        int submitted = 0, skipped = 0;
+        foreach (var grant in grants)
         {
-            // 奖励详情中的 rewardGroupId 不会出现在简化模型中，重新读取原 grant 以避免猜测端点参数。
-            string? json = await _lcu.GetStringAsync("/lol-rewards/v1/grants", cancellationToken).ConfigureAwait(false);
-            JObject? raw = TryFindGrant(json, grant.GrantId);
-            string? groupId = raw?.SelectToken("rewardGroup.id")?.Value<string>();
-            if (string.IsNullOrWhiteSpace(groupId) || grant.RewardIds.Count == 0) continue;
-            int maximum = raw?.SelectToken("rewardGroup.selectionStrategyConfig.maxSelectionsAllowed")?.Value<int?>()
-                ?? grant.AvailableChoices;
-            int selectionCount = Math.Clamp(maximum, 1, grant.RewardIds.Count);
-            string payload = JsonConvert.SerializeObject(new
-            {
-                grantId = grant.GrantId,
-                rewardGroupId = groupId,
-                selections = grant.RewardIds.Take(selectionCount).ToArray()
-            });
-            if (await _lcu.PostAsync($"/lol-rewards/v1/grants/{grant.GrantId}/select", payload, cancellationToken).ConfigureAwait(false)) claimed++;
+            if (grant.RewardIds.Count != 1 || grant.AvailableChoices < 1) { skipped++; continue; }
+            if ((await ClaimRewardAsync(grant.GrantId, grant.RewardIds, cancellationToken).ConfigureAwait(false)).Succeeded) submitted++;
         }
-        return claimed > 0
-            ? ClientFeatureResult.Success($"已提交 {claimed} 组奖励领取请求。")
-            : ClientFeatureResult.Failure("领取奖励失败，可能需要在客户端手动选择。 ");
+        return submitted > 0 ? ClientFeatureResult.Success($"已提交 {submitted} 组唯一选项奖励；{skipped} 组需要在奖励选择器中手动选择")
+            : ClientFeatureResult.Failure(skipped > 0 ? "存在多选奖励，请打开选择器预览并自行选择；未默认消耗选项" : "没有可快捷领取的奖励");
     }
 
     /// <summary>列出当前账号已有的游戏设置备份。</summary>
@@ -186,26 +176,29 @@ public sealed class LcuClientFeatureService : IClientFeatureService
     public async Task<ClientFeatureResult> SaveGameSettingsBackupAsync(string name, CancellationToken cancellationToken = default)
     {
         string safeName = NormalizeBackupName(name);
-        if (safeName.Length == 0) return ClientFeatureResult.Failure("备份名称只能包含文字、数字、空格、- 和 _。 ");
-        string? settings = await _lcu.GetStringAsync("/lol-game-settings/v1/game-settings", cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(settings)) return ClientFeatureResult.Failure("未读取到客户端游戏设置。");
-        string directory = await GetAccountBackupDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        Directory.CreateDirectory(directory);
-        string path = Path.Combine(directory, safeName + ".json");
-        await File.WriteAllTextAsync(path, settings, cancellationToken).ConfigureAwait(false);
-        return ClientFeatureResult.Success($"已保存设置备份“{safeName}”。");
+        if (safeName.Length == 0) return ClientFeatureResult.Failure("请输入有效备份名称");
+        await _settingsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var game = await ReadSettings("game-settings", cancellationToken).ConfigureAwait(false);
+            var input = await ReadSettings("input-settings", cancellationToken).ConfigureAwait(false);
+            if (game == null) return ClientFeatureResult.Failure("未读取到游戏设置，未保存空备份");
+            var capabilities = await _capabilities.RefreshAsync(cancellationToken).ConfigureAwait(false);
+            string folder = await GetAccountBackupDirectoryAsync(cancellationToken).ConfigureAwait(false);
+            Directory.CreateDirectory(folder); string target = Path.Combine(folder, safeName + ".json"), temp = target + ".tmp";
+            await File.WriteAllTextAsync(temp, new JObject { ["formatVersion"] = 2, ["createdAt"] = DateTimeOffset.UtcNow,
+                ["clientVersion"] = capabilities.Build, ["gameSettings"] = game, ["inputSettings"] = input }.ToString(), cancellationToken).ConfigureAwait(false);
+            File.Move(temp, target, true);
+            return ClientFeatureResult.Success($"已保存“{safeName}”：游戏设置" + (input == null ? "；按键未取得，已标记缺失" : "和按键设置"));
+        }
+        finally { _settingsGate.Release(); }
     }
 
     /// <summary>从所选备份恢复游戏设置。</summary>
     public async Task<ClientFeatureResult> RestoreGameSettingsBackupAsync(string name, CancellationToken cancellationToken = default)
     {
-        string safeName = NormalizeBackupName(name);
-        string directory = await GetAccountBackupDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        string path = Path.Combine(directory, safeName + ".json");
-        if (!File.Exists(path)) return ClientFeatureResult.Failure("未找到该设置备份。");
-        string settings = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
-        bool ok = await _lcu.PutAsync("/lol-game-settings/v1/game-settings", settings, cancellationToken).ConfigureAwait(false);
-        return ok ? ClientFeatureResult.Success($"已恢复设置备份“{safeName}”。") : ClientFeatureResult.Failure("恢复设置失败。");
+        var preview = await PreviewBackupAsync(name, cancellationToken).ConfigureAwait(false);
+        return await RestoreBackupSelectionAsync(name, preview.HasGameSettings, preview.HasInputSettings, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>删除指定的游戏设置备份。</summary>
@@ -440,7 +433,14 @@ public sealed class LcuClientFeatureService : IClientFeatureService
             .Select(reward => reward.Value<string>("id"))
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Cast<string>().ToArray();
-        return new ClientRewardGrant(grant.SelectToken("info.id")?.Value<string>() ?? "", title, choices, ids);
+        return new ClientRewardGrant(grant.SelectToken("info.id")?.Value<string>() ?? "", title, Math.Min(choices, ids.Count), ids)
+        {
+            MinimumSelections = Math.Max(1, group?.SelectToken("selectionStrategyConfig.minSelectionsAllowed")?.Value<int?>() ?? 1),
+            Choices = (group?["rewards"] as JArray ?? []).OfType<JObject>()
+                .Where(r => !string.IsNullOrWhiteSpace(r.Value<string>("id")))
+                .Select(r => new ClientRewardChoice(r.Value<string>("id")!, r.SelectToken("localizations.title")?.ToString() ?? r.Value<string>("name") ?? r.Value<string>("id")!,
+                    r.SelectToken("localizations.description")?.ToString() ?? r.Value<string>("description") ?? "客户端未提供详细说明")).ToArray()
+        };
     }
 
     /// <summary>尝试从奖励数据中定位指定奖励。</summary>
@@ -468,7 +468,8 @@ public sealed class LcuClientFeatureService : IClientFeatureService
             account = me?.Value<string>("puuid") ?? me?.Value<string>("summonerId") ?? account;
         }
         catch (JsonException) { }
-        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, BackupsDirectoryName, NormalizeBackupName(account));
+        if (account == "default" || string.IsNullOrWhiteSpace(account)) throw new InvalidOperationException("未确认当前账号，不能读取或写入账号备份");
+        return Path.Combine(_backupRoot ?? AppDomain.CurrentDomain.BaseDirectory, BackupsDirectoryName, NormalizeBackupName(account));
     }
 
     /// <summary>规范化备份名称，避免非法文件名字符。</summary>

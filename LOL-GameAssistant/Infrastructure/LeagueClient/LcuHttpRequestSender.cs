@@ -6,6 +6,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>保留状态分类与空正文；兼容入口仍保留 null/bool 约定。</summary>
 public sealed class LcuHttpRequestSender : ILcuResultRequestSender
 {
+    public event Action<string, string, System.Net.HttpStatusCode?, LcuFailure>? RequestCompleted;
     private readonly Func<string, string, string?, CancellationToken, Task<LcuHttpResult>> _send;
     public LcuHttpRequestSender() : this(async (method, endpoint, body, token) =>
     {
@@ -14,6 +15,11 @@ public sealed class LcuHttpRequestSender : ILcuResultRequestSender
     }) { }
     internal LcuHttpRequestSender(Func<string, string, string?, CancellationToken, Task<LcuHttpResult>> send) => _send = send;
     public async Task<LcuResponse<byte[]>> SendAsync(string method, string endpoint, string? body = null, CancellationToken cancellationToken = default)
+    {
+        var response = await SendCoreAsync(method, endpoint, body, cancellationToken).ConfigureAwait(false);
+        RequestCompleted?.Invoke(method, endpoint, response.StatusCode, response.Failure); return response;
+    }
+    private async Task<LcuResponse<byte[]>> SendCoreAsync(string method, string endpoint, string? body, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var result = await _send(method, endpoint, body, cancellationToken).ConfigureAwait(false);

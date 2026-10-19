@@ -148,10 +148,11 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
             uriNode is not JsonValue uriValue ||
             !uriValue.TryGetValue<string>(out string? uri) ||
             string.IsNullOrWhiteSpace(uri) ||
-            !eventBody.TryGetPropertyValue("data", out JsonNode? data) ||
-            data == null) return;
+            !eventBody.TryGetPropertyValue("data", out JsonNode? data)) return;
 
-        var gameEvent = new LeagueClientEvent(uri, GetEventDataText(data));
+        string eventType = eventBody["eventType"]?.ToString() ?? "Update";
+        var gameEvent = new LeagueClientEvent(uri, data == null ? "null" : GetEventDataText(data)) { EventType = eventType };
+        if (uri == "/lol-champ-select/v1/session") ChampionSelectSessionCache.Shared.Observe(gameEvent.Data, eventType);
         foreach (Func<LeagueClientEvent, CancellationToken, Task> handler in EventReceived?.GetInvocationList() ?? [])
         {
             cancellationToken.ThrowIfCancellationRequested();

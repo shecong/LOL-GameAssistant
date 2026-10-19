@@ -6,6 +6,9 @@ namespace LOL_GameAssistant.Domain.Ranked;
 /// </summary>
 public sealed class RankedOverview
 {
+    public bool IsCached { get; init; }
+    public DateTimeOffset? AcquiredAt { get; init; }
+    public string SourceText => $"{(IsCached ? "缓存段位" : "接口段位")} · {AcquiredAt?.ToLocalTime().ToString("MM-dd HH:mm") ?? "时间未记录"}";
     public Dictionary<string, RankedQueue> Queues { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, DateTime> SeasonEndsAt { get; } = new(StringComparer.OrdinalIgnoreCase);

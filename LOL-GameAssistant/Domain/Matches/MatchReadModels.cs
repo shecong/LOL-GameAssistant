@@ -193,6 +193,9 @@ public sealed class MatchParticipantStats
     public bool HasWinResult { get; set; } = true;
     /// <summary>Missing KDA fields must not be treated as confirmed zero values.</summary>
     public bool HasKdaResult { get; set; } = true;
+    public bool HasFarmResult { get; set; }
+    public bool HasDamageResult { get; set; }
+    public bool HasVisionResult { get; set; }
     public List<int> AugmentIds { get; set; } = new();
     public List<int> RuneIds { get; set; } = new();
 }

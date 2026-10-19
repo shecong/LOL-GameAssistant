@@ -68,7 +68,7 @@
             public int magicDamageDealt { get; set; }
             public int magicDamageDealtToChampions { get; set; }
             public int magicalDamageTaken { get; set; }
-            public int neutralMinionsKilled { get; set; }
+            public int? neutralMinionsKilled { get; set; }
             public int neutralMinionsKilledEnemyJungle { get; set; }
             public int neutralMinionsKilledTeamJungle { get; set; }
             public int objectivePlayerScore { get; set; }
@@ -126,10 +126,10 @@
             public bool teamEarlySurrendered { get; set; }
             public int timeCCingOthers { get; set; }
             public int totalDamageDealt { get; set; }
-            public int totalDamageDealtToChampions { get; set; }
+            public int? totalDamageDealtToChampions { get; set; }
             public int totalDamageTaken { get; set; }
             public int totalHeal { get; set; }
-            public int totalMinionsKilled { get; set; }
+            public int? totalMinionsKilled { get; set; }
             public int totalPlayerScore { get; set; }
             public int totalScoreRank { get; set; }
             public int totalTimeCrowdControlDealt { get; set; }
@@ -140,7 +140,7 @@
             public int trueDamageTaken { get; set; }
             public int turretKills { get; set; }
             public int unrealKills { get; set; }
-            public int visionScore { get; set; }
+            public int? visionScore { get; set; }
             public int visionWardsBoughtInGame { get; set; }
             public int wardsKilled { get; set; }
             public int wardsPlaced { get; set; }

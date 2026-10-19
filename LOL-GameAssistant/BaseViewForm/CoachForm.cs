@@ -271,7 +271,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     private async Task PromptOpggBuildIfNeededCoreAsync(CancellationToken cancellationToken)
     {
         AssistantSettings settings = _settingsStore.Load();
-        if (_applyingOpgg || _opggPickerOpen || (!settings.OpggBuildAssistantEnabled && !settings.AutoApplyRuneBuild)) return;
+        if (AppCompositionRoot.Automation.IsPaused || _applyingOpgg || _opggPickerOpen || (!settings.OpggBuildAssistantEnabled && !settings.AutoApplyRuneBuild)) return;
 
         // 采集上下文期间也占用入口，避免手动点击与自动检测交错执行。
         _opggPickerOpen = true;

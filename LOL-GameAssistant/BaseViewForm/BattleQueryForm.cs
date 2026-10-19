@@ -23,6 +23,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IRankedStatsService _rankedStatsService;
         private readonly IFavoritePlayerStore _favoritePlayerStore;
         private readonly ITextExportService _textExportService;
+        private readonly IPlayerGrowthService _growthService;
+        private PlayerGrowthControl? _growthView;
         private MatchHistoryResponse? _matchHistory;
         private Image? _ownedPlayerImage;
         private int _totalGameCount;
@@ -102,7 +104,7 @@ namespace LOL_GameAssistant.BaseViewForm
             IMatchHistoryService matchHistoryService,
             IRankedStatsService rankedStatsService,
             IFavoritePlayerStore favoritePlayerStore,
-            ITextExportService textExportService)
+            ITextExportService textExportService, IPlayerGrowthService? growthService = null)
         {
             _playerProfileService = playerProfileService;
             _profileIconService = profileIconService;
@@ -110,6 +112,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _rankedStatsService = rankedStatsService;
             _favoritePlayerStore = favoritePlayerStore;
             _textExportService = textExportService;
+            _growthService = growthService ?? AppCompositionRoot.PlayerGrowthService;
             _favorites = _favoritePlayerStore.Load();
             InitializeComponent();
             WindowLayout.ConfigureDpi(this);
@@ -189,10 +192,13 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _viewSwitch.Items.Add(new AntdUI.SegmentedItem { Text = "对局记录" });
             _viewSwitch.Items.Add(new AntdUI.SegmentedItem { Text = "数据统计" });
+            _viewSwitch.Items.Add(new AntdUI.SegmentedItem { Text = "英雄池档案" });
+            _viewSwitch.Items.Add(new AntdUI.SegmentedItem { Text = "个人复盘中心" });
             _viewSwitch.SelectIndexChanged += (_, e) =>
             {
                 if (e.Value == 0) BtnViewRecord_Click(null, EventArgs.Empty);
-                else BtnViewStats_Click(null, EventArgs.Empty);
+                else if (e.Value == 1) BtnViewStats_Click(null, EventArgs.Empty);
+                else _ = ShowGrowthAsync(e.Value == 2);
             };
             _viewSwitch.SelectIndex = 0;
             var viewBar = new AntdUI.Panel { Dock = DockStyle.Fill, Radius = 8, BorderWidth = 1, Margin = new Padding(0, 0, 0, 8) };
@@ -337,7 +343,9 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (IsDisposed) return;
             int Scale(int value) => value * DeviceDpi / 96;
-            _viewSwitch.Width = Scale(ClientSize.Width < Scale(550) ? 195 : 250);
+            _viewSwitch.Width = Math.Min(Scale(600), Math.Max(Scale(310), ClientSize.Width - Scale(ClientSize.Width > Scale(950) ? 330 : 65)));
+            if (_pageSizeArea != null) _pageSizeArea.Visible = ClientSize.Width > Scale(950) && _viewSwitch.SelectIndex == 0;
+            if (_backToTopButton != null) _backToTopButton.Visible = ClientSize.Width > Scale(950) && _viewSwitch.SelectIndex == 0;
             _viewSwitch.Height = Scale(37);
             _favoriteSelect.Width = Scale(245);
             _pageSizeSelect.Width = Scale(90);
@@ -508,6 +516,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _exportScope.Cancel();
             CancelPageLoad();
 
+            _growthView?.ResetPlayer();
             lblStatus.Text = "正在搜索...";
             btnSearch.Enabled = false;
             try
@@ -605,20 +614,40 @@ namespace LOL_GameAssistant.BaseViewForm
             return null;
         }
 
+        private async Task ShowGrowthAsync(bool pool)
+        {
+            _statsScope.Cancel(); CancelPageLoad();
+            _growthView ??= CreateGrowthView();
+            panelHistory.Visible = panelStats.Visible = false; _growthView.Visible = true; _growthView.BringToFront();
+            UpdateResponsiveLayout();
+            await _growthView.ShowAsync(_currentPlayer?.Puuid, pool, _selectedMode);
+        }
+        private PlayerGrowthControl CreateGrowthView()
+        {
+            var view = new PlayerGrowthControl(_growthService, _matchHistoryService, AppCompositionRoot.ChampionCatalog);
+            view.ModeChanged += mode => { _selectedMode = mode; _statsLoaded = false; _statsVersion++; _suppressModeEvents = true; try { _modeSelect.SelectedValue = mode; } finally { _suppressModeEvents = false; } UpdateHistoryHeader(); };
+            panelContent.Controls.Add(view); return view;
+        }
+
         // ── 视图切换 ──
 
         private void BtnViewRecord_Click(object? sender, EventArgs e)
         {
+            if (_growthView != null) { _growthView.Cancel(); _growthView.Visible = false; }
             panelHistory.Visible = true;
             panelStats.Visible = false;
+            UpdateResponsiveLayout();
+            if (_currentPlayer != null) _ = RenderMatchPageAsync();
             SetViewButtonState(true);
         }
 
         /// <summary>响应统计查看操作，刷新目标玩家的战绩统计。</summary>
         private async void BtnViewStats_Click(object? sender, EventArgs e)
         {
+            if (_growthView != null) { _growthView.Cancel(); _growthView.Visible = false; }
             panelHistory.Visible = false;
             panelStats.Visible = true;
+            UpdateResponsiveLayout();
             SetViewButtonState(false);
 
             if (_currentPlayer != null && !_statsLoaded)
@@ -688,6 +717,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblPlayerTag.Text = $"#{_currentPlayer.TagLine}";
             lblPlayerTag.Visible = true;
             lblPlayerLevel.Text = $"等级: {_currentPlayer.SummonerLevel}";
+            _playerIdentityTip.SetToolTip(lblPlayerLevel, _currentPlayer.SourceText);
             lblPlayerLevel.Visible = true;
             panelPlayer.Visible = true;
             _playerPlaceholder.Visible = false;
@@ -695,7 +725,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             await Task.WhenAll(rankedTask, matchTask);
 
-            if (!IsDisposed && !token.IsCancellationRequested) RefreshFavoriteState();
+            if (!IsDisposed && !token.IsCancellationRequested) { RefreshFavoriteState(); if (_viewSwitch.SelectIndex >= 2) await ShowGrowthAsync(_viewSwitch.SelectIndex == 2); }
         }
 
         /// <summary>头像字节由应用服务提供，窗体只负责解码为 WinForms 图片。</summary>
@@ -721,6 +751,7 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 var rankedData = await _rankedStatsService.GetAsync(puuid, cancellationToken: token);
                 if (rankedData == null || IsDisposed || token.IsCancellationRequested) return;
+                _playerIdentityTip.SetToolTip(lblSoloStats, rankedData.SourceText); _playerIdentityTip.SetToolTip(lblFlexStats, rankedData.SourceText);
                 solo = rankedData.GetQueue(RankedQueues.Solo5x5);
                 flex = rankedData.GetQueue(RankedQueues.Flex5x5);
 

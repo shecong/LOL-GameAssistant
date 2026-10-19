@@ -12,7 +12,10 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 获取当前选人会话
         /// </summary>
-        public static async Task<ChampSelectSession?> GetSessionAsync(CancellationToken cancellationToken = default)
+        public static Task<ChampSelectSession?> GetSessionAsync(CancellationToken cancellationToken = default) =>
+            Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared.GetAsync(LoadSessionAsync, cancellationToken);
+
+        private static async Task<ChampSelectSession?> LoadSessionAsync(CancellationToken cancellationToken)
         {
             using var client = new HttpClientHelper();
             using Stream? responseStream = await client.GetAsync(
@@ -37,7 +40,9 @@ namespace LOL_GameAssistant.LoLApi
                 body: body,
                 cancellationToken: cancellationToken
             ).ConfigureAwait(false);
-            return response != null;
+            bool succeeded = response != null;
+            if (succeeded) Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared.MarkAction(actionId, championId, completed);
+            return succeeded;
         }
 
         /// <summary>

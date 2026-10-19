@@ -53,7 +53,7 @@ public sealed class ToolNavigationTests
         Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Text?.Contains("最近应用") == true);
         var navigation = Children(form).OfType<AntdUI.Segmented>().Single();
         navigation.SelectIndex = 3;
-        var name = Children(form).OfType<AntdUI.Input>().Single(input => input.GetType() == typeof(AntdUI.Input));
+        var name = Children(form).OfType<AntdUI.Input>().Single(input => input.Name == "presetName");
         Assert.Equal("客户端已存在的符文", name.Text);
         navigation.SelectIndex = 1;
         Assert.Equal("已应用方案", name.Text);

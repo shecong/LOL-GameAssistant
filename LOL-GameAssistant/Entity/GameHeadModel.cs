@@ -345,14 +345,14 @@
             [Newtonsoft.Json.JsonProperty("goldSpent")] public int GoldSpent { get; set; }
 
             // 补刀数据
-            [Newtonsoft.Json.JsonProperty("totalMinionsKilled")] public int TotalMinionsKilled { get; set; }
+            [Newtonsoft.Json.JsonProperty("totalMinionsKilled")] public int? TotalMinionsKilled { get; set; }
 
-            [Newtonsoft.Json.JsonProperty("neutralMinionsKilled")] public int NeutralMinionsKilled { get; set; }
+            [Newtonsoft.Json.JsonProperty("neutralMinionsKilled")] public int? NeutralMinionsKilled { get; set; }
             [Newtonsoft.Json.JsonProperty("neutralMinionsKilledEnemyJungle")] public int NeutralMinionsKilledEnemyJungle { get; set; }
             [Newtonsoft.Json.JsonProperty("neutralMinionsKilledTeamJungle")] public int NeutralMinionsKilledTeamJungle { get; set; }
 
             // 视野数据
-            [Newtonsoft.Json.JsonProperty("visionScore")] public int VisionScore { get; set; }
+            [Newtonsoft.Json.JsonProperty("visionScore")] public int? VisionScore { get; set; }
 
             [Newtonsoft.Json.JsonProperty("wardsPlaced")] public int WardsPlaced { get; set; }
             [Newtonsoft.Json.JsonProperty("wardsKilled")] public int WardsKilled { get; set; }
@@ -362,7 +362,7 @@
             // 伤害数据
             [Newtonsoft.Json.JsonProperty("totalDamageDealt")] public int TotalDamageDealt { get; set; }
 
-            [Newtonsoft.Json.JsonProperty("totalDamageDealtToChampions")] public int TotalDamageDealtToChampions { get; set; }
+            [Newtonsoft.Json.JsonProperty("totalDamageDealtToChampions")] public int? TotalDamageDealtToChampions { get; set; }
             [Newtonsoft.Json.JsonProperty("magicDamageDealt")] public int MagicDamageDealt { get; set; }
             [Newtonsoft.Json.JsonProperty("magicDamageDealtToChampions")] public int MagicDamageDealtToChampions { get; set; }
             [Newtonsoft.Json.JsonProperty("physicalDamageDealt")] public int PhysicalDamageDealt { get; set; }
