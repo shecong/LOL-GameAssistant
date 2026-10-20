@@ -35,10 +35,8 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
             room.ShouldAnnounceOnline(Context.ConnectionId))
         {
             var player = room.Get(Context.ConnectionId);
-            string rank = string.IsNullOrWhiteSpace(player.Rank) ? "" : $" · {player.Rank}";
-            var message = await store.AppendAsync("online:" + Guid.NewGuid().ToString("N"), "", Session,
-                player.Name, player.Region, "online", $"👋 【{player.Name}】上线了！【{player.Region}{rank}】欢迎来到休息室。", Context.ConnectionAborted);
-            if (message != null) await Clients.All.SendAsync("Message", message);
+            // Presence notices are live events, never part of the persisted message timeline.
+            await Clients.All.SendAsync("Online", new LoungeOnlineNotice(player.Name, player.Region, player.Rank), Context.ConnectionAborted);
         }
     }
 

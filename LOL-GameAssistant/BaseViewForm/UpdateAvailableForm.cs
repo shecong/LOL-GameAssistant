@@ -17,8 +17,9 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
     internal const string QqGroupUrl = "mqqapi://card/show_pslcard?src_type=internal&version=1&uin="
         + QqGroupNumber + "&card_type=group&source=qrcode";
 
-    internal UpdateAvailableForm(UpdateRelease release, Action<string>? openUrl = null)
+    internal UpdateAvailableForm(UpdateRelease release, Action<string>? openUrl = null, UpdatePackageService? packageService = null)
     {
+        packageService ??= new UpdatePackageService();
         Text = UiLanguage.IsEnglish ? "Update available" : "发现新版本";
         StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(680, 440);
@@ -76,7 +77,7 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
         sourceRow.Controls.Add(source);
         content.Controls.Add(sourceRow, 0, 3);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
-        var autoUpdate = new AntdUI.Button { Name = "DownloadAndInstallUpdate", Text = UiLanguage.IsEnglish ? "Download update" : "下载更新", AutoSize = true, Height = 40, Type = AntdUI.TTypeMini.Primary };
+        var autoUpdate = new AntdUI.Button { Name = "DownloadAndInstallUpdate", Text = UiLanguage.IsEnglish ? "Download update" : "下载更新", AutoSize = true, Height = 40, Type = AntdUI.TTypeMini.Primary, Enabled = false };
         var download = new AntdUI.Button { Name = "DownloadUpdate", Text = UiLanguage.IsEnglish ? "GitHub download" : "GitHub 下载", AutoSize = true, Height = 40 };
         var group = new AntdUI.Button { Name = "GetUpdateFromQq", Text = UiLanguage.IsEnglish ? "Get via QQ group" : "QQ群获取", AutoSize = true, Height = 40 };
         var later = new AntdUI.Button { Name = "UpdateLater", Text = UiLanguage.IsEnglish ? "Later" : "稍后再说", AutoSize = true, Height = 40 };
@@ -95,6 +96,29 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
             _downloadLifetime.Cancel();
         };
         Disposed += (_, _) => _downloadLifetime.Cancel();
+        Shown += async (_, _) =>
+        {
+            autoUpdate.Enabled = source.Enabled = false;
+            transferStatus.Text = UiLanguage.IsEnglish ? "Checking downloaded update…" : "正在检查已下载的更新包…";
+            try
+            {
+                _prepared = await packageService.TryRestoreAsync(release, null, _downloadLifetime.Token);
+                if (IsDisposed) return;
+                if (_prepared != null) ShowPrepared();
+                else transferStatus.Text = UiLanguage.IsEnglish ? "Download first, then choose when to restart and install."
+                    : "先下载并校验，完成后可选择重启安装；已完成的下载会保留。";
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.WriteException(ex);
+                if (!IsDisposed) transferStatus.Text = "未能恢复本地更新包，可重新下载：" + ex.Message;
+            }
+            finally
+            {
+                if (!IsDisposed) { autoUpdate.Enabled = true; source.Enabled = _prepared == null; }
+            }
+        };
         autoUpdate.Click += async (_, _) =>
         {
             if (_downloading) { _downloadLifetime.Cancel(); return; }
@@ -113,10 +137,9 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
                         transferProgress.Value = value.Percent;
                     });
                     bool useServer = release.ServerManifestUrl != null && source.SelectedIndex == 0;
-                    _prepared = await new UpdatePackageService().PrepareAsync(release, progress, _downloadLifetime.Token, useServer);
+                    _prepared = await packageService.PrepareAsync(release, progress, _downloadLifetime.Token, useServer);
                     if (IsDisposed) return;
-                    transferStatus.Text = "更新包已准备好，点击“重启并安装”后退出助手并替换文件。";
-                    autoUpdate.Text = UiLanguage.IsEnglish ? "Restart and install" : "重启并安装";
+                    ShowPrepared();
                     return;
                 }
                 if (Owner is GameMain main && main.gameFlowPhase is GameFlowPhase.InProgress or GameFlowPhase.Reconnect or GameFlowPhase.ChampSelect)
@@ -150,6 +173,15 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
             }
             finally { _downloading = false; _installing = false; }
         };
+
+        void ShowPrepared()
+        {
+            transferStatus.Text = UiLanguage.IsEnglish ? "Update downloaded. Restart and install now, or close this window and install later."
+                : "更新包已下载并校验，可重启安装；关闭窗口或重启助手后仍可继续安装，无需重复下载。";
+            transferProgress.Value = 100;
+            autoUpdate.Text = UiLanguage.IsEnglish ? "Restart and install" : "重启并安装";
+            source.Enabled = false;
+        }
 
         void Open(string url)
         {

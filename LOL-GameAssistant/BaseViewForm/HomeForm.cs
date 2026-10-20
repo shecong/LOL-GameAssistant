@@ -326,8 +326,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 play_next.Text = player.XpUntilNextLevel.ToString();
                 play_jd.Value = CalculateLevelProgress(player);
                 _historySnapshot = null;
-                await _gameDataVersionService.EnsureCurrentVersionAsync(token);
-                if (!request.IsCurrent) return;
+                _ = RefreshResourceVersionAsync(token);
                 // Show the profile immediately, then fetch independent data together.
                 var iconTask = _profileIconService.GetProfileIconAsync(player.ProfileIconId, token);
                 var rankedTask = _rankedStatsService.GetAsync(player.Puuid, isCurrentUser: puuid == null, cancellationToken: token);
@@ -605,6 +604,13 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 根据玩家经验计算进度条比例，并处理满级或缺少经验数据的边界情况。
         /// </summary>
+        private async Task RefreshResourceVersionAsync(CancellationToken token)
+        {
+            try { await _gameDataVersionService.EnsureCurrentVersionAsync(token); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
+        }
+
         private static float CalculateLevelProgress(PlayerProfile player)
         {
             int totalExperience = player.XpSinceLastLevel + player.XpUntilNextLevel;

@@ -6,6 +6,7 @@ param(
     [string]$PublishDirectory,
     [string]$PublishRoot = 'E:\releases',
     [string]$OutputRoot = 'E:\release-assets',
+    [string]$ReleaseNotesFile,
     [switch]$RebuildUpdater,
     [string]$UpdaterPath,
     [switch]$CheckOnly
@@ -30,6 +31,7 @@ try {
     $Architecture = $Architecture.ToLowerInvariant()
     [xml]$releaseVersionConfig = Get-Content -LiteralPath (Join-Path $releaseRepository 'build\Version.props') -Raw
     $releaseVersion = [string]$releaseVersionConfig.Project.PropertyGroup.SoftwareVersion
+    $releaseIndex = New-UpdateIndexJson -Version $releaseVersion -ReleaseNotesFile $ReleaseNotesFile
     if ($releaseVersion -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
         throw '请先在 build/Version.props 设置正确的 SoftwareVersion，例如 1.0.2。'
     }
@@ -133,7 +135,6 @@ try {
             'GitHub：ZIP 与对应 update-win-*.json 直接作为同版本 Release 附件上传。', ''
         )
     }
-    $releaseIndex = [ordered]@{ schemaVersion=1; version=$releaseVersion } | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $releaseRunRoot 'update.json'), $releaseIndex, [Text.UTF8Encoding]::new($false))
     $releaseSummary += @("IIS 根索引：$releaseRunRoot\update.json（所有架构上传并验证后最后发布）。", '旧 x64 客户端的 GitHub 兼容：可另外复制 update-win-x64.json 并以 update.json 为附件名上传；不要使用只有版本号的根索引。')
     $releaseSummaryPath = Join-Path $releaseRunRoot '发布结果.txt'

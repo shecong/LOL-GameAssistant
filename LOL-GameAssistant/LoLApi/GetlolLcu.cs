@@ -9,6 +9,11 @@ namespace LOL_GameAssistant.LoLApi
     public static class GetlolLcu
     {
         public static IInfoMsgForm? _infoMsgForm;
+        private static readonly Infrastructure.LeagueClient.LcuCredentialProbe Probe = new(ScanAuth, timedOut: () =>
+            Helper.RuntimeDiagnostics.Report("LCU 探测", "超时", "系统探测超过 3 秒，已停止等待；后续请求共用正在进行的探测，不重复创建线程"));
+
+        public static Task<(string? port, string? token)> GetAuthAsync(CancellationToken cancellationToken = default) =>
+            Probe.GetAsync(cancellationToken);
 
         /// <summary>
         /// 从 LCU lockfile 读取端口和 token（比 WMI 命令行解析更可靠）
@@ -18,26 +23,31 @@ namespace LOL_GameAssistant.LoLApi
         {
             try
             {
-                // 通过 WMI 获取进程路径
-                string query = "SELECT ExecutablePath, ProcessId FROM Win32_Process WHERE Name = 'LeagueClientUx.exe' OR Name = 'LeagueClient.exe'";
-                using var searcher = new ManagementObjectSearcher(query);
-                using var results = searcher.Get();
-
-                foreach (ManagementObject obj in results)
+                // Read process paths directly; a broken WMI service must not block the normal lockfile path.
+                foreach (string name in new[] { "LeagueClientUx", "LeagueClient" })
                 {
-                    string exePath = obj["ExecutablePath"]?.ToString() ?? "";
-                    if (string.IsNullOrEmpty(exePath)) continue;
-
-                    string dir = Path.GetDirectoryName(exePath) ?? "";
-                    string lockfile = Path.Combine(dir, "lockfile");
-                    if (!File.Exists(lockfile)) continue;
-
-                    string content = File.ReadAllText(lockfile).Trim();
-                    if (Infrastructure.LeagueClient.LcuLockfileParser.TryParse(content, out var port, out var token))
+                    Process[] processes = Process.GetProcessesByName(name);
+                    try
                     {
-                        _infoMsgForm?.AddMsg($"lockfile 连接成功: {port}");
-                        return (port, token);
+                        foreach (var process in processes)
+                        {
+                            try
+                            {
+                                string? directory = Path.GetDirectoryName(process.MainModule?.FileName);
+                                if (string.IsNullOrWhiteSpace(directory)) continue;
+                                string file = Path.Combine(directory, "lockfile");
+                                if (!File.Exists(file)) continue;
+                                using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                                using var reader = new StreamReader(stream);
+                                if (stream.Length > 4096) continue;
+                                if (Infrastructure.LeagueClient.LcuLockfileParser.TryParse(reader.ReadToEnd(), out var port, out var token))
+                                    return (port, token);
+                            }
+                            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+                            { /* The process may exit or deny access; try the next candidate. */ }
+                        }
                     }
+                    finally { foreach (var process in processes) process.Dispose(); }
                 }
             }
             catch (Exception ex)
@@ -50,7 +60,9 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 从 LCU lockfile 读取端口和 token（优先），失败则回退到 WMI 命令行解析
         /// </summary>
-        public static (string? port, string? token) GetAuth()
+        public static (string? port, string? token) GetAuth() => GetAuthAsync().GetAwaiter().GetResult();
+
+        private static (string? port, string? token) ScanAuth()
         {
             var (port, token) = GetFromLockfile();
             if (!string.IsNullOrEmpty(port) && !string.IsNullOrEmpty(token))
@@ -75,30 +87,23 @@ namespace LOL_GameAssistant.LoLApi
                     }
                 }
 
-                for (int i = 0; i < processes.Length; i++)
+                try
                 {
-                    string commandLine = GetCommandLineUsingWmi(processes[i].Id) ?? "";
-                    if (string.IsNullOrEmpty(commandLine))
+                    foreach (var process in processes)
                     {
-                        Console.WriteLine("无法获取进程命令行参数");
-                        _infoMsgForm?.AddMsg("无法获取进程命令行参数");
-                        return (null, null);
-                    }
-
-                    var portMatch = Regex.Match(commandLine, @"--app-port=(\d+)");
-                    var tokenMatch = Regex.Match(commandLine, @"--remoting-auth-token=([^\s""]+)");
-
-                    if (!portMatch.Success || !tokenMatch.Success)
-                    {
-                        Console.WriteLine("无法从命令行参数中解析端口和令牌");
-                        _infoMsgForm?.AddMsg("无法从命令行参数中解析端口和令牌");
-                        return (null, null);
-                    }
-                    if (portMatch != null && tokenMatch != null)
-                    {
-                        return (portMatch.Groups[1].Value, tokenMatch.Groups[1].Value);
+                        try
+                        {
+                            string commandLine = GetCommandLineUsingWmi(process.Id) ?? "";
+                            var portMatch = Regex.Match(commandLine, @"--app-port=(\d+)");
+                            var tokenMatch = Regex.Match(commandLine, @"--remoting-auth-token=([^\s""]+)");
+                            if (portMatch.Success && tokenMatch.Success)
+                                return (portMatch.Groups[1].Value, tokenMatch.Groups[1].Value);
+                        }
+                        catch (Exception ex) when (ex is ManagementException or System.Runtime.InteropServices.COMException or InvalidOperationException)
+                        { /* A stale process or unavailable provider must not skip other candidates. */ }
                     }
                 }
+                finally { foreach (var process in processes) process.Dispose(); }
                 return (null, null);
             }
             catch (Exception ex)
@@ -114,8 +119,10 @@ namespace LOL_GameAssistant.LoLApi
         {
             string query = $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}";
             using (var searcher = new ManagementObjectSearcher(query))
-            using (var results = searcher.Get())
             {
+                searcher.Options.Timeout = TimeSpan.FromSeconds(2);
+                searcher.Options.ReturnImmediately = false;
+                using var results = searcher.Get();
                 foreach (ManagementObject obj in results)
                 {
                     return obj["CommandLine"]?.ToString();

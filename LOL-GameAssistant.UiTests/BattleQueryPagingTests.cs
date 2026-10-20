@@ -59,16 +59,19 @@ public sealed class BattleQueryPagingTests
 
         query.ApplyModeFilterAsync("深渊大乱斗").GetAwaiter().GetResult();
         Assert.Equal(20, Field<int>(query, "_totalGameCount"));
-        Assert.Equal(Enumerable.Range(11, 10).Reverse().Select(id => (long)id * 2), details);
+        Assert.Empty(details);
+        Assert.Equal(Enumerable.Range(11, 10).Reverse().Select(id => (long)id * 2), Field<Control>(query, "stackMatches").Controls.OfType<MatchHistoryListRow>().Select(r => r.Game.GameId));
         details.Clear();
         SetField(query, "_currentPage", 2);
         Render(query).GetAwaiter().GetResult();
-        Assert.Equal(Enumerable.Range(1, 10).Reverse().Select(id => (long)id * 2), details);
+        Assert.Empty(details);
+        Assert.Equal(Enumerable.Range(1, 10).Reverse().Select(id => (long)id * 2), Field<Control>(query, "stackMatches").Controls.OfType<MatchHistoryListRow>().Select(r => r.Game.GameId));
         details.Clear();
         query.ApplyModeFilterAsync("峡谷单双排").GetAwaiter().GetResult();
         Assert.Equal(1, Field<int>(query, "_currentPage"));
         Assert.Equal(20, Field<int>(query, "_totalGameCount"));
-        Assert.All(details, id => Assert.Equal(1, id % 2));
+        Assert.Empty(details);
+        Assert.All(Field<Control>(query, "stackMatches").Controls.OfType<MatchHistoryListRow>(), row => Assert.Equal(1, row.Game.GameId % 2));
         Assert.Equal(1, historyReads);
         query.ApplyModeFilterAsync("斗魂竞技场").GetAwaiter().GetResult();
         Assert.Equal(0, Field<int>(query, "_totalGameCount"));
@@ -144,6 +147,7 @@ public sealed class BattleQueryPagingTests
             Proxy<IMatchHistoryService>(history), Proxy<IRankedStatsService>(),
             Proxy<IFavoritePlayerStore>((_, _) => new List<FavoritePlayer>()), Proxy<ITextExportService>());
         SetField(query, "_currentPlayer", new PlayerProfile("me", "preview", "CN1", 1, 0, 0, 0));
+        SetField(query, "_pageSize", 10);
         return query;
     }
 
@@ -180,8 +184,8 @@ public sealed class BattleQueryPagingTests
             var list = (Control)typeof(BattleQueryForm).GetField("stackMatches", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .GetValue(query)!;
             Assert.Equal(pageSize, list.Controls.Count);
-            Assert.Equal(pageSize, detailRequests);
-            Assert.All(list.Controls.Cast<Control>(), control => Assert.IsType<MatchHistoryPreviewCard>(control));
+            Assert.Equal(0, detailRequests);
+            Assert.All(list.Controls.Cast<Control>(), control => Assert.IsType<MatchHistoryListRow>(control));
         });
 
     private static T Proxy<T>(Func<MethodInfo, object?[], object?>? handler = null) where T : class

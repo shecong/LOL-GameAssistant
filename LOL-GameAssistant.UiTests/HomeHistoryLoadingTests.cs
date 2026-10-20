@@ -15,6 +15,47 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class HomeHistoryLoadingTests
 {
+    [Theory]
+    [InlineData(620)]
+    [InlineData(800)]
+    [InlineData(1060)]
+    public void LoadedDetailsRestoreBothTeamsAfterSummary(int width) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var pending = new TaskCompletionSource<MatchDetail?>();
+        var matches = Service<IMatchHistoryService>((_, _) => pending.Task);
+        using var record = new RecordForm(matches,
+            Service<IGameAssetService>((_, _) => Task.FromResult<GameAsset?>(null))) { Width = width };
+        var history = History(20);
+        var loading = record.setInfo(history.Games!.Games[0], "self", history: history);
+        Assert.False(Field<Control>(record, "flowAlly").Visible);
+        Assert.False(Field<Control>(record, "flowEnemy").Visible);
+
+        var detail = Detail(1);
+        detail.participants[0].teamId = 200;
+        detail.participants.Add(new() { participantId = 2, teamId = 100, championId = 1 });
+        detail.participantIdentities.Add(new() { participantId = 2, player = new() { Puuid = "enemy", GameName = "对手" } });
+        pending.SetResult(detail);
+        Pump(loading);
+
+        foreach (string name in new[] { "lblAlly", "lblEnemy", "flowAlly", "flowEnemy" })
+        {
+            Control control = Field<Control>(record, name);
+            Assert.True(control.Visible, name);
+            Assert.True(record.ClientRectangle.Contains(control.Bounds), name);
+        }
+        Assert.Single(Field<Control>(record, "flowAlly").Controls.Cast<Control>());
+        Assert.Equal("对手", Assert.Single(Field<Control>(record, "flowEnemy").Controls.Cast<Control>()).AccessibleName);
+
+        pending = new TaskCompletionSource<MatchDetail?>();
+        var reloading = record.setInfo(history.Games.Games[1], "self", history: history);
+        pending.SetResult(null);
+        Pump(reloading);
+        Assert.False(Field<Control>(record, "lblAlly").Visible);
+        Assert.False(Field<Control>(record, "lblEnemy").Visible);
+        Assert.False(Field<Control>(record, "flowAlly").Visible);
+        Assert.False(Field<Control>(record, "flowEnemy").Visible);
+    });
+
     [Fact]
     public void PendingDetailsDoNotBlockSummaryRatingOrPaging() => MatchListScrollingTests.OnUiThread(() =>
     {
@@ -39,7 +80,7 @@ public sealed class HomeHistoryLoadingTests
     [Fact]
     public void InitialLoadAndLocalPagingReuseOneBatchAndOnlyLoadVisibleDetails() => MatchListScrollingTests.OnUiThread(() =>
     {
-        var history = History(500);
+        var history = History(250);
         int batchRequests = 0;
         var detailIds = new List<long>();
         var matches = Service<IMatchHistoryService>((method, args) =>
@@ -48,7 +89,7 @@ public sealed class HomeHistoryLoadingTests
             {
                 Assert.Equal("self", args[0]);
                 Assert.Equal(0, args[1]);
-                Assert.Equal(499, args[2]);
+                Assert.Equal(249, args[2]);
                 batchRequests++;
                 return Task.FromResult<MatchHistoryResponse?>(history);
             }
@@ -65,7 +106,7 @@ public sealed class HomeHistoryLoadingTests
 
         Assert.Equal(1, batchRequests);
         Assert.Equal(Enumerable.Range(1, 10).Select(id => (long)id), detailIds);
-        Assert.Equal(500, Field<AntdUI.Pagination>(home, "game_pagin").Total);
+        Assert.Equal(250, Field<AntdUI.Pagination>(home, "game_pagin").Total);
         AssertAssessments(Field<Control>(home, "stackPanel1"));
 
         var pageTask = (Task)typeof(HomeForm).GetMethod("GetGameInfo", BindingFlags.Instance | BindingFlags.NonPublic)!

@@ -1,3 +1,16 @@
+function New-UpdateIndexJson {
+    param([Parameter(Mandatory)][string]$Version, [string]$ReleaseNotesFile)
+    $index = [ordered]@{ schemaVersion = 1; version = $Version }
+    if ($ReleaseNotesFile) {
+        $index.releaseNotes = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $ReleaseNotesFile).Path, [Text.Encoding]::UTF8)
+    }
+    $json = $index | ConvertTo-Json
+    if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 65536) {
+        throw '更新索引超过客户端的 64 KB 限制，请缩短更新说明。'
+    }
+    return $json
+}
+
 function Get-UpdateExecutableRuntime {
     param([Parameter(Mandatory)][string]$Path)
     $binary = [IO.File]::OpenRead($Path)

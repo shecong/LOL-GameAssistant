@@ -51,7 +51,7 @@ internal sealed class ServerUpdateReleaseService : IUpdateReleaseService
                     ?? throw new InvalidDataException("服务器更新配置为空。");
                 if (config.SchemaVersion != 1 || !Version.TryParse(config.Version, out var version) || version.Build < 0 || version.Revision > 0)
                     throw new InvalidDataException("服务器索引格式或版本号无效。");
-                var release = CreateRelease(version);
+                var release = CreateRelease(version) with { ReleaseNotes = config.ReleaseNotes ?? "" };
                 return release with { ServerManifestUrl = VersionManifest(server, version), AllowHttpServer = allowHttp };
             }
         }

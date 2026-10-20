@@ -38,7 +38,7 @@ public sealed class LivePlayerHistoryLoadingTests
         var card = CreateCard((method, args) => {
             Assert.Equal("GetPageAsync", method.Name);
             Assert.Equal(0, (int)args[1]!);
-            Assert.Equal(499, (int)args[2]!);
+            Assert.Equal(249, (int)args[2]!);
             return Task.FromResult<MatchHistoryResponse?>(new() { Games = new() });
         });
         using var form = Mount(card);
@@ -152,7 +152,7 @@ public sealed class LivePlayerHistoryLoadingTests
         {
             if (method.Name == "GetPageAsync")
             {
-                Assert.Equal(0, args[1]); Assert.Equal(499, args[2]);
+                Assert.Equal(0, args[1]); Assert.Equal(249, args[2]);
                 batchRequests++;
                 return Task.FromResult<MatchHistoryResponse?>(page);
             }

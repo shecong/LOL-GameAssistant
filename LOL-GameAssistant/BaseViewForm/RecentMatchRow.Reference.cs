@@ -5,6 +5,7 @@ namespace LOL_GameAssistant.BaseViewForm;
 public partial class RecentMatchRow
 {
     private bool _referenceLayout;
+    private bool _workspaceLayout;
     private AntdUI.Label? _detailArrow;
     internal void UseReferenceLayout()
     {
@@ -15,6 +16,27 @@ public partial class RecentMatchRow
         _detailArrow.Click += (_, _) => OpenDetail();
         Controls.Add(_detailArrow);
         LayoutRow();
+    }
+    internal void UseWorkspaceLayout()
+    {
+        UseReferenceLayout();
+        _workspaceLayout = true;
+        LayoutRow();
+    }
+    private void LayoutWorkspaceRow()
+    {
+        int w = ClientSize.Width, y = (Height - 30) / 2;
+        bool date = w >= 600;
+        picChampion.SetBounds(10, y, 30, 30);
+        lblChampion.SetBounds(48, y, Math.Max(25, (int)(w * .27) - 52), 30);
+        lblResult.SetBounds((int)(w * .27), y, (int)(w * .10), 30);
+        lblKda.SetBounds((int)(w * .38), y, (int)(w * .18), 30);
+        lblMode.Visible = true;
+        lblMode.SetBounds((int)(w * .57), y, (int)(w * (date ? .17 : .22)), 30);
+        lblDuration.SetBounds((int)(w * (date ? .75 : .81)), y, (int)(w * .10), 30);
+        lblDate.Visible = date;
+        lblDate.SetBounds((int)(w * .85), y, Math.Max(1, (int)(w * .15) - 20), 30);
+        _detailArrow?.SetBounds(w - 18, y, 16, 30);
     }
     private void LayoutReferenceRow()
     {

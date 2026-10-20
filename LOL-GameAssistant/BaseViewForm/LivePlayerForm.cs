@@ -229,6 +229,8 @@ namespace LOL_GameAssistant.BaseViewForm
 
             this.Resize += (_, _) => RecalcHeaderLayout();
             panelMatches.SizeChanged += (_, _) => ResizeMatchRows();
+            panelMatches.Layout += (_, _) => ResizeMatchRows();
+            panelMatches.VisibleChanged += (_, _) => { if (panelMatches.Visible) ResizeMatchRows(); };
             RecalcHeaderLayout();
             this.Load += async (_, _) =>
             {
@@ -306,7 +308,10 @@ namespace LOL_GameAssistant.BaseViewForm
             try
             {
                 MatchListScrolling.LayoutRows(panelMatches,
-                    panelMatches.Controls.OfType<RecentMatchRow>().Cast<Control>().ToArray(), 8, 5);
+                    panelMatches.Controls.Cast<Control>().ToArray(), 8, 5);
+                // ResumeLayout can reveal the vertical scrollbar after the first width pass.
+                MatchListScrolling.LayoutRows(panelMatches,
+                    panelMatches.Controls.Cast<Control>().ToArray(), 8, 5);
             }
             finally { _layingOutMatchRows = false; }
         }
@@ -393,6 +398,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <param name="memberNames">同组玩家名称（用于悬停提示）。</param>
         public void SetPremadeGroup(int? groupIndex, List<string>? memberNames, bool isInferred = false)
         {
+            _layoutPremadeNote = groupIndex.HasValue ? $"{(isInferred ? "疑似开黑" : "开黑")}{groupIndex.Value}" : "";
             if (!groupIndex.HasValue)
             {
                 lblPremadeTag.Visible = false;
@@ -457,6 +463,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _rankLabel.Visible = true;
             _performanceTip.SetToolTip(_rankLabel, tooltip);
             RecalcHeaderLayout();
+            OverviewChanged?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>异步加载当前对象负责的数据。</summary>
@@ -545,6 +552,11 @@ namespace LOL_GameAssistant.BaseViewForm
             try
             {
                 ControlLifetime.ClearAndDispose(panelMatches);
+                if (games.Length == 0 && history.Games.MissingSummaryCount > 0) panelMatches.Controls.Add(new AntdUI.Label
+                {
+                    Text = history.Games.DataWarning, Height = 48,
+                    ForeColor = UiTheme.Palette.TextSecondary, Padding = new Padding(8)
+                });
                 foreach (var game in games)
                 {
                     var row = new RecentMatchRow(_gameAssetService, _matchHistoryService)
@@ -555,12 +567,14 @@ namespace LOL_GameAssistant.BaseViewForm
                     panelMatches.Controls.Add(row);
                     iconTasks.Add(row.SetSummaryAsync(game, _playerPuuid!));
                 }
-                if (games.Length == 0) panelMatches.Controls.Add(new AntdUI.Label
+                if (games.Length == 0 && history.Games.MissingSummaryCount == 0) panelMatches.Controls.Add(new AntdUI.Label
                 {
                     Text = "暂无战绩", AutoSize = true, ForeColor = UiTheme.Palette.TextSecondary, Padding = new Padding(8)
                 });
             }
             finally { panelMatches.ResumeLayout(); }
+            if (_historyHeading != null)
+                _historyHeading.Text = $"最近战绩 · {games.Length} 场" + (games.Length > 0 ? " · 向下滚动查看" : "");
             ResizeMatchRows();
             // 文字立即显示，图标各自异步补齐，不阻塞评级和卡片完成。
             _ = Task.WhenAll(iconTasks);
@@ -684,6 +698,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_recentPerformancePublished || IsDisposed || string.IsNullOrWhiteSpace(_playerPuuid)) return;
             _recentPerformancePublished = true;
             _cachedAssessment = assessment;
+            OverviewChanged?.Invoke(this, EventArgs.Empty);
             RecentPerformanceReady?.Invoke(this, new PlayerRecentPerformanceEventArgs(
                 _playerPuuid,
                 lblName.Text,
@@ -758,6 +773,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     _ownedProfileImage?.Dispose();
                     _ownedProfileImage = new Bitmap(temp);
                     picProfile.Image = _ownedProfileImage;
+                    OverviewChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }

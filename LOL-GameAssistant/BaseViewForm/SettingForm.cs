@@ -391,6 +391,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             AssistantSettings latest = _settingsStore.Load();
             _config.PersonalRunePresets = latest.PersonalRunePresets;
+            _config.LiveGameLayout = latest.LiveGameLayout;
             _config.OpggManualBuildSelections = latest.OpggManualBuildSelections;
             _config.RememberedHeroSkins = latest.RememberedHeroSkins;
             _config.SkinCoreEnabled = latest.SkinCoreEnabled;

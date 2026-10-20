@@ -26,4 +26,4 @@ internal static class UpdatePlatform
     }
 }
 
-public sealed record UpdateIndex(int SchemaVersion, string Version);
+public sealed record UpdateIndex(int SchemaVersion, string Version, string? ReleaseNotes = null);

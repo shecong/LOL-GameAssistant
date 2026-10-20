@@ -48,6 +48,9 @@ internal sealed class UpdatePackageService
         if (File.Exists(Path.Combine(updateRoot, "active-job.txt")))
             throw new IOException("存在未完成的安装，请先运行程序目录中的 Updater.exe 恢复，再重试。 ");
 
+        var cached = await TryRestoreAsync(release, progress, cancellationToken).ConfigureAwait(false);
+        if (cached != null) return cached;
+
         progress?.Report(new(0, 0, "正在读取更新配置"));
         using var configResponse = await GetManifestAsync(release, useServer, cancellationToken).ConfigureAwait(false);
         if (configResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -68,24 +71,11 @@ internal sealed class UpdatePackageService
             string stage = Path.Combine(transaction, "stage");
             progress?.Report(new(config.Size, config.Size, "正在解压并验证文件"));
             await Task.Run(() => ExtractAndVerify(zip, stage, cancellationToken), cancellationToken).ConfigureAwait(false);
-            string entry = Path.Combine(stage, config.EntryExecutable);
-            UpdatePlatform.ValidateExecutable(entry);
-            var binaryVersion = FileVersionInfo.GetVersionInfo(entry);
-            var actualVersion = new Version(binaryVersion.FileMajorPart, binaryVersion.FileMinorPart,
-                Math.Max(0, binaryVersion.FileBuildPart), Math.Max(0, binaryVersion.FilePrivatePart));
-            if (AppVersion.Normalize(actualVersion) != AppVersion.Normalize(Version.Parse(config.Version)))
-                throw new InvalidDataException("更新包中的主程序版本与发布配置不一致。");
-
-            Directory.CreateDirectory(Path.Combine(transaction, "runner"));
-            RejectReparsePoints(updater);
-            File.Copy(updater, Path.Combine(transaction, "runner", "Updater.exe"));
-            string manifestHash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(stage, ManifestFile), cancellationToken)));
-            using var parent = Process.GetCurrentProcess();
-            string job = Path.Combine(transaction, "job.ini");
-            // UTF-16 INI 由 Win32 直接读取，原生更新器无需引入 JSON 库。
-            string text = $"[update]\r\nSchema=1\r\nToken={token}\r\nEntry={config.EntryExecutable}\r\nVersion={config.Version}\r\nParentPid={parent.Id}\r\nParentStart={parent.StartTime.ToUniversalTime().ToFileTimeUtc()}\r\nManifestSha256={manifestHash}\r\nState=ready\r\n";
-            await File.WriteAllTextAsync(job, text, Encoding.Unicode, cancellationToken).ConfigureAwait(false);
-            return new(transaction, job, token, config.Version);
+            ValidateStagedExecutable(stage, config);
+            var prepared = await WriteJobAsync(transaction, config, cancellationToken).ConfigureAwait(false);
+            // Write the cache marker last, only after the entire package is verified and ready.
+            await File.WriteAllBytesAsync(Path.Combine(transaction, "manifest.json"), configBytes, cancellationToken).ConfigureAwait(false);
+            return prepared;
         }
         catch
         {
@@ -93,6 +83,80 @@ internal sealed class UpdatePackageService
             try { Directory.Delete(transaction, recursive: true); } catch { }
             throw;
         }
+    }
+
+    public async Task<PreparedUpdate?> TryRestoreAsync(UpdateRelease release,
+        IProgress<UpdateDownloadProgress>? progress, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string root = Path.Combine(_installDirectory, ".update");
+        RejectReparsePoints(root);
+        if (!Directory.Exists(root) || File.Exists(Path.Combine(root, "active-job.txt"))) return null;
+        foreach (string transaction in Directory.EnumerateDirectories(root))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!Guid.TryParseExact(Path.GetFileName(transaction), "N", out _)) continue;
+            try
+            {
+                RejectReparsePoints(transaction);
+                // Started transactions belong to native updater recovery, never to the download cache.
+                if (File.Exists(Path.Combine(transaction, "state.txt")) || Directory.Exists(Path.Combine(transaction, "backup"))) continue;
+                string metadata = Path.Combine(transaction, "manifest.json");
+                RejectReparsePoints(metadata);
+                if (!File.Exists(metadata) || new FileInfo(metadata).Length > 64 * 1024) continue;
+                var config = JsonSerializer.Deserialize<UpdateManifest>(await File.ReadAllBytesAsync(metadata, cancellationToken).ConfigureAwait(false),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (config == null) continue;
+                ValidateManifest(config, release);
+                progress?.Report(new(0, config.Size, "正在校验已下载的更新包"));
+                string zip = Path.Combine(transaction, "package.zip");
+                RejectReparsePoints(zip);
+                if (new FileInfo(zip).Length != config.Size) continue;
+                await using (var stream = File.OpenRead(zip))
+                    if (!CryptographicOperations.FixedTimeEquals(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false), Convert.FromHexString(config.Sha256))) continue;
+                string stage = Path.Combine(transaction, "stage");
+                await Task.Run(() => VerifyStage(stage, cancellationToken), cancellationToken).ConfigureAwait(false);
+                ValidateStagedExecutable(stage, config);
+                var prepared = await WriteJobAsync(transaction, config, cancellationToken).ConfigureAwait(false);
+                progress?.Report(new(config.Size, config.Size, "已恢复下载完成的更新包"));
+                return prepared;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or ArgumentException or FormatException)
+            {
+                // Missing, stale or damaged caches fall back to a fresh download; installed files stay untouched.
+            }
+        }
+        return null;
+    }
+
+    private static void ValidateStagedExecutable(string stage, UpdateManifest config)
+    {
+        string entry = Path.Combine(stage, config.EntryExecutable);
+        UpdatePlatform.ValidateExecutable(entry);
+        var binaryVersion = FileVersionInfo.GetVersionInfo(entry);
+        var actualVersion = new Version(binaryVersion.FileMajorPart, binaryVersion.FileMinorPart,
+            Math.Max(0, binaryVersion.FileBuildPart), Math.Max(0, binaryVersion.FilePrivatePart));
+        if (AppVersion.Normalize(actualVersion) != AppVersion.Normalize(Version.Parse(config.Version)))
+            throw new InvalidDataException("更新包中的主程序版本与发布配置不一致。");
+    }
+
+    private async Task<PreparedUpdate> WriteJobAsync(string transaction, UpdateManifest config, CancellationToken ct)
+    {
+        string token = Path.GetFileName(transaction);
+        string runner = Path.Combine(transaction, "runner", "Updater.exe");
+        RejectReparsePoints(runner);
+        string updater = Path.Combine(_installDirectory, "Updater.exe");
+        RejectReparsePoints(updater);
+        Directory.CreateDirectory(Path.GetDirectoryName(runner)!);
+        File.Copy(updater, runner, overwrite: true);
+        string manifestHash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(transaction, "stage", ManifestFile), ct).ConfigureAwait(false)));
+        using var parent = Process.GetCurrentProcess();
+        string job = Path.Combine(transaction, "job.ini");
+        RejectReparsePoints(job);
+        // Refresh process identity when reusing a download after restarting the application.
+        string text = $"[update]\r\nSchema=1\r\nToken={token}\r\nEntry={config.EntryExecutable}\r\nVersion={config.Version}\r\nParentPid={parent.Id}\r\nParentStart={parent.StartTime.ToUniversalTime().ToFileTimeUtc()}\r\nManifestSha256={manifestHash}\r\nState=ready\r\n";
+        await File.WriteAllTextAsync(job, text, Encoding.Unicode, ct).ConfigureAwait(false);
+        return new(transaction, job, token, config.Version);
     }
 
     internal static void ValidateManifest(UpdateManifest config, UpdateRelease release, bool requireNewer = true)
@@ -185,6 +249,17 @@ internal sealed class UpdatePackageService
                 ct.ThrowIfCancellationRequested();
                 output.Write(buffer, 0, read);
             }
+        }
+        VerifyStage(destination, ct);
+    }
+
+    private static void VerifyStage(string destination, CancellationToken ct)
+    {
+        RejectReparsePoints(destination);
+        foreach (string path in Directory.EnumerateFileSystemEntries(destination, "*", SearchOption.AllDirectories))
+        {
+            ct.ThrowIfCancellationRequested();
+            RejectReparsePoints(path);
         }
         string manifest = Path.Combine(destination, ManifestFile);
         if (new FileInfo(manifest).Length > 8 * 1024 * 1024)

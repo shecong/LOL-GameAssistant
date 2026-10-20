@@ -10,6 +10,6 @@ public sealed class LegacyGameDataVersionService : IGameDataVersionService
     public Task EnsureCurrentVersionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Game_Api.GetGameversion();
+        return Game_Api.GetGameversion(cancellationToken);
     }
 }

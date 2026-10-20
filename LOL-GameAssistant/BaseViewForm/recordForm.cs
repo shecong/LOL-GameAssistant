@@ -368,6 +368,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 else
                     flowEnemy.Controls.Add(entry);
             }
+            lblAlly.Visible = flowAlly.Visible = flowAlly.Controls.Count > 0;
+            lblEnemy.Visible = flowEnemy.Visible = flowEnemy.Controls.Count > 0;
             LayoutRecord();
         }
 

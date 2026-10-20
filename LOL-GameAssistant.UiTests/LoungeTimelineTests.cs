@@ -35,6 +35,9 @@ public sealed class LoungeTimelineTests
             using var page = new LoungeForm(client); using var host = new Form { ClientSize = new(width, 760) }; host.Controls.Add(page); host.Show(); UiTheme.Apply(page); Refresh(page); System.Windows.Forms.Application.DoEvents();
             var history = Field<RichTextBox>(page, "_history"); var members = Field<ListBox>(page, "_members");
             Assert.True(history.Height > 400); Assert.Equal(2, members.Items.Count); Assert.True(members.Width >= 240);
+            var notice = Field<Label>(page, "_onlineNotice");
+            Assert.True(notice.Width > 150, $"实时提示可用宽度: {notice.Width}");
+            Assert.True(notice.Right <= notice.Parent!.ClientSize.Width);
             string? previews = Environment.GetEnvironmentVariable("LOL_LOUNGE_PREVIEW_DIRECTORY");
             if (previews != null) { Directory.CreateDirectory(previews); using var image = new Bitmap(page.Width, page.Height); page.DrawToBitmap(image, page.ClientRectangle); image.Save(Path.Combine(previews, $"lounge-{width}-{(dark ? "dark" : "light")}.png")); }
             host.Close();
@@ -81,7 +84,7 @@ public sealed class LoungeTimelineTests
     });
 
     [Fact]
-    public void OnlineEventsAreCompactAndUnknownRegionCodeIsHidden() => MatchListScrollingTests.OnUiThread(() =>
+    public void OnlineEventsExpireWithoutHistoryOrUnreadAndUnknownRegionCodeIsHidden() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var client = Client(); var now = DateTimeOffset.Now;
         Receive(client, new(1, "", "sender", "小明#123", "未知大区（TENCENT）", "online", "重复的欢迎来到休息室", now));
@@ -90,8 +93,22 @@ public sealed class LoungeTimelineTests
         Receive(client, new(4, "", "sender", "切换账号#789", "艾欧尼亚", "online", "上线消息", now.AddMinutes(2)));
         using var page = new LoungeForm(client); using var host = new Form { ClientSize = new(1100, 700) }; host.Controls.Add(page); host.Show();
         var history = Field<RichTextBox>(page, "_history");
-        Assert.DoesNotContain("TENCENT", history.Text); Assert.DoesNotContain("欢迎来到", history.Text); Assert.Contains("地区待确认", history.Text);
-        Assert.Equal(2, history.Text.Split("加入休息室").Length - 1);
+        Assert.Single(client.Messages);
+        Assert.DoesNotContain("加入休息室", history.Text);
+        var receiveOnline = typeof(LoungeClient).GetMethod("ReceiveOnline", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        receiveOnline.Invoke(client, [new LoungeOnlineNotice("小明#123", "未知大区（TENCENT）")]);
+        Refresh(page);
+        var banner = Field<Label>(page, "_onlineNotice");
+        Assert.Contains("小明#123 加入休息室", banner.Text);
+        Assert.Contains("地区待确认", banner.Text); Assert.DoesNotContain("TENCENT", banner.Text);
+        receiveOnline.Invoke(client, [new LoungeOnlineNotice("切换账号#789", "艾欧尼亚")]);
+        Refresh(page);
+        Assert.Contains("切换账号#789", banner.Text); Assert.DoesNotContain("小明", banner.Text);
+        Assert.Single(client.Messages); Assert.Equal(0, client.UnreadCount);
+        Assert.DoesNotContain("加入休息室", history.Text);
+        typeof(LoungeClient).GetField("_onlineNoticeUntil", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(client, DateTimeOffset.UtcNow.AddSeconds(-1));
+        Refresh(page);
+        Assert.Empty(banner.Text); Assert.Null(client.OnlineNotice);
         Field<ComboBox>(page, "_messageFilter").SelectedIndex = 1;
         Assert.DoesNotContain("加入休息室", history.Text); Assert.Contains("一起开黑吗", history.Text);
         host.Close();

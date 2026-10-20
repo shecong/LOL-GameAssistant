@@ -38,8 +38,8 @@ internal static class SgpMatchMapper
             stats.RuneIds = p.SelectTokens("perks.styles[*].selections[*].perk").Select(v => v.Value<int>())
                 .Concat((p.SelectToken("perks.statPerks") as JObject)?.Properties().Select(v => v.Value.Value<int>()) ?? []).Where(i => i > 0).ToList();
             summary.Participants.Add(new MatchParticipant { participantId = pid, championId = p.Value<int?>("championId") ?? 0,
-                teamId = p.Value<int?>("teamId") ?? 0, Spell1Id = p.Value<int?>("summoner1Id") ?? 0,
-                Spell2Id = p.Value<int?>("summoner2Id") ?? 0, stats = stats });
+                teamId = p.Value<int?>("teamId") ?? 0, Spell1Id = p.Value<int?>("spell1Id") ?? p.Value<int?>("summoner1Id") ?? 0,
+                Spell2Id = p.Value<int?>("spell2Id") ?? p.Value<int?>("summoner2Id") ?? 0, stats = stats });
             summary.ParticipantIdentities.Add(new MatchIdentity { ParticipantId = pid, Player = new MatchPlayer
             {
                 Puuid = p.Value<string>("puuid") ?? "", GameName = p.Value<string>("riotIdGameName") ?? p.Value<string>("summonerName") ?? "",

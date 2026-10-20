@@ -116,13 +116,15 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
             var saved = JsonConvert.DeserializeObject<Snapshot>(await File.ReadAllTextAsync(file, scope.Token).ConfigureAwait(false));
             if (saved == null || saved.Account != current.Account) return OpggBuildApplyResult.Failure("快照账号不匹配");
             if (saved.After is not { } applied) return OpggBuildApplyResult.Failure("缺少应用后记录，无法确认本次修改范围；请使用备份预览手动恢复");
-            var changed = saved.Pages.OfType<JObject>().Where(p => !PageEquals(p, Find(applied.Pages, p))).ToArray();
+            var removed = saved.Pages.OfType<JObject>().Where(p => Find(applied.Pages, p) == null).ToArray();
+            var changed = saved.Pages.OfType<JObject>().Where(p => Find(applied.Pages, p) != null && !PageEquals(p, Find(applied.Pages, p))).ToArray();
             var created = applied.Pages.OfType<JObject>().Where(p => Find(saved.Pages, p) == null).ToArray();
             bool itemsChanged = !JToken.DeepEquals(saved.Items?["itemSets"], applied.Items?["itemSets"]);
             bool spellsChanged = !SpellsEqual(saved.Selection, applied.Selection);
             bool selectionChanged = saved.CurrentPage?.Value<long?>("id") != applied.CurrentPage?.Value<long?>("id");
             // Preflight every affected field before the first write; later manual changes remain untouched.
             if (changed.Any(p => !PageEquals(Find(current.Pages, p), Find(applied.Pages, p)) && !PageEquals(Find(current.Pages, p), p)) ||
+                removed.Any(p => Find(current.Pages, p) is { } existingRemoved && !PageEquals(existingRemoved, p)) ||
                 created.Any(p => Find(current.Pages, p) is { } now && !PageEquals(now, p)) ||
                 itemsChanged && !JToken.DeepEquals(current.Items?["itemSets"], applied.Items?["itemSets"]) && !JToken.DeepEquals(current.Items?["itemSets"], saved.Items?["itemSets"]) ||
                 selectionChanged && current.CurrentPage?.Value<long?>("id") != applied.CurrentPage?.Value<long?>("id") && current.CurrentPage?.Value<long?>("id") != saved.CurrentPage?.Value<long?>("id") ||
@@ -134,6 +136,27 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
                 if (PageEquals(page, Find(current.Pages, page))) continue;
                 if (!await SameAccount(saved, scope.Token).ConfigureAwait(false)) return OpggBuildApplyResult.Failure("账号已变化，已停止恢复");
                 if (!await lcu.PutAsync($"/lol-perks/v1/pages/{page.Value<long>("id")}", page.ToString(Formatting.None), scope.Token).ConfigureAwait(false)) failures.Add("符文页");
+            }
+            // LCU assigns new IDs when recreating pages removed by managed-page cleanup.
+            var appliedIds = applied.Pages.OfType<JObject>().Select(p => p.Value<long>("id")).ToHashSet();
+            var restoredIds = new HashSet<long>();
+            foreach (var page in removed)
+            {
+                if (!await SameAccount(saved, scope.Token).ConfigureAwait(false)) return OpggBuildApplyResult.Failure("账号已变化，已停止恢复");
+                var available = await Read("/lol-perks/v1/pages", scope.Token).ConfigureAwait(false) as JArray ?? [];
+                var restored = available.OfType<JObject>().FirstOrDefault(p => !appliedIds.Contains(p.Value<long>("id")) &&
+                    !restoredIds.Contains(p.Value<long>("id")) && PageContentEquals(p, page));
+                if (restored != null) { restoredIds.Add(restored.Value<long>("id")); continue; }
+                var body = (JObject)page.DeepClone();
+                body.Remove("id"); body.Remove("isActive"); body["current"] = false;
+                if (!await lcu.PostAsync("/lol-perks/v1/pages", body.ToString(Formatting.None), scope.Token).ConfigureAwait(false)) failures.Add("已清理符文页");
+                else
+                {
+                    available = await Read("/lol-perks/v1/pages", scope.Token).ConfigureAwait(false) as JArray ?? [];
+                    restored = available.OfType<JObject>().FirstOrDefault(p => !appliedIds.Contains(p.Value<long>("id")) &&
+                        !restoredIds.Contains(p.Value<long>("id")) && PageContentEquals(p, page));
+                    if (restored != null) restoredIds.Add(restored.Value<long>("id"));
+                }
             }
             if (selectionChanged && saved.CurrentPage?.Value<long?>("id") is > 0 && !await lcu.PutAsync("/lol-perks/v1/currentpage", saved.CurrentPage["id"]!.ToString(), scope.Token).ConfigureAwait(false)) failures.Add("当前符文页");
             foreach (var page in created.Where(p => Find(current.Pages, p) != null))
@@ -149,6 +172,13 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
             else
             {
                 if (changed.Any(p => !PageEquals(p, Find(after.Pages, p))) || created.Any(p => Find(after.Pages, p) != null)) failures.Add("符文读取核验");
+                var restored = after.Pages.OfType<JObject>().Where(p => !appliedIds.Contains(p.Value<long>("id"))).ToList();
+                foreach (var page in removed)
+                {
+                    int index = restored.FindIndex(p => PageContentEquals(p, page));
+                    if (index < 0) failures.Add("已清理符文页读取核验");
+                    else restored.RemoveAt(index);
+                }
                 if (selectionChanged && saved.CurrentPage?.Value<long?>("id") != after.CurrentPage?.Value<long?>("id")) failures.Add("当前页读取核验");
                 if (itemsChanged && !JToken.DeepEquals(saved.Items?["itemSets"], after.Items?["itemSets"])) failures.Add("装备读取核验");
                 if (spellsChanged && !SpellsEqual(saved.Selection, after.Selection)) failures.Add("技能读取核验");
@@ -162,5 +192,7 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
     private static JObject? Find(JArray pages, JObject page) => pages.OfType<JObject>().FirstOrDefault(p => p.Value<long?>("id") == page.Value<long?>("id"));
     private static bool SpellsEqual(JObject? a, JObject? b) => new[] { "spell1Id", "spell2Id" }.All(k => JToken.DeepEquals(a?[k], b?[k]));
     private static bool PageEquals(JObject? a, JObject? b) => a != null && b != null &&
-        new[] { "id", "name", "primaryStyleId", "subStyleId", "selectedPerkIds" }.All(k => JToken.DeepEquals(a[k], b[k]));
+        JToken.DeepEquals(a["id"], b["id"]) && PageContentEquals(a, b);
+    private static bool PageContentEquals(JObject a, JObject b) =>
+        new[] { "name", "primaryStyleId", "subStyleId", "selectedPerkIds" }.All(k => JToken.DeepEquals(a[k], b[k]));
 }

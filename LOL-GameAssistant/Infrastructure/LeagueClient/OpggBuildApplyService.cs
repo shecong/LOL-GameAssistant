@@ -568,7 +568,8 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
             .Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
         JObject? managedPage = pages.OfType<JObject>()
             .Where(page => IsManagedRunePage(page.Value<string>("name")))
-            .FirstOrDefault(page => page.Value<bool?>("isEditable") != false && page.Value<long?>("id").HasValue);
+            .Where(page => page.Value<bool?>("isEditable") != false && page.Value<bool?>("isTemporary") != true && page.Value<long?>("id") is > 0)
+            .OrderByDescending(IsCurrentRunePage).FirstOrDefault();
         if (managedPage != null)
         {
             long id = managedPage.Value<long>("id");
@@ -579,7 +580,6 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
                 if (!await _lcu.PutAsync($"/lol-perks/v1/pages/{id}", body, cancellationToken).ConfigureAwait(false))
                     throw new InvalidOperationException("客户端拒绝替换符文页。");
                 await SetCurrentRunePageAsync(id, cancellationToken).ConfigureAwait(false);
-                return "符文页已设为当前（已替换助手创建的旧页）";
             }
             catch
             {
@@ -588,6 +588,8 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
                     throw new InvalidOperationException("符文页替换失败，自动恢复也未成功；请在客户端检查符文页。", null);
                 throw;
             }
+            return "符文页已设为当前（已替换助手创建的旧页）" +
+                await RemoveOldManagedRunePagesAsync(pages, id, cancellationToken).ConfigureAwait(false);
         }
 
         // 库存字段在不同客户端版本中含义不一致。直接让 LCU 决定能否创建。
@@ -636,6 +638,26 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
             }
         }
         throw new InvalidOperationException("客户端拒绝创建符文页，且没有可替换的助手符文页；如需覆盖当前自定义页，请勾选允许覆盖并确认当前页不是临时页。");
+    }
+
+    private async Task<string> RemoveOldManagedRunePagesAsync(JArray pages, long keepId, CancellationToken token)
+    {
+        int removed = 0, failed = 0;
+        foreach (var page in pages.OfType<JObject>().Where(p => IsManagedRunePage(p.Value<string>("name")) &&
+            p.Value<bool?>("isEditable") != false && p.Value<bool?>("isTemporary") != true &&
+            p.Value<long?>("id") is > 0 && p.Value<long>("id") != keepId))
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                if (await _lcu.DeleteAsync($"/lol-perks/v1/pages/{page.Value<long>("id")}", token).ConfigureAwait(false)) removed++;
+                else failed++;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch { failed++; }
+        }
+        return (removed > 0 ? $"，已清理 {removed} 个旧助手符文页" : "") +
+            (failed > 0 ? $"；{failed} 个旧助手符文页未清理成功，可再次应用重试" : "");
     }
 
     /// <summary>显式设置当前符文页，避免客户端忽略创建请求中的 current 标志。</summary>
@@ -709,14 +731,12 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
         JObject? wrapper = await ReadObjectAsync(endpoint, cancellationToken).ConfigureAwait(false);
         if (wrapper?["itemSets"] is not JArray)
             throw new InvalidOperationException("无法读取现有物品集，已停止写入以避免覆盖客户端原有配置。");
-        var preservedSets = (wrapper?["itemSets"] as JArray ?? new JArray())
-            .OfType<JObject>()
-            .Where(itemSet => !((itemSet.Value<string>("title") ?? "").StartsWith(ManagedItemPrefix, StringComparison.Ordinal) && itemSet["associatedChampions"]?.Values<int>().Contains(championId) == true))
-            .ToList();
+        var existingSets = (JArray)wrapper["itemSets"]!;
+        var preservedSets = existingSets.Where(itemSet => !IsManagedItemSet(itemSet)).Select(s => s.DeepClone()).ToList();
 
         var newSet = new JObject
         {
-            ["uid"] = Guid.NewGuid().ToString(),
+            ["uid"] = ManagedItemSetUid(existingSets, championId),
             ["title"] = ManagedItemPrefix + label,
             ["type"] = "custom",
             ["mode"] = "any",
@@ -737,8 +757,17 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
         }.ToString(Formatting.None);
         if (!await _lcu.PutAsync(endpoint, body, cancellationToken).ConfigureAwait(false))
             throw new InvalidOperationException("客户端拒绝写入自定义物品集。");
-        return "出装已写入自定义物品集";
+        return "出装已更新到助手物品集（旧助手方案已替换）";
     }
+
+    private static bool IsManagedItemSet(JToken itemSet) =>
+        (itemSet.Value<string>("title") ?? "").StartsWith(ManagedItemPrefix, StringComparison.Ordinal) ||
+        (itemSet.Value<string>("title") ?? "").StartsWith(PersonalRunePrefix, StringComparison.Ordinal);
+
+    private static string ManagedItemSetUid(JArray sets, int championId) =>
+        sets.OfType<JObject>().Where(IsManagedItemSet)
+            .OrderByDescending(s => s["associatedChampions"]?.Values<int>().Contains(championId) == true)
+            .Select(s => s.Value<string>("uid")).FirstOrDefault(uid => !string.IsNullOrWhiteSpace(uid)) ?? Guid.NewGuid().ToString();
 
     /// <summary>按推荐阶段组织自定义物品集分组。</summary>
     private static JArray BuildItemBlocks(OpggBuild build)

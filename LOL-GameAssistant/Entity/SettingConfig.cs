@@ -9,6 +9,7 @@ namespace LOL_GameAssistant.Entity
     {
         [JsonProperty("themeMode")]
         public string ThemeMode { get; set; } = "System";
+        public LOL_GameAssistant.Domain.Settings.LiveGameLayout LiveGameLayout { get; set; }
 
         /// <summary>是否在启动助手时直接启动已配置的国服 LOL 客户端。</summary>
         [JsonProperty("autoLaunchGameClient")]
@@ -202,6 +203,7 @@ namespace LOL_GameAssistant.Entity
         {
             Ai ??= new AiSettings();
             ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
+            if (!Enum.IsDefined(LiveGameLayout)) LiveGameLayout = LOL_GameAssistant.Domain.Settings.LiveGameLayout.Classic;
             LanguageMode = LanguageMode is "en-US" or "zh-TW" ? LanguageMode : "zh-CN";
             WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
             HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;

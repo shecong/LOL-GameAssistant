@@ -73,7 +73,8 @@ public partial class LivePlayerForm
     {
         if (_historyHeading == null)
         {
-            _historyHeading = new AntdUI.Label { Text = "最近战绩", AutoSize = false,
+            _historyHeading = new AntdUI.Label { Text = "最近十场战绩 · 向下滚动查看", AutoSize = false,
+                Name = "recentHistoryHeading",
                 BackColor = Color.Transparent, Font = new Font(UiMetrics.FontFamily, 9F, FontStyle.Bold) };
             headerPanel.Controls.Add(_historyHeading);
             headerPanel.Controls.Add(_kdaLabel);

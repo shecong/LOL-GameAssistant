@@ -3,7 +3,7 @@ namespace LOL_GameAssistant.Application.Matches;
 /// <summary>战绩读取的统一预算；排队、网络和界面等待分别限时。</summary>
 public static class MatchDataPolicy
 {
-    public const int SummaryLimit = 500;
+    public const int SummaryLimit = 250;
     public const int SummaryConcurrency = 6;
     public const int DetailConcurrency = 6;
     public const int VisibleRecentGames = 10;

@@ -13,6 +13,7 @@ internal static class LegacySettingsMapper
         var settings = new AssistantSettings
         {
             ThemeMode = source.ThemeMode,
+            LiveGameLayout = source.LiveGameLayout,
             LanguageMode = source.LanguageMode,
             AutoLaunchGameClient = source.AutoLaunchGameClient,
             SkinCoreEnabled = source.SkinCoreEnabled,
@@ -90,6 +91,7 @@ internal static class LegacySettingsMapper
         var settings = new SettingConfig
         {
             ThemeMode = source.ThemeMode,
+            LiveGameLayout = source.LiveGameLayout,
             LanguageMode = source.LanguageMode,
             AutoLaunchGameClient = source.AutoLaunchGameClient,
             SkinCoreEnabled = source.SkinCoreEnabled,

@@ -86,6 +86,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void LayoutRow()
         {
+            if (_workspaceLayout) { LayoutWorkspaceRow(); return; }
             if (_referenceLayout) { LayoutReferenceRow(); return; }
             int w = Math.Max(1, ClientSize.Width);
             int x = 10;
@@ -180,7 +181,8 @@ namespace LOL_GameAssistant.BaseViewForm
             lblMode.Text = mode;
             lblKda.Text = participant?.stats?.HasKdaResult == true ? participant.GetKdaText() : "—/—/—";
             lblDuration.Text = summary.GameDuration > 0 ? $"{summary.GameDuration / 60}:{summary.GameDuration % 60:D2}" : "—";
-            lblDate.Text = "";
+            lblDate.Text = _workspaceLayout && summary.GameCreation > 0
+                ? DateTimeOffset.FromUnixTimeMilliseconds(summary.GameCreation).ToLocalTime().ToString("MM-dd HH:mm") : "";
             _championTip.SetToolTip(picChampion, $"{name} · {mode}\n{lblKda.Text} · {lblDuration.Text}\n双击获取完整对局详情");
             _championTip.SetToolTip(lblChampion, "双击获取完整对局详情");
             ApplyTheme(UiTheme.Palette);

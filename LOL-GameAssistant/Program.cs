@@ -14,7 +14,10 @@ namespace LOL_GameAssistant
         private static void Main()
         {
             // Complete elevation before acquiring the instance lock or creating any windows.
-            if (!AdminPermissionHelper.EnsureAdminPermission()) return;
+            using (new StartupDiagnostics("权限检查"))
+                if (!AdminPermissionHelper.EnsureAdminPermission()) return;
+            RuntimeDiagnostics.Report("启动环境", "运行中", $"{System.Runtime.InteropServices.RuntimeInformation.OSDescription} | 进程 {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture} | .NET {Environment.Version}");
+            using var processStartup = new StartupDiagnostics("主窗口就绪前");
             TaskbarApplicationIdentity.InitializeProcess();
             ApplicationConfiguration.Initialize();
             if (UpdateInstaller.HasPendingRecovery())
@@ -50,11 +53,13 @@ namespace LOL_GameAssistant
 
             // Apply the saved palette before any page or native handle is created.
             // Otherwise dark-mode startup first paints the default light surfaces.
-            var startupSettings = Bootstrap.AppCompositionRoot.ApplicationSettingsStore.Load();
+            Domain.Settings.AssistantSettings startupSettings;
+            using (new StartupDiagnostics("服务与设置"))
+                startupSettings = Bootstrap.AppCompositionRoot.ApplicationSettingsStore.Load();
             UiTheme.SetMode(startupSettings.ThemeMode);
             AntdUI.Config.IsDark = UiTheme.Palette.IsDark;
             UiLanguage.SetMode(startupSettings.LanguageMode);
-            GameMain = new GameMain();
+            using (new StartupDiagnostics("创建主窗口")) GameMain = new GameMain();
             // A replacement request may arrive while the main window is being created.
             GameMain.Shown += async (_, _) =>
             {
@@ -64,7 +69,11 @@ namespace LOL_GameAssistant
                     return;
                 }
                 // Shown 后再经过一次消息循环，确认主窗口初始化和绘制已经完成。
-                GameMain.BeginInvoke(new Action(UpdateInstaller.ConfirmStartup));
+                GameMain.BeginInvoke(new Action(() =>
+                {
+                    processStartup.Dispose();
+                    UpdateInstaller.ConfirmStartup();
+                }));
                 await AppUpdateChecker.CheckAsync(GameMain, Bootstrap.AppCompositionRoot.UpdateReleaseService, automatic: true);
             };
             if (Volatile.Read(ref replaceRequested) != 0)

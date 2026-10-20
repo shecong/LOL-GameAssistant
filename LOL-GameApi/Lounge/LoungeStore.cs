@@ -44,8 +44,8 @@ public sealed class LoungeStore : IDisposable
             await PruneAsync(token);
             using var command = _db.CreateCommand();
             command.CommandText = after <= 0
-                ? "SELECT * FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 40) ORDER BY id"
-                : "SELECT * FROM messages WHERE id > $after ORDER BY id LIMIT 200";
+                ? "SELECT * FROM (SELECT * FROM messages WHERE kind <> 'online' ORDER BY id DESC LIMIT 40) ORDER BY id"
+                : "SELECT * FROM messages WHERE id > $after AND kind <> 'online' ORDER BY id LIMIT 200";
             command.Parameters.AddWithValue("$after", after);
             using var reader = await command.ExecuteReaderAsync(token);
             var result = new List<LoungeMessage>();
@@ -63,7 +63,7 @@ public sealed class LoungeStore : IDisposable
         {
             await PruneAsync(token);
             using var command = _db.CreateCommand();
-            command.CommandText = "SELECT * FROM messages WHERE id < $before ORDER BY id DESC LIMIT $limit";
+            command.CommandText = "SELECT * FROM messages WHERE id < $before AND kind <> 'online' ORDER BY id DESC LIMIT $limit";
             command.Parameters.AddWithValue("$before", before);
             command.Parameters.AddWithValue("$limit", LoungeRules.HistoryPageSize + 1);
             using var reader = await command.ExecuteReaderAsync(token);
@@ -78,6 +78,7 @@ public sealed class LoungeStore : IDisposable
     public async Task<LoungeMessage?> AppendAsync(string dedup, string clientId, string senderId,
         string name, string region, string kind, string text, CancellationToken token = default, string ownerId = "")
     {
+        if (kind == "online") return null;
         await _gate.WaitAsync(token);
         try
         {

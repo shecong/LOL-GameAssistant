@@ -31,6 +31,8 @@ public sealed class AppUpdateTests
         AppUpdateChecker.CheckAsync(owner, service, automatic: true, openUrl: urls.Add).GetAwaiter().GetResult();
         using var prompt = Assert.Single(owner.OwnedForms.OfType<UpdateAvailableForm>());
         System.Windows.Forms.Application.DoEvents();
+        Assert.Equal(release.ReleaseNotes.ReplaceLineEndings(Environment.NewLine),
+            prompt.Controls.Find("UpdateReleaseNotes", true).Single().Text);
         Assert.True(owner.Enabled);
         Assert.False(prompt.Modal);
         Click(prompt.Controls.Find("DownloadUpdate", true).Single());

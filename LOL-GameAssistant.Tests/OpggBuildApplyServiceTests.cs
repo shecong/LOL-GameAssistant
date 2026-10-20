@@ -12,6 +12,109 @@ namespace LOL_GameAssistant.Tests;
 public sealed class OpggBuildApplyServiceTests
 {
     [Fact]
+    public async Task RepeatedBuildsAcrossChampionsReplaceOneManagedSetAndKeepManualConfigurations()
+    {
+        var manualPage = new JObject { ["id"] = 11, ["name"] = "自己保存的符文", ["current"] = true };
+        var manualSet = JObject.Parse("""{"uid":"manual","title":"自己的出装","associatedChampions":[1],"blocks":[],"extra":"keep"}""");
+        var lcu = new FakeLcuRequestSender(10, 3, manualPage,
+            new JObject { ["id"] = 22, ["name"] = "LOL助手 OP.GG · 旧方案" },
+            new JObject { ["id"] = 33, ["name"] = "LOL助手 个人 · 旧方案" });
+        lcu.ItemSets["itemSets"] = new JArray(manualSet.DeepClone(),
+            JObject.Parse("""{"uid":"old-opgg","title":"LOL助手 OP.GG · 旧英雄","associatedChampions":[2]}"""),
+            JObject.Parse("""{"uid":"old-personal","title":"LOL助手 个人 · 旧个人方案","associatedChampions":[1]}"""));
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+        Assert.True((await service.ApplyBuildAsync(1, "TOP", CreateOption())).Succeeded);
+        var items = (JArray)lcu.ItemSets["itemSets"]!;
+        Assert.Equal(2, items.Count);
+        Assert.True(JToken.DeepEquals(manualSet, items[0]));
+        string uid = items[1].Value<string>("uid")!;
+        Assert.Equal("old-personal", uid);
+        Assert.Equal(new[] { "/lol-perks/v1/pages/33" }, lcu.DeleteEndpoints);
+        Assert.Equal(2, lcu.RunePages.Count);
+        for (int championId = 2; championId <= 4; championId++)
+        {
+            Assert.True((await service.ApplyBuildAsync(championId, "MID", CreateOption())).Succeeded);
+            items = (JArray)lcu.ItemSets["itemSets"]!;
+            Assert.Equal(2, items.Count);
+            Assert.Equal(uid, items[1].Value<string>("uid"));
+            Assert.Equal(new[] { championId }, items[1]["associatedChampions"]!.Values<int>());
+            Assert.True(JToken.DeepEquals(manualSet, items[0]));
+            Assert.Equal(2, lcu.RunePages.Count);
+        }
+        Assert.Equal("自己保存的符文", lcu.RunePages.Single(p => p.Value<long>("id") == 11).Value<string>("name"));
+    }
+
+    [Fact]
+    public async Task PersonalAndRecommendedBuildsShareTheSameManagedItemSlot()
+    {
+        var lcu = new FakeLcuRequestSender(10, 0);
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+        Assert.True((await service.ApplyBuildAsync(1, "TOP", CreateOption())).Succeeded);
+        string uid = lcu.ItemSets["itemSets"]![0]!.Value<string>("uid")!;
+        var preset = new LOL_GameAssistant.Domain.Builds.PersonalRunePreset
+        {
+            Name = "我的另一套方案", ChampionId = 2, PrimaryStyleId = 8000, SubStyleId = 8200,
+            RunePerkIds = CreateOption().RunePerkIds.ToList(), SummonerSpellIds = [4, 14],
+            ItemBlocks = [new("核心", [3006, 3031, 3094])]
+        };
+        Assert.True((await service.ApplyPersonalRunePresetAsync(preset)).Succeeded);
+        var item = Assert.Single((JArray)lcu.ItemSets["itemSets"]!);
+        Assert.Equal(uid, item.Value<string>("uid"));
+        Assert.Equal("LOL助手 个人 · 我的另一套方案", item.Value<string>("title"));
+        Assert.True((await service.ApplyBuildAsync(3, "TOP", CreateOption())).Succeeded);
+        Assert.Equal(uid, Assert.Single((JArray)lcu.ItemSets["itemSets"]!).Value<string>("uid"));
+        Assert.Single(lcu.RunePages);
+    }
+
+    [Fact]
+    public async Task CurrentManagedPageIsReusedAndOldPagesAreOnlyCleanedAfterSuccessfulSwitch()
+    {
+        var lcu = new FakeLcuRequestSender(10, 3,
+            new JObject { ["id"] = 11, ["name"] = "LOL助手 OP.GG · 非当前旧页" },
+            new JObject { ["id"] = 22, ["name"] = "LOL助手 个人 · 当前页", ["current"] = true },
+            new JObject { ["id"] = 33, ["name"] = "LOL助手 OP.GG · 临时页", ["isTemporary"] = true });
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+        lcu.FailNextCurrentSwitch = true;
+        Assert.False((await service.ApplyBuildAsync(1, "TOP", CreateOption())).Succeeded);
+        Assert.Empty(lcu.DeleteEndpoints);
+        Assert.Equal(3, lcu.RunePages.Count);
+        Assert.True((await service.ApplyBuildAsync(1, "TOP", CreateOption())).Succeeded);
+        Assert.Equal(new[] { "/lol-perks/v1/pages/11" }, lcu.DeleteEndpoints);
+        Assert.Contains(lcu.RunePages, p => p.Value<long>("id") == 22 && p.Value<bool>("current"));
+        Assert.Contains(lcu.RunePages, p => p.Value<long>("id") == 33);
+    }
+
+    [Fact]
+    public async Task FailedCleanupKeepsAppliedRunesAndReportsThatOldPagesNeedRetry()
+    {
+        var lcu = new FakeLcuRequestSender(10, 2,
+            new JObject { ["id"] = 11, ["name"] = "LOL助手 OP.GG · 旧页" },
+            new JObject { ["id"] = 22, ["name"] = "LOL助手 OP.GG · 当前页", ["current"] = true })
+        { FailRuneDeletion = true };
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption());
+        Assert.True(result.Succeeded);
+        Assert.Contains("未清理成功", result.Message);
+        Assert.Equal(2, lcu.RunePages.Count);
+        Assert.True(lcu.RunePages.Single(p => p.Value<long>("id") == 22)["selectedPerkIds"]!.Values<int>().SequenceEqual(CreateOption().RunePerkIds));
+        lcu.FailRuneDeletion = false;
+        Assert.True((await service.ApplyBuildAsync(1, "TOP", CreateOption())).Succeeded);
+        Assert.Equal(22, Assert.Single(lcu.RunePages).Value<long>("id"));
+    }
+
+    [Fact]
+    public async Task RejectedItemWriteLeavesOldSetsIntact()
+    {
+        var lcu = new FakeLcuRequestSender(10, 0) { FailItemWrite = true };
+        lcu.ItemSets["itemSets"] = JArray.Parse("""[{"uid":"old","title":"LOL助手 OP.GG · 旧方案"},{"uid":"manual","title":"手动方案"}]""");
+        var before = lcu.ItemSets.DeepClone();
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption());
+        Assert.False(result.Succeeded);
+        Assert.True(JToken.DeepEquals(before, lcu.ItemSets));
+    }
+
+    [Fact]
     public void RecommendationsUseDistinctRuneAndEquipmentVariants()
     {
         var data = JObject.Parse("""
@@ -375,9 +478,12 @@ public sealed class OpggBuildApplyServiceTests
         public bool FailNextCurrentSwitch { get; set; }
         public bool FailSpellWrite { get; set; }
         public bool RejectRuneCreation { get; set; }
+        public bool FailRuneDeletion { get; set; }
+        public bool FailItemWrite { get; set; }
         public JObject? CurrentRunePage { get; set; }
         public JObject? MySelection { get; set; }
         public JObject? SelectionSession { get; set; }
+        public JObject ItemSets { get; } = new() { ["accountId"] = 1, ["itemSets"] = new JArray() };
 
         public FakeLcuRequestSender(int ownedPageCount, int? customPageCount, params JObject[] pages)
         {
@@ -401,7 +507,7 @@ public sealed class OpggBuildApplyServiceTests
                 }.ToString(Formatting.None),
                 "/lol-summoner/v1/current-summoner" => new JObject { ["summonerId"] = 1, ["accountId"] = 1 }.ToString(Formatting.None),
                 _ when endpoint.StartsWith("/lol-item-sets/v1/item-sets/", StringComparison.Ordinal) =>
-                    new JObject { ["accountId"] = 1, ["itemSets"] = new JArray() }.ToString(Formatting.None),
+                    ItemSets.ToString(Formatting.None),
                 _ => "{}"
             };
             return Task.FromResult<string?>(content);
@@ -426,6 +532,12 @@ public sealed class OpggBuildApplyServiceTests
         public Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
         {
             PutEndpoints.Add(endpoint);
+            if (endpoint.StartsWith("/lol-item-sets/v1/item-sets/", StringComparison.Ordinal))
+            {
+                if (FailItemWrite) return Task.FromResult(false);
+                var updated = JObject.Parse(jsonBody);
+                foreach (var property in updated.Properties()) ItemSets[property.Name] = property.Value.DeepClone();
+            }
             if (endpoint == "/lol-perks/v1/currentpage")
             {
                 // LCU requires a scalar page ID, not an object containing an ID.
@@ -461,6 +573,7 @@ public sealed class OpggBuildApplyServiceTests
         public Task<bool> DeleteAsync(string endpoint, CancellationToken cancellationToken = default)
         {
             DeleteEndpoints.Add(endpoint);
+            if (FailRuneDeletion) return Task.FromResult(false);
             long id = long.Parse(endpoint[(endpoint.LastIndexOf('/') + 1)..]);
             RunePages.RemoveAll(page => page.Value<long?>("id") == id);
             return Task.FromResult(true);

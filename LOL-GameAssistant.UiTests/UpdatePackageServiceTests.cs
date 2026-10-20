@@ -6,12 +6,90 @@ using System.Text;
 using System.Text.Json;
 using LOL_GameAssistant.Domain.ApplicationInfo;
 using LOL_GameAssistant.Infrastructure.ApplicationInfo;
+using LOL_GameAssistant.BaseViewForm;
 using Xunit;
 
 namespace LOL_GameAssistant.UiTests;
 
+[Collection("Window theme")]
 public sealed class UpdatePackageServiceTests
 {
+    [Fact]
+    public async Task CompletedDownloadIsRestoredByNewServiceWithoutAnyNetworkRequests()
+    {
+        using var fixture = new PackageFixture();
+        var first = await fixture.Service.PrepareAsync(fixture.Release, null, default);
+        File.WriteAllText(first.JobPath, "stale process identity", Encoding.Unicode);
+        var restored = await fixture.CreateService().TryRestoreAsync(fixture.Release, null, default);
+        Assert.Equal(first, restored);
+        Assert.Equal(2, fixture.Requests.Count);
+        Assert.Contains("ParentPid=" + Environment.ProcessId, File.ReadAllText(first.JobPath, Encoding.Unicode));
+        var reused = await fixture.CreateService().PrepareAsync(fixture.Release, null, default, useServer: true);
+        Assert.Equal(first, reused);
+        Assert.Equal(2, fixture.Requests.Count);
+        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "LOL-GameGUI.exe")));
+    }
+
+    [Theory]
+    [InlineData("package.zip")]
+    [InlineData("stage/LOL-GameGUI.exe")]
+    [InlineData("manifest.json")]
+    public async Task DamagedCacheIsRejectedAndCanBeDownloadedAgain(string damagedFile)
+    {
+        using var fixture = new PackageFixture();
+        var first = await fixture.Service.PrepareAsync(fixture.Release, null, default);
+        File.WriteAllText(Path.Combine(first.Directory, damagedFile), "damaged");
+        Assert.Null(await fixture.CreateService().TryRestoreAsync(fixture.Release, null, default));
+        var replacement = await fixture.CreateService().PrepareAsync(fixture.Release, null, default);
+        Assert.NotEqual(first.Token, replacement.Token);
+        Assert.Equal(4, fixture.Requests.Count);
+    }
+
+    [Fact]
+    public async Task CacheDoesNotReuseAnotherVersionOrStartedInstallationAndHonorsCancellation()
+    {
+        using var fixture = new PackageFixture();
+        var ready = await fixture.Service.PrepareAsync(fixture.Release, null, default);
+        Assert.Null(await fixture.Service.TryRestoreAsync(fixture.Release with { Version = new Version(99, 9, 9) }, null, default));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Service.TryRestoreAsync(fixture.Release, null, cancellation.Token));
+        File.WriteAllText(Path.Combine(ready.Directory, "state.txt"), "installing");
+        Assert.Null(await fixture.Service.TryRestoreAsync(fixture.Release, null, default));
+        File.WriteAllText(Path.Combine(fixture.Install, ".update", "active-job.txt"), ready.Token);
+        Assert.Null(await fixture.Service.TryRestoreAsync(fixture.Release, null, default));
+        await Assert.ThrowsAsync<IOException>(() => fixture.Service.PrepareAsync(fixture.Release, null, default));
+        Assert.Equal(2, fixture.Requests.Count);
+    }
+
+    [Fact]
+    public async Task ReopenedPromptOffersInstallForCompletedDownload()
+    {
+        using var fixture = new PackageFixture();
+        await fixture.Service.PrepareAsync(fixture.Release, null, default);
+        MatchListScrollingTests.OnUiThread(() =>
+        {
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                using var prompt = new UpdateAvailableForm(fixture.Release, packageService: fixture.CreateService());
+                prompt.Show();
+                var button = (AntdUI.Button)prompt.Controls.Find("DownloadAndInstallUpdate", true).Single();
+                var timer = Stopwatch.StartNew();
+                while (!button.Enabled && timer.Elapsed < TimeSpan.FromSeconds(5))
+                {
+                    System.Windows.Forms.Application.DoEvents();
+                    Thread.Sleep(10);
+                }
+                Assert.True(button.Enabled);
+                Assert.Equal("重启并安装", button.Text);
+                Assert.False(prompt.Controls.Find("UpdateDownloadSource", true).Single().Enabled);
+                Assert.Contains("无需重复下载", prompt.Controls.Find("UpdateDownloadStatus", true).Single().Text);
+                prompt.Close();
+            }
+        });
+        Assert.Equal(2, fixture.Requests.Count);
+    }
+
     [Theory]
     [InlineData("../outside.exe")]
     [InlineData("/absolute.exe")]
@@ -183,6 +261,7 @@ public sealed class UpdatePackageServiceTests
         public bool LegacyManifestOnly { get; set; }
         public Action? OnPackageRequest { get; set; }
         private readonly HttpClient _client;
+        public UpdatePackageService CreateService() => new(_client, Install);
 
         public PackageFixture()
         {

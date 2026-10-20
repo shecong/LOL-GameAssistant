@@ -46,8 +46,9 @@ public sealed class LcuGameFlowEventStream : ILeagueClientEventStream
         LeagueClientCredentials? credentials;
         try
         {
-            credentials = _connection.TryGetCredentials(forceRefresh);
+            credentials = await _connection.GetCredentialsAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             ErrorOccurred?.Invoke($"LCU 认证读取失败：{ex.Message}");

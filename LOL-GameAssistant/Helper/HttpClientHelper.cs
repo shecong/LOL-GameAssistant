@@ -104,7 +104,9 @@ public class HttpClientHelper : IDisposable
     /// <summary>保留 HTTP 状态和失败类别，供需要区分 401/404/超时的调用方使用。</summary>
     public async Task<LcuHttpResult> SendRequestResultAsync(string httpMethod, string endpoint, Dictionary<string, string>? queryParams = null, string? body = null, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(Port) || string.IsNullOrEmpty(Token))
+        bool external = Uri.TryCreate(endpoint, UriKind.Absolute, out var absolute) &&
+            absolute.Scheme is "http" or "https" && !IsLcuUri(absolute);
+        if (!external && (string.IsNullOrEmpty(Port) || string.IsNullOrEmpty(Token)))
         {
             if (!await TryRefreshLcuCredentialsAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -181,7 +183,7 @@ public class HttpClientHelper : IDisposable
                     if (!response.IsSuccessStatusCode)
                     {
                         System.Diagnostics.Debug.WriteLine($"请求失败: {response.StatusCode} {requestUrl}");
-                        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                        if (!external && response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                         {
                             string? previousToken = credentials?.Token;
                             if (attempt == 0 && await TryRefreshLcuCredentialsAsync(cancellationToken).ConfigureAwait(false) &&
@@ -196,7 +198,7 @@ public class HttpClientHelper : IDisposable
                     }
 
                     byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
-                    RuntimeDiagnostics.Report("LCU HTTP", "可用", "本机 LCU 请求正常");
+                    RuntimeDiagnostics.Report(external ? "公网资源 HTTP" : "LCU HTTP", "可用", external ? "公网资源请求正常" : "本机 LCU 请求正常");
                     return new LcuHttpResult(new MemoryStream(bytes), response.StatusCode, LcuHttpFailure.None);
                 }
             }
@@ -273,8 +275,7 @@ public class HttpClientHelper : IDisposable
     /// <summary>尝试重新读取本机客户端连接凭据。</summary>
     private static async Task<bool> TryRefreshLcuCredentialsAsync(CancellationToken cancellationToken)
     {
-        (string? port, string? token) = await Task.Run(
-            () => LOL_GameAssistant.LoLApi.GetlolLcu.GetAuth(), cancellationToken).ConfigureAwait(false);
+        (string? port, string? token) = await LOL_GameAssistant.LoLApi.GetlolLcu.GetAuthAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(port) || string.IsNullOrWhiteSpace(token)) return false;
         SetCredentials(new LeagueClientCredentials(port, token));
         return true;

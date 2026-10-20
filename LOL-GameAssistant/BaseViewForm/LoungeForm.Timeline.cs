@@ -17,6 +17,8 @@ public sealed partial class LoungeForm
     private readonly Label _connectionState = new() { Dock = DockStyle.Right, Width = 105, TextAlign = ContentAlignment.MiddleCenter };
     private readonly Label _counter = new() { Dock = DockStyle.Right, Width = 72, Text = "0/500", TextAlign = ContentAlignment.MiddleRight };
     private readonly ToolTip _memberTips = new();
+    private readonly Label _onlineNotice = new() { Name = "onlineNotice", Dock = DockStyle.Fill, AutoEllipsis = true,
+        TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0) };
     private readonly ContextMenuStrip _moreMenu = new();
     private string _timelineServer = "";
     private bool _windowInitialized, _loadingOlder, _hasOlder = true, _renderingHistory;
@@ -39,7 +41,13 @@ public sealed partial class LoungeForm
         var filters = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 4, 0, 0) };
         _messageFilter.Items.AddRange(new object[] { "全部", "聊天", "战绩", "招募" }); _messageFilter.SelectedIndex = 0;
         _memberTips.SetToolTip(_messageFilter, "筛选已加载的消息；向上翻页可继续加载更早内容");
-        filters.Controls.AddRange([_messageFilter, _older, _newMessages]); layout.Controls.Add(filters, 0, 1); layout.RowStyles[1].Height = 38;
+        filters.Controls.AddRange([_messageFilter, _older, _newMessages]);
+        var toolbar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        filters.AutoSize = true;
+        toolbar.Controls.Add(filters, 0, 0); toolbar.Controls.Add(_onlineNotice, 1, 0);
+        layout.Controls.Add(toolbar, 0, 1); layout.RowStyles[1].Height = 38;
         var preferences = layout.GetControlFromPosition(0, 4)!;
         bool settingsOpen = string.IsNullOrWhiteSpace(_client.Settings.ServerUrl);
         void ShowSettings()
@@ -169,11 +177,9 @@ public sealed partial class LoungeForm
     private void RenderTimeline(bool preserveAnchor = false, bool forceBottom = false)
     {
         var blocked = _client.Settings.BlockedSenders ?? [];
-        var online = new Dictionary<string, DateTimeOffset>();
-        var messages = _window.Values.Where(m => !blocked.Contains(m.SenderId) && (_victories.Checked || m.Kind is not ("victory" or "highlight")))
+        var messages = _window.Values.Where(m => m.Kind != "online" && !blocked.Contains(m.SenderId) && (_victories.Checked || m.Kind is not ("victory" or "highlight")))
             .Where(m => _messageFilter.SelectedIndex switch { 1 => m.Kind is "chat" or "sticker", 2 => m.Kind is "victory" or "highlight", 3 => m.Kind == "recruit", _ => true })
-            .Select(m => _client.IsDeleted(m.Id) ? m with { Kind = "deleted", Text = "此消息已被管理员删除" } : m)
-            .Where(m => { if (m.Kind != "online") return true; string identity = m.SenderId + "|" + m.Name; bool show = !online.TryGetValue(identity, out var at) || m.SentAt - at > TimeSpan.FromMinutes(5); online[identity] = m.SentAt; return show; }).ToArray();
+            .Select(m => _client.IsDeleted(m.Id) ? m with { Kind = "deleted", Text = "此消息已被管理员删除" } : m).ToArray();
         string[] keys = messages.Select(m => $"{m.Id}:{m.Kind}:{m.Text}:{_client.Recruitments.FirstOrDefault(r => r.MessageId == m.Id)?.Revision}").ToArray();
         string key = string.Join('|', keys) + ":" + _messageFilter.SelectedIndex;
         if (_historyKey == key && !forceBottom) return;

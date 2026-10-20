@@ -18,6 +18,100 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class SgpDataSourceTests
 {
+    private static JObject MissingGame(long id, bool explicitNull = false)
+    {
+        var row = new JObject { ["metadata"] = new JObject { ["match_id"] = $"HN1_{id}", ["private"] = false } };
+        if (explicitNull) row["json"] = JValue.CreateNull();
+        return row;
+    }
+
+    [Fact]
+    public async Task MissingSummariesPreserveValidGamesAndAdvanceByRawRows()
+    {
+        var offsets = new List<int>();
+        using var http = new HttpClient(new Handler((request, _) =>
+        {
+            var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            int offset = int.Parse(query["startIndex"]!); offsets.Add(offset);
+            int count = int.Parse(query["count"]!);
+            var rows = Enumerable.Range(offset, Math.Min(count, 326 - offset))
+                .Select(i => i < 250 ? Game(i + 1) : MissingGame(i + 1, i % 2 == 0));
+            return Task.FromResult(Json(new JObject { ["games"] = new JArray(rows) }));
+        }));
+        var result = (await new SgpMatchHistoryService(new(Lcu(), http)).GetAllAsync("player", 500))!.Games!;
+        Assert.Equal(new[] { 0, 100, 200, 300 }, offsets);
+        Assert.Equal(250, result.Games.Count); Assert.Equal(76, result.MissingSummaryCount);
+        Assert.Equal(326, result.GameCount); Assert.Equal(325, result.GameIndexEnd);
+        Assert.False(result.HasMore); Assert.True(result.IsTotalKnown); Assert.True(result.IsTruncated);
+        var snapshot = new PlayerHistorySnapshot("player", new() { Games = result }, DateTimeOffset.UtcNow, HistoryDataState.Ready);
+        Assert.True(snapshot.Available); Assert.Equal(250, snapshot.ReturnedCount);
+        Assert.Contains("76", snapshot.ScopeText); Assert.Equal(76, snapshot.Data!.Games!.MissingSummaryCount);
+    }
+
+    [Fact]
+    public async Task SparsePagesDoNotFillFromNextPageOrLoseNextPageNavigation()
+    {
+        var offsets = new List<int>();
+        using var http = new HttpClient(new Handler((request, _) =>
+        {
+            var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            int offset = int.Parse(query["startIndex"]!); offsets.Add(offset);
+            Assert.Equal("10", query["count"]);
+            return Task.FromResult(Json(new JObject { ["games"] = offset == 0
+                ? new JArray(Enumerable.Range(1, 10).Select(i => i == 2 ? Game(i) : MissingGame(i)))
+                : new JArray(Game(11)) }));
+        }));
+        var service = new SgpMatchHistoryService(new(Lcu(), http));
+        var first = (await service.GetPageAsync("player", 0, 9))!.Games!;
+        Assert.Single(first.Games); Assert.Equal(9, first.MissingSummaryCount);
+        Assert.Equal(9, first.GameIndexEnd); Assert.Equal(11, first.GameCount); Assert.True(first.HasMore);
+        var next = (await service.GetPageAsync("player", 10, 19))!.Games!;
+        Assert.Equal(11, Assert.Single(next.Games).GameId); Assert.False(next.HasMore);
+        Assert.Equal(new[] { 0, 10 }, offsets);
+        Assert.Equal(2, ((ILocalCacheStore)service).MeasureMemory().Entries);
+    }
+
+    [Fact]
+    public async Task EntirelyMissingPageIsBoundedAndStillAllowsNextPage()
+    {
+        int calls = 0;
+        using var http = new HttpClient(new Handler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Json(new JObject { ["games"] = new JArray(Enumerable.Range(1, 100).Select(i => MissingGame(i))) }));
+        }));
+        var page = (await new SgpMatchHistoryService(new(Lcu(), http)).GetPageAsync("player", 0, 99))!.Games!;
+        Assert.Empty(page.Games); Assert.Equal(100, page.MissingSummaryCount);
+        Assert.True(page.HasMore); Assert.Equal(101, page.GameCount); Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task RepeatedMissingWindowIsRejected()
+    {
+        using var http = new HttpClient(new Handler((_, _) => Task.FromResult(Json(new JObject
+        { ["games"] = new JArray(Enumerable.Range(1, 100).Select(i => MissingGame(i))) }))));
+        await Assert.ThrowsAsync<IOException>(() => new SgpMatchHistoryService(new(Lcu(), http)).GetAllAsync("player", 500));
+    }
+
+    [Fact]
+    public async Task MalformedSummaryStillFailsRatherThanBeingSilentlySkipped()
+    {
+        var row = Game(42); row["json"] = "invalid";
+        using var http = new HttpClient(new Handler((_, _) => Task.FromResult(Json(new JObject { ["games"] = new JArray(row) }))));
+        await Assert.ThrowsAsync<IOException>(() => new SgpMatchHistoryService(new(Lcu(), http)).GetPageAsync("player", 0, 9));
+    }
+
+    [Theory]
+    [InlineData("spell1Id", "spell2Id")]
+    [InlineData("summoner1Id", "summoner2Id")]
+    public void SummonerSpellsSupportBothSgpAndV5FieldNames(string first, string second)
+    {
+        var envelope = Game(42); var player = (JObject)envelope["json"]!["participants"]![0]!;
+        player.Remove("summoner1Id"); player.Remove("summoner2Id");
+        player[first] = 4; player[second] = 6;
+        var game = SgpMatchMapper.Map(envelope, "HN1");
+        Assert.Equal(4, game.Summary.Participants[0].Spell1Id); Assert.Equal(6, game.Detail.participants[0].Spell2Id);
+    }
     [Fact]
     public async Task CrossRegionUsesTargetServerAndNeverUsesCurrentRealmAddress()
     {

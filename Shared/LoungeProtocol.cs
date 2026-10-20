@@ -4,6 +4,7 @@ namespace LOL.Lounge;
 public sealed record LoungePresence(string Puuid, string Name, string Platform, string Region,
     string Status, bool ShareActivity = true, string Rank = "");
 public sealed record LoungeMember(string Id, string Name, string Region, string Status, string Rank = "");
+public sealed record LoungeOnlineNotice(string Name, string Region, string Rank = "");
 public sealed record LoungeMessage(long Id, string ClientId, string SenderId, string Name,
     string Region, string Kind, string Text, DateTimeOffset SentAt);
 public sealed record LoungeSnapshot(LoungeMessage[] Messages, LoungeMember[] Members, long[]? DeletedIds = null,

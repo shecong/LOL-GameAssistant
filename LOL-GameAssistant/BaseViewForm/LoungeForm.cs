@@ -223,6 +223,8 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
         if (IsDisposed) return;
         _client.SetReading(IsHistoryAtBottom() && _pendingMessages.Count == 0 && (_window.Count == 0 || _window.Keys.Last() >= _newestSeen) && Visible && FindForm() is { Visible: true, ContainsFocus: true, WindowState: not FormWindowState.Minimized });
         UpdateFeatureBar();
+        var online = _client.OnlineNotice;
+        _onlineNotice.Text = online == null ? "" : NormalizeRegion($"{online.Name} 加入休息室 · {online.Region}");
         _status.Text = NormalizeRegion(_client.Status);
         _connectionState.Text = _client.Status.StartsWith("已连接", StringComparison.Ordinal) ? "● 已连接" : "○ 未连接";
         _counter.Text = $"{_input.TextLength}/{LoungeRules.MaxTextLength}";
@@ -255,6 +257,7 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
         ForeColor = palette.TextPrimary;
         _history.BackColor = _members.BackColor = palette.SurfaceRaised;
         _history.ForeColor = _members.ForeColor = palette.TextPrimary;
+        _onlineNotice.ForeColor = palette.TextSecondary;
         foreach (var button in _featureButtons)
         {
             button.FlatStyle = FlatStyle.Flat;

@@ -16,8 +16,8 @@ public sealed partial class OpggBuildApplyService
         var wrapper = await ReadObjectAsync(endpoint, token).ConfigureAwait(false);
         if (wrapper?["itemSets"] is not JArray existing) throw new InvalidOperationException("无法读取现有物品集，已停止写入");
         string title = PersonalRunePrefix + preset.Name;
-        var retained = existing.OfType<JObject>().Where(s => s.Value<string>("title") != title || s["associatedChampions"]?.Values<int>().Contains(preset.ChampionId) != true).Select(s => s.DeepClone()).ToList();
-        retained.Add(new JObject { ["uid"] = Guid.NewGuid().ToString(), ["title"] = title, ["type"] = "custom", ["mode"] = "any", ["map"] = "any",
+        var retained = existing.Where(s => !IsManagedItemSet(s)).Select(s => s.DeepClone()).ToList();
+        retained.Add(new JObject { ["uid"] = ManagedItemSetUid(existing, preset.ChampionId), ["title"] = title, ["type"] = "custom", ["mode"] = "any", ["map"] = "any",
             ["associatedChampions"] = new JArray(preset.ChampionId), ["associatedMaps"] = new JArray(11, 12),
             ["blocks"] = new JArray(preset.ItemBlocks.Select(b => BuildBlock(b.Title, b.ItemIds))), ["preferredItemSlots"] = new JArray(), ["sortrank"] = 0, ["startedFrom"] = "blank" });
         var body = new JObject { ["accountId"] = wrapper["accountId"] ?? self["accountId"], ["itemSets"] = new JArray(retained), ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };

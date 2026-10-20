@@ -13,6 +13,9 @@ public sealed class MatchHistoryGames
     public bool HasMore { get; set; }
     public bool IsTruncated { get; set; }
     public string Source { get; set; } = "LCU";
+    /// <summary>本次原始索引窗口中缺少 SUMMARY 内容的记录数；不参与对局统计。</summary>
+    public int MissingSummaryCount { get; set; }
+    public string DataWarning => MissingSummaryCount > 0 ? $"已跳过 {MissingSummaryCount} 条缺失内容的历史记录，数据不完整" : "";
     public int GameCount { get; set; }
     public int GameIndexBegin { get; set; }
     public int GameIndexEnd { get; set; }

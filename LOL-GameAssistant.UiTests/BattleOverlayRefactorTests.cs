@@ -164,7 +164,7 @@ public sealed class BattleOverlayRefactorTests
         {
             Assert.Equal("GetPageAsync", method.Name);
             Assert.Equal(0, args[1]);
-            Assert.Equal(499, args[2]);
+            Assert.Equal(249, args[2]);
             requests++;
             var page = Page(Enumerable.Range(1, cap).Select(id => Sample(id, true)).ToArray());
             page.Games!.GameCount = 999;

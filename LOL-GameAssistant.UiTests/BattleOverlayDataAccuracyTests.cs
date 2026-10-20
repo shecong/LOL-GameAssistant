@@ -103,7 +103,7 @@ public sealed class BattleOverlayDataAccuracyTests
         {
             if (method.Name == "GetPageAsync")
             {
-                Assert.Equal(499, args[2]);
+                Assert.Equal(249, args[2]);
                 return Task.FromResult<MatchHistoryResponse?>(Page(sample));
             }
             details++; return Task.FromResult<MatchDetail?>(Detail(new() { kills = 8, deaths = 2, assists = 10 }));

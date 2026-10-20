@@ -18,6 +18,43 @@ namespace LOL_GameApi.Tests;
 public sealed class LoungeTests
 {
     [Fact]
+    public async Task OnlineNoticesAreNotStoredAndLegacyRowsDoNotConsumeHistoryPages()
+    {
+        using var folder = new TemporaryFolder();
+        string path = Path.Combine(folder.Path, "legacy.db");
+        using var store = new LoungeStore(path);
+        Assert.Null(await store.AppendAsync("online:new", "", "sender", "玩家", "艾欧尼亚", "online", "加入休息室"));
+        using (var db = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path}"))
+        {
+            await db.OpenAsync();
+            using var command = db.CreateCommand();
+            // Simulate rows written by the previous server version, interleaved with chat.
+            command.CommandText = """
+                INSERT INTO messages(dedup,clientId,senderId,name,region,kind,text,sentAt)
+                VALUES($key,'','sender','玩家','艾欧尼亚',$kind,'内容',$time)
+                """;
+            command.Parameters.AddWithValue("$key", "");
+            command.Parameters.AddWithValue("$kind", "");
+            command.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.ToString("O"));
+            for (int i = 1; i <= 100; i++)
+            {
+                command.Parameters["$key"].Value = "legacy:" + i;
+                command.Parameters["$kind"].Value = i % 2 == 0 ? "online" : "chat";
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+        var latest = await store.ReadAsync();
+        Assert.Equal(40, latest.Length);
+        Assert.All(latest, m => Assert.Equal("chat", m.Kind));
+        Assert.Equal(21, latest[0].Id);
+        Assert.Equal(50, (await store.ReadAsync(1)).Length + 1);
+        var earlier = await store.ReadBeforeAsync(latest[0].Id);
+        Assert.Equal(10, earlier.Messages.Length);
+        Assert.All(earlier.Messages, m => Assert.Equal("chat", m.Kind));
+        Assert.False(earlier.HasMore);
+    }
+
+    [Fact]
     public async Task HistoryStartsWithLatestPageAndPagesBackwardWithExclusiveStableCursor()
     {
         using var folder = new TemporaryFolder();
@@ -94,15 +131,23 @@ public sealed class LoungeTests
         await using var bob = Connect(address, bobToken);
         await alice.StartAsync();
         await bob.StartAsync();
+        var online = new TaskCompletionSource<LoungeOnlineNotice>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int onlineCount = 0;
+        bob.On<LoungeOnlineNotice>("Online", notice => { Interlocked.Increment(ref onlineCount); online.TrySetResult(notice); });
         var player = new LoungePresence("puuid", "Alice#123", "HN1", "艾欧尼亚", "游戏中", Rank: "单双排 黄金II 50点");
         await alice.InvokeAsync("UpdatePresence", player);
+        var notice = await online.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(player.Name, notice.Name);
+        Assert.Equal(player.Region, notice.Region);
+        Assert.Equal(player.Rank, notice.Rank);
         await bob.InvokeAsync("UpdatePresence", player); // Same account, two installations.
         Assert.Single((await alice.InvokeAsync<LoungeSnapshot>("Sync", 0L)).Members);
         await alice.InvokeAsync("UpdatePresence", player);
         var joined = await alice.InvokeAsync<LoungeSnapshot>("Sync", 0L);
         Assert.Equal(LoungeRules.ProtocolVersion, joined.ProtocolVersion);
         Assert.Equal(player.Rank, joined.Members.Single().Rank);
-        Assert.Contains("黄金II", Assert.Single(joined.Messages, m => m.Kind == "online").Text);
+        Assert.Empty(joined.Messages);
+        Assert.Equal(1, onlineCount);
 
         var received = new TaskCompletionSource<LoungeMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         bob.On<LoungeMessage>("Message", m => { if (m.Kind == "chat") received.TrySetResult(m); });
@@ -117,20 +162,20 @@ public sealed class LoungeTests
         await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("ReportVictory", victory with { Puuid = "someone-else" }));
         await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("ReportVictory", victory with { GameId = 124, FinishedAt = DateTimeOffset.UtcNow.AddHours(-1) }));
         var snapshot = await bob.InvokeAsync<LoungeSnapshot>("Sync", 0L);
-        Assert.Equal(3, snapshot.Messages.Length);
+        Assert.Equal(2, snapshot.Messages.Length);
         Assert.Contains("极地大乱斗", snapshot.Messages.Single(m => m.Kind == "victory").Text);
         Assert.Contains("与【Bob#456】组队开黑", snapshot.Messages.Single(m => m.Kind == "victory").Text);
         Assert.Single((await bob.InvokeAsync<LoungeSnapshot>("Sync", sent.Id)).Messages);
         var earlier = await bob.InvokeAsync<LoungeHistoryPage>("History", sent.Id);
         Assert.All(earlier.Messages, m => Assert.True(m.Id < sent.Id));
-        Assert.Contains(earlier.Messages, m => m.Kind == "online");
+        Assert.Empty(earlier.Messages);
         await Assert.ThrowsAsync<HubException>(() => bob.InvokeAsync<LoungeHistoryPage>("History", 0L));
 
         await alice.StopAsync();
         Assert.Single((await bob.InvokeAsync<LoungeSnapshot>("Sync", 0L)).Members);
         await alice.StartAsync();
         await alice.InvokeAsync("UpdatePresence", player);
-        Assert.Single((await alice.InvokeAsync<LoungeSnapshot>("Sync", 0L)).Messages, m => m.Kind == "online");
+        Assert.DoesNotContain((await alice.InvokeAsync<LoungeSnapshot>("Sync", 0L)).Messages, m => m.Kind == "online");
         Assert.Single((await alice.InvokeAsync<LoungeSnapshot>("Sync", sent.Id)).Messages);
         await bob.InvokeAsync("UpdatePresence", new LoungePresence("", "未登录玩家", "", "未知大区", "未登录 LOL"));
         await Assert.ThrowsAsync<HubException>(() => bob.InvokeAsync("ReportVictory", victory));

@@ -35,6 +35,12 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
     private bool _inGame;
     private string _ownSession = "";
     private int _protocolVersion = 1;
+    private LoungeOnlineNotice? _onlineNotice;
+    private DateTimeOffset _onlineNoticeUntil;
+    public LoungeOnlineNotice? OnlineNotice
+    {
+        get { lock (_gate) return DateTimeOffset.UtcNow < _onlineNoticeUntil ? _onlineNotice : null; }
+    }
     public bool SupportsRichMessages => _protocolVersion >= 2;
     public bool SupportsRecruitment => _protocolVersion >= 3;
     public bool SupportsHistory => _protocolVersion >= 4;
@@ -254,6 +260,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                 }).Build();
                 hub.ServerTimeout = TimeSpan.FromSeconds(45);
                 hub.On<LoungeMessage>("Message", message => Receive(message, _initialSync));
+                hub.On<LoungeOnlineNotice>("Online", ReceiveOnline);
                 hub.On<LoungeRecruitmentState>("Recruitment", state =>
                 {
                     LoungeRecruitmentState? previous;
@@ -306,7 +313,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                 _hub = null;
                 _publishedPresence = null;
                 _protocolVersion = 1;
-                lock (_gate) { _members = []; _memberBaseline = false; }
+                lock (_gate) { _members = []; _memberBaseline = false; _onlineNotice = null; }
                 if (hub != null)
                 {
                     try { await hub.DisposeAsync(); }
@@ -352,6 +359,8 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
 
     private void Receive(LoungeMessage message, bool notify)
     {
+        // Older servers may still replay persisted presence messages.
+        if (message.Kind == "online") return;
         bool mentioned;
         lock (_gate)
         {
@@ -364,6 +373,16 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
             if (_deleted.Count > 1000) _deleted.RemoveWhere(id => id < _messages.Keys.First());
         }
         if (mentioned) RaiseNotification("有人 @ 你", message.Name + "：" + LoungeContent.Display(message));
+        Notify();
+    }
+
+    private void ReceiveOnline(LoungeOnlineNotice notice)
+    {
+        lock (_gate)
+        {
+            _onlineNotice = notice;
+            _onlineNoticeUntil = DateTimeOffset.UtcNow.AddSeconds(6);
+        }
         Notify();
     }
 

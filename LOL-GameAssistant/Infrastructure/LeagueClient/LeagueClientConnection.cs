@@ -15,14 +15,18 @@ public sealed class LeagueClientConnection : ILeagueClientConnection
 
     /// <summary>仅供基础设施内部的 LCU HTTP/WebSocket 适配器读取认证信息。</summary>
     public LeagueClientCredentials? TryGetCredentials(bool forceRefresh = false)
+        => GetCredentialsAsync(forceRefresh).GetAwaiter().GetResult();
+
+    public async Task<LeagueClientCredentials?> GetCredentialsAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         LeagueClientCredentials? current = HttpClientHelper.Credentials;
         if (!forceRefresh && current != null)
         {
             return current;
         }
 
-        (string? port, string? token) = GetlolLcu.GetAuth();
+        (string? port, string? token) = await GetlolLcu.GetAuthAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(port) || string.IsNullOrWhiteSpace(token)) return null;
         var credentials = new LeagueClientCredentials(port, token);
         HttpClientHelper.SetCredentials(credentials);

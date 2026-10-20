@@ -6,6 +6,7 @@ param(
     [string]$PublishDirectory,
     [ValidateSet('win-x64', 'win-x86', 'win-arm64')][string]$Runtime = 'win-x64',
     [string]$ServerBaseUrl,
+    [string]$ReleaseNotesFile,
     [switch]$AllowHttpServer,
     [switch]$RebuildUpdater,
     [string]$UpdaterPath,
@@ -32,6 +33,7 @@ if ($Version -and $Version -ne $updateConfiguredVersion) {
     throw "Requested Version differs from build/Version.props ($updateConfiguredVersion). Edit the configuration and republish first."
 }
 $Version = $updateConfiguredVersion
+$updateIndex = New-UpdateIndexJson -Version $Version -ReleaseNotesFile $ReleaseNotesFile
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be a numeric three-part version, for example 6.1.0.' }
 $updateVersion = [Version]::Parse($Version)
 if (-not $Tag) { $Tag = "v$Version" }
@@ -124,7 +126,6 @@ if ($Runtime -eq 'win-x64' -and -not $FlatOutput) {
     [IO.File]::WriteAllText((Join-Path $updateLegacyFolder 'update.json'), $updateJson, [Text.UTF8Encoding]::new($false))
 }
 if (-not $FlatOutput) {
-    $updateIndex = [ordered]@{ schemaVersion = 1; version = $Version } | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $updateOutput 'update.json'), $updateIndex, [Text.UTF8Encoding]::new($false))
 }
 Write-Host "IIS: ZIP and full manifest belong in v$Version/$Runtime/ (manifest name on IIS: update.json). Publish the root index last."

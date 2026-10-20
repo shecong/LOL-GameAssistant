@@ -150,7 +150,7 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerH
         string session = PlayerHistorySession.Key;
         string scope = await _context(cancellationToken).ConfigureAwait(false);
         if (session != PlayerHistorySession.Key) throw new OperationCanceledException("客户端会话已变化。");
-        var stored = await _snapshots.GetLatestOrCachedAsync($"v2:{scope}:{puuid}", async () =>
+        var stored = await _snapshots.GetLatestOrCachedAsync($"v3:{scope}:{puuid}:limit:{MatchDataPolicy.SummaryLimit}", async () =>
         {
             try
             {
@@ -187,7 +187,7 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerH
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         try
         {
-            return await _pages.GetLatestOrCachedAsync($"v2:{scope}:{key.Puuid}:{key.Begin}:{key.End}", async () =>
+            return await _pages.GetLatestOrCachedAsync($"v3:{scope}:{key.Puuid}:{key.Begin}:{key.End}", async () =>
             {
                 var value = await _inner.GetPageAsync(key.Puuid, key.Begin, key.End, deadline.Token).ConfigureAwait(false);
                 return key.Session == PlayerHistorySession.Key ? value : null;
@@ -206,7 +206,7 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerH
         string session = PlayerHistorySession.Key;
         string scope = await _context(cancellationToken).ConfigureAwait(false);
         if (session != PlayerHistorySession.Key) return null;
-        string key = $"v2:{scope}:" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string key = $"v3:{scope}:" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         Task<MatchDetail?> read = useCache
             ? _details.GetAsync(key, () => ReadDetailAsync(gameId, useCache, session), cancellationToken, requestContext: session)
             : _details.GetLatestOrCachedAsync(key, () => ReadDetailAsync(gameId, useCache, session));

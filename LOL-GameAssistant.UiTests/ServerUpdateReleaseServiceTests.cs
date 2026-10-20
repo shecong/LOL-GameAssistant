@@ -21,6 +21,22 @@ public sealed class ServerUpdateReleaseServiceTests
         Assert.Equal("https://updates.example.com/app/update.json", Assert.Single(fixture.Requests).AbsoluteUri);
         Assert.Equal(0, fixture.Github.Calls);
         Assert.True(release.PreferServerDownload);
+        Assert.Empty(release.ReleaseNotes);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("1. 优化聊天室提示\n2. 对局布局移到\"获取数据\"旁边。")]
+    public async Task ServerIndexCarriesOptionalReleaseNotesWithoutGithubRequest(string? notes)
+    {
+        using var fixture = new Fixture();
+        fixture.ResponseJson = JsonSerializer.Serialize(new { schemaVersion = 1, version = "99.0.0", releaseNotes = notes });
+        var release = await fixture.Service.GetLatestAsync();
+        Assert.Equal(notes ?? "", release!.ReleaseNotes);
+        Assert.Equal(new Version(99, 0, 0), release.Version);
+        Assert.Equal(0, fixture.Github.Calls);
+        Assert.Single(fixture.Requests);
     }
 
     [Theory]
@@ -111,6 +127,7 @@ public sealed class ServerUpdateReleaseServiceTests
         internal static string ManifestJson => JsonSerializer.Serialize(new UpdateIndex(1, "99.0.0"));
         public string ConfigPath { get; } = Path.Combine(Path.GetTempPath(), "update-source-" + Guid.NewGuid().ToString("N") + ".json");
         public string? Failure { get; set; }
+        public string? ResponseJson { get; set; }
         public List<Uri> Requests { get; } = [];
         public GithubStub Github { get; } = new();
         public ServerUpdateReleaseService Service { get; }
@@ -128,7 +145,7 @@ public sealed class ServerUpdateReleaseServiceTests
                         "invalid-json" => "invalid",
                         "invalid-schema" => JsonSerializer.Serialize(new UpdateIndex(2, "99.0.0")),
                         "oversized" => new string(' ', 65537),
-                        _ => ManifestJson
+                        _ => ResponseJson ?? ManifestJson
                     })
                 };
             }));

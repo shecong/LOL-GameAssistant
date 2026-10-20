@@ -268,6 +268,52 @@ public sealed class CompanionWorkflowTests
         Assert.Equal("later unrelated edit", pages[1].Value<string>("name"));
     }
 
+    [Fact]
+    public async Task UndoRecreatesCleanedManagedPagesAndDoesNotDuplicateThemOnRetry()
+    {
+        using var folder = new Folder();
+        var pages = JArray.Parse("""
+            [{"id":1,"name":"current","selectedPerkIds":[1,2,3,4,5,6]},
+             {"id":2,"name":"LOL助手 OP.GG · 旧页","selectedPerkIds":[6,5,4,3,2,1]},
+             {"id":3,"name":"manual"}]
+            """);
+        int posts = 0;
+        var lcu = Sender(p => p switch
+        {
+            "/lol-summoner/v1/current-summoner" => "{\"puuid\":\"a\",\"summonerId\":42}",
+            "/lol-gameflow/v1/gameflow-phase" => "\"Lobby\"",
+            "/lol-perks/v1/pages" => pages.ToString(), "/lol-perks/v1/currentpage" => pages[0].ToString(), _ => "{}"
+        }, (_, route, body) =>
+        {
+            if (route == "/lol-perks/v1/pages")
+            {
+                var restored = JObject.Parse(body!);
+                Assert.Null(restored["id"]);
+                restored["id"] = 100 + ++posts;
+                pages.Add(restored);
+            }
+            else if (route == "/lol-perks/v1/pages/1") pages[0] = JObject.Parse(body!);
+        });
+        var inner = Service<IOpggBuildApplyService>((_, _) =>
+        {
+            pages[0]["name"] = "applied";
+            pages[0]["selectedPerkIds"] = new JArray(10, 11, 12, 13, 14, 15);
+            pages.RemoveAt(1);
+            return Task.FromResult(OpggBuildApplyResult.Success("ok"));
+        });
+        var service = new VerifiedBuildApplyService(inner, lcu, folder.Path);
+        Assert.True((await service.ApplyPersonalRunePresetAsync(new PersonalRunePreset { ChampionId = 1, RunePerkIds = [10, 11, 12, 13, 14, 15] })).Succeeded);
+        for (int i = 0; i < 2; i++)
+        {
+            var result = await service.RestoreLastConfigurationAsync();
+            Assert.True(result.Succeeded, result.Message);
+            Assert.Equal(3, pages.Count);
+            Assert.Equal(1, posts);
+            Assert.Contains(pages, p => p.Value<long>("id") == 101 && p.Value<string>("name") == "LOL助手 OP.GG · 旧页");
+            Assert.Contains(pages, p => p.Value<long>("id") == 3 && p.Value<string>("name") == "manual");
+        }
+    }
+
     [Theory]
     [InlineData(1100, false)]
     [InlineData(760, false)]

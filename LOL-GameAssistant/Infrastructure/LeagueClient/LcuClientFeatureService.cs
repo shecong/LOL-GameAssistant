@@ -245,13 +245,14 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
             return JArray.Parse(json).OfType<JObject>().Select(friend =>
             {
                 JObject? lol = friend["lol"] as JObject;
-                long timestamp = lol?.Value<long?>("timeStamp") ?? 0;
-                DateTimeOffset? startedAt = timestamp > 0
+                long timestamp = ReadFriendActivityNumber(lol?["timeStamp"]);
+                DateTimeOffset? startedAt = timestamp > 0 && timestamp <= DateTimeOffset.MaxValue.ToUnixTimeMilliseconds()
                     ? DateTimeOffset.FromUnixTimeMilliseconds(timestamp)
                     : null;
                 string displayName = friend.Value<string>("gameName") ?? friend.Value<string>("name") ?? "未知玩家";
                 string gameStatus = lol?.Value<string>("gameStatus") ?? "outOfGame";
-                int queueId = lol?.Value<int?>("queueId") ?? 0;
+                long queueValue = ReadFriendActivityNumber(lol?["queueId"]);
+                int queueId = queueValue is > 0 and <= int.MaxValue ? (int)queueValue : 0;
                 string queueName = lol?.Value<string>("gameQueueType") ?? lol?.Value<string>("gameMode") ?? "";
                 return new FriendActivity(
                     friend.Value<string>("puuid") ?? "",
@@ -267,6 +268,14 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
         {
             return Array.Empty<FriendActivity>();
         }
+    }
+
+    /// <summary>好友活动数字可能为 JSON 数字、数字字符串或空字符串；异常可选值按未知处理。</summary>
+    private static long ReadFriendActivityNumber(JToken? value)
+    {
+        if (value?.Type is not (JTokenType.Integer or JTokenType.String)) return 0;
+        return long.TryParse(value.ToString(), System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out long number) ? number : 0;
     }
 
     /// <summary>更新客户端聊天的在线状态。</summary>

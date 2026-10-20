@@ -16,18 +16,21 @@ public sealed record PlayerHistorySnapshot
     public MatchHistoryResponse? Data => _payload == null ? null : JsonSerializer.Deserialize<MatchHistoryResponse>(_payload);
     public int RequestedCount => MatchDataPolicy.SummaryLimit;
     public int ReturnedCount { get; }
+    public string DataWarning { get; }
     public bool Available { get; }
     public bool IsStale => State == HistoryDataState.Cached;
     public bool IsCompleteHistory => false;
     public DateTimeOffset? OldestGame { get; }
     public DateTimeOffset? LatestGame { get; }
-    public string ScopeText => $"{(IsStale ? "缓存" : "已获取")} {ReturnedCount} 场 · {AcquiredAt.ToLocalTime():MM-dd HH:mm} · 有限样本";
+    public string ScopeText => $"{(IsStale ? "缓存" : "已获取")} {ReturnedCount} 场 · {AcquiredAt.ToLocalTime():MM-dd HH:mm} · 有限样本" +
+        (DataWarning.Length > 0 ? $" · {DataWarning}" : "");
     public PlayerHistorySnapshot(string puuid, MatchHistoryResponse? data, DateTimeOffset acquiredAt,
         HistoryDataState state, string? error = null)
     {
         Puuid = puuid; AcquiredAt = acquiredAt; State = state; Error = error;
         Available = data?.Games != null;
         ReturnedCount = data?.Games?.Games.Count ?? 0;
+        DataWarning = data?.Games?.DataWarning ?? "";
         _payload = data == null ? null : JsonSerializer.SerializeToUtf8Bytes(data);
         var dates = data?.Games?.Games.Select(game => game.GameCreation)
             .Where(value => value > 0 && value <= DateTimeOffset.MaxValue.ToUnixTimeMilliseconds()).ToArray() ?? [];

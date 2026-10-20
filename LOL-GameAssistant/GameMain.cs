@@ -205,6 +205,7 @@ namespace LOL_GameAssistant
             tabs1.Controls.Add(_loungeTab);
             tabs1.Pages.Add(_loungeTab);
             tabs1.Pages.Add(tabPage4);
+            ConfigureLiveLayoutSelector();
             _windowHoldController = new WindowHoldController(this);
             _windowHoldController.ConfigureBattleOverlay(
                 () => gameFlowPhase == GameFlowPhase.InProgress,
@@ -305,6 +306,7 @@ namespace LOL_GameAssistant
         /// <summary>启动主界面并初始化客户端连接、托盘和后台跟踪。</summary>
         public void GameMain_Load(object sender, EventArgs e)
         {
+            using var startup = new StartupDiagnostics("主窗口 Load");
             // 托盘与窗口事件先挂好：它们不依赖 LCU/网络，
             // 若放在 await 之后，客户端探测卡住时这段时间窗口既没有托盘图标也没有关闭拦截。
             InitializeTray();
@@ -317,12 +319,12 @@ namespace LOL_GameAssistant
             // 使快捷消息不依赖设置页的 Load 事件才开始注册。
             AssistantSettings startupSettings = _settingsStore.Load();
             SettingForm.ApplyStartupSetting(startupSettings.LaunchOnStartup);
-            ApplyWindowSettings(startupSettings);
+            using (new StartupDiagnostics("窗口设置与快捷键")) ApplyWindowSettings(startupSettings);
             _recommendationCoordinator.Start(startupSettings);
             TryAutoLaunchLeagueClient(startupSettings);
             // 首页优先；只读页面和设置编辑器首次打开时再创建。
-            LoadAllForm();
-            UiLanguage.Refresh();
+            using (new StartupDiagnostics("挂载页面与后台服务")) LoadAllForm();
+            using (new StartupDiagnostics("界面翻译")) UiLanguage.Refresh();
             liveGameForm.ConfigureAutoRefresh(startupSettings.AutoRefresh,
                 Math.Max(10, startupSettings.AutoRefreshIntervalSeconds));
             _ = InitializeLiveGameAsync();

@@ -119,6 +119,7 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 panelTeam1.AutoScrollPosition = Point.Empty;
                 panelTeam2.AutoScrollPosition = Point.Empty;
+                _layoutWorkspace?.ScrollToTop();
                 foreach (LivePlayerForm card in panelTeam1.Controls.OfType<LivePlayerForm>()
                     .Concat(panelTeam2.Controls.OfType<LivePlayerForm>())) card.ScrollMatchesToTop();
             };
@@ -174,6 +175,18 @@ namespace LOL_GameAssistant.BaseViewForm
             UiTheme.Apply(this);
         }
 
+        internal void AttachLayoutSelector(Control selector)
+        {
+            var holder = new Panel { Name = "liveLayoutToolbar", Dock = DockStyle.Right, Width = 210,
+                Padding = new Padding(4, 14, 4, 14), BackColor = Color.Transparent };
+            selector.Dock = DockStyle.Fill;
+            holder.Controls.Add(selector);
+            infoBar.Controls.Add(holder);
+            holder.BringToFront();
+            _dataFetchNotice.BringToFront();
+            lblGameInfo.BringToFront();
+        }
+
         /// <summary>加载对局页面并初始化刷新和展示逻辑。</summary>
         private void LiveGameForm_Load(object? sender, EventArgs e)
         {
@@ -219,6 +232,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _dataFetchNotice.ForeColor = palette.IsDark
                 ? Color.FromArgb(255, 213, 128)
                 : Color.FromArgb(148, 96, 0);
+            _layoutWorkspace?.ApplyTheme(palette);
             _teamOverview1.ForeColor = _teamOverview2.ForeColor = Color.FromArgb(190, 215, 232);
             _gameSubtitle.ForeColor = palette.TextSecondary;
             column1.BorderWidth = column2.BorderWidth = 1;
@@ -685,6 +699,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _teamTitleBase2 = lblTeamTitle2.Text;
             ApplyPremadeResult(partyDetection);
             UpdateRecentEncounters();
+            SyncDisplayLayout();
             _ = LoadPlayerCardsConcurrentlyAsync();
         }
 

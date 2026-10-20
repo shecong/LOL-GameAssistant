@@ -21,6 +21,8 @@ namespace LOL_GameAssistant.LoLApi
         public static string gameversion = "15.19.1";
 
         private static DateTime _lastVersionFetch = DateTime.MinValue;
+        private static readonly object VersionGate = new();
+        private static Task? _versionFetch;
 
         /// <summary>
         /// 装备信息（懒加载 + 线程安全）。
@@ -61,18 +63,31 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>
         /// 获取游戏最新版本（6 小时内不重复拉取）。
         /// </summary>
-        public static async Task GetGameversion()
+        public static Task GetGameversion(CancellationToken cancellationToken = default)
         {
-            if ((DateTime.Now - _lastVersionFetch).TotalHours < 6 && !string.IsNullOrEmpty(gameversion)) return;
-            HttpClientHelper client = new HttpClientHelper();
-            Stream? responseStream = await client.GetAsync("https://ddragon.leagueoflegends.com/api/versions.json").ConfigureAwait(false);
-            if (responseStream == null) return;
-            List<string>? version = await responseStream.ReadAsJsonAsync<List<string>>().ConfigureAwait(false);
-            if (version != null && version.Count > 0)
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (VersionGate)
             {
-                gameversion = version[0];
-                _lastVersionFetch = DateTime.Now;
+                if ((DateTime.Now - _lastVersionFetch).TotalHours < 6 && !string.IsNullOrEmpty(gameversion)) return Task.CompletedTask;
+                if (_versionFetch == null || _versionFetch.IsCompleted) _versionFetch = FetchGameVersionAsync();
+                return _versionFetch.WaitAsync(cancellationToken);
             }
+        }
+
+        private static async Task FetchGameVersionAsync()
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            try
+            {
+                using var client = new HttpClientHelper();
+                using Stream? responseStream = await client.GetAsync("https://ddragon.leagueoflegends.com/api/versions.json", cancellationToken: timeout.Token).ConfigureAwait(false);
+                if (responseStream == null) return;
+                var version = await responseStream.ReadAsJsonAsync<List<string>>(timeout.Token).ConfigureAwait(false);
+                if (version is not { Count: > 0 }) return;
+                lock (VersionGate) { gameversion = version[0]; _lastVersionFetch = DateTime.Now; }
+            }
+            catch (OperationCanceledException) { RuntimeDiagnostics.Report("资源版本", "暂不可用", "版本检查超时，继续使用已有版本"); }
+            catch (Exception ex) { RuntimeDiagnostics.Report("资源版本", "暂不可用", ex.GetType().Name); }
         }
 
         /// <summary>
