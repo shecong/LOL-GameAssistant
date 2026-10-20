@@ -50,6 +50,13 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
             await store.ReadRecruitmentsAsync(Context.ConnectionAborted));
     }
 
+    public Task<LoungeHistoryPage> History(long before)
+    {
+        room.Check(Session, "history", 30, TimeSpan.FromMinutes(1));
+        if (before <= 0) throw new HubException("历史消息游标无效。");
+        return store.ReadBeforeAsync(before, Context.ConnectionAborted);
+    }
+
     public async Task<LoungeMessage> SendMessage(LoungeSend request)
     {
         room.Check(Session, "chat", 1, TimeSpan.FromSeconds(2), writing: true);

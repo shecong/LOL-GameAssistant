@@ -44,13 +44,33 @@ public sealed class LoungeStore : IDisposable
             await PruneAsync(token);
             using var command = _db.CreateCommand();
             command.CommandText = after <= 0
-                ? "SELECT * FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 100) ORDER BY id"
+                ? "SELECT * FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 40) ORDER BY id"
                 : "SELECT * FROM messages WHERE id > $after ORDER BY id LIMIT 200";
             command.Parameters.AddWithValue("$after", after);
             using var reader = await command.ExecuteReaderAsync(token);
             var result = new List<LoungeMessage>();
             while (await reader.ReadAsync(token)) result.Add(Read(reader));
             return result.ToArray();
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task<LoungeHistoryPage> ReadBeforeAsync(long before, CancellationToken token = default)
+    {
+        if (before <= 0) throw new ArgumentOutOfRangeException(nameof(before));
+        await _gate.WaitAsync(token);
+        try
+        {
+            await PruneAsync(token);
+            using var command = _db.CreateCommand();
+            command.CommandText = "SELECT * FROM messages WHERE id < $before ORDER BY id DESC LIMIT $limit";
+            command.Parameters.AddWithValue("$before", before);
+            command.Parameters.AddWithValue("$limit", LoungeRules.HistoryPageSize + 1);
+            using var reader = await command.ExecuteReaderAsync(token);
+            var rows = new List<LoungeMessage>();
+            while (await reader.ReadAsync(token)) rows.Add(Read(reader));
+            bool hasMore = rows.Count > LoungeRules.HistoryPageSize;
+            return new(rows.Take(LoungeRules.HistoryPageSize).Reverse().ToArray(), hasMore);
         }
         finally { _gate.Release(); }
     }

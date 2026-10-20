@@ -11,6 +11,7 @@ public sealed class LegacyFavoritePlayerStore : IFavoritePlayerStore
         .Select(item => new FavoritePlayer
         {
             Puuid = item.Puuid,
+            Platform = item.Platform,
             GameName = item.GameName,
             TagLine = item.TagLine,
             SummonerLevel = item.SummonerLevel,
@@ -22,6 +23,7 @@ public sealed class LegacyFavoritePlayerStore : IFavoritePlayerStore
     public void Save(List<FavoritePlayer> favorites) => Entity.FavoriteStore.Save(favorites
         .Select(item => new Entity.FavoritePlayer
         {
+            Platform = item.Platform,
             Puuid = item.Puuid,
             GameName = item.GameName,
             TagLine = item.TagLine,

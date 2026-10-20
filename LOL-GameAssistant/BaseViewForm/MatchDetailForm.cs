@@ -45,8 +45,9 @@ namespace LOL_GameAssistant.BaseViewForm
             _gameInfo = gameInfo;
             _puuid = puuid;
             _gameAssetService = gameAssetService;
-            _matchHistoryService = matchHistoryService ?? AppCompositionRoot.MatchHistoryService;
-            _premadeDetectionService = premadeDetectionService ?? AppCompositionRoot.PremadeDetectionService;
+            var regional = gameInfo.IsCrossRegion ? AppCompositionRoot.RegionalPlayerQueries.Create(gameInfo.PlatformId) : null;
+            _matchHistoryService = matchHistoryService ?? regional?.History ?? AppCompositionRoot.MatchHistoryService;
+            _premadeDetectionService = premadeDetectionService ?? regional?.Premades ?? AppCompositionRoot.PremadeDetectionService;
             InitializeComponent();
             WindowLayout.ConfigureDpi(this);
             AntdWindowChrome.Configure(this);
@@ -91,7 +92,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
             if (!string.IsNullOrEmpty(form.SelectedPlayerPuuid))
             {
-                _ = BattleQueryForm.QueryPlayerAsync(form.SelectedPlayerPuuid);
+                _ = BattleQueryForm.QueryPlayerAsync(form.SelectedPlayerPuuid, detail.PlatformId);
             }
         }
 

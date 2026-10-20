@@ -43,6 +43,7 @@ public sealed class MatchHistoryPreviewCard : UserControl
             false, palette.TextSecondary);
         _detailState = MakeLabel("双方详情加载中...", false, palette.TextSecondary);
         _replay = new MatchReplayActions(game.GameId);
+        _replay.Visible = !game.IsCrossRegion;
         foreach (Control control in new Control[] { _result, _mode, _summary, _detailState, _replay })
             _surface.Controls.Add(control);
         Resize += (_, _) => LayoutLabels();

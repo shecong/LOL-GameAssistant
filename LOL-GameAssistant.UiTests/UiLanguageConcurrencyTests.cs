@@ -1,5 +1,7 @@
 using System.Reflection;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Domain.Settings;
+using LOL_GameAssistant.Entity;
 using Xunit;
 
 namespace LOL_GameAssistant.UiTests;
@@ -8,9 +10,74 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class UiLanguageConcurrencyTests
 {
     [Fact]
+    public void TraditionalChinesePreservesDynamicValuesAndSupportsLanguageRoundTrips() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        string previous = UiLanguage.Mode;
+        try
+        {
+            UiLanguage.SetMode("zh-CN");
+            using var form = new Form();
+            using var label = new Label { Text = "设置" };
+            using var input = new TextBox { Text = "用户输入的简体文字", PlaceholderText = "查询玩家" };
+            using var combo = new ComboBox();
+            combo.Items.AddRange(["查询玩家", "设置"]);
+            combo.SelectedIndex = 1;
+            form.Controls.AddRange([label, input, combo]);
+            form.Show();
+            Attach(form);
+
+            UiLanguage.SetMode("zh-TW");
+            Assert.True(UiLanguage.IsTraditionalChinese);
+            Assert.False(UiLanguage.IsEnglish);
+            Assert.Equal("設置", label.Text);
+            Assert.Equal("查詢玩家", input.PlaceholderText);
+            Assert.Equal("用户输入的简体文字", input.Text);
+            Assert.Equal("設置", combo.SelectedItem);
+            Assert.Equal("正在下載更新：42% · v1.2.3", UiLanguage.T("正在下载更新：42% · v1.2.3"));
+            Assert.Equal("https://example.com/a?b=42", UiLanguage.T("https://example.com/a?b=42"));
+            Assert.Equal("", UiLanguage.T(null));
+
+            // Controls created with already localized text must retain a recoverable source.
+            using var added = new Label { Text = UiLanguage.T("查询玩家") };
+            form.Controls.Add(added);
+            UiLanguage.SetMode("en-US");
+            Assert.Equal("Settings", label.Text);
+            Assert.Equal("Search Player", added.Text);
+            Assert.Equal("Search Player", input.PlaceholderText);
+            Assert.Equal("Settings", combo.SelectedItem);
+            UiLanguage.SetMode("zh-CN");
+            Assert.Equal("设置", label.Text);
+            Assert.Equal("查询玩家", added.Text);
+            Assert.Equal("查询玩家", input.PlaceholderText);
+            Assert.Equal("设置", combo.SelectedItem);
+            Assert.Equal(1, combo.SelectedIndex);
+            UiLanguage.SetMode("zh-TW");
+            label.Text = "下载回放";
+            Assert.Equal("下載回放", label.Text);
+            UiLanguage.SetMode("zh-CN");
+            Assert.Equal("下载回放", label.Text);
+        }
+        finally { UiLanguage.SetMode(previous); }
+    });
+
+    [Fact]
+    public void TraditionalChineseSurvivesSettingsSerializationAndNormalization()
+    {
+        var settings = new AssistantSettings { LanguageMode = "zh-TW" };
+        settings.Normalize();
+        var restored = Newtonsoft.Json.JsonConvert.DeserializeObject<AssistantSettings>(
+            Newtonsoft.Json.JsonConvert.SerializeObject(settings))!;
+        restored.Normalize();
+        Assert.Equal("zh-TW", restored.LanguageMode);
+        var config = new SettingConfig { LanguageMode = restored.LanguageMode };
+        config.Normalize();
+        Assert.Equal("zh-TW", config.LanguageMode);
+    }
+
+    [Fact]
     public void IdleOnlyTranslatesControlsOwnedByItsThread() => MatchListScrollingTests.OnUiThread(() =>
     {
-        bool english = UiLanguage.IsEnglish;
+        string previous = UiLanguage.Mode;
         try
         {
             UiLanguage.SetMode("en-US");
@@ -32,7 +99,7 @@ public sealed class UiLanguageConcurrencyTests
             Idle();
             Assert.Equal("Search Player", control.PlaceholderText);
         }
-        finally { UiLanguage.SetMode(english ? "en-US" : "zh-CN"); }
+        finally { UiLanguage.SetMode(previous); }
     });
 
     [Fact]

@@ -89,7 +89,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private void SwitchLanguage()
         {
             if (_isLoading) return;
-            string mode = _languageMode.SelectedIndex == 1 ? "en-US" : "zh-CN";
+            string mode = _languageMode.SelectedIndex switch { 1 => "en-US", 2 => "zh-TW", _ => "zh-CN" };
             if (_config.LanguageMode == mode) return;
             _config.LanguageMode = mode;
             AssistantSettings saved = _settingsStore.Load();
@@ -536,12 +536,12 @@ namespace LOL_GameAssistant.BaseViewForm
             _battleOverlayHotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
             _battleOverlayHotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
             _themeMode.Items.AddRange(new object[] { "跟随系统", "浅色", "深色" });
-            _languageMode.Items.AddRange(new object[] { "中文", "English" });
+            _languageMode.Items.AddRange(new object[] { "简体中文", "English", "繁體中文" });
             var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后隐藏到托盘；默认是键盘左上角的 · 键。\nWindows 会接管已注册的按键；快捷键不会注入或修改游戏客户端。");
 
             AddSegmentRow(layout, 0, "界面主题：", _themeMode,
                 "界面配色：跟随系统、浅色或深色，保存后立即生效。");
-            AddSegmentRow(layout, 1, "界面语言：", _languageMode, "保存后立即切换中英文界面。");
+            AddSegmentRow(layout, 1, "界面语言：", _languageMode, "保存后立即切换简体中文、繁体中文或英文界面。");
             AddSegmentRow(layout, 2, "窗口透明度：", opacityPanel,
                 "助手窗口的不透明度（40–100），数值越小越透明。");
             AddSegmentRow(layout, 3, "按住置顶键：", _hotkey,
@@ -824,7 +824,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _autoLaunchClient.Checked = _config.AutoLaunchGameClient;
             _opacity.Value = _config.WindowOpacityPercent;
             _themeMode.SelectedIndex = _config.ThemeMode switch { "Light" => 1, "Dark" => 2, _ => 0 };
-            _languageMode.SelectedIndex = _config.LanguageMode == "en-US" ? 1 : 0;
+            _languageMode.SelectedIndex = _config.LanguageMode switch { "en-US" => 1, "zh-TW" => 2, _ => 0 };
             Keys holdKey = WindowHoldController.ParseKey(_config.HoldToTopHotkey);
             _hotkey.Tag = holdKey;
             _hotkey.Text = WindowHoldController.DescribeKey(holdKey);

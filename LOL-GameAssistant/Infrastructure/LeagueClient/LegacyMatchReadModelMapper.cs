@@ -18,8 +18,7 @@ internal static class LegacyMatchReadModelMapper
         if (result?.Games == null) return result;
         var page = result.Games;
         int requestedCount = endIndex - beginIndex + 1;
-        bool hasRange = page.GameIndexEnd > 0 || beginIndex == 0 || page.Games.Count > requestedCount;
-        int returnedBegin = hasRange ? page.GameIndexBegin : beginIndex;
+        int returnedBegin = page.GameIndexBegin;
         // Never present a different range as the requested page when the server
         // cannot supply it. GameCount remains the server's total, not this slice.
         page.Games = beginIndex < returnedBegin ? [] : page.Games

@@ -7,6 +7,7 @@ namespace LOL_GameAssistant.Entity
     /// </summary>
     public class FavoritePlayer
     {
+        public string? Platform { get; set; }
         public string Puuid { get; set; } = "";
         public string GameName { get; set; } = "";
         public string TagLine { get; set; } = "";

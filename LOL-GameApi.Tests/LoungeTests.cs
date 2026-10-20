@@ -18,6 +18,25 @@ namespace LOL_GameApi.Tests;
 public sealed class LoungeTests
 {
     [Fact]
+    public async Task HistoryStartsWithLatestPageAndPagesBackwardWithExclusiveStableCursor()
+    {
+        using var folder = new TemporaryFolder();
+        using var store = new LoungeStore(Path.Combine(folder.Path, "paging.db"));
+        for (int i = 1; i <= 95; i++) await store.AppendAsync("message:" + i, "", "sender", "玩家", "艾欧尼亚", "chat", "消息 " + i);
+        var latest = await store.ReadAsync();
+        Assert.Equal(40, latest.Length); Assert.Equal(56, latest[0].Id); Assert.Equal(95, latest[^1].Id);
+        // A new live message cannot shift an earlier-page cursor.
+        await store.AppendAsync("message:96", "", "sender", "玩家", "艾欧尼亚", "chat", "实时消息");
+        var older = await store.ReadBeforeAsync(latest[0].Id);
+        Assert.Equal(Enumerable.Range(16, 40).Select(x => (long)x), older.Messages.Select(x => x.Id)); Assert.True(older.HasMore);
+        await store.DeleteAsync(5);
+        var first = await store.ReadBeforeAsync(older.Messages[0].Id);
+        Assert.Equal(15, first.Messages.Length); Assert.False(first.HasMore); Assert.Contains(first.Messages, m => m.Id == 5 && m.Kind == "deleted");
+        Assert.Empty((await store.ReadBeforeAsync(1)).Messages);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => store.ReadBeforeAsync(0));
+    }
+
+    [Fact]
     public async Task StoreKeepsMessageOrderRetryIdsAndVictoryDedupAcrossRestart()
     {
         using var folder = new TemporaryFolder();
@@ -102,6 +121,10 @@ public sealed class LoungeTests
         Assert.Contains("极地大乱斗", snapshot.Messages.Single(m => m.Kind == "victory").Text);
         Assert.Contains("与【Bob#456】组队开黑", snapshot.Messages.Single(m => m.Kind == "victory").Text);
         Assert.Single((await bob.InvokeAsync<LoungeSnapshot>("Sync", sent.Id)).Messages);
+        var earlier = await bob.InvokeAsync<LoungeHistoryPage>("History", sent.Id);
+        Assert.All(earlier.Messages, m => Assert.True(m.Id < sent.Id));
+        Assert.Contains(earlier.Messages, m => m.Kind == "online");
+        await Assert.ThrowsAsync<HubException>(() => bob.InvokeAsync<LoungeHistoryPage>("History", 0L));
 
         await alice.StopAsync();
         Assert.Single((await bob.InvokeAsync<LoungeSnapshot>("Sync", 0L)).Members);

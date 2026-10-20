@@ -53,6 +53,8 @@ public static class AppCompositionRoot
             new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore")),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
+    private static readonly Infrastructure.Sgp.SgpClient Sgp = new(LcuRequestSender);
+    private static readonly PlayerDataCacheScope PlayerCacheScope = new(LcuRequestSender);
     public static IClientCapabilityService ClientCapabilities { get; } = new LcuClientCapabilityService(LcuRequestSender);
     public static IPartyService PartyService { get; } = new LcuPartyService(LcuRequestSender);
 
@@ -60,7 +62,7 @@ public static class AppCompositionRoot
         new LcuChampionSkinResourceService(LcuRequestSender, () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
 
     public static Infrastructure.Lounge.LoungeClient CreateLoungeClient() =>
-        new(new Infrastructure.Lounge.LoungeLcuReader(LcuRequestSender));
+        new(new Infrastructure.Lounge.LoungeLcuReader(LcuRequestSender, MatchHistoryService, RankedStatsService));
 
     public static LcuQuickShoutService QuickShoutService { get; } = new(LcuRequestSender);
 
@@ -96,7 +98,7 @@ public static class AppCompositionRoot
 
     /// <summary>召唤师资料查询服务。</summary>
     public static IPlayerProfileService PlayerProfileService { get; } =
-        new CachedPlayerProfileService(new LcuPlayerProfileService(LcuRequestSender));
+        new CachedPlayerProfileService(new Infrastructure.Sgp.SgpPlayerProfileService(Sgp, new LcuPlayerProfileService(LcuRequestSender)), context: PlayerCacheScope.GetAsync);
 
     /// <summary>收藏召唤师列表存储。</summary>
     public static IFavoritePlayerStore FavoritePlayerStore { get; } = new LegacyFavoritePlayerStore();
@@ -107,10 +109,10 @@ public static class AppCompositionRoot
     public static ISettingsSecretProtector SettingsSecretProtector { get; } = new DpapiSettingsSecretProtector();
 
     /// <summary>战绩列表和单局详情查询服务。</summary>
-    public static IMatchHistoryService MatchHistoryService { get; } = new CachedMatchHistoryService(new LegacyMatchHistoryService());
+    public static IMatchHistoryService MatchHistoryService { get; } = new CachedMatchHistoryService(new Infrastructure.Sgp.SgpMatchHistoryService(Sgp), context: PlayerCacheScope.GetAsync);
 
     /// <summary>单双排、灵活组排查询服务。</summary>
-    public static IRankedStatsService RankedStatsService { get; } = new CachedRankedStatsService(new LegacyRankedStatsService());
+    public static IRankedStatsService RankedStatsService { get; } = new CachedRankedStatsService(new Infrastructure.Sgp.SgpRankedStatsService(Sgp), context: PlayerCacheScope.GetAsync);
 
     /// <summary>游戏数据版本初始化服务。</summary>
     public static IGameDataVersionService GameDataVersionService { get; } = new LegacyGameDataVersionService();
@@ -142,6 +144,8 @@ public static class AppCompositionRoot
     /// <summary>向 LCU 当前英雄选择聊天会话发送一条消息。</summary>
     public static IChampionSelectChatService ChampionSelectChatService { get; } =
         new LcuChampionSelectChatService(LcuRequestSender);
+
+    public static ICurrentRegionService CurrentRegionService { get; } = new LcuCurrentRegionService(LcuRequestSender);
 
     /// <summary>回放、奖励、赛后、社交与快捷大厅等外置客户端增强功能。</summary>
     public static IClientFeatureService ClientFeatureService { get; } =
@@ -185,7 +189,9 @@ public static class AppCompositionRoot
         ChampionCatalog);
 
     /// <summary>近期同队关系的开黑检测服务。</summary>
-    public static IPremadeDetectionService PremadeDetectionService { get; } = new LegacyPremadeDetectionService();
+    public static IPremadeDetectionService PremadeDetectionService { get; } = new LegacyPremadeDetectionService(MatchHistoryService);
+    public static IRegionalPlayerQueryFactory RegionalPlayerQueries { get; } = new Infrastructure.Sgp.SgpRegionalPlayerQueryFactory(
+        LcuRequestSender, new(PlayerProfileService, MatchHistoryService, RankedStatsService, PremadeDetectionService));
 
     /// <summary>本机上下文与云端 AI 建议服务。</summary>
     public static IAiCoachingService AiCoachingService { get; } = new LegacyAiCoachingService(AiGameContextService);

@@ -2,10 +2,11 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 
 namespace LOL_GameAssistant.Helper;
 
-/// <summary>Runtime Chinese/English localization of existing and newly added WinForms controls.</summary>
+/// <summary>Runtime Simplified Chinese, Traditional Chinese and English localization of WinForms controls.</summary>
 internal static class UiLanguage
 {
     private static readonly IReadOnlyDictionary<string, string> English = LoadEnglish();
@@ -41,6 +42,7 @@ internal static class UiLanguage
         ["位于大厅"] = "In Lobby", ["正在匹配中"] = "Matchmaking",
         ["游戏对局进行中"] = "In Game", ["客户端未启动"] = "Client Not Running",
         ["界面语言："] = "Interface language:", ["中文"] = "Chinese", ["English"] = "English",
+        ["保存后立即切换简体中文、繁体中文或英文界面。"] = "Switch immediately between Simplified Chinese, Traditional Chinese and English.",
         ["首页"] = "Home", ["喊话"] = "Quick Chat", ["开"] = "On", ["关"] = "Off",
         ["浅色"] = "Light", ["深色"] = "Dark", ["跟随系统"] = "Follow System",
         ["蓝方"] = "Blue Team", ["红方"] = "Red Team", ["单双排"] = "Solo/Duo",
@@ -62,7 +64,7 @@ internal static class UiLanguage
         .Where(entry => !string.IsNullOrWhiteSpace(entry.Value))
         .GroupBy(entry => entry.Value, StringComparer.Ordinal)
         .ToDictionary(group => group.Key, group => group.First().Key, StringComparer.Ordinal);
-    private static bool _english;
+    private static string _mode = "zh-CN";
     [ThreadStatic] private static bool _updating;
     private static bool _started;
     // Invalidated/Disposed can arrive from different UI threads. Keep the owning
@@ -71,7 +73,9 @@ internal static class UiLanguage
     public static event EventHandler? Changed;
 
     /// <summary>判断当前界面语言是否为英文。</summary>
-    public static bool IsEnglish => _english;
+    public static bool IsEnglish => _mode == "en-US";
+    public static bool IsTraditionalChinese => _mode == "zh-TW";
+    public static string Mode => _mode;
     /// <summary>刷新当前对象展示的状态或数据。</summary>
     public static void Refresh() => ApplyOpenForms(true);
 
@@ -108,9 +112,10 @@ internal static class UiLanguage
     /// <summary>切换当前显示模式并通知相关订阅者。</summary>
     public static void SetMode(string? mode)
     {
-        bool english = string.Equals(mode, "en-US", StringComparison.OrdinalIgnoreCase);
-        if (_english == english) return;
-        _english = english;
+        string normalized = string.Equals(mode, "en-US", StringComparison.OrdinalIgnoreCase) ? "en-US"
+            : string.Equals(mode, "zh-TW", StringComparison.OrdinalIgnoreCase) ? "zh-TW" : "zh-CN";
+        if (_mode == normalized) return;
+        _mode = normalized;
         ApplyOpenForms(true);
         Changed?.Invoke(null, EventArgs.Empty);
     }
@@ -118,7 +123,10 @@ internal static class UiLanguage
     /// <summary>将原始界面文本转换为当前语言的文本。</summary>
     public static string T(string? source)
     {
-        if (!_english || string.IsNullOrEmpty(source)) return source ?? "";
+        if (string.IsNullOrEmpty(source)) return source ?? "";
+        if (IsTraditionalChinese)
+            return ConvertChinese(source, traditional: true);
+        if (!IsEnglish) return source;
         if (Overrides.TryGetValue(source, out string? corrected)) return corrected;
         if (English.TryGetValue(source, out string? exact)) return exact;
         if (!source.Any(IsChinese)) return source;
@@ -139,7 +147,7 @@ internal static class UiLanguage
     private static string TranslateComposite(string source)
     {
         string exact = T(source);
-        if (!_english || exact != source) return exact;
+        if (!IsEnglish || exact != source) return exact;
         string[] lines = source.Replace("\r\n", "\n").Split('\n');
         string[] prefixes = ["状态：", "说明：", "阶段：", "模式：", "英雄：", "游戏时间：",
             "当前金币：", "已购装备：", "可见敌方阵容：", "依据：", "来源："];
@@ -311,8 +319,33 @@ internal static class UiLanguage
     /// <summary>检查文本中是否包含中文字符。</summary>
     private static bool IsChinese(char c) => c is >= '\u3400' and <= '\u9fff';
     /// <summary>从当前文本和已保存状态中恢复原始文案。</summary>
-    private static string RecoverOriginal(string text) =>
-        _english && Reverse.TryGetValue(text, out string? original) ? original : text;
+    private static string RecoverOriginal(string? text)
+    {
+        // Some native/third-party controls return null before their text is initialized.
+        // Normalize here so attaching or refreshing any page never uses a null dictionary key.
+        if (string.IsNullOrEmpty(text)) return "";
+        if (Reverse.TryGetValue(text, out string? original)) return original;
+        return IsTraditionalChinese ? ConvertChinese(text, traditional: false) : text;
+    }
+
+    // Unicode mapping works without installing a Chinese code page or language pack.
+    private static string ConvertChinese(string source, bool traditional)
+    {
+        if (!source.Any(IsChinese)) return source;
+        const uint simplifiedChinese = 0x02000000, traditionalChinese = 0x04000000;
+        uint flags = traditional ? traditionalChinese : simplifiedChinese;
+        int length = LCMapStringEx("zh-CN", flags, source, source.Length, null, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        if (length == 0) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        var result = new char[length];
+        int written = LCMapStringEx("zh-CN", flags, source, source.Length, result, result.Length, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        if (written == 0)
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        return new string(result, 0, written);
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    private static extern int LCMapStringEx(string localeName, uint flags, string source, int sourceLength,
+        [Out] char[]? destination, int destinationLength, IntPtr versionInformation, IntPtr reserved, IntPtr sortHandle);
 
     /// <summary>为包含动态片段的文本构建匹配模式。</summary>
     private static (Regex Pattern, string[] Tokens, string Translation) BuildPattern(string source, string translation)

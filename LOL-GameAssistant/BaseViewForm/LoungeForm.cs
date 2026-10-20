@@ -85,7 +85,9 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
         footer.Controls.Add(_status, 0, 0);
         footer.Controls.Add(_feedback, 1, 0);
         layout.Controls.Add(footer, 0, 8);
+        InitializePresentation(layout, connection, options, conversation);
         Controls.Add(layout);
+        InitializeTimeline();
 
         _server.Text = client.Settings.ServerUrl;
         _share.Checked = client.Settings.ShareActivity;
@@ -219,9 +221,11 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
     private void RefreshView()
     {
         if (IsDisposed) return;
-        _client.SetReading(Visible && FindForm() is { Visible: true, ContainsFocus: true, WindowState: not FormWindowState.Minimized });
+        _client.SetReading(IsHistoryAtBottom() && _pendingMessages.Count == 0 && (_window.Count == 0 || _window.Keys.Last() >= _newestSeen) && Visible && FindForm() is { Visible: true, ContainsFocus: true, WindowState: not FormWindowState.Minimized });
         UpdateFeatureBar();
-        _status.Text = _client.Status;
+        _status.Text = NormalizeRegion(_client.Status);
+        _connectionState.Text = _client.Status.StartsWith("已连接", StringComparison.Ordinal) ? "● 已连接" : "○ 未连接";
+        _counter.Text = $"{_input.TextLength}/{LoungeRules.MaxTextLength}";
         _send.Enabled = !_sending && _client.CanSend;
         var members = _client.Members;
         string memberKey = string.Join('|', members.Select(m => $"{m.Id}:{m.Name}:{m.Region}:{m.Status}:{m.Rank}:{_client.IsFollowed(m.Id)}"));
@@ -239,53 +243,7 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
             _members.EndUpdate();
         }
         _memberCount.Text = $"在线成员 · {members.Length} · 右键复制 ID";
-        var blocked = _client.Settings.BlockedSenders ?? [];
-        var messages = _client.Messages.Where(m => (_victories.Checked || m.Kind is not ("victory" or "highlight")) && !blocked.Contains(m.SenderId)).ToArray();
-        string key = string.Join('|', messages.Select(m => $"{m.Id}:{m.Kind}")) + string.Join('|',
-            _client.Recruitments.Select(r => $"{r.MessageId}:{r.Revision}:{r.Status}"));
-        if (_historyKey == key) return;
-        _historyKey = key;
-        int selection = _history.SelectionStart;
-        bool atBottom = _history.TextLength == 0 || _history.GetPositionFromCharIndex(_history.TextLength).Y <= _history.ClientSize.Height;
-        Point scroll = default;
-        HistoryScrollMessage(_history.Handle, 0x04DD, 0, ref scroll); // EM_GETSCROLLPOS
-        _history.Clear();
-        _senders.Clear();
-        if (messages.Length == 0)
-        {
-            _history.SelectionColor = UiTheme.Palette.TextSecondary;
-            _history.AppendText("暂无消息。连接统一服务器后，即可在这里查看公共聊天。\n");
-        }
-        foreach (var message in messages)
-        {
-            _senders.Add((_history.TextLength, message.SenderId, message));
-            _history.SelectionColor = message.Kind is "victory" or "online" or "highlight" or "recruit" ? UiTheme.Palette.Accent : UiTheme.Palette.TextSecondary;
-            _history.AppendText($"{message.Name} · {message.Region}    {message.SentAt.ToLocalTime():MM-dd HH:mm:ss}\n");
-            _history.SelectionColor = LoungeContent.Mentions(message).Contains(_client.CurrentPlayerId)
-                ? UiTheme.Palette.Accent : UiTheme.Palette.TextPrimary;
-            if (message.Kind == "sticker" && LoungeContent.Sticker(message.Text) is { } sticker)
-                LoungeStickerArt.Append(_history, sticker);
-            else if (message.Kind == "recruit" && _client.Recruitments.FirstOrDefault(r => r.MessageId == message.Id) is { } recruitment)
-                _history.AppendText(RecruitmentSummary(recruitment));
-            else _history.AppendText(LoungeContent.Display(message));
-            _history.AppendText("\n\n");
-        }
-        _history.SelectionStart = atBottom ? _history.TextLength : Math.Min(selection, _history.TextLength);
-        if (atBottom)
-        {
-            Point current = default;
-            HistoryScrollMessage(_history.Handle, 0x04DD, 0, ref current);
-            scroll.Y = Math.Max(0, current.Y + _history.GetPositionFromCharIndex(_history.TextLength).Y + _history.Font.Height * 2 - _history.ClientSize.Height);
-        }
-        HistoryScrollMessage(_history.Handle, 0x04DE, 0, ref scroll); // EM_SETSCROLLPOS
-        if (atBottom) _history.BeginInvoke(() =>
-        {
-            if (_history.IsDisposed) return;
-            Point position = default;
-            HistoryScrollMessage(_history.Handle, 0x04DD, 0, ref position);
-            position.Y = Math.Max(0, position.Y + _history.GetPositionFromCharIndex(_history.TextLength).Y + _history.Font.Height * 2 - _history.ClientSize.Height);
-            HistoryScrollMessage(_history.Handle, 0x04DE, 0, ref position);
-        });
+        RefreshTimeline();
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
@@ -306,11 +264,13 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
             button.ForeColor = palette.TextPrimary;
         }
         _historyKey = "\0";
+        _renderedKeys = [];
+        _members.Invalidate();
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _client.SetReading(false); _refresh.Dispose(); _context.Dispose(); _memberContext.Dispose(); }
+        if (disposing) { _historyLoads.Dispose(); _memberTips.Dispose(); _moreMenu.Dispose(); _client.SetReading(false); _refresh.Dispose(); _context.Dispose(); _memberContext.Dispose(); }
         base.Dispose(disposing);
     }
 }

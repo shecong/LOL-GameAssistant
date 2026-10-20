@@ -100,7 +100,7 @@ public sealed class AssistantSettings
         Ai ??= new CloudAiSettings();
         ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
         HonorStrategy = HonorStrategy is "friends" or "manual" ? HonorStrategy : "random";
-        LanguageMode = LanguageMode == "en-US" ? "en-US" : "zh-CN";
+        LanguageMode = LanguageMode is "en-US" or "zh-TW" ? LanguageMode : "zh-CN";
         GameClientPath ??= "";
         RememberedHeroSkins ??= new();
         SkinPickerHotkey = string.IsNullOrWhiteSpace(SkinPickerHotkey) ? "Home" : SkinPickerHotkey;

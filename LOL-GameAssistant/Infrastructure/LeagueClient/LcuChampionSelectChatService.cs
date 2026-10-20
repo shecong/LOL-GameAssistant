@@ -18,7 +18,10 @@ public sealed class LcuChampionSelectChatService : IChampionSelectChatService
     }
 
     /// <summary>向当前服务负责的聊天通道提交消息。</summary>
-    public async Task<ChampionSelectChatResult> SendAsync(string message, CancellationToken cancellationToken = default)
+    public Task<ChampionSelectChatResult> SendAsync(string message, CancellationToken cancellationToken = default) =>
+        SendAsync(message, () => true, cancellationToken);
+
+    public async Task<ChampionSelectChatResult> SendAsync(string message, Func<bool> canSend, CancellationToken cancellationToken = default)
     {
         string body = message?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(body)) return ChampionSelectChatResult.Failure("聊天文案为空，未发送。");
@@ -26,6 +29,8 @@ public sealed class LcuChampionSelectChatService : IChampionSelectChatService
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!canSend()) return ChampionSelectChatResult.Failure("选人状态已变化，未发送。");
             string? content = await _lcu.GetStringAsync("/lol-chat/v1/conversations", cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(content))
                 return ChampionSelectChatResult.Failure("未读取到选人聊天会话。");
@@ -37,6 +42,8 @@ public sealed class LcuChampionSelectChatService : IChampionSelectChatService
             if (string.IsNullOrWhiteSpace(id))
                 return ChampionSelectChatResult.Failure("当前不在可发送消息的英雄选择阶段。");
 
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!canSend()) return ChampionSelectChatResult.Failure("选人状态已变化，未发送。");
             bool sent = await _lcu.PostAsync(
                 $"/lol-chat/v1/conversations/{Uri.EscapeDataString(id)}/messages",
                 JsonConvert.SerializeObject(new { body, type = "chat" }),

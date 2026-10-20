@@ -14,7 +14,7 @@ public sealed class MatchHistoryCard : UserControl, IThemeAware
 {
     private const int HeaderHeight = 114;
     private static readonly SemaphoreSlim PremadeGate = new(2);
-    private static readonly ConcurrentDictionary<(long GameId, int OwnTeamId), Task<PremadeDetectionResult>> PremadeCache = new();
+    private static readonly ConcurrentDictionary<(string Platform, long GameId, int OwnTeamId), Task<PremadeDetectionResult>> PremadeCache = new();
     private static readonly object CacheSync = new();
     internal static (int Entries, long Bytes) MeasureSharedCache() =>
         CacheDataSize.Measure(PremadeCache.Values.Select(task => task.IsCompletedSuccessfully ? task.Result : null));
@@ -86,6 +86,7 @@ public sealed class MatchHistoryCard : UserControl, IThemeAware
         _details = new AntdUI.Button { Text = "完整详情", Size = new Size(80, 32) };
         _details.Click += (_, _) => MatchDetailForm.OpenAndHandle(_match, _viewerPuuid, this);
         _replay = new MatchReplayActions(match.GameId);
+        _replay.Visible = !match.IsCrossRegion;
         foreach (Control control in new Control[] { _result, _champion, _modeTitle, _matchInfo, _kda, _duration, _details, _replay })
             _surface.Controls.Add(control);
         if (mine != null) _ = LoadChampionAsync(_champion, mine.championId);
@@ -240,7 +241,7 @@ public sealed class MatchHistoryCard : UserControl, IThemeAware
             foreach (Control clickable in new Control[] { row, avatar, name })
             {
                 clickable.Cursor = Cursors.Hand;
-                clickable.DoubleClick += (_, _) => _ = BattleQueryForm.QueryPlayerAsync(puuid);
+                clickable.DoubleClick += (_, _) => _ = BattleQueryForm.QueryPlayerAsync(puuid, _match.PlatformId);
             }
         }
         team.Controls.Add(row);
@@ -382,7 +383,7 @@ public sealed class MatchHistoryCard : UserControl, IThemeAware
             lock (CacheSync)
             {
             if (PremadeCache.Count > 128) PremadeCache.Clear();
-            var cacheKey = (_match.GameId, ownTeamId);
+            var cacheKey = (_match.PlatformId, _match.GameId, ownTeamId);
             task = _match.GameId > 0
                 ? PremadeCache.GetOrAdd(cacheKey, _ => DetectWithLimitAsync(own, other))
                 : DetectWithLimitAsync(own, other);
@@ -394,7 +395,7 @@ public sealed class MatchHistoryCard : UserControl, IThemeAware
         catch
         {
             if (_match.GameId > 0 && task != null)
-                PremadeCache.TryRemove(new KeyValuePair<(long, int), Task<PremadeDetectionResult>>((_match.GameId, ownTeamId), task));
+                PremadeCache.TryRemove(new KeyValuePair<(string, long, int), Task<PremadeDetectionResult>>((_match.PlatformId, _match.GameId, ownTeamId), task));
         }
     }
 

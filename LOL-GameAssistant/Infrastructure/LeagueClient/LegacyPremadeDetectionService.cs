@@ -4,8 +4,8 @@ using LOL_GameAssistant.LoLApi;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
-/// <summary>将既有开黑算法与 LCU 战绩采集收口为应用服务。</summary>
-public sealed class LegacyPremadeDetectionService : IPremadeDetectionService
+/// <summary>保留既有开黑算法，战绩统一从注入的数据源读取，不再旁路调用 LCU。</summary>
+public sealed class LegacyPremadeDetectionService(LOL_GameAssistant.Application.Matches.IMatchHistoryService history) : IPremadeDetectionService
 {
     /// <summary>根据给定队伍成员及战绩数据判断可能的组队关系。</summary>
     public async Task<PremadeDetectionResult> DetectAsync(
@@ -14,15 +14,27 @@ public sealed class LegacyPremadeDetectionService : IPremadeDetectionService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var result = await PremadeDetector.DetectAsync(
+        using var gate = new SemaphoreSlim(6);
+        var histories = await Task.WhenAll(teamOne.Concat(teamTwo).Where(p => !string.IsNullOrWhiteSpace(p.Puuid)).DistinctBy(p => p.Puuid).Select(async player =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var page = await history.GetPageAsync(player.Puuid, 0, 19, cancellationToken).ConfigureAwait(false);
+                var data = page == null ? null : Newtonsoft.Json.Linq.JObject.FromObject(page).ToObject<LOL_GameAssistant.Entity.GameHeadModel.MatchHistoryResponse>();
+                return (player.Puuid, Data: data);
+            }
+            finally { gate.Release(); }
+        })).ConfigureAwait(false);
+        var result = PremadeDetector.DetectCore(
             teamOne.Select(player => (player.Puuid, player.Name)).ToList(),
-            teamTwo.Select(player => (player.Puuid, player.Name)).ToList()).WaitAsync(cancellationToken).ConfigureAwait(false);
+            teamTwo.Select(player => (player.Puuid, player.Name)).ToList(), histories);
 
         var groups = result.Groups.Select(group => new PremadeGroup(
             group.Index,
             group.Puuids.ToArray(),
             group.Names.ToArray(),
-            group.TeamIndex)).ToArray();
+            group.TeamIndex, IsInferred: true)).ToArray();
         return new PremadeDetectionResult(groups);
     }
 }

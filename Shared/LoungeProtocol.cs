@@ -8,6 +8,7 @@ public sealed record LoungeMessage(long Id, string ClientId, string SenderId, st
     string Region, string Kind, string Text, DateTimeOffset SentAt);
 public sealed record LoungeSnapshot(LoungeMessage[] Messages, LoungeMember[] Members, long[]? DeletedIds = null,
     int ProtocolVersion = 1, LoungeRecruitmentState[]? Recruitments = null);
+public sealed record LoungeHistoryPage(LoungeMessage[] Messages, bool HasMore);
 public sealed record LoungeSend(string ClientId, string Text, string Kind = "chat", string[]? Mentions = null,
     LoungeRecruitment? Recruitment = null);
 public sealed record LoungeRecruitment(string Region, int QueueId, string Rank, string Position, int Needed, string Note = "");
@@ -25,7 +26,8 @@ public sealed record LoungeVictory(long GameId, string Platform, string Puuid, i
 
 public static class LoungeRules
 {
-    public const int ProtocolVersion = 3;
+    public const int ProtocolVersion = 4;
+    public const int HistoryPageSize = 40;
     public const int MaxTextLength = 500;
     public static readonly IReadOnlyDictionary<int, string> Modes = new Dictionary<int, string>
     {

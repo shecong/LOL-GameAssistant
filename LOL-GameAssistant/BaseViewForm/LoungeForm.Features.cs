@@ -46,16 +46,17 @@ public sealed partial class LoungeForm
     private Control BuildFeatureBar()
     {
         var bar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true };
-        var clear = new Button { Text = "清除表情/提及", AutoSize = true };
-        var read = new Button { Text = "标为已读", AutoSize = true };
-        _featureButtons.AddRange([_stickerButton, _recruitButton, _recruitListButton, _mentionButton, clear, read]);
-        bar.Controls.AddRange([_stickerButton, _recruitButton, _recruitListButton, _mentionButton, clear, read, _unread]);
+        _featureButtons.AddRange([_stickerButton, _recruitButton, _recruitListButton, _mentionButton]);
+        var more = new Button { Text = "更多 ▾", AutoSize = true };
+        _featureButtons.Add(more);
+        _moreMenu.Items.Add("清除表情和提及", null, (_, _) => { ClearSticker(); _mentionTargets.Clear(); _feedback.Text = "已清除表情和提及"; });
+        _moreMenu.Items.Add("标为已读", null, (_, _) => { _client.SetReading(true); _client.SetReading(false); UpdateFeatureBar(); });
+        more.Click += (_, _) => _moreMenu.Show(more, new Point(0, more.Height));
+        bar.Controls.AddRange([_stickerButton, _mentionButton, _recruitButton, _recruitListButton, more, _unread]);
         _stickerButton.Click += (_, _) => ShowStickerPicker();
         _recruitButton.Click += (_, _) => ShowRecruitment();
         _recruitListButton.Click += (_, _) => ShowRecruitmentList();
         _mentionButton.Click += (_, _) => ShowMemberPicker();
-        clear.Click += (_, _) => { ClearSticker(); _mentionTargets.Clear(); _feedback.Text = "已清除表情和提及"; };
-        read.Click += (_, _) => { _client.SetReading(true); _client.SetReading(false); UpdateFeatureBar(); };
         return bar;
     }
 

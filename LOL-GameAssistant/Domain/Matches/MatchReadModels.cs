@@ -9,6 +9,10 @@ public sealed class MatchHistoryResponse
 /// <summary>战绩分页结果与比赛条目。</summary>
 public sealed class MatchHistoryGames
 {
+    public bool IsTotalKnown { get; set; } = true;
+    public bool HasMore { get; set; }
+    public bool IsTruncated { get; set; }
+    public string Source { get; set; } = "LCU";
     public int GameCount { get; set; }
     public int GameIndexBegin { get; set; }
     public int GameIndexEnd { get; set; }
@@ -18,6 +22,9 @@ public sealed class MatchHistoryGames
 /// <summary>列表页展示所需的单场比赛摘要。</summary>
 public sealed class MatchHistoryGame
 {
+    public string PlatformId { get; set; } = "";
+    public bool IsCrossRegion { get; set; }
+    public bool HasFullParticipants { get; set; }
     public long GameId { get; set; }
     public long GameCreation { get; set; }
     public string GameMode { get; set; } = "";
@@ -34,6 +41,16 @@ public sealed class MatchHistoryGame
 /// <summary>战绩列表摘要的业务计算。</summary>
 public static class MatchHistoryGameExtensions
 {
+    /// <summary>SGP 摘要已包含所有参赛统计；导出无需再次下载每场相同 SUMMARY。</summary>
+    public static MatchDetail ToSummaryDetail(this MatchHistoryGame game) => new()
+    {
+        PlatformId = game.PlatformId, IsCrossRegion = game.IsCrossRegion,
+        GameId = game.GameId, gameDuration = game.GameDuration, gameMode = game.GameMode,
+        queueId = game.QueueId.ToString(), _queueId = game.QueueId.ToString(), endOfGameResult = game.EndOfGameResult,
+        gameCreationDate = game.GameCreation > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(game.GameCreation).ToString("O") : null,
+        participants = game.Participants,
+        participantIdentities = game.ParticipantIdentities.Select(p => new MatchParticipantIdentity { participantId = p.ParticipantId, player = p.Player }).ToList()
+    };
     public static bool IsCustomGame(this MatchHistoryGame game) =>
         game.GameType.StartsWith("CUSTOM", StringComparison.OrdinalIgnoreCase) || game.QueueId == 3110 ||
         (game.QueueId == 0 && !string.Equals(game.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase));
@@ -108,6 +125,9 @@ public sealed class MatchIdentity
 /// <summary>单局比赛的领域读模型。</summary>
 public sealed class MatchDetail
 {
+    public string PlatformId { get; set; } = "";
+    public bool IsCrossRegion { get; set; }
+    public string endOfGameResult { get; set; } = "";
     public long GameId { get; set; }
     public string? gameCreationDate { get; set; }
     public int gameDuration { get; set; }
@@ -165,6 +185,7 @@ public sealed class MatchParticipant
 /// <summary>本项目战绩展示和评测所需的稳定统计字段。</summary>
 public sealed class MatchParticipantStats
 {
+    public int largestKillingSpree { get; set; }
     public int assists { get; set; }
     public int champLevel { get; set; }
     public int deaths { get; set; }

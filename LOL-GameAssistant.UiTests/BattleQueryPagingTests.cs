@@ -14,6 +14,27 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class BattleQueryPagingTests
 {
     [Fact]
+    public void UnknownSgpTotalOnlyExposesNextPageAndDoesNotClaimCompleteCount() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var query = CreateQuery((method, _) => method.Name switch
+        {
+            "GetDetailAsync" => Task.FromResult<MatchDetail?>(null),
+            _ => null
+        });
+        var page = new MatchHistoryResponse { Games = new()
+        {
+            GameCount = 11, IsTotalKnown = false, HasMore = true, Source = "SGP",
+            Games = Enumerable.Range(1, 10).Select(id => new MatchHistoryGame { GameId = id }).ToList()
+        } };
+        var task = (Task)typeof(BattleQueryForm).GetMethod("RenderMatchPageAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(query, [page])!;
+        task.GetAwaiter().GetResult();
+        Assert.False(Field<bool>(query, "_historyTotalKnown"));
+        Assert.Equal(11, Field<int>(query, "_totalGameCount"));
+        Assert.Contains("总数未知", Field<AntdUI.Label>(query, "_historyTitle").Text);
+        Assert.Contains("总场数未知", Field<AntdUI.Label>(query, "lblStatus").Text);
+        Assert.DoesNotContain("共 11 场", Field<AntdUI.Label>(query, "lblStatus").Text);
+    });
+    [Fact]
     public void ModeFilterRepaginatesAllAvailableHistoryAndCachesItAcrossModes() => MatchListScrollingTests.OnUiThread(() =>
     {
         int historyReads = 0;

@@ -3,6 +3,7 @@ namespace LOL_GameAssistant.Domain.Players;
 /// <summary>用户主动收藏的召唤师标识。</summary>
 public sealed class FavoritePlayer
 {
+    public string? Platform { get; set; }
     public string Puuid { get; set; } = "";
     public string GameName { get; set; } = "";
     public string TagLine { get; set; } = "";

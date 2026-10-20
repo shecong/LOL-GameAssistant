@@ -8,7 +8,9 @@ public sealed record LoungeLocalState(LoungePresence Presence, string Phase, lon
     string[]? PartyPuuids = null, Dictionary<string, int>? RankScores = null);
 
 /// <summary>Always uses live local reads; never the UI's stale-data fallback caches.</summary>
-public sealed class LoungeLcuReader(ILcuRequestSender lcu)
+public sealed class LoungeLcuReader(ILcuRequestSender lcu,
+    LOL_GameAssistant.Application.Matches.IMatchHistoryService? historyService = null,
+    LOL_GameAssistant.Application.Ranked.IRankedStatsService? rankedService = null)
 {
     private string _platform = "";
     private string _platformPuuid = "";
@@ -41,10 +43,8 @@ public sealed class LoungeLcuReader(ILcuRequestSender lcu)
             _platform = ParsePlatform(raw);
             if (RegionName(_platform).StartsWith("未知", StringComparison.Ordinal))
             {
-                // The existing match-history response also carries the requested account's platform.
-                // Only use live response metadata, never a guessed tag line or old UI cache.
-                var history = await ReadObjectAsync($"/lol-match-history/v1/products/lol/{Uri.EscapeDataString(puuid)}/matches?begIndex=0&endIndex=0", token);
-                string platform = history?.Value<string>("platformId") ?? "";
+                var chat = await ReadObjectAsync("/lol-chat/v1/me", token);
+                string platform = chat?.Value<string>("platformId") ?? "";
                 if (!string.IsNullOrWhiteSpace(platform)) _platform = platform;
             }
             if (_platform.Length == 0)
@@ -59,7 +59,14 @@ public sealed class LoungeLcuReader(ILcuRequestSender lcu)
         if (_rankPuuid != puuid || DateTimeOffset.UtcNow >= _nextRankAttempt)
         {
             if (_rankPuuid != puuid) { _party = []; _rank = ""; }
-            var ranked = await ReadObjectAsync("/lol-ranked/v1/current-ranked-stats", token);
+            JObject? ranked;
+            if (rankedService == null) ranked = await ReadObjectAsync("/lol-ranked/v1/current-ranked-stats", token);
+            else
+            {
+                var overview = await rankedService.GetAsync(puuid, true, token);
+                ranked = overview == null || overview.IsCached ? null : new JObject { ["queueMap"] = new JObject(overview.Queues.Select(pair =>
+                    new JProperty(pair.Key, new JObject { ["tier"] = pair.Value.Tier, ["division"] = pair.Value.Division, ["leaguePoints"] = pair.Value.LeaguePoints }))) };
+            }
             _rank = ReadRank(ranked);
             _rankScores = ReadRankScores(ranked);
             _rankPuuid = puuid;
@@ -153,8 +160,20 @@ public sealed class LoungeLcuReader(ILcuRequestSender lcu)
             }).Where(n => n.Length > 0).Distinct().Take(4).ToArray();
     }
 
-    public Task<JObject?> MatchAsync(long gameId, CancellationToken token) =>
-        ReadObjectAsync($"/lol-match-history/v1/games/{gameId}", token);
+    public async Task<JObject?> MatchAsync(long gameId, CancellationToken token)
+    {
+        if (historyService == null) return await ReadObjectAsync($"/lol-match-history/v1/games/{gameId}", token);
+        var detail = await historyService.GetDetailAsync(gameId, false, token);
+        if (detail == null) return null;
+        var json = JObject.FromObject(detail);
+        json["gameId"] = detail.GameId;
+        json["participantIdentities"] = new JArray(detail.participantIdentities.Select(p => new JObject { ["participantId"] = p.participantId,
+            ["player"] = p.player == null ? null : new JObject { ["puuid"] = p.player.Puuid, ["gameName"] = p.player.GameName,
+                ["summonerName"] = p.player.SummonerName, ["tagLine"] = p.player.TagLine } }));
+        foreach (var participant in (JArray)json["participants"]!)
+            if (participant["stats"] is JObject stats) stats["win"] = stats["Win"]?.DeepClone();
+        return json;
+    }
 
     public static bool? ReadVictory(JObject? detail, long gameId, string puuid)
     {
@@ -176,7 +195,7 @@ public sealed class LoungeLcuReader(ILcuRequestSender lcu)
         catch (Newtonsoft.Json.JsonException) { return null; }
     }
 
-    private static string ParsePlatform(string? json)
+    internal static string ParsePlatform(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return "";
         try { return JToken.Parse(json).Type == JTokenType.String ? JToken.Parse(json).Value<string>() ?? "" : ""; }

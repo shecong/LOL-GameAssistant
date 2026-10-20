@@ -18,8 +18,9 @@ public sealed class SettingsAutoSaveAndCacheTests
     [Fact]
     public async Task MatchCacheIncludesSharedParticipantsAndClearsOnlyThatCategory()
     {
+        using var folder = new TemporaryDirectory();
         int clears = 0;
-        var service = new LocalCacheManagementService(matchCaches:
+        var service = new LocalCacheManagementService(folder.Path, matchCaches:
             [(() => (3, 4096L), () => clears++)]);
         var usage = (await service.GetUsageAsync()).Single(value => value.Category == LocalCacheCategory.MatchDetails);
         Assert.True(usage.MemoryEntries >= 3);

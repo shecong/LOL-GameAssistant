@@ -5,6 +5,8 @@ public interface IChampionSelectChatService
 {
     /// <summary>向当前服务负责的聊天通道提交消息。</summary>
     Task<ChampionSelectChatResult> SendAsync(string message, CancellationToken cancellationToken = default);
+    Task<ChampionSelectChatResult> SendAsync(string message, Func<bool> canSend, CancellationToken cancellationToken = default) =>
+        canSend() ? SendAsync(message, cancellationToken) : Task.FromResult(ChampionSelectChatResult.Failure("选人状态已变化，未发送。"));
 }
 
 /// <summary>选人聊天发送操作的状态和说明。</summary>

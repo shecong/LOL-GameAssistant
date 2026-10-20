@@ -29,6 +29,10 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IRankedStatsService _rankedStatsService;
         private readonly IGameDataVersionService _gameDataVersionService;
         private readonly Func<RecordForm> _recordFactory;
+        private readonly ICurrentRegionService? _regionService;
+        private readonly AntdUI.Panel _regionPanel = new() { Name = "currentRegionPanel", Radius = 10, BorderWidth = 1, Padding = new Padding(8) };
+        private readonly AntdUI.Label _regionCaption = new() { Text = "当前大区", Dock = DockStyle.Top, Height = 24, TextAlign = ContentAlignment.MiddleCenter };
+        private readonly AntdUI.Label _regionName = new() { Name = "currentRegionName", Text = "未连接", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font(UiMetrics.FontFamily, 12, FontStyle.Bold) };
 
         private MatchHistoryResponse? matchlists;
         private PlayerHistorySnapshot? _historySnapshot;
@@ -45,6 +49,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private readonly UiRequestScope _loads = new();
         private readonly UiRequestScope _pages = new();
+        private readonly UiRequestScope _regionLoads = new();
 
         /// <summary>
         /// 1=当前玩家，2=指定玩家
@@ -59,7 +64,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AppCompositionRoot.LeagueClientConnection,
             AppCompositionRoot.MatchHistoryService,
             AppCompositionRoot.RankedStatsService,
-            AppCompositionRoot.GameDataVersionService)
+            AppCompositionRoot.GameDataVersionService, regionService: AppCompositionRoot.CurrentRegionService)
         {
         }
 
@@ -72,7 +77,7 @@ namespace LOL_GameAssistant.BaseViewForm
             IMatchHistoryService matchHistoryService,
             IRankedStatsService rankedStatsService,
             IGameDataVersionService gameDataVersionService,
-            Func<RecordForm>? recordFactory = null)
+            Func<RecordForm>? recordFactory = null, ICurrentRegionService? regionService = null)
         {
             InitializeComponent();
             WindowLayout.ConfigureDpi(this);
@@ -84,6 +89,10 @@ namespace LOL_GameAssistant.BaseViewForm
             _rankedStatsService = rankedStatsService;
             _gameDataVersionService = gameDataVersionService;
             _recordFactory = recordFactory ?? (() => new RecordForm(matchHistoryService, AppCompositionRoot.GameAssetService));
+            _regionService = regionService;
+            _regionPanel.Controls.Add(_regionName);
+            _regionPanel.Controls.Add(_regionCaption);
+            playerCard.Controls.Add(_regionPanel);
             rootGrid.RowStyles[1].Height = 244;
             bottomStats.Height = 48;
             bottomStats.WrapContents = true;
@@ -105,7 +114,7 @@ namespace LOL_GameAssistant.BaseViewForm
             LayoutSummary();
             stackPanel1.SizeChanged += (_, _) => LayoutRecordCards();
             ApplyTheme(UiTheme.Palette);
-            Disposed += (_, _) => { _loads.Dispose(); _pages.Dispose(); _ownedProfileImage?.Dispose(); _historyTip.Dispose(); };
+            Disposed += (_, _) => { _loads.Dispose(); _pages.Dispose(); _regionLoads.Dispose(); _ownedProfileImage?.Dispose(); _historyTip.Dispose(); };
         }
 
         private void LanguageChanged(object? sender, EventArgs args) => LayoutSummary();
@@ -136,9 +145,12 @@ namespace LOL_GameAssistant.BaseViewForm
             play_name.Width = play_number.Width = Math.Max(1, right - left);
             play_name.Left = play_number.Left = lblLevelCap.Left = left;
             play_dj.Left = lblLevelCap.Right + Scale(4);
+            int regionLeft = Math.Max(play_dj.Right + Scale(12), playerCard.ClientSize.Width / 2);
+            _regionPanel.Bounds = new Rectangle(regionLeft, Scale(78), Math.Max(1, right - regionLeft), Scale(88));
+            play_number.Width = Math.Max(1, regionLeft - left - Scale(8));
             lblXpCap.Location = new Point(Scale(14), Scale(140));
             play_next.Location = new Point(lblXpCap.Right + Scale(6), Scale(138));
-            play_next.Width = Math.Max(1, right - play_next.Left);
+            play_next.Width = Math.Max(1, regionLeft - Scale(8) - play_next.Left);
             play_next.AutoEllipsis = true;
             play_jd.Bounds = new Rectangle(Scale(14), Scale(180), Math.Max(1, right - Scale(14)), Scale(30));
             foreach (var title in new[] { game_dspT, game_lhpT })
@@ -192,6 +204,11 @@ namespace LOL_GameAssistant.BaseViewForm
             play_dj.ForeColor = palette.Accent;
             play_next.ForeColor = palette.IsDark ? Color.FromArgb(243, 200, 121) : Color.FromArgb(120, 80, 20);
             play_QF.ForeColor = palette.TextSecondary;
+            _regionPanel.BackColor = palette.SurfaceMuted;
+            _regionPanel.BorderColor = palette.Border;
+            _regionCaption.BackColor = _regionName.BackColor = Color.Transparent;
+            _regionCaption.ForeColor = palette.TextSecondary;
+            _regionName.ForeColor = palette.Accent;
 
             game_dspT.ForeColor = palette.Accent;
             game_lhpT.ForeColor = palette.IsDark ? Color.FromArgb(245, 158, 162) : Color.FromArgb(211, 47, 47);
@@ -252,6 +269,7 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (IsDisposed) return;
             using var request = _loads.Begin();
+            _regionLoads.Cancel();
             _pages.Cancel();
             var token = request.Token;
             if (stackPanel1.Controls.Count == 0) ShowHistoryMessage("正在加载近期战绩…");
@@ -262,11 +280,14 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (!request.IsCurrent) return;
                 if (!connected)
                 {
+                    _regionName.Text = UiLanguage.T("未连接");
                     play_name.Text = "等待 LOL 客户端";
                     play_number.Text = "启动客户端并登录后自动连接";
                     if (!stackPanel1.Controls.OfType<RecordForm>().Any()) ShowHistoryMessage("登录客户端后显示近期战绩");
                     return;
                 }
+                _regionName.Text = UiLanguage.T("读取中…");
+                _ = LoadCurrentRegionAsync();
                 if (search != null)
                 {
                     if (search.Contains('#'))
@@ -352,6 +373,20 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 if (request.IsCurrent && !IsDisposed && IsHandleCreated) Search_Player.Loading = refeash.Loading = false;
             }
+        }
+
+        private async Task LoadCurrentRegionAsync()
+        {
+            using var request = _regionLoads.Begin();
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(request.Token);
+            deadline.CancelAfter(TimeSpan.FromSeconds(8));
+            try
+            {
+                string region = _regionService == null ? "未知大区" : await _regionService.GetCurrentRegionAsync(deadline.Token);
+                if (!IsDisposed && request.IsCurrent) _regionName.Text = UiLanguage.T(region);
+            }
+            catch (OperationCanceledException) { if (!IsDisposed && request.IsCurrent) _regionName.Text = UiLanguage.T("未知大区"); }
+            catch (Exception) { if (!IsDisposed && request.IsCurrent) _regionName.Text = UiLanguage.T("未知大区"); }
         }
 
         /// <summary>

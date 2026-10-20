@@ -14,14 +14,17 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
 {
     private readonly IPlayerProfileService _inner;
     private readonly LocalDataCache<PlayerProfile> _cache;
+    private readonly Func<CancellationToken, Task<string>> _context;
     private string? _currentPuuid;
     private long _generation;
     private readonly object _accountSync = new();
     public void ResetClientContext() { lock (_accountSync) { Interlocked.Increment(ref _generation); _currentPuuid = null; } _inner.ResetClientContext(); }
 
-    internal CachedPlayerProfileService(IPlayerProfileService inner, string? root = null)
+    internal CachedPlayerProfileService(IPlayerProfileService inner, string? root = null,
+        Func<CancellationToken, Task<string>>? context = null)
     {
         _inner = inner;
+        _context = context ?? (_ => Task.FromResult(PlayerHistorySession.Key));
         _cache = new(Path.Combine(root ?? LocalDataCache<PlayerProfile>.Root, "player-data", "profiles"),
             TimeSpan.FromDays(30), value => !string.IsNullOrWhiteSpace(value.Puuid));
     }
@@ -61,7 +64,16 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
             () => _inner.FindByNameAsync(gameName, cancellationToken), cancellationToken);
     private async Task<PlayerProfile?> ReadWithMetadata(string key, Func<Task<PlayerProfile?>> read, CancellationToken token)
     {
-        var result = await _cache.GetLatestWithMetadataAsync(key, read, token).ConfigureAwait(false);
+        long generation = Volatile.Read(ref _generation);
+        string session = PlayerHistorySession.Key;
+        string scope = await _context(token).ConfigureAwait(false);
+        if (generation != Volatile.Read(ref _generation) || session != PlayerHistorySession.Key) return null;
+        var result = await _cache.GetLatestWithMetadataAsync($"v2:{scope}:{key}", async () =>
+        {
+            var value = await read().ConfigureAwait(false);
+            return generation == Volatile.Read(ref _generation) && session == PlayerHistorySession.Key ? value : null;
+        }, token).ConfigureAwait(false);
+        if (generation != Volatile.Read(ref _generation) || session != PlayerHistorySession.Key) return null;
         return result.Value is { } profile ? profile with { IsCached = result.Cached, AcquiredAt = result.AcquiredAt } : null;
     }
 }
@@ -73,26 +85,32 @@ internal sealed class CachedRankedStatsService : IRankedStatsService
     public void ResetClientContext() { _currentPuuid = null; _inner.ResetClientContext(); }
     private readonly IRankedStatsService _inner;
     private readonly LocalDataCache<Snapshot> _cache;
+    private readonly Func<CancellationToken, Task<string>> _context;
     // 显式快照保证只读字典属性中的队列数据也能从磁盘完整恢复。
     private sealed record Snapshot(Dictionary<string, RankedQueue> Queues, Dictionary<string, DateTime> SeasonEndsAt);
 
-    internal CachedRankedStatsService(IRankedStatsService inner, string? root = null)
+    internal CachedRankedStatsService(IRankedStatsService inner, string? root = null,
+        Func<CancellationToken, Task<string>>? context = null)
     {
         _inner = inner;
+        _context = context ?? (_ => Task.FromResult(PlayerHistorySession.Key));
         _cache = new(Path.Combine(root ?? LocalDataCache<Snapshot>.Root, "player-data", "ranked"),
             TimeSpan.FromDays(30), value => value.Queues?.Count > 0 && value.SeasonEndsAt != null);
     }
 
     public async Task<RankedOverview?> GetAsync(string puuid, bool isCurrentUser = false, CancellationToken cancellationToken = default)
     {
+        string session = PlayerHistorySession.Key;
+        string scope = await _context(cancellationToken).ConfigureAwait(false);
+        if (session != PlayerHistorySession.Key) return null;
         if (isCurrentUser) _currentPuuid = puuid;
-        var readResult = await _cache.GetLatestWithMetadataAsync($"record-v2:{puuid}", async () =>
+        var readResult = await _cache.GetLatestWithMetadataAsync($"record-v3:{scope}:{puuid}", async () =>
         {
             var ranked = await _inner.GetAsync(puuid, isCurrentUser || _currentPuuid == puuid, cancellationToken).ConfigureAwait(false);
-            return ranked == null ? null : new Snapshot(ranked.Queues, ranked.SeasonEndsAt);
+            return ranked == null || session != PlayerHistorySession.Key ? null : new Snapshot(ranked.Queues, ranked.SeasonEndsAt);
         }, cancellationToken).ConfigureAwait(false);
         var value = readResult.Value;
-        if (value == null) return null;
+        if (value == null || session != PlayerHistorySession.Key) return null;
         var result = new RankedOverview { IsCached = readResult.Cached, AcquiredAt = readResult.AcquiredAt };
         foreach (var item in value.Queues) result.Queues[item.Key] = item.Value;
         foreach (var item in value.SeasonEndsAt) result.SeasonEndsAt[item.Key] = item.Value;
@@ -108,71 +126,106 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerH
     private readonly LocalDataCache<MatchDetail> _details;
     private sealed record StoredBatch(DateTimeOffset AcquiredAt, MatchHistoryResponse Data);
     private readonly LocalDataCache<StoredBatch> _snapshots;
-    private readonly ConcurrentDictionary<(string Puuid, int Begin, int End), Lazy<Task<MatchHistoryResponse?>>> _pendingPages = new();
+    private readonly Func<CancellationToken, Task<string>> _context;
+    private readonly ConcurrentDictionary<(string Session, string Puuid, int Begin, int End), Lazy<Task<MatchHistoryResponse?>>> _pendingPages = new();
 
-    internal CachedMatchHistoryService(IMatchHistoryService inner, string? root = null)
+    internal CachedMatchHistoryService(IMatchHistoryService inner, string? root = null,
+        Func<CancellationToken, Task<string>>? context = null)
     {
         _inner = inner;
+        _context = context ?? (_ => Task.FromResult(PlayerHistorySession.Key));
         string directory = root ?? LocalDataCache<MatchHistoryResponse>.Root;
         _pages = new(Path.Combine(directory, "player-data", "history"), TimeSpan.FromDays(30),
             value => value.Games?.Games?.Count > 0 && value.Games.Games.All(game => game != null && game.GameId > 0));
         _details = new(Path.Combine(directory, "player-data", "details"), TimeSpan.FromDays(30),
             value => value.GameId > 0 && value.participants?.Count > 0);
         _snapshots = new(Path.Combine(directory, "player-data", "snapshots"), TimeSpan.FromDays(30),
-            value => value.Data.Games != null);
+            value => value.Data?.Games != null);
     }
 
     public async Task<PlayerHistorySnapshot> ReadSnapshotAsync(string puuid, CancellationToken cancellationToken)
     {
         bool fresh = false;
         string? failure = null;
-        var stored = await _snapshots.GetLatestOrCachedAsync($"{PlayerHistorySession.Key}:{puuid}", async () =>
+        string session = PlayerHistorySession.Key;
+        string scope = await _context(cancellationToken).ConfigureAwait(false);
+        if (session != PlayerHistorySession.Key) throw new OperationCanceledException("客户端会话已变化。");
+        var stored = await _snapshots.GetLatestOrCachedAsync($"v2:{scope}:{puuid}", async () =>
         {
             try
             {
                 var page = await _inner.GetPageAsync(puuid, 0, MatchDataPolicy.SummaryLimit - 1, cancellationToken).ConfigureAwait(false);
+                if (session != PlayerHistorySession.Key) throw new OperationCanceledException("客户端会话已变化。");
                 if (page?.Games == null) throw new IOException("战绩摘要未返回有效数据");
                 fresh = true;
                 return new StoredBatch(DateTimeOffset.UtcNow, page);
             }
             catch (Exception error) { failure = error.Message; throw; }
         }, cancellationToken).ConfigureAwait(false);
+        if (session != PlayerHistorySession.Key) throw new OperationCanceledException("客户端会话已变化。");
         return new(puuid, stored?.Data, stored?.AcquiredAt ?? DateTimeOffset.UtcNow,
             stored == null ? HistoryDataState.Unavailable : fresh ? HistoryDataState.Ready : HistoryDataState.Cached, failure);
     }
 
-    public Task<MatchHistoryResponse?> GetPageAsync(string puuid, int beginIndex, int endIndex, CancellationToken cancellationToken = default)
+    public async Task<MatchHistoryResponse?> GetPageAsync(string puuid, int beginIndex, int endIndex, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var key = (puuid, beginIndex, endIndex);
+        string session = PlayerHistorySession.Key;
+        string scope = await _context(cancellationToken).ConfigureAwait(false);
+        if (session != PlayerHistorySession.Key) return null;
+        var key = (session, puuid, beginIndex, endIndex);
         Lazy<Task<MatchHistoryResponse?>>? candidate = null;
-        candidate = new(() => ReadPageAsync(key, candidate!));
+        candidate = new(() => ReadPageAsync(key, scope, candidate!));
         // A closed card only cancels its own wait, not the batch shared with another view.
-        return _pendingPages.GetOrAdd(key, candidate).Value.WaitAsync(cancellationToken);
+        var result = await _pendingPages.GetOrAdd(key, candidate).Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return session == PlayerHistorySession.Key ? result : null;
     }
 
-    private async Task<MatchHistoryResponse?> ReadPageAsync((string Puuid, int Begin, int End) key,
+    private async Task<MatchHistoryResponse?> ReadPageAsync((string Session, string Puuid, int Begin, int End) key, string scope,
         Lazy<Task<MatchHistoryResponse?>> request)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         try
         {
-            return await _pages.GetLatestOrCachedAsync($"{key.Puuid}:{key.Begin}:{key.End}",
-                () => _inner.GetPageAsync(key.Puuid, key.Begin, key.End, deadline.Token), deadline.Token).ConfigureAwait(false);
+            return await _pages.GetLatestOrCachedAsync($"v2:{scope}:{key.Puuid}:{key.Begin}:{key.End}", async () =>
+            {
+                var value = await _inner.GetPageAsync(key.Puuid, key.Begin, key.End, deadline.Token).ConfigureAwait(false);
+                return key.Session == PlayerHistorySession.Key ? value : null;
+            }, deadline.Token).ConfigureAwait(false);
         }
-        finally { _pendingPages.TryRemove(new KeyValuePair<(string, int, int), Lazy<Task<MatchHistoryResponse?>>>(key, request)); }
+        finally { _pendingPages.TryRemove(new KeyValuePair<(string, string, int, int), Lazy<Task<MatchHistoryResponse?>>>(key, request)); }
     }
 
     // 全量导出仍要求完整读取，不将历史分页缓存当作完整的导出结果。
     public Task<MatchHistoryResponse?> GetAllAsync(string puuid, int maxGames = 5000, CancellationToken cancellationToken = default) =>
         _inner.GetAllAsync(puuid, maxGames, cancellationToken);
 
-    public Task<MatchDetail?> GetDetailAsync(long gameId, bool useCache = true, CancellationToken cancellationToken = default) =>
-        useCache
-            ? _details.GetAsync(PlayerHistorySession.Key + ":" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                () => _inner.GetDetailAsync(gameId, true, cancellationToken), cancellationToken)
-            : _details.GetLatestOrCachedAsync(PlayerHistorySession.Key + ":" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                () => _inner.GetDetailAsync(gameId, false, cancellationToken), cancellationToken);
+    public async Task<MatchDetail?> GetDetailAsync(long gameId, bool useCache = true, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string session = PlayerHistorySession.Key;
+        string scope = await _context(cancellationToken).ConfigureAwait(false);
+        if (session != PlayerHistorySession.Key) return null;
+        string key = $"v2:{scope}:" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        Task<MatchDetail?> read = useCache
+            ? _details.GetAsync(key, () => ReadDetailAsync(gameId, useCache, session), cancellationToken, requestContext: session)
+            : _details.GetLatestOrCachedAsync(key, () => ReadDetailAsync(gameId, useCache, session));
+        var result = await read.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return session == PlayerHistorySession.Key ? result : null;
+    }
 
-    public void ClearDetailCache() => _inner.ClearDetailCache();
+    private async Task<MatchDetail?> ReadDetailAsync(long gameId, bool useCache, string session)
+    {
+        // The download belongs to the shared cache, not to the first window waiting for it.
+        using var deadline = new CancellationTokenSource(MatchDataPolicy.DetailTimeout);
+        var value = await _inner.GetDetailAsync(gameId, useCache, deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
+        if (session != PlayerHistorySession.Key) throw new OperationCanceledException("客户端会话已变化。");
+        return value;
+    }
+
+    public void ClearDetailCache()
+    {
+        foreach (var cache in LocalCacheRegistry.Find(_details.DirectoryPath)) cache.Clear();
+        _inner.ClearDetailCache();
+    }
 }

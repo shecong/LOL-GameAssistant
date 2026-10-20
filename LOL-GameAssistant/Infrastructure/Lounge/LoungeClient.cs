@@ -37,6 +37,26 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
     private int _protocolVersion = 1;
     public bool SupportsRichMessages => _protocolVersion >= 2;
     public bool SupportsRecruitment => _protocolVersion >= 3;
+    public bool SupportsHistory => _protocolVersion >= 4;
+    public bool IsDeleted(long id) { lock (_gate) return _deleted.Contains(id); }
+    public async Task<LoungeHistoryPage> LoadOlderAsync(long before, CancellationToken token = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(before);
+        token.ThrowIfCancellationRequested();
+        var hub = _hub;
+        if (SupportsHistory && hub?.State == HubConnectionState.Connected)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(12));
+            return await hub.InvokeAsync<LoungeHistoryPage>("History", before, timeout.Token);
+        }
+        lock (_gate)
+        {
+            var cached = _messages.Values.Where(m => m.Id < before).TakeLast(LoungeRules.HistoryPageSize + 1).ToArray();
+            if (cached.Length == 0) throw new InvalidOperationException(SupportsHistory ? "频道未连接，重连后可继续加载历史消息" : "服务器暂不支持历史分页，请更新 LOL-GameApi 后重连");
+            return new(cached.TakeLast(LoungeRules.HistoryPageSize).ToArray(), cached.Length > LoungeRules.HistoryPageSize || !SupportsHistory);
+        }
+    }
     public LoungeRecruitmentState[] Recruitments { get { lock (_gate) return _recruitments.Values.OrderByDescending(r => r.MessageId).ToArray(); } }
 
     public event Action? Changed;
@@ -255,7 +275,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                     await hub.StartAsync(connectTimeout.Token);
                 }
                 failures = 0;
-                await SyncAsync(hub, token);
+                await SyncAsync(hub, token, latest: true);
                 int ticks = 0;
                 while (hub.State == HubConnectionState.Connected && !token.IsCancellationRequested)
                 {
@@ -299,10 +319,10 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
         }
     }
 
-    private async Task SyncAsync(HubConnection hub, CancellationToken token)
+    private async Task SyncAsync(HubConnection hub, CancellationToken token, bool latest = false)
     {
         // Cursor advances only through ordered replay, never through live out-of-order broadcasts.
-        long after = _initialSync ? _cursor : 0;
+        long after = latest ? 0 : _initialSync ? _cursor : 0;
         while (true)
         {
             var snapshot = await hub.InvokeAsync<LoungeSnapshot>("Sync", after, token);

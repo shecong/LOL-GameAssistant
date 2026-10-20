@@ -126,8 +126,7 @@ public sealed class LoungeTests
     {
         var lcu = new LocalRequests();
         lcu.Responses["/lol-summoner/v1/current-summoner"] = """{"puuid":"alice","gameName":"Alice","tagLine":"123"}""";
-        lcu.Responses["/lol-match-history/v1/products/lol/alice/matches?begIndex=0&endIndex=0"] = """{"platformId":"HN1"}""";
-        lcu.Responses["/lol-chat/v1/me"] = """{"availability":"chat"}""";
+        lcu.Responses["/lol-chat/v1/me"] = """{"availability":"chat","platformId":"HN1"}""";
         lcu.Responses["/lol-gameflow/v1/gameflow-phase"] = "\"InProgress\"";
         lcu.Responses["/lol-gameflow/v1/session"] = """{"gameData":{"gameId":42,"queue":{"id":450}}}""";
         var reader = new LoungeLcuReader(lcu);
@@ -212,7 +211,7 @@ public sealed class LoungeTests
         var history = (RichTextBox)typeof(LoungeForm).GetField("_history", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!;
         Assert.Contains("\\pict", history.Rtf);
         Assert.True(history.Height > 300);
-        Assert.True(history.GetPositionFromCharIndex(0).Y > -150); // Images must not scroll a short history out of view.
+        Assert.True(history.GetPositionFromCharIndex(0).Y > -150, $"First Y: {history.GetPositionFromCharIndex(0).Y}, last Y: {history.GetPositionFromCharIndex(history.TextLength).Y}, height: {history.ClientSize.Height}"); // Images must not scroll a short history out of view.
         string? preview = Environment.GetEnvironmentVariable("LOL_LOUNGE_FEATURE_PREVIEW_PATH");
         if (!string.IsNullOrWhiteSpace(preview))
         {

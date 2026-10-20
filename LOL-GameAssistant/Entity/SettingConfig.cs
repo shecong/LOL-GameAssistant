@@ -202,7 +202,7 @@ namespace LOL_GameAssistant.Entity
         {
             Ai ??= new AiSettings();
             ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
-            LanguageMode = LanguageMode == "en-US" ? "en-US" : "zh-CN";
+            LanguageMode = LanguageMode is "en-US" or "zh-TW" ? LanguageMode : "zh-CN";
             WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
             HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
             BattleOverlayHotkey = string.IsNullOrWhiteSpace(BattleOverlayHotkey) ? "Oem3" : BattleOverlayHotkey;
