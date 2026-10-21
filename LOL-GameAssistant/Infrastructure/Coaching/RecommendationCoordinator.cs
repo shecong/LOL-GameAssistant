@@ -110,7 +110,7 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
             if (feedback == "不适用")
             {
                 var dismissed = _cards.FirstOrDefault(c => c.Id == recommendationId);
-                if (dismissed != null) _dismissedUntil[dismissed.OpportunityId + dismissed.ContextVersion] = _clock.GetUtcNow().AddSeconds(90);
+                if (dismissed != null) _dismissedUntil[DismissalKey(dismissed)] = _clock.GetUtcNow().AddSeconds(90);
                 _cards = _cards.Where(c => c.Id != recommendationId).ToArray();
                 _analyzedVersion = "";
                 _pendingTrigger = "玩家反馈不适用，重新检查执行条件";
@@ -249,8 +249,17 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
     private void ResetSession()
     { _sessionVersion++; _requests = 0; _history.Clear(); _samples.Clear(); _dismissedUntil.Clear(); _consecutiveFailures = 0; _retryAfter = DateTimeOffset.MinValue; _analyzedAt = null; _analyzedVersion = ""; _lastRequest = DateTimeOffset.MinValue; _matchup = ""; }
 
+    // 去重依据由本机决策定义，不能因模型增加可选引用而绕过玩家反馈。
+    private string DismissalKey(CoachRecommendation card)
+    {
+        var opportunity = _context == null ? null : CoachingDecisionFrame.Create(_context).Opportunities
+            .FirstOrDefault(o => o.Id == card.OpportunityId);
+        return card.OpportunityId + "|" + (opportunity == null ? card.ContextVersion :
+            RecommendationPolicy.EvidenceVersion(_context!, opportunity.RequiredFacts));
+    }
+
     private bool IsDismissed(CoachRecommendation card, DateTimeOffset now) =>
-        _dismissedUntil.TryGetValue(card.OpportunityId + card.ContextVersion, out var until) && until > now;
+        _dismissedUntil.TryGetValue(DismissalKey(card), out var until) && until > now;
 
     private AiGameContext EnrichWindow(AiGameContext sample)
     {
@@ -266,7 +275,8 @@ public sealed class RecommendationCoordinator : IRecommendationCoordinator
         while (_samples.Count > 65) _samples.Dequeue();
         return sample with { FarmWindow = window, RecentAdvice = _history.TakeLast(3)
             .Select(h => new RecentCoachingAdvice(h.Recommendation.OpportunityId, h.Recommendation.ActionKey, h.Recommendation.Title, h.Feedback,
-                h.Recommendation.Body, h.Recommendation.Conditions, RecommendationPolicy.IsValid(h.Recommendation, sample, _clock.GetUtcNow()))).ToArray() };
+                h.Recommendation.Body, h.Recommendation.Conditions, h.Feedback != "不适用" &&
+                    RecommendationPolicy.IsValid(h.Recommendation, sample, _clock.GetUtcNow()))).ToArray() };
     }
 
     private void Failure(RecommendationStatus status, string message)

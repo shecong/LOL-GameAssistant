@@ -36,7 +36,11 @@ public sealed record AiGameContext
     public string LaneKnowledge { get; init; } = "暂无匹配到的专项知识点。";
 
     /// <summary>判断当前 AI 上下文是否属于大乱斗模式。</summary>
-    public bool IsAram => Mode.Contains("大乱斗", StringComparison.Ordinal);
+    public bool IsAram => GameMode.Trim().Equals("ARAM", StringComparison.OrdinalIgnoreCase) ||
+        GameMode.Trim().StartsWith("KIWI", StringComparison.OrdinalIgnoreCase) || Mode.Contains("大乱斗", StringComparison.Ordinal);
+
+    /// <summary>仅在明确的经典峡谷规则下生成回城、对线和边线发育计划。</summary>
+    public bool SupportsRiftAdvice => !IsAram && GameMode.Trim().ToUpperInvariant() is "CLASSIC" or "CLASSIC SR";
 
     /// <summary>将对局时间转换为界面展示的分钟和秒。</summary>
     public string GameTimeText => $"{Math.Max(0, GameTimeSeconds) / 60}:{Math.Max(0, GameTimeSeconds) % 60:D2}";

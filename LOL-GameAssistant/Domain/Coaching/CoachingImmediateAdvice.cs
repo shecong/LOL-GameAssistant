@@ -12,7 +12,7 @@ public static class CoachingImmediateAdvice
         if (opportunity == null) return null;
         string[] fields = ["champion", "self.health", "self.life"];
         string version = RecommendationPolicy.EvidenceVersion(context, fields);
-        bool canRecall = !context.IsAram && context.GameMode.Trim().ToUpperInvariant() is "CLASSIC" or "CLASSIC SR";
+        bool canRecall = context.SupportsRiftAdvice;
         string[] steps = !canRecall
             ? ["停止为补刀或消耗向前走，先退到仍能保护你的队友后侧。", "沿可见的安全路线拉开距离，保留脱离追击的技能；不要为了购物主动送死。"]
             : ["停止为了补刀向前换血，先沿可见安全路线退到队友或己方防御塔一侧。", "确认敌人无法立即打断且不会被包夹后，再决定回城补给；不要原地硬读回城。"];

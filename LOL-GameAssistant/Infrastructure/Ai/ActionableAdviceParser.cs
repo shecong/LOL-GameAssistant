@@ -21,13 +21,16 @@ internal static class ActionableAdviceParser
         {
             if (item.ValueKind != JsonValueKind.Object) continue;
             string Text(string key) => item.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()!.Trim() : "";
-            string[] Strings(string key) => item.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Array
-                ? v.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!.Trim()).ToArray() : [];
+            string[] Strings(string key) => item.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Array &&
+                v.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String)
+                ? v.EnumerateArray().Select(x => x.GetString()!.Trim()).ToArray() : [];
             string opportunityId = Text("opportunityId"), action = Text("actionKey"), title = Text("title");
+            string priorityText = Text("priority");
             string conditions = Text("conditions"), invalid = Text("invalidWhen"), why = Text("why"), outcome = Text("expectedOutcome"), fallback = Text("fallback");
             var opportunity = frame.Opportunities.FirstOrDefault(o => o.Id == opportunityId);
             string[] ids = Strings("factIds"), steps = Strings("steps");
-            if (opportunity == null || !opportunity.AllowedActions.Contains(action, StringComparer.Ordinal) ||
+            if (opportunity == null || priorityText is not ("info" or "attention" or "important") ||
+                !opportunity.AllowedActions.Contains(action, StringComparer.Ordinal) ||
                 ids.Length is < 2 or > 12 || ids.Distinct().Count() != ids.Length || ids.Any(id => !facts.ContainsKey(id)) ||
                 opportunity.RequiredFacts.Any(id => !ids.Contains(id, StringComparer.Ordinal)) ||
                 title.Length is < 4 or > 40 || steps.Length is < 2 or > 3 || steps.Any(s => s.Length is < 8 or > 150) ||
@@ -38,12 +41,14 @@ internal static class ActionableAdviceParser
             if (opportunityId == "fight.plan" && !context.EnemyChampions.Concat(context.AlliedChampions)
                 .Where(name => name != context.MyChampion && name.Length > 0).Any(name => (plan + why).Contains(name, StringComparison.Ordinal))) continue;
             // 套话可作为补充，不能独立充当执行步骤。要求至少一个明确动作和一个英雄/技能锚点。
-            if (steps.Any(s => !"退走拉等留交补推清回买站靠跟控绕打撤换看守检查确认".Any(s.Contains)) ||
+            if (steps.Any(s => !HasConcreteAction(s)) ||
                 !(new[] { context.MyChampion, context.MatchupChampion }.Concat(context.AlliedChampions).Concat(context.EnemyChampions)
                     .Where(n => !string.IsNullOrWhiteSpace(n)).Any(n => (plan + why).Contains(n, StringComparison.Ordinal)) ||
                   new[] { "Q", "W", "E", "R", "生命", "法力", "金币", "复活", "存活", "补刀", "候选" }.Any(n => (plan + why).Contains(n, StringComparison.Ordinal)))) continue;
-            if (context.IsAram && (plan.Contains("回城补") || plan.Contains("回城买") || plan.Contains("传送回线"))) continue;
-            RecommendationPriority requested = Text("priority").ToLowerInvariant() switch
+            // 未验证的玩法不允许执行步骤或备选行动携带峡谷回城指令，包括拆开的购买措辞。
+            if (!context.SupportsRiftAdvice && new[] { "回城", "传送回线", "传送回家" }
+                .Any(term => (plan + fallback).Contains(term, StringComparison.Ordinal))) continue;
+            RecommendationPriority requested = priorityText switch
             { "important" => RecommendationPriority.Important, "attention" => RecommendationPriority.Attention, _ => RecommendationPriority.Info };
             var priority = (RecommendationPriority)Math.Min((int)requested, (int)opportunity.MaxPriority);
             string version = RecommendationPolicy.EvidenceVersion(context, ids);
@@ -58,6 +63,15 @@ internal static class ActionableAdviceParser
         }
         if (cards.Count == 0) return Error(now);
         return cards.OrderByDescending(c => c.Priority).GroupBy(c => c.OpportunityId).Select(g => g.First()).Take(3).ToArray();
+    }
+
+    private static bool HasConcreteAction(string step)
+    {
+        // 套话中的“走、站、补、看、打”不能单独满足动作检查；具体补充仍可保留。
+        foreach (string phrase in new[] { "注意走位", "注意站位", "配合队友", "稳健发育", "提高容错",
+            "保持警惕", "视情况出装", "看情况", "打好团战", "做好视野", "注意补刀" })
+            step = step.Replace(phrase, "", StringComparison.Ordinal);
+        return "退走拉等留交补推清回买站靠跟控绕打撤换看守检查确认".Any(step.Contains);
     }
 
     private static IReadOnlyList<CoachRecommendation> Error(DateTimeOffset now) =>

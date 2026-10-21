@@ -241,4 +241,87 @@ public sealed class RecommendationCoordinatorTests
         Assert.Equal(3, provider.Calls);
         Assert.True(coordinator.Current.NextRefreshAt > clock.Now);
     }
+
+    [Fact]
+    public async Task NegativeFeedbackCannotBeBypassedByAddingOptionalEvidence()
+    {
+        var clock = new Clock(); var contexts = new Contexts(); var provider = new Provider();
+        using var coordinator = new RecommendationCoordinator(contexts, provider, clock);
+        coordinator.UpdateSettings(Settings()); await coordinator.RefreshAsync(true);
+        coordinator.RecordFeedback(Assert.Single(coordinator.Current.Recommendations).Id, "不适用");
+        RecentCoachingAdvice? sentFeedback = null;
+        provider.Handler = (c, _) =>
+        {
+            sentFeedback = Assert.Single(c.RecentAdvice);
+            return Task.FromResult(new AiRecommendationResult(true, "",
+                Advice.Replace("\"items\"]", "\"items\",\"phase\"]"), c, null));
+        };
+        clock.Advance(10); await coordinator.RefreshAsync(true);
+        Assert.Empty(coordinator.Current.Recommendations);
+        Assert.Equal("不适用", sentFeedback!.Feedback);
+        Assert.False(sentFeedback.StillValid);
+        Assert.Single(coordinator.Current.History);
+        clock.Advance(81); await coordinator.RefreshAsync(true);
+        Assert.Single(coordinator.Current.Recommendations);
+    }
+
+    [Fact]
+    public async Task LocalSurvivalDismissalWorksWithoutCloudConfigurationAndExpiresAfterNinetySeconds()
+    {
+        var clock = new Clock(); var contexts = new Contexts(); var provider = new Provider();
+        contexts.Value = contexts.Value with { Telemetry = new()
+        {
+            Health = 200, MaxHealth = 1000,
+            Players = [new() { Key = "p0", Champion = "安妮", IsSelf = true, IsAlly = true, IsDead = false }]
+        } };
+        using var coordinator = new RecommendationCoordinator(contexts, provider, clock);
+        var settings = Settings(); settings.Ai.EncryptedApiKey = "";
+        coordinator.UpdateSettings(settings); await coordinator.RefreshAsync(true);
+        var first = Assert.Single(coordinator.Current.Recommendations);
+        Assert.Equal(RecommendationSource.LocalObservation, first.Source);
+        Assert.Equal(RecommendationStatus.ConfigurationRequired, coordinator.Current.Status);
+        coordinator.RecordFeedback(first.Id, "不适用");
+        contexts.Value = contexts.Value with { Telemetry = contexts.Value.Telemetry! with { Health = 190 } };
+        clock.Advance(30); await coordinator.RefreshAsync();
+        Assert.Empty(coordinator.Current.Recommendations);
+        clock.Advance(61); await coordinator.RefreshAsync();
+        Assert.Single(coordinator.Current.Recommendations);
+        Assert.Equal(0, provider.Calls);
+    }
+
+    [Theory]
+    [InlineData(20, 1)]
+    [InlineData(91, 0)]
+    public async Task SlowResponsesConsumePlanLifetimeInsteadOfStartingANewLifetime(int delay, int expectedCount)
+    {
+        var clock = new Clock(); var contexts = new Contexts(); var provider = new Provider();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var response = new TaskCompletionSource<AiRecommendationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        provider.Handler = (_, _) => { started.TrySetResult(); return response.Task; };
+        using var coordinator = new RecommendationCoordinator(contexts, provider, clock);
+        coordinator.UpdateSettings(Settings());
+        var requestTime = clock.Now;
+        var request = coordinator.RefreshAsync(true);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        clock.Advance(delay);
+        response.SetResult(new(true, "", Advice, contexts.Value, null));
+        await request;
+        Assert.Equal(expectedCount, coordinator.Current.Recommendations.Count);
+        if (expectedCount > 0)
+            Assert.Equal(requestTime.AddSeconds(90), Assert.Single(coordinator.Current.Recommendations).ExpiresAt);
+        else
+            Assert.Empty(coordinator.Current.History);
+    }
+
+    [Fact]
+    public async Task IncompleteFactsDoNotSpendCloudBudgetEvenOnManualRefresh()
+    {
+        var contexts = new Contexts(); var provider = new Provider();
+        contexts.Value = contexts.Value with { AlliedChampions = [], EnemyChampions = [], CurrentGold = 0 };
+        using var coordinator = new RecommendationCoordinator(contexts, provider, new Clock());
+        coordinator.UpdateSettings(Settings()); await coordinator.RefreshAsync(true);
+        Assert.Equal(RecommendationStatus.NoActionNeeded, coordinator.Current.Status);
+        Assert.Equal(0, provider.Calls);
+        Assert.Equal(0, coordinator.Current.RequestCount);
+    }
 }

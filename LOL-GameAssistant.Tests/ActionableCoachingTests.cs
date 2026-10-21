@@ -62,6 +62,10 @@ public sealed class ActionableCoachingTests
     [InlineData("survival:disengage", "teamfight:engage")]
     [InlineData("留住控制技能保护撤退路线，确认安全后再处理补给。", "注意走位")]
     [InlineData("退路被堵时先靠近可支援队友，保留控制阻止追击。", "视情况")]
+    [InlineData("安妮先退到己方防御塔或队友后方，停止上前普攻换血。", "安妮注意走位，配合队友并提高容错。")]
+    [InlineData("\"important\"", "\"urgent\"")]
+    [InlineData("\"self.health\"]", "\"self.health\",42]")]
+    [InlineData("确认安全后再处理补给。\"]", "确认安全后再处理补给。\",false]")]
     public void MissingFactsWrongActionsAndEmptyPlatitudesAreRejected(string from, string to)
         => Assert.True(Assert.Single(CloudRecommendationParser.Parse(Survival.Replace(from, to), Now, Live, true)).IsFormatError);
 
@@ -99,5 +103,35 @@ public sealed class ActionableCoachingTests
         var c = Live with { ConfirmedAugmentOptions = ["测试增幅"] };
         Assert.DoesNotContain(CoachingDecisionFrame.Create(c).Opportunities, o => o.Id == "augment.choice");
         Assert.Contains(CoachingDecisionFrame.Create(c with { ConfirmedAugmentDescriptions = ["测试增幅：提供生命值"] }).Opportunities, o => o.Id == "augment.choice");
+    }
+
+    [Theory]
+    [InlineData("ARAM")]
+    [InlineData("KIWI")]
+    [InlineData("CHERRY")]
+    [InlineData("UNKNOWN")]
+    public void RecallInstructionsCannotLeakThroughSurvivalOrFallbackInOtherModes(string mode)
+    {
+        // 展示名称尚未同步时，也必须使用原始模式保护规则。
+        var c = Live with { GameMode = mode, Mode = "峡谷对局" };
+        var local = CoachingImmediateAdvice.Create(c, Now)!;
+        Assert.DoesNotContain("回城", local.Body);
+        string badStep = Survival.Replace("留住控制技能保护撤退路线，确认安全后再处理补给。", "安妮先找安全的位置回城，然后购买防御组件。");
+        string badFallback = Survival.Replace("退路被堵时先靠近可支援队友，保留控制阻止追击。", "没有安全的换血窗口时，安妮先回城再购买装备。");
+        Assert.True(Assert.Single(CloudRecommendationParser.Parse(badStep, Now, c, true)).IsFormatError);
+        Assert.True(Assert.Single(CloudRecommendationParser.Parse(badFallback, Now, c, true)).IsFormatError);
+    }
+
+    [Fact]
+    public void LocalSurvivalRequiresKnownAliveStateAndExpiresOnDeath()
+    {
+        var card = CoachingImmediateAdvice.Create(Live, Now)!;
+        Assert.Contains("回城", card.Body);
+        foreach (bool? dead in new bool?[] { true, null })
+        {
+            var c = Live with { Telemetry = Live.Telemetry! with { Players = [Live.Telemetry!.Self! with { IsDead = dead }] } };
+            Assert.Null(CoachingImmediateAdvice.Create(c, Now));
+            Assert.False(RecommendationPolicy.IsValid(card, c, Now.AddSeconds(1)));
+        }
     }
 }

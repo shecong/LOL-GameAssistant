@@ -48,7 +48,7 @@ public sealed record CoachingDecisionFrame(IReadOnlyList<CoachingFact> Facts, IR
             return new(facts, opportunities);
         }
         if (c.Phase != "InProgress" || !c.HasLiveClientData) return new(facts, opportunities);
-        bool rift = c.GameMode.Trim().ToUpperInvariant() is "CLASSIC" or "CLASSIC SR";
+        bool rift = c.SupportsRiftAdvice;
         var t = c.Telemetry;
         if (t != null)
         {
