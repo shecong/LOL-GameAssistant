@@ -114,22 +114,25 @@ public sealed class AuditRegressionTests
     }
 
     [Fact]
-    public async Task UnrelatedSettingsDoNotRequestAiAndManualRefreshBypassesInterval()
+    public async Task UnrelatedSettingsDoNotRequestAiAndManualRefreshUsesShortCooldown()
     {
         int requests = 0;
-        var context = new AiGameContext { Phase = "ChampSelect", MyChampionId = 1 };
+        var context = new AiGameContext { Phase = "ChampSelect", MyChampionId = 1, MyChampion = "安妮", AlliedChampions = ["安妮"], EnemyChampions = ["盖伦"] };
         var coaching = Service<IAiCoachingService>((_, _) => Task.FromResult(context));
         var provider = Service<IAiRecommendationProvider>((_, _) =>
         {
             requests++;
-            return Task.FromResult(new AiRecommendationResult(true, "", "建议", context, null));
+            return Task.FromResult(new AiRecommendationResult(true, "", "{\"recommendations\":[]}", context, null));
         });
-        using var coordinator = new RecommendationCoordinator(coaching, provider);
+        var clock = new RecommendationClock();
+        using var coordinator = new RecommendationCoordinator(coaching, provider, clock);
         int publications = 0;
-        coordinator.StateChanged += _ => publications++;
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.StateChanged += state => { publications++; if (state.Status == RecommendationStatus.NoActionNeeded) ready.TrySetResult(); };
         var settings = new AssistantSettings { Ai = new CloudAiSettings
-            { Model = "test", EncryptedApiKey = "test", DynamicRefreshEnabled = false } };
+            { Model = "test", EncryptedApiKey = "test", DynamicRefreshEnabled = false, StructuredOutputEnabled = false } };
         coordinator.Start(settings);
+        await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(1, requests);
         int initialPublications = publications;
         settings.ThemeMode = "Dark";
@@ -144,7 +147,16 @@ public sealed class AuditRegressionTests
         await coordinator.RefreshAsync();
         Assert.Equal(1, requests);
         await coordinator.RefreshAsync(force: true);
+        Assert.Equal(1, requests);
+        clock.Now = clock.Now.AddSeconds(8);
+        await coordinator.RefreshAsync(force: true);
         Assert.Equal(2, requests);
+    }
+
+    private sealed class RecommendationClock : TimeProvider
+    {
+        public DateTimeOffset Now = DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 
     [Fact]

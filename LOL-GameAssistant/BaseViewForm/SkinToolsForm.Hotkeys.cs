@@ -13,7 +13,7 @@ public sealed partial class SkinToolsForm
     private readonly AntdUI.Input _previousKey = new() { Name = "SkinPreviousKey", Height = 40, Dock = DockStyle.Fill, Font = new Font(UiMetrics.FontFamily, 10) };
     private readonly AntdUI.Input _nextKey = new() { Name = "SkinNextKey", Height = 40, Dock = DockStyle.Fill, Font = new Font(UiMetrics.FontFamily, 10) };
     private readonly AntdUI.Input _pickerKey = new() { Name = "SkinPickerKey", Height = 40, Dock = DockStyle.Fill, Font = new Font(UiMetrics.FontFamily, 10) };
-    private readonly AntdUI.Label _hotkeyStatus = new() { Dock = DockStyle.Fill, Text = "浮窗快捷键默认 Home，可点击输入框录制；需启用独立核心。\n上一款/下一款仅游戏前台生效；切换后自动应用。" };
+    private readonly AntdUI.Label _hotkeyStatus = new() { Dock = DockStyle.Fill, Text = "浮窗快捷键默认 Home，可选择英雄、眼位和小兵皮肤；需启用独立核心。\n上一款/下一款仅切换英雄皮肤，仅游戏前台生效。" };
     private CancellationTokenSource? _hotkeyRequests;
     private long _lastHotkeyAt;
     private bool _savingHotkeys;
@@ -72,7 +72,7 @@ public sealed partial class SkinToolsForm
                 config.SkinHotkeysEnabled && new[] { QuickShoutHotkeyAction.SkinPrevious, QuickShoutHotkeyAction.SkinNext }.Any(action => !bindings.ContainsValue(action)))
                 throw new InvalidOperationException("快捷键存在冲突，请更换后保存。");
             _settings.Save(config); RenewHotkeyRequests(); HotkeySettingsChanged?.Invoke();
-            _hotkeyStatus.Text = UiLanguage.T("快捷键已保存，仅游戏前台生效。") + $"\n{config.SkinPickerHotkey} 显示/隐藏局内皮肤选择窗（需启用独立核心）。";
+            _hotkeyStatus.Text = UiLanguage.T("快捷键已保存，仅游戏前台生效。") + $"\n{config.SkinPickerHotkey} 显示/隐藏英雄、眼位与小兵换肤窗（需启用独立核心）。";
             UpdateSkinPicker();
         }
         catch (Exception error)

@@ -1,6 +1,7 @@
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Domain.Skins;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -11,18 +12,25 @@ internal sealed class SkinPickerOverlayController : IDisposable
     private readonly Func<bool> _available;
     private readonly Action<string> _select;
     private readonly Action _refresh, _restore;
+    private readonly Action<SkinPickerCategory>? _changeCategory;
     private readonly IGameOverlayBridge _overlay;
     private (string Id, string Name)[] _items = [];
     private string _title = "游戏换肤", _status = "";
     private string? _selected;
     private bool _ready, _canRefresh;
     private int _version;
+    private SkinPickerCategory _category;
+    private string _scope = "";
+    private const int PageSize = 240;
+    private int _page;
+    private int PageCount => Math.Max(1, (_items.Length + PageSize - 1) / PageSize);
     internal bool OverlayVisible { get; private set; }
 
     internal SkinPickerOverlayController(Func<bool> available, Action<string> select, Action refresh, Action restore,
-        IGameOverlayBridge? overlay = null)
+        IGameOverlayBridge? overlay = null, Action<SkinPickerCategory>? changeCategory = null)
     {
         _available = available; _select = select; _refresh = refresh; _restore = restore;
+        _changeCategory = changeCategory;
         _overlay = overlay ?? AppCompositionRoot.GameOverlay;
         _watch.Tick += (_, _) =>
         {
@@ -30,9 +38,16 @@ internal sealed class SkinPickerOverlayController : IDisposable
             PollCommands();
         };
     }
-    internal void SetState((string Id, string Name)[] items, string? selected, string status, bool ready, bool canRefresh)
+    internal void SetState((string Id, string Name)[] items, string? selected, string status, bool ready, bool canRefresh,
+        SkinPickerCategory category = SkinPickerCategory.Hero, string scope = "")
     {
-        if (!_items.SequenceEqual(items)) { _items = items.ToArray(); ++_version; }
+        if (!_items.SequenceEqual(items) || category != _category || scope != _scope)
+        {
+            _items = items.ToArray(); ++_version;
+            int selectedIndex = Array.FindIndex(_items, item => item.Id == selected);
+            _page = Math.Max(0, selectedIndex) / PageSize;
+        }
+        _category = category; _scope = scope;
         _selected = selected; _status = status; _ready = ready; _canRefresh = canRefresh;
         PublishOverlay();
     }
@@ -47,18 +62,26 @@ internal sealed class SkinPickerOverlayController : IDisposable
         if (command == null || !OverlayVisible || !_available() || command.Version != _version) return;
         switch (command.Action)
         {
-            case 1 when _ready && command.Argument >= 0 && command.Argument < Math.Min(256, _items.Length): _select(_items[command.Argument].Id); break;
+            case 1 when _ready && command.Argument >= 0 && command.Argument < Math.Min(PageSize, _items.Length - _page * PageSize):
+                _select(_items[_page * PageSize + command.Argument].Id); break;
             case 2 when _canRefresh: _refresh(); break;
             case 3 when _ready: _restore(); break;
             case 4: Hide(); break;
+            case 5 when _canRefresh && command.Argument is >= 0 and <= 2:
+                if ((SkinPickerCategory)command.Argument != _category) _changeCategory?.Invoke((SkinPickerCategory)command.Argument);
+                break;
+            case 6 when _canRefresh && command.Argument is -1 or 1:
+                int page = _page + command.Argument;
+                if (page >= 0 && page < PageCount) { _page = page; ++_version; PublishOverlay(); }
+                break;
         }
     }
     private void PublishOverlay()
     {
         if (!OverlayVisible) return;
         _overlay.PublishPanel(new(GameOverlayPanelKind.SkinPicker, _title, _status,
-            Items: _items.Take(256).Select(p => p.Name).ToArray(), Selected: Array.FindIndex(_items, p => p.Id == _selected),
-            Ready: _ready, CanRefresh: _canRefresh, Version: _version));
+            Items: _items.Skip(_page * PageSize).Take(PageSize).Select(p => p.Name).ToArray(), Selected: Array.FindIndex(_items, p => p.Id == _selected) - _page * PageSize,
+            Ready: _ready, CanRefresh: _canRefresh, Version: _version, Category: (int)_category, Page: _page, PageCount: PageCount));
     }
     public void Hide()
     {

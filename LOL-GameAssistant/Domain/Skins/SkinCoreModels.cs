@@ -1,5 +1,7 @@
 namespace LOL_GameAssistant.Domain.Skins;
 
+public enum SkinPickerCategory { Hero, Ward, Minion }
+
 public sealed record SkinEntry
 {
     public string EntryId { get; init; } = "";

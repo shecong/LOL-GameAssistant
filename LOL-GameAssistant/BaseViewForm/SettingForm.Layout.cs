@@ -4,6 +4,77 @@ namespace LOL_GameAssistant.BaseViewForm;
 
 public partial class SettingForm
 {
+    private Control CreateAiDashboard(out TableLayoutPanel content)
+    {
+        var page = new SettingsDashboard
+        {
+            Name = "aiSettingsDashboard", AutoScroll = true,
+            Padding = new Padding(20, 12, 20, 20)
+        };
+        content = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1,
+            Margin = Padding.Empty, Padding = Padding.Empty,
+            ColumnStyles = { new ColumnStyle(SizeType.Percent, 100) }
+        };
+        content.Controls.Add(new AntdUI.Label
+        {
+            Text = "AI 与推荐", AutoSize = true,
+            Font = new Font(UiMetrics.FontFamily, 18F, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 4)
+        });
+        var note = CreateAiNote("按功能配置选人辅助、局内面板、战绩评估与 AI 建议。开关即时保存，AI 连接单独保存。");
+        note.Margin = new Padding(0, 0, 0, 20);
+        content.Controls.Add(note);
+        content.SizeChanged += (sender, _) =>
+        {
+            var container = (Control)sender!;
+            note.MaximumSize = new Size(Math.Max(1,
+                container.ClientSize.Width - container.Padding.Horizontal - note.Margin.Horizontal), 0);
+        };
+        page.Controls.Add(content);
+        return page;
+    }
+
+    private static TableLayoutPanel CreateAiSettingsCard(TableLayoutPanel content, string name, string title)
+    {
+        var card = new SettingsCard
+        {
+            Name = name, Dock = DockStyle.Top, Radius = 12,
+            Padding = new Padding(16), Margin = new Padding(0, 0, 0, 16)
+        };
+        var rows = CreateSegmentLayout();
+        rows.Padding = Padding.Empty;
+        rows.Margin = Padding.Empty;
+        rows.Font = new Font(UiMetrics.FontFamily, 10F);
+        AddSectionHeader(rows, 0, title);
+        rows.Controls[0].Padding = new Padding(0, 0, 0, 12);
+        rows.Layout += (_, _) =>
+        {
+            int[] widths = rows.GetColumnWidths();
+            if (widths.Length < 2) return;
+            foreach (System.Windows.Forms.Label note in rows.Controls.OfType<System.Windows.Forms.Label>())
+            {
+                // Layout fires before the table recalculates its percent column. Use the
+                // current client width so an early narrow measurement cannot stick.
+                var maximum = new Size(Math.Max(1, rows.ClientSize.Width - rows.Padding.Horizontal -
+                    widths[0] - note.Margin.Horizontal), 0);
+                if (note.MaximumSize != maximum) note.MaximumSize = maximum;
+            }
+        };
+        card.Controls.Add(rows);
+        rows.SizeChanged += (_, _) => card.Height = rows.Height + card.Padding.Vertical;
+        content.Controls.Add(card);
+        return rows;
+    }
+
+    // WinForms labels measure wrapped text at MaximumSize; AntdUI auto-size labels measure one line.
+    private static System.Windows.Forms.Label CreateAiNote(string text) => new()
+    {
+        Text = text, AutoSize = true, Dock = DockStyle.Top,
+        ForeColor = Color.DimGray, UseMnemonic = false
+    };
+
     /// <summary>各列独立向下排列，避免英雄列表把另一列的设置挤出首屏。</summary>
     private Control CreateMatchDashboard()
     {

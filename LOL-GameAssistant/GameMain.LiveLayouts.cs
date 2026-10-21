@@ -16,10 +16,10 @@ public partial class GameMain
     private void ConfigureLiveLayoutSelector()
     {
         _liveLayoutSelector.Items.AddRange(new object[] {
-            "布局：经典卡片", "布局：双队总览（推荐）", "布局：位置对位", "布局：详情工作台", "布局：紧凑卡片"
+            "布局：经典卡片", "布局：双队总览", "布局：位置对位", "布局：详情工作台", "布局：紧凑卡片"
         });
         var stored = _settingsStore.Load().LiveGameLayout;
-        _liveLayoutSelector.SelectedIndex = Enum.IsDefined(stored) ? (int)stored : 0;
+        _liveLayoutSelector.SelectedIndex = (int)(Enum.IsDefined(stored) ? stored : LiveGameLayout.Classic);
         liveGameForm.SetDisplayLayout((LiveGameLayout)_liveLayoutSelector.SelectedIndex);
         liveGameForm.AttachLayoutSelector(_liveLayoutSelector);
         _liveLayoutSelector.SelectedIndexChanged += (_, _) =>

@@ -4,7 +4,7 @@ namespace LOL_GameAssistant.Domain.Coaching;
 /// 发送给 AI 前已最小化、去敏的本局上下文；
 /// 不包含 LCU 令牌、玩家标识或任何隐藏战场信息。
 /// </summary>
-public sealed class AiGameContext
+public sealed record AiGameContext
 {
     public string Phase { get; init; } = "未知";
     public string Mode { get; init; } = "峡谷对局";
@@ -13,6 +13,10 @@ public sealed class AiGameContext
     public string GameMode { get; init; } = "CLASSIC";
 
     public int QueueId { get; init; }
+    public DateTimeOffset CollectedAt { get; init; } = DateTimeOffset.UtcNow;
+    public string MatchupChampion { get; init; } = "";
+    public IReadOnlyList<string> ConfirmedAugmentOptions { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> ConfirmedAugmentDescriptions { get; init; } = [];
     public string MyChampion { get; init; } = "未选择英雄";
     public int MyChampionId { get; init; }
     public string MyRole { get; init; } = "未知位置";
@@ -21,6 +25,9 @@ public sealed class AiGameContext
 
     /// <summary>本机 Live Client Data API 是否成功提供本轮局内状态。</summary>
     public bool HasLiveClientData { get; init; }
+    public CoachingTelemetry? Telemetry { get; init; }
+    public FarmWindow? FarmWindow { get; init; }
+    public IReadOnlyList<RecentCoachingAdvice> RecentAdvice { get; init; } = [];
 
     public IReadOnlyList<string> CurrentItems { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> AlliedChampions { get; init; } = Array.Empty<string>();
@@ -45,6 +52,7 @@ public sealed class AiGameContext
         模式：{Mode}
         我的英雄：{MyChampion}
         位置：{MyRole}
+        对线英雄：{(string.IsNullOrWhiteSpace(MatchupChampion) ? "未确认，不得指定对线对象" : MatchupChampion)}
         游戏时间：{GameTimeText}
         当前金币：{CurrentGold}
         本机实时数据可用：{HasLiveClientData}
@@ -52,6 +60,12 @@ public sealed class AiGameContext
         已知己方英雄：{allies}
         已知敌方英雄：{enemies}
         本地对线知识：{LaneKnowledge}
+        已确认的当前增幅候选（并非已选增幅）：{(ConfirmedAugmentOptions.Count == 0 ? "无可靠结果，不得推断" : string.Join("、", ConfirmedAugmentOptions))}
+        数据边界：未提供任何玩家位置、兵线位置、技能冷却、敌方金币、经济差或商店价格。记分板装备/等级/死亡与本人生命资源以事实清单为准，缺失即未知。全图存活人数不是局部参战人数。技能等级不代表技能可用。不得据击杀数推断经济领先。
         """;
     }
 }
+
+public sealed record FarmWindow(int Seconds, int CreepScoreGained, int DeathsAdded);
+public sealed record RecentCoachingAdvice(string Opportunity, string Action, string Title, string Feedback,
+    string Plan, string Conditions, bool StillValid);

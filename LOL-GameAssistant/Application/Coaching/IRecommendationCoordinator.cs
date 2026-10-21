@@ -21,4 +21,6 @@ public interface IRecommendationCoordinator : IDisposable
 
     /// <summary>异步刷新当前服务或界面负责的数据。</summary>
     Task RefreshAsync(bool force = false, CancellationToken cancellationToken = default);
+    void ConfirmMatchup(string? champion);
+    void RecordFeedback(string recommendationId, string feedback);
 }

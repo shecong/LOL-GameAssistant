@@ -140,6 +140,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _posterCaption.Text = "连接游戏后显示当前英雄皮肤海报";
         Interlocked.Increment(ref _revision); _catalog = null; _filtered.Clear(); _entries.Items.Clear(); _entries.SelectedIndex = -1;
         _objectCatalog = null;
+        ResetObjectSelection(); _skinPickerCategory = SkinPickerCategory.Hero;
         _current.Text = UiLanguage.T("尚未连接游戏"); UpdateButtons();
     }
     private void FilterEntries()

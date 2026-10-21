@@ -100,7 +100,7 @@ public sealed class AssistantSettings
     {
         Ai ??= new CloudAiSettings();
         ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
-        if (!Enum.IsDefined(LiveGameLayout)) LiveGameLayout = default;
+        if (!Enum.IsDefined(LiveGameLayout)) LiveGameLayout = LiveGameLayout.Classic;
         HonorStrategy = HonorStrategy is "friends" or "manual" ? HonorStrategy : "random";
         LanguageMode = LanguageMode is "en-US" or "zh-TW" ? LanguageMode : "zh-CN";
         GameClientPath ??= "";

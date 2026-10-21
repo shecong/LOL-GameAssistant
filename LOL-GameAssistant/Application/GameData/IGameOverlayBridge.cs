@@ -19,7 +19,7 @@ public enum GameOverlayPanelKind { Battle = 1, Coaching = 2, SkinNotice = 4, Ski
 /// <summary>Image 由调用者持有，PublishPanel 在返回前复制像素；Version 防止旧列表点击选中另一款皮肤。</summary>
 public sealed record GameOverlayPanel(GameOverlayPanelKind Kind, string Title = "", string Body = "", string Detail = "",
     Bitmap? Image = null, IReadOnlyList<string>? Items = null, int Selected = -1, bool Ready = true, bool CanRefresh = true,
-    long Deadline = 0, int Position = 0, int OffsetX = 24, int OffsetY = 24, int Version = 0);
+    long Deadline = 0, int Position = 0, int OffsetX = 24, int OffsetY = 24, int Version = 0, int Category = 0, int Page = 0, int PageCount = 1);
 
 public sealed record GameOverlayPanelCommand(int Action, int Argument, int Version);
 

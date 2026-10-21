@@ -28,7 +28,16 @@ public class AiSettings
     public bool DynamicRefreshEnabled { get; set; } = true;
 
     [JsonProperty("dynamicRefreshSeconds")]
-    public int DynamicRefreshSeconds { get; set; } = 30;
+    public int DynamicRefreshSeconds { get; set; } = 90;
+
+    [JsonProperty("minimumRequestSeconds")]
+    public int MinimumRequestSeconds { get; set; } = 30;
+
+    [JsonProperty("matchRequestBudget")]
+    public int MatchRequestBudget { get; set; } = 30;
+
+    [JsonProperty("structuredOutputEnabled")]
+    public bool StructuredOutputEnabled { get; set; } = true;
 
     [JsonProperty("showRecommendationPopup")]
     public bool ShowRecommendationPopup { get; set; }

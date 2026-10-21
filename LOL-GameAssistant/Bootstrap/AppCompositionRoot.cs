@@ -123,7 +123,7 @@ public static class AppCompositionRoot
 
     public static IGameOverlayBridge GameOverlay { get; } = new NativeGameOverlayBridge();
     private static readonly AugmentReviewScanner ReviewedAugments = new(new LocalAugmentScanner(GameOverlay),
-        () => AugmentCatalog.GetAll().Where(c => c.Id >= 1000).Select(c => new AugmentCatalogChoice(c.Id, c.Name)).ToArray());
+        () => AugmentCatalog.GetAll().Where(c => c.Id >= 1000).Select(c => new AugmentCatalogChoice(c.Id, c.Name, AugmentCatalog.GetDescription(c.Id))).ToArray());
     public static IAugmentScanner AugmentScanner { get; } = ReviewedAugments;
     public static IAugmentReviewService AugmentReview { get; } = ReviewedAugments;
     public static IAugmentInfoService AugmentInfoService { get; } = new AugmentInfoService();
@@ -186,7 +186,7 @@ public static class AppCompositionRoot
         ChampionSelectService,
         LiveClientGameStateService,
         LaneKnowledgeService,
-        ChampionCatalog);
+        ChampionCatalog, AugmentReview);
 
     /// <summary>近期同队关系的开黑检测服务。</summary>
     public static IPremadeDetectionService PremadeDetectionService { get; } = new LegacyPremadeDetectionService(MatchHistoryService);
@@ -209,7 +209,7 @@ public static class AppCompositionRoot
 
     /// <summary>独立于页面生命周期的局内建议调度器。</summary>
     public static IRecommendationCoordinator RecommendationCoordinator { get; } =
-        new RecommendationCoordinator(AiCoachingService, AiRecommendationProvider);
+        new RecommendationCoordinator(AiCoachingService, AiRecommendationProvider, laneKnowledge: LaneKnowledgeService);
     public static IPlayerGrowthService PlayerGrowthService { get; } = new LcuPlayerGrowthService(MatchHistoryService, ChampionCatalog, LcuRequestSender);
     public static Application.Automation.PostGameAutomation Automation { get; } = new(ClientFeatureService, PartyService);
 }

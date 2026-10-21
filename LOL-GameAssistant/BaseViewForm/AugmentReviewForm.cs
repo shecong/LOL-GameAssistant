@@ -13,10 +13,10 @@ internal sealed class AugmentReviewForm : AntdUI.Window
         foreach (var (key, title) in new[] { ("Position", "卡片位置"), ("Name", "匹配结果"), ("Score", "匹配分数（不是概率）"), ("Text", "识别文本") }) table.Columns.Add(new AntdUI.Column(key, title) { Width = key == "Text" ? "40%" : "20%" });
         var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 100, Padding = new Padding(12), WrapContents = true };
         var scan = new AntdUI.Button { Text = "重新扫描三张卡片", AutoSize = true };
-        var position = new AntdUI.Select { Width = 100, Height = 36, ReadOnly = true }; position.Items.AddRange(new object[] { "左侧", "中间", "右侧" }); position.SelectedIndex = 0;
-        var name = new AntdUI.Select { Width = 290, Height = 36, ReadOnly = true };
+        var position = new AntdUI.Select { Width = 100, Height = 36, List = true, DropDownArrow = true }; position.Items.AddRange(new object[] { "左侧", "中间", "右侧" }); position.SelectedIndex = 0;
+        var name = new AntdUI.Select { Width = 290, Height = 36, List = true, DropDownArrow = true };
         foreach (var c in review.Choices) name.Items.Add(new Choice(c.Id, c.Name));
-        var correct = new AntdUI.Button { Text = "保存名称校正", AutoSize = true }; bar.Controls.AddRange([scan, position, name, correct]);
+        var correct = new AntdUI.Button { Text = "确认 / 校正名称", AutoSize = true }; bar.Controls.AddRange([scan, position, name, correct]);
         var status = new AntdUI.Label { Dock = DockStyle.Bottom, Height = 70, Padding = new Padding(12), Text = "只修正本地名称匹配，不自动选取游戏内增幅。识别不确定与统计无样本是不同状态。" };
         void Render()
         {

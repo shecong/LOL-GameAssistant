@@ -147,6 +147,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Label _apiKeyStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
         private readonly AntdUI.Checkbox _dynamicRefresh = new() { Text = "游戏中自动刷新建议", AutoSize = true };
         private readonly AntdUI.InputNumber _dynamicSeconds = new() { Minimum = 15, Maximum = 600, Width = 100 };
+        private readonly AntdUI.InputNumber _aiMinimumSeconds = new() { Minimum = 8, Maximum = 300, Width = 80 };
+        private readonly AntdUI.InputNumber _aiBudget = new() { Minimum = 1, Maximum = 200, Width = 80 };
         private readonly AntdUI.Checkbox _showPopup = new() { Text = "建议刷新后弹出提醒", AutoSize = true };
         private readonly AntdUI.Checkbox _overlayEnabled = new() { Text = "游戏内显示建议浮窗", AutoSize = true };
         private readonly AntdUI.Select _overlayPosition = new() { List = true, DropDownArrow = true, Width = 150 };
@@ -270,6 +272,12 @@ namespace LOL_GameAssistant.BaseViewForm
                     if (_settingsSegments[i] is Control segment) segment.Visible = i == index;
             }
             finally { _settingsSegmentHost.ResumeLayout(true); }
+        }
+
+        public void ShowAiRecommendationSettings()
+        {
+            _settingsSegmented.SelectIndex = 4;
+            ShowSettingsSegment(4);
         }
 
         /// <summary>较重的工具页在首次使用时创建，切换回来复用原有状态。</summary>
@@ -524,18 +532,6 @@ namespace LOL_GameAssistant.BaseViewForm
             _hotkey.Click += (_, _) => _hotkey.Focus();
             _hotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
             _hotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
-            _battleOverlayHotkey.KeyDown += (_, e) =>
-            {
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-                if (!WindowHoldController.TryParseGameHotkey(WindowHoldController.FormatGameHotkey(e.KeyData), out Keys key)) return;
-                _battleOverlayHotkey.Tag = key;
-                _battleOverlayHotkey.Text = key == Keys.Oem3 ? "·" : WindowHoldController.FormatGameHotkey(key);
-                PersistValue(s => s.BattleOverlayHotkey = WindowHoldController.FormatGameHotkey(key));
-            };
-            _battleOverlayHotkey.Click += (_, _) => _battleOverlayHotkey.Focus();
-            _battleOverlayHotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
-            _battleOverlayHotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
             _themeMode.Items.AddRange(new object[] { "跟随系统", "浅色", "深色" });
             _languageMode.Items.AddRange(new object[] { "简体中文", "English", "繁體中文" });
             var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后隐藏到托盘；默认是键盘左上角的 · 键。\nWindows 会接管已注册的按键；快捷键不会注入或修改游戏客户端。");
@@ -550,15 +546,10 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 4, "快捷键范围：", _onlyLeagueFocused,
                 "开启时只有 LOL 位于前台才响应置顶键；关闭则任何窗口下都响应。");
             AddSegmentRow(layout, 5, "置顶说明：", holdNote);
-            AddSectionHeader(layout, 6, "局内对局信息面板");
-            AddSegmentRow(layout, 7, "对局信息：", _battleOverlayEnabled);
-            AddSegmentRow(layout, 8, "面板快捷键：", _battleOverlayHotkey,
-                "默认 · 键，可设置单键或 Ctrl / Alt / Shift 组合键。按住显示，松开或切出游戏后隐藏。");
-            AddSegmentRow(layout, 9, "面板说明：", CreateNote("游戏位于前台时，面板快捷键显示独立的蓝红双方信息表，不抢焦点。\n启用后，游戏中使用面板快捷键；客户端或桌面仍使用上面的按住置顶键。\n可查看段位、赛季战绩、近期胜负、英雄样本胜率和本局 KDA / 补刀 / 视野得分。窗口或无边框模式下使用。"));
-            AddSectionHeader(layout, 10, "窗口行为");
-            AddSegmentRow(layout, 11, "最小化到托盘：", swi_tray);
-            AddSegmentRow(layout, 12, "游戏分辨率：", select_resolution);
-            AddSegmentRow(layout, 13, "保存方式：", CreateNote("开关、主题、语言、透明度与快捷键修改后自动保存。"));
+            AddSectionHeader(layout, 6, "窗口行为");
+            AddSegmentRow(layout, 7, "最小化到托盘：", swi_tray);
+            AddSegmentRow(layout, 8, "游戏分辨率：", select_resolution);
+            AddSegmentRow(layout, 9, "保存方式：", CreateNote("开关、主题、语言、透明度与快捷键修改后自动保存。"));
             layout.ResumeLayout(true);
             return panel;
         }
@@ -603,9 +594,20 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>创建 AI 服务、模型及推荐显示设置区域。</summary>
         private Control CreateAiSegment()
         {
-            var panel = CreateSegmentPanel();
-            var layout = CreateSegmentLayout();
-            panel.Controls.Add(layout);
+            var panel = CreateAiDashboard(out var content);
+            _battleOverlayHotkey.KeyDown += (_, e) =>
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                if (!WindowHoldController.TryParseGameHotkey(WindowHoldController.FormatGameHotkey(e.KeyData), out Keys key)) return;
+                _battleOverlayHotkey.Tag = key;
+                _battleOverlayHotkey.Text = key == Keys.Oem3 ? "·" : WindowHoldController.FormatGameHotkey(key);
+                PersistValue(s => s.BattleOverlayHotkey = WindowHoldController.FormatGameHotkey(key));
+            };
+            _battleOverlayHotkey.Click += (_, _) => _battleOverlayHotkey.Focus();
+            _battleOverlayHotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
+            _battleOverlayHotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
+
 
             _gameKdaAnnouncementEnabled.CheckedChanged += (_, _) =>
             {
@@ -641,8 +643,13 @@ namespace LOL_GameAssistant.BaseViewForm
 
             var refreshPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             refreshPanel.Controls.Add(_dynamicRefresh);
-            refreshPanel.Controls.Add(new AntdUI.Label { Text = "间隔（秒）", AutoSize = true, Padding = new Padding(10, 5, 0, 0) });
+            refreshPanel.Controls.Add(new AntdUI.Label { Text = "兜底分析秒数", AutoSize = true, Padding = new Padding(10, 5, 0, 0) });
             refreshPanel.Controls.Add(_dynamicSeconds);
+            var budgetPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+            budgetPanel.Controls.Add(new AntdUI.Label { Text = "请求最短间隔（秒）", AutoSize = true });
+            budgetPanel.Controls.Add(_aiMinimumSeconds);
+            budgetPanel.Controls.Add(new AntdUI.Label { Text = "本局请求上限", AutoSize = true });
+            budgetPanel.Controls.Add(_aiBudget);
 
             _showPopup.Text = "生成 AI 建议后显示提醒";
             _overlayPosition.Items.AddRange(new object[] { "左下", "左上", "右下", "右上", "屏幕中央" });
@@ -653,62 +660,89 @@ namespace LOL_GameAssistant.BaseViewForm
             overlayOffsetPanel.Controls.Add(_overlayOffsetY);
             overlayOffsetPanel.Controls.Add(new AntdUI.Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayDuration);
-            var overlayNote = CreateNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
-            var privacyNote = CreateNote("隐私说明：AI 开关修改后立即保存。启用并配置好服务后，当前英雄、游戏阶段、可见阵容、游戏时间、金币与已购装备会发送给所选 AI 服务商；不会发送 LCU Token、账号密码、玩家身份或本机聊天内容。未配置 API Key 或模型时不会发送数据。");
-            var opggNote = CreateNote("开启后，助手会在选人阶段弹出图文方案。只有选中并点击应用才会写入客户端。若符文页已满，只会替换本助手创建的旧页；没有可替换页时会提示先在客户端释放额度。替换失败会尝试恢复原页。");
-            var kdaAnnouncementNote = CreateNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者使用已获取最多 500 条摘要中最近 50 场同模式有效对局；KDA 和胜率分别排除缺失字段。默认满 10 场按累计 KDA 分档，样本下限可在下方调整；不足时标“数据不足”。同模式无有效KDA样本时自动使用全模式参考，并排除自定义对局。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
+            var overlayNote = CreateAiNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
+            var privacyNote = CreateAiNote("数据说明：启用并配置服务后，英雄、阶段、阵容、时间、金币、本人生命/法力/技能等级、匿名记分板装备与战绩、近期公开事件、确认的对线与增幅候选会用于 AI 分析。最近三条建议及其反馈随请求发送，用于避免重复；本局完整记录仅保留在内存。不发送玩家名称、账号标识、认证信息、聊天或截图。未配置模型或密钥时只提供本机状态提醒。");
+            var opggNote = CreateAiNote("开启后，助手会在选人阶段弹出图文方案。只有选中并点击应用才会写入客户端。若符文页已满，只会替换本助手创建的旧页；没有可替换页时会提示先在客户端释放额度。替换失败会尝试恢复原页。");
+            var kdaAnnouncementNote = CreateAiNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者使用已获取最多 500 条摘要中最近 50 场同模式有效对局；KDA 和胜率分别排除缺失字段。默认满 10 场按累计 KDA 分档，样本下限可在下方调整；不足时标“数据不足”。同模式无有效KDA样本时自动使用全模式参考，并排除自定义对局。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
 
-            AddSegmentRow(layout, 0, "AI 时间线：", _recommendationEnabled,
-                "开启后按设定间隔采集对局上下文并请求 AI 生成时间线建议；关闭则不请求，也不发送任何数据。");
-            AddSegmentRow(layout, 1, "OP.GG 推荐：", _opggBuildAssistantEnabled,
-                "选人阶段检测到你已选定英雄时弹出 OP.GG 图文方案；选中并点击应用后才会写入本机符文页与自定义物品集。");
-            AddSegmentRow(layout, 2, "OP.GG 说明：", opggNote);
-            AddSegmentRow(layout, 3, "选人 KDA 发送：", _champSelectKdaAnnouncementEnabled,
-                "选人阶段我方战绩加载完成后，把近期 KDA 评估通过客户端聊天发送一次；只汇总我方玩家。");
-            AddSegmentRow(layout, 4, "发送文案：", _champSelectKdaAnnouncementTemplate,
-                "发送用的模板，支持 {players} 与 {allies}（两者内容相同，都是我方名单）。");
-            AddSegmentRow(layout, 5, "对局 KDA 发送：", _gameKdaAnnouncementEnabled,
-                "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。也可在“一键喊话”设置中配置手动 KDA 快捷键（默认 F9），关闭自动发送后仍能手动发送。");
-            AddSegmentRow(layout, 6, "对局发送排版：", _gameKdaOnePlayerPerLine,
-                "勾选后每名玩家各发一条，游戏聊天中每人占一行；不勾选时蓝方、红方各发一条。同时用于自动发送和快捷键手动发送。");
-            AddSegmentRow(layout, 7, "KDA 说明：", kdaAnnouncementNote);
             var ratingPolicyPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
             ratingPolicyPanel.Controls.Add(_ratingMinimumGames);
-            AddSegmentRow(layout, 24, "评级样本下限：", ratingPolicyPanel,
-                "首页、对局、伴随窗和浮窗共用；默认至少10场同模式有效KDA才评级。无同模式有效KDA时自动统计全模式，排除自定义。");
-            AddSegmentRow(layout, 8, "服务商：", providerPanel,
-                "这一行有三个按钮：“获取 API Key”打开服务商密钥页；“获取可用模型”用当前密钥读取服务端支持的模型名；“测试连接”用当前填写的服务商、模型与密钥发一次最小请求。");
-            AddSegmentRow(layout, 9, "模型名称：", _model,
-                "要调用的模型名，建议先点“获取可用模型”再从这里选。模型名由服务商决定，写错时只会得到 400。");
-            AddSegmentRow(layout, 10, "接口地址：", _baseUrl,
-                "API 基础地址；远端必须使用 HTTPS。仅 localhost 或 127.0.0.1 可使用未加密 HTTP，请只连接可信本机服务。");
-            AddSegmentRow(layout, 11, "API Key：", keyPanel,
-                "填写后保存即可。已保存的密钥不会回显，留空保存表示保留原密钥；“清除已保存密钥”会在下次保存时删除它。");
-            AddSegmentRow(layout, 12, "密钥状态：", _apiKeyStatus,
-                "当前密钥的保存状态；密钥使用 Windows 用户级加密存放。");
-            AddSegmentRow(layout, 13, "连通性：", _aiTestStatus,
-                "“测试连接”的结果，会显示服务端返回的真实原因，例如模型名称不存在、Key 无效或余额不足。");
-            AddSegmentRow(layout, 14, "数据与隐私：", privacyNote);
-            AddSegmentRow(layout, 15, "动态建议：", refreshPanel,
-                "对局中按间隔自动重新生成建议；间隔越长越省额度。");
-            AddSegmentRow(layout, 16, "建议提醒：", _showPopup,
-                "生成新建议后弹出提醒。与“游戏内浮窗”共用同一个显示，两者任一开启就会弹出浮窗。");
-            AddSegmentRow(layout, 17, "游戏内浮窗：", _overlayEnabled,
-                "在游戏内显示建议浮窗，背景透明只显示文字，不抢键盘焦点；关闭后建议只会更新到“智能建议”页。");
-            AddSegmentRow(layout, 18, "浮窗位置：", _overlayPosition,
-                "浮窗停靠的屏幕角落。");
-            AddSegmentRow(layout, 19, "位置与时长：", overlayOffsetPanel,
-                "横向/纵向偏移以所选角落为基准；停留秒数是浮窗自动隐藏前的显示时长。");
-            AddSegmentRow(layout, 20, "浮窗说明：", overlayNote);
-            AddSegmentRow(layout, 21, "符文自动配置：", _autoApplyRuneBuild,
+            var selection = CreateAiSettingsCard(content, "aiSelectionCard", "选人辅助与符文");
+            AddSegmentRow(selection, 1, "OP.GG 推荐：", _opggBuildAssistantEnabled,
+                "选人阶段检测到你已选定英雄时弹出 OP.GG 图文方案；选中并点击应用后才会写入本机符文页与自定义物品集。");
+            AddSegmentRow(selection, 2, "符文自动配置：", _autoApplyRuneBuild,
                 "按英雄、模式和分路优先选择已启用的个人方案；没有匹配方案时自动应用 OP.GG 推荐。仅选人阶段执行一次，手动选择方案不受影响。");
-            AddSegmentRow(layout, 22, "海克斯侧边栏：", _mayhemOverlayEnabled,
-                "仅海克斯大乱斗的窗口或无边框模式显示；独占全屏自动隐藏并停止扫描。可识别增幅卡片并比较胜率。");
-            AddSegmentRow(layout, 23, "选人伴随窗：", _champSelectCompanionEnabled,
+            AddSegmentRow(selection, 3, "选人伴随窗：", _champSelectCompanionEnabled,
                 "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
-            AddSaveRow(layout, 25, "保存 AI 连接与密钥");
-            AddSegmentRow(layout, 26, "保存方式：", CreateNote("所有开关立即保存；服务商、地址、模型与密钥填写完成后使用上方按钮保存。"));
-            layout.ResumeLayout(true);
+            AddSegmentRow(selection, 4, "OP.GG 说明：", opggNote);
+            selection.ResumeLayout(true);
+
+            var battle = CreateAiSettingsCard(content, "aiBattleCard", "局内对局信息面板");
+            AddSegmentRow(battle, 1, "对局信息：", _battleOverlayEnabled);
+            AddSegmentRow(battle, 2, "面板快捷键：", _battleOverlayHotkey,
+                "默认 · 键，可设置单键或 Ctrl / Alt / Shift 组合键。按住显示，松开或切出游戏后隐藏。");
+            AddSegmentRow(battle, 3, "面板说明：", CreateAiNote("游戏位于前台时，面板快捷键显示独立的蓝红双方信息表，不抢焦点。\n启用后，游戏中使用面板快捷键；客户端或桌面仍使用“外观与窗口”中的按住置顶键。\n可查看段位、赛季战绩、近期胜负、英雄样本胜率和本局 KDA / 补刀 / 视野得分。窗口或无边框模式下使用。"));
+            battle.ResumeLayout(true);
+
+            var mayhem = CreateAiSettingsCard(content, "aiMayhemCard", "海克斯增幅助手");
+            AddSegmentRow(mayhem, 1, "海克斯侧边栏：", _mayhemOverlayEnabled,
+                "仅海克斯大乱斗的窗口或无边框模式显示；独占全屏自动隐藏并停止扫描。可识别增幅卡片并比较胜率。");
+            mayhem.ResumeLayout(true);
+
+            var performance = CreateAiSettingsCard(content, "aiPerformanceCard", "战绩评估与 KDA 发送");
+            AddSegmentRow(performance, 1, "评级样本下限：", ratingPolicyPanel,
+                "首页、对局、伴随窗和浮窗共用；默认至少10场同模式有效KDA才评级。无同模式有效KDA时自动统计全模式，排除自定义。");
+            AddSegmentRow(performance, 2, "选人 KDA 发送：", _champSelectKdaAnnouncementEnabled,
+                "选人阶段我方战绩加载完成后，把近期 KDA 评估通过客户端聊天发送一次；只汇总我方玩家。");
+            AddSegmentRow(performance, 3, "发送文案：", _champSelectKdaAnnouncementTemplate,
+                "发送用的模板，支持 {players} 与 {allies}（两者内容相同，都是我方名单）。");
+            AddSegmentRow(performance, 4, "对局 KDA 发送：", _gameKdaAnnouncementEnabled,
+                "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。也可在“一键喊话”设置中配置手动 KDA 快捷键（默认 F9），关闭自动发送后仍能手动发送。");
+            AddSegmentRow(performance, 5, "对局发送排版：", _gameKdaOnePlayerPerLine,
+                "勾选后每名玩家各发一条，游戏聊天中每人占一行；不勾选时蓝方、红方各发一条。同时用于自动发送和快捷键手动发送。");
+            AddSegmentRow(performance, 6, "KDA 说明：", kdaAnnouncementNote);
+            performance.ResumeLayout(true);
+
+            var connection = CreateAiSettingsCard(content, "aiConnectionCard", "AI 服务连接");
+            AddSegmentRow(connection, 1, "服务商：", providerPanel,
+                "这一行有三个按钮：“获取 API Key”打开服务商密钥页；“获取可用模型”用当前密钥读取服务端支持的模型名；“测试连接”用当前填写的服务商、模型与密钥发一次最小请求。");
+            AddSegmentRow(connection, 2, "模型名称：", _model,
+                "要调用的模型名，建议先点“获取可用模型”再从这里选。模型名由服务商决定，写错时只会得到 400。");
+            AddSegmentRow(connection, 3, "接口地址：", _baseUrl,
+                "API 基础地址；远端必须使用 HTTPS。仅 localhost 或 127.0.0.1 可使用未加密 HTTP，请只连接可信本机服务。");
+            AddSegmentRow(connection, 4, "API Key：", keyPanel,
+                "填写后保存即可。已保存的密钥不会回显，留空保存表示保留原密钥；“清除已保存密钥”会在下次保存时删除它。");
+            AddSegmentRow(connection, 5, "密钥状态：", _apiKeyStatus,
+                "当前密钥的保存状态；密钥使用 Windows 用户级加密存放。");
+            AddSegmentRow(connection, 6, "连通性：", _aiTestStatus,
+                "“测试连接”的结果，会显示服务端返回的真实原因，例如模型名称不存在、Key 无效或余额不足。");
+            AddSaveRow(connection, 7, "保存 AI 连接与密钥");
+            AddSegmentRow(connection, 8, "保存方式：", CreateAiNote("所有开关立即保存；服务商、地址、模型与密钥填写完成后使用上方按钮保存。"));
+            connection.ResumeLayout(true);
+
+            var analysis = CreateAiSettingsCard(content, "aiAnalysisCard", "AI 时间线与分析策略");
+            AddSegmentRow(analysis, 1, "AI 时间线：", _recommendationEnabled,
+                "开启后采集本机对局事实，提供即时状态提醒与 AI 行动计划；关闭则停止采集和请求。");
+            AddSegmentRow(analysis, 2, "动态建议：", refreshPanel,
+                "装备、阵容等变化触发分析；无明显变化时按此间隔兜底。关闭后仅阶段切换和手动操作发起分析，仍同步本机数据并撤下失效建议。");
+            AddSegmentRow(analysis, 3, "请求预算：", budgetPanel, "选人与局内共享预算，失败请求也计入；手动分析至少间隔8秒。新一局自动重置。");
+            AddSegmentRow(analysis, 4, "建议质量：", CreateAiNote("行动计划必须包含具体步骤、事实依据、执行条件与备选方案。未通过校验的输出会被拦截；没有可靠新行动时继续观察。低血状态由本机即时提醒。"));
+            AddSegmentRow(analysis, 5, "数据与隐私：", privacyNote);
+            analysis.ResumeLayout(true);
+
+            var display = CreateAiSettingsCard(content, "aiDisplayCard", "AI 提醒与浮窗");
+            AddSegmentRow(display, 1, "建议提醒：", _showPopup,
+                "生成新建议后弹出提醒。与“游戏内浮窗”共用同一个显示，两者任一开启就会弹出浮窗。");
+            AddSegmentRow(display, 2, "游戏内浮窗：", _overlayEnabled,
+                "在游戏内显示建议浮窗，背景透明只显示文字，不抢键盘焦点；关闭后建议只会更新到“智能建议”页。");
+            AddSegmentRow(display, 3, "浮窗位置：", _overlayPosition,
+                "浮窗停靠的屏幕角落。");
+            AddSegmentRow(display, 4, "位置与时长：", overlayOffsetPanel,
+                "横向/纵向偏移以所选角落为基准；停留秒数是浮窗自动隐藏前的显示时长。");
+            AddSegmentRow(display, 5, "浮窗说明：", overlayNote);
+            display.ResumeLayout(true);
+
+
             return panel;
         }
 
@@ -854,6 +888,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _baseUrl.Text = ai.GetBaseUrl();
             _dynamicRefresh.Checked = ai.DynamicRefreshEnabled;
             _dynamicSeconds.Value = ai.DynamicRefreshSeconds;
+            _aiMinimumSeconds.Value = ai.MinimumRequestSeconds;
+            _aiBudget.Value = ai.MatchRequestBudget;
             _showPopup.Checked = ai.ShowRecommendationPopup;
             _overlayEnabled.Checked = ai.RecommendationOverlayEnabled;
             _overlayPosition.SelectedIndex = OverlayPositionToIndex(ai.RecommendationOverlayPosition);

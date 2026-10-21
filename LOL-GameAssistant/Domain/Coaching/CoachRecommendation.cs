@@ -8,10 +8,11 @@ public enum RecommendationPriority
     Important
 }
 
-/// <summary>建议来源；时间线建议仅由 AI 服务生成。</summary>
+/// <summary>区分云端战术分析与本机确定性状态提醒。</summary>
 public enum RecommendationSource
 {
-    CloudAi
+    CloudAi,
+    LocalObservation
 }
 
 /// <summary>
@@ -25,4 +26,21 @@ public sealed record CoachRecommendation(
     string Body,
     string Evidence,
     RecommendationSource Source,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt)
+{
+    public string Conditions { get; init; } = "";
+    public string InvalidWhen { get; init; } = "局势或装备变化后重新评估";
+    public IReadOnlyList<string> EvidenceFields { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> ReferencedItems { get; init; } = Array.Empty<string>();
+    public string ActionKey { get; init; } = "";
+    public string ContextVersion { get; init; } = "";
+    public DateTimeOffset GeneratedAt { get; init; }
+    public bool IsFormatError { get; init; }
+    public string OpportunityId { get; init; } = "";
+    public IReadOnlyList<string> Steps { get; init; } = [];
+    public string Why { get; init; } = "";
+    public string ExpectedOutcome { get; init; } = "";
+    public string Fallback { get; init; } = "";
+    public string SemanticKey => (string.IsNullOrWhiteSpace(ActionKey) ? Category + ":" + Title : ActionKey) +
+        (OpportunityId.Length > 0 ? ":" + OpportunityId : "");
+}

@@ -3,7 +3,7 @@ namespace LOL_GameAssistant.Domain.Settings;
 /// <summary>云端模型的供应商与本地加密配置。</summary>
 public sealed class CloudAiSettings
 {
-    /// <summary>AI 时间线建议总开关；启用后仅由已配置的 AI 服务生成建议。</summary>
+    /// <summary>时间线总开关；本机状态提醒与已配置的云端战术分析均受此开关控制。</summary>
     public bool RecommendationEnabled { get; set; } = true;
 
     public AiProvider Provider { get; set; } = AiProvider.OpenAI;
@@ -11,7 +11,12 @@ public sealed class CloudAiSettings
     public string BaseUrl { get; set; } = "";
     public string EncryptedApiKey { get; set; } = "";
     public bool DynamicRefreshEnabled { get; set; } = true;
-    public int DynamicRefreshSeconds { get; set; } = 30;
+    public int DynamicRefreshSeconds { get; set; } = 90;
+    public int MinimumRequestSeconds { get; set; } = 30;
+    public int MatchRequestBudget { get; set; } = 30;
+    /// <summary>仅保留旧配置的读写兼容；当前行动计划始终经过结构化事实校验。</summary>
+    public bool StructuredOutputEnabled { get; set; } = true;
+    public CloudAiSettings Copy() => (CloudAiSettings)MemberwiseClone();
     public bool ShowRecommendationPopup { get; set; }
     public bool RecommendationOverlayEnabled { get; set; }
     public string RecommendationOverlayPosition { get; set; } = "BottomLeft";
@@ -84,6 +89,8 @@ public sealed class CloudAiSettings
         EncryptedApiKey ??= "";
         NormalizeModel();
         DynamicRefreshSeconds = Math.Clamp(DynamicRefreshSeconds, 15, 600);
+        MinimumRequestSeconds = Math.Clamp(MinimumRequestSeconds, 8, 300);
+        MatchRequestBudget = Math.Clamp(MatchRequestBudget, 1, 200);
         RecommendationOverlayPosition = string.IsNullOrWhiteSpace(RecommendationOverlayPosition) ? "BottomLeft" : RecommendationOverlayPosition;
         RecommendationOverlayOffsetX = Math.Clamp(RecommendationOverlayOffsetX, -600, 600);
         RecommendationOverlayOffsetY = Math.Clamp(RecommendationOverlayOffsetY, -600, 600);

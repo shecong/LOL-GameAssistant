@@ -21,7 +21,7 @@ public sealed class LiveClientGameStateService : ILiveClientGameStateService
         LocalLiveClientSnapshot? snapshot = await LocalLiveClientDataReader.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
         return snapshot == null
             ? null
-            : new LiveClientGameSnapshot(snapshot.CurrentGold, snapshot.Items, snapshot.GameTimeSeconds, snapshot.GameMode);
+            : new LiveClientGameSnapshot(snapshot.CurrentGold, snapshot.Items, snapshot.GameTimeSeconds, snapshot.GameMode) { Telemetry = snapshot.Telemetry };
     }
 
     /// <summary>读取游戏客户端返回的当前玩法模式。</summary>

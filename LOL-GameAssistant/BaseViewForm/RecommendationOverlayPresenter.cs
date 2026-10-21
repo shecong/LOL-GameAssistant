@@ -24,8 +24,8 @@ internal sealed class RecommendationOverlayPresenter : IDisposable
         int position = settings.RecommendationOverlayPosition switch { "TopLeft" => 1, "TopRight" => 2, "BottomRight" => 3, "Center" => 4, _ => 0 };
         int duration = Math.Clamp(settings.RecommendationOverlayDurationSeconds, 3, 30) * 1000;
         OverlayVisible = true;
-        _overlay.PublishPanel(new(GameOverlayPanelKind.Coaching, Clip(recommendation.Title,40), Clip(recommendation.Body,240),
-            string.IsNullOrWhiteSpace(recommendation.Evidence) ? "" : "依据：" + Clip(recommendation.Evidence,120),
+        _overlay.PublishPanel(new(GameOverlayPanelKind.Coaching, Clip(recommendation.Title,28), Clip(recommendation.Body,64),
+            "",
             Deadline: Environment.TickCount64 + duration, Position: position,
             OffsetX: settings.RecommendationOverlayOffsetX, OffsetY: settings.RecommendationOverlayOffsetY));
         _hideTimer.Stop(); _hideTimer.Interval = duration; _hideTimer.Start();

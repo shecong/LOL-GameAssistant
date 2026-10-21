@@ -9,7 +9,7 @@ namespace LOL_GameAssistant.Entity
     {
         [JsonProperty("themeMode")]
         public string ThemeMode { get; set; } = "System";
-        public LOL_GameAssistant.Domain.Settings.LiveGameLayout LiveGameLayout { get; set; }
+        public LOL_GameAssistant.Domain.Settings.LiveGameLayout LiveGameLayout { get; set; } = LOL_GameAssistant.Domain.Settings.LiveGameLayout.Classic;
 
         /// <summary>是否在启动助手时直接启动已配置的国服 LOL 客户端。</summary>
         [JsonProperty("autoLaunchGameClient")]

@@ -21,6 +21,9 @@ public sealed class AiGameContextService : IAiGameContextService
     private readonly ILiveClientGameStateService _liveClientGameStateService;
     private readonly ILaneKnowledgeService _laneKnowledgeService;
     private readonly IChampionCatalog _championCatalog;
+    private readonly IAugmentReviewService? _augmentReview;
+    private DateTimeOffset _liveSessionStarted = DateTimeOffset.MaxValue;
+    private bool _wasInProgress;
 
     /// <summary>初始化 AiGameContextService 的实例状态，并保存传入的依赖或数据。</summary>
     public AiGameContextService(
@@ -29,7 +32,8 @@ public sealed class AiGameContextService : IAiGameContextService
         IChampionSelectService championSelectService,
         ILiveClientGameStateService liveClientGameStateService,
         ILaneKnowledgeService laneKnowledgeService,
-        IChampionCatalog championCatalog)
+        IChampionCatalog championCatalog,
+        IAugmentReviewService? augmentReview = null)
     {
         _lobbyService = lobbyService;
         _playerProfileService = playerProfileService;
@@ -37,6 +41,7 @@ public sealed class AiGameContextService : IAiGameContextService
         _liveClientGameStateService = liveClientGameStateService;
         _laneKnowledgeService = laneKnowledgeService;
         _championCatalog = championCatalog;
+        _augmentReview = augmentReview;
     }
 
     /// <summary>收集当前游戏阶段可用的 AI 建议上下文。</summary>
@@ -44,6 +49,9 @@ public sealed class AiGameContextService : IAiGameContextService
     {
         string? phase = await _lobbyService.GetGameFlowPhaseAsync(cancellationToken).ConfigureAwait(false);
         string phaseText = string.IsNullOrWhiteSpace(phase) ? "未连接" : phase;
+        bool inProgress = phase == "InProgress";
+        if (inProgress && !_wasInProgress) _liveSessionStarted = DateTimeOffset.UtcNow;
+        _wasInProgress = inProgress;
         string? myPuuid = await GetMyPuuidAsync(cancellationToken).ConfigureAwait(false);
 
         if (string.Equals(phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
@@ -99,7 +107,8 @@ public sealed class AiGameContextService : IAiGameContextService
         var enemies = session.TheirTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         var enemyIds = session.TheirTeam.Select(member => member.ChampionId).Where(id => id > 0).ToList();
         var allies = session.MyTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
-        string matchup = enemies.FirstOrDefault() ?? "";
+        // 客户端分路仅是分配结果，不能证明实际对线关系；由玩家在建议页确认。
+        string matchup = "";
 
         return new AiGameContext
         {
@@ -140,8 +149,8 @@ public sealed class AiGameContextService : IAiGameContextService
         var enemies = (mineIsTeamOne ? teamTwo : teamOne).Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
         var (gameMode, queueId, mode) = LiveModeContextResolver.Resolve(session, liveSnapshot?.GameMode);
         string champion = _championCatalog.GetDisplayName(me?.ChampionId ?? 0);
-        string role = NormalizeRole(me?.Position);
-        string matchup = enemies.FirstOrDefault() ?? "";
+        string role = NormalizeRole(string.IsNullOrWhiteSpace(me?.Position) ? liveSnapshot?.Telemetry?.Self?.Position : me.Position);
+        string matchup = "";
 
         return new AiGameContext
         {
@@ -155,6 +164,7 @@ public sealed class AiGameContextService : IAiGameContextService
             CurrentGold = liveSnapshot?.CurrentGold ?? 0,
             GameTimeSeconds = liveSnapshot?.GameTimeSeconds ?? 0,
             HasLiveClientData = liveSnapshot != null,
+            Telemetry = liveSnapshot?.Telemetry,
             CurrentItems = liveSnapshot?.Items ?? Array.Empty<string>(),
             AlliedChampions = allies,
             EnemyChampions = enemies,
@@ -162,8 +172,21 @@ public sealed class AiGameContextService : IAiGameContextService
                 .Select(member => member.ChampionId)
                 .Where(id => id > 0)
                 .ToList(),
+            ConfirmedAugmentOptions = GetConfirmedAugments(mode),
+            ConfirmedAugmentDescriptions = GetConfirmedAugments(mode).Select(name =>
+                _augmentReview?.Choices.FirstOrDefault(c => c.Name == name && !string.IsNullOrWhiteSpace(c.Description)))
+                .Where(c => c != null).Select(c => c!.Name + "：" + c.Description).ToArray(),
             LaneKnowledge = _laneKnowledgeService.GetAdvice(champion, role, matchup)
         };
+    }
+
+    private IReadOnlyList<string> GetConfirmedAugments(string mode)
+    {
+        if (!mode.Contains("海克斯", StringComparison.Ordinal) || _augmentReview?.LastScan is not { } scan ||
+            scan.ScannedAt < _liveSessionStarted || DateTimeOffset.UtcNow - scan.ScannedAt > TimeSpan.FromSeconds(45)) return [];
+        return scan.Cards.Where(c => c.Corrected && c.Id.HasValue)
+            .Select(c => _augmentReview.Choices.FirstOrDefault(choice => choice.Id == c.Id)?.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name)).Cast<string>().Distinct().ToArray();
     }
 
     /// <summary>从当前玩家的选人动作中确定英雄标识。</summary>

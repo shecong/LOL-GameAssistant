@@ -48,6 +48,8 @@ public partial class SettingForm
         _themeMode.SelectedIndexChanged += (_, _) => PersistValue(s => s.ThemeMode = _themeMode.SelectedIndex switch { 1 => "Light", 2 => "Dark", _ => "System" });
         _languageMode.SelectedIndexChanged += (_, _) => SwitchLanguage();
         _dynamicSeconds.ValueChanged += (_, _) => PersistValue(s => s.Ai.DynamicRefreshSeconds = (int)_dynamicSeconds.Value);
+        _aiMinimumSeconds.ValueChanged += (_, _) => PersistValue(s => s.Ai.MinimumRequestSeconds = (int)_aiMinimumSeconds.Value);
+        _aiBudget.ValueChanged += (_, _) => PersistValue(s => s.Ai.MatchRequestBudget = (int)_aiBudget.Value);
         _overlayDuration.ValueChanged += (_, _) => PersistValue(s => s.Ai.RecommendationOverlayDurationSeconds = (int)_overlayDuration.Value);
         _overlayOffsetX.ValueChanged += (_, _) => PersistValue(s => s.Ai.RecommendationOverlayOffsetX = (int)_overlayOffsetX.Value);
         _overlayOffsetY.ValueChanged += (_, _) => PersistValue(s => s.Ai.RecommendationOverlayOffsetY = (int)_overlayOffsetY.Value);

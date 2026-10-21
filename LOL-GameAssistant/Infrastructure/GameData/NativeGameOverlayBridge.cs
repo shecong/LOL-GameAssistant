@@ -138,6 +138,8 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                 case GameOverlayPanelKind.SkinPicker:
                     view.Write(AuxOffset + 44, p.Ready ? 1 : 0); view.Write(AuxOffset + 48, p.CanRefresh ? 1 : 0);
                     view.Write(AuxOffset + 52, p.Selected); view.Write(AuxOffset + 56, Math.Min(256, p.Items?.Count ?? 0)); view.Write(AuxOffset + 60, p.Version);
+                    view.Write(AuxOffset + 76, Math.Clamp(p.Category, 0, 2));
+                    view.Write(AuxOffset + 80, Math.Max(0, p.Page)); view.Write(AuxOffset + 84, Math.Max(1, p.PageCount));
                     WriteText(view, AuxOffset + 4480, 256, p.Title); WriteText(view, AuxOffset + 4736, 2048, p.Body);
                     for (int i = 0; i < Math.Min(256, p.Items?.Count ?? 0); i++) WriteText(view, AuxOffset + 6784 + i * 192, 192, p.Items![i]);
                     break;

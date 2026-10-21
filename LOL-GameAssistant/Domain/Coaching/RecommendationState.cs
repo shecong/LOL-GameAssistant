@@ -7,9 +7,13 @@ public enum RecommendationStatus
     Collecting,
     NoActiveGame,
     AiReady,
+    NoActionNeeded,
     ConfigurationRequired,
     DataUnavailable,
-    Failed
+    Failed,
+    BudgetPaused,
+    FormatError,
+    Stale
 }
 
 /// <summary>
@@ -23,6 +27,12 @@ public sealed record RecommendationState(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? NextRefreshAt)
 {
+    public DateTimeOffset? AnalyzedAt { get; init; }
+    public int RequestCount { get; init; }
+    public int RequestBudget { get; init; }
+    public int SessionVersion { get; init; }
+    public string Trigger { get; init; } = "";
+    public IReadOnlyList<RecommendationHistoryEntry> History { get; init; } = Array.Empty<RecommendationHistoryEntry>();
     public static RecommendationState Initial { get; } = new(
         RecommendationStatus.NoActiveGame,
         new AiGameContext(),
@@ -31,3 +41,5 @@ public sealed record RecommendationState(
         DateTimeOffset.MinValue,
         null);
 }
+
+public sealed record RecommendationHistoryEntry(DateTimeOffset At, string GameTime, CoachRecommendation Recommendation, string Feedback = "");

@@ -201,21 +201,52 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         ImGui::TextColored(ImVec4(.82f,.72f,1,1),"游戏换肤"); ImGui::SameLine(ImGui::GetWindowWidth()-72);
         if(ImGui::SmallButton("隐藏")) command(4);
         ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinTitle); ImGui::PopTextWrapPos(); ImGui::Separator();
+        ImGui::BeginDisabled(!aux.skinCanRefresh);
+        const char* categories[]={"英雄皮肤","眼位皮肤","小兵皮肤"};
+        for(int category=0;category<3;++category) {
+            if(category) ImGui::SameLine();
+            bool active=aux.skinCategory==category;
+            if(active) ImGui::PushStyleColor(ImGuiCol_Button,ImVec4(.15f,.38f,.60f,1));
+            if(ImGui::Button(categories[category],ImVec2(100,30))) command(5,category);
+#ifdef SC_OVERLAY_TEST
+            auto p0=ImGui::GetItemRectMin(),p1=ImGui::GetItemRectMax();
+            testSkinCategories[category]={LONG(p0.x/sx),LONG(p0.y/sy),LONG(p1.x/sx),LONG(p1.y/sy)};
+#endif
+            if(active) ImGui::PopStyleColor();
+        }
+        ImGui::EndDisabled();
         ImGui::BeginChild("Skins",ImVec2(0,(std::max)(40.f,ImGui::GetContentRegionAvail().y-145)),ImGuiChildFlags_Borders);
+        static int previousSkinVersion=-1;
+        if(previousSkinVersion!=aux.skinVersion) { ImGui::SetScrollY(0); previousSkinVersion=aux.skinVersion; }
         ImGui::BeginDisabled(!aux.skinReady);
+        ImGui::PushID(aux.skinVersion); // A held mouse click cannot complete on a replacement list.
         ImGuiListClipper skins; skins.Begin(std::clamp(aux.skinCount,0,256));
         while(skins.Step()) for(int i=skins.DisplayStart;i<skins.DisplayEnd;++i) {
             aux.skinNames[i][191]=0; ImGui::PushID(i);
             if(ImGui::Selectable(aux.skinNames[i],aux.skinSelected==i,0,ImVec2(0,32))) command(1,i);
+#ifdef SC_OVERLAY_TEST
+            if(i==0) { auto p0=ImGui::GetItemRectMin(),p1=ImGui::GetItemRectMax(); testSkinFirstEntry={LONG(p0.x/sx),LONG(p0.y/sy),LONG(p1.x/sx),LONG(p1.y/sy)}; }
+#endif
             ImGui::PopID();
         }
-        ImGui::EndDisabled();
+        ImGui::PopID(); ImGui::EndDisabled();
 #ifdef SC_OVERLAY_TEST
         testSkinScroll=ImGui::GetScrollY();
 #endif
         ImGui::EndChild();
         ImGui::BeginDisabled(!aux.skinCanRefresh); if(ImGui::Button("重新读取")) command(2); ImGui::EndDisabled();
-        ImGui::SameLine(); ImGui::BeginDisabled(!aux.skinReady); if(ImGui::Button("恢复基础皮肤")) command(3); ImGui::EndDisabled();
+        ImGui::SameLine(); ImGui::BeginDisabled(!aux.skinReady); if(ImGui::Button(aux.skinCategory==0 ? "恢复基础皮肤" : "恢复小兵与眼位")) command(3); ImGui::EndDisabled();
+        if(aux.skinPageCount>1) {
+            ImGui::BeginDisabled(!aux.skinCanRefresh || aux.skinPage<=0); if(ImGui::SmallButton("上一页")) command(6,-1); ImGui::EndDisabled();
+#ifdef SC_OVERLAY_TEST
+            { auto p0=ImGui::GetItemRectMin(),p1=ImGui::GetItemRectMax(); testSkinPages[0]={LONG(p0.x/sx),LONG(p0.y/sy),LONG(p1.x/sx),LONG(p1.y/sy)}; }
+#endif
+            ImGui::SameLine(); ImGui::Text("%d / %d",aux.skinPage+1,aux.skinPageCount); ImGui::SameLine();
+            ImGui::BeginDisabled(!aux.skinCanRefresh || aux.skinPage+1>=aux.skinPageCount); if(ImGui::SmallButton("下一页")) command(6,1); ImGui::EndDisabled();
+#ifdef SC_OVERLAY_TEST
+            { auto p0=ImGui::GetItemRectMin(),p1=ImGui::GetItemRectMax(); testSkinPages[1]={LONG(p0.x/sx),LONG(p0.y/sy),LONG(p1.x/sx),LONG(p1.y/sy)}; }
+#endif
+        }
         ImGui::BeginChild("Status",ImVec2(0,0)); ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinStatus); ImGui::PopTextWrapPos(); ImGui::EndChild();
         ImGui::End();
     }

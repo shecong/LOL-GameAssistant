@@ -53,6 +53,73 @@ public sealed class SkinToolsTests
     });
 
     [Fact]
+    public void PickerCategoryAndPagingCommandsRejectOldVersions() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var selected = new List<string>(); var categories = new List<SkinPickerCategory>();
+        using var bridge = new RecordingGameOverlay();
+        using var picker = new SkinPickerOverlayController(() => true, selected.Add, () => { }, () => { }, bridge, categories.Add);
+        var entries = Enumerable.Range(0, 530).Select(index => (index.ToString(), "眼位 " + index)).ToArray();
+        picker.SetState(entries, null, "", true, true, SkinPickerCategory.Ward, "session"); picker.ShowOverGame(Rectangle.Empty);
+        var panel = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker];
+        Assert.Equal(1, panel.Category); Assert.Equal(3, panel.PageCount); Assert.Equal(240, panel.Items!.Count);
+        bridge.Command = new(6, 1, panel.Version); picker.PollCommands();
+        var second = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker];
+        Assert.Equal(1, second.Page);
+        bridge.Command = new(1, 0, panel.Version); picker.PollCommands(); Assert.Empty(selected);
+        bridge.Command = new(1, 0, second.Version); picker.PollCommands(); Assert.Equal("240", Assert.Single(selected));
+        bridge.Command = new(5, 2, second.Version); picker.PollCommands(); Assert.Equal(SkinPickerCategory.Minion, Assert.Single(categories));
+        picker.SetState(entries, null, "", true, true, SkinPickerCategory.Minion, "session");
+        bridge.Command = new(1, 0, second.Version); picker.PollCommands(); Assert.Single(selected);
+        var minions = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker];
+        Assert.Equal(0, minions.Page); Assert.NotEqual(second.Version, minions.Version);
+        picker.SetState(entries, null, "忙碌", false, false, SkinPickerCategory.Minion, "session");
+        bridge.Command = new(5, 0, minions.Version); picker.PollCommands(); Assert.Single(categories);
+        picker.SetState(entries, null, "", true, true, SkinPickerCategory.Minion, "another-session");
+        bridge.Command = new(1, 0, minions.Version); picker.PollCommands(); Assert.Single(selected);
+    });
+
+    [Fact]
+    public void HomeObjectSelectionWorksWhenPageIsHiddenAndPreservesOtherAppliedCategory() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core(); var settings = new Settings(); settings.Load().SkinCoreEnabled = true;
+        using var page = new SkinToolsForm(core, settings, EmptySkinResources()); page.OnGamePhaseChanged(true); page.Visible = false;
+        page.ChangeOverlayCategoryAsync(SkinPickerCategory.Ward).GetAwaiter().GetResult();
+        Assert.Equal(1, core.ObjectReads);
+        page.SelectOverlayEntryAsync("19").GetAwaiter().GetResult(); Assert.Equal((-1, 19), core.AppliedObjects.Last());
+        page.ChangeOverlayCategoryAsync(SkinPickerCategory.Minion).GetAwaiter().GetResult();
+        page.SelectOverlayEntryAsync("3").GetAwaiter().GetResult(); Assert.Equal((3, 19), core.AppliedObjects.Last());
+        page.RefreshOverlayCategoryAsync().GetAwaiter().GetResult();
+        page.ChangeOverlayCategoryAsync(SkinPickerCategory.Ward).GetAwaiter().GetResult();
+        page.SelectOverlayEntryAsync("5").GetAwaiter().GetResult(); Assert.Equal((3, 5), core.AppliedObjects.Last());
+        Assert.Empty(core.AppliedEntries);
+        page.SelectOverlayEntryAsync("999").GetAwaiter().GetResult(); Assert.Equal(3, core.AppliedObjects.Count);
+        core.ObjectRestoreTargets = 0;
+        page.RestoreOverlayCategoryAsync().GetAwaiter().GetResult(); Assert.Equal(1, core.ObjectRestores);
+        page.SelectOverlayEntryAsync("19").GetAwaiter().GetResult(); Assert.Equal((-1, 19), core.AppliedObjects.Last());
+        page.ChangeOverlayCategoryAsync(SkinPickerCategory.Hero).GetAwaiter().GetResult();
+        page.SelectOverlayEntryAsync("1:-1").GetAwaiter().GetResult(); Assert.Single(core.AppliedEntries);
+        page.OnGamePhaseChanged(false);
+        page.ChangeOverlayCategoryAsync(SkinPickerCategory.Minion).GetAwaiter().GetResult();
+        page.SelectOverlayEntryAsync("2").GetAwaiter().GetResult(); Assert.Equal(4, core.AppliedObjects.Count);
+    });
+
+    [Fact]
+    public void LateObjectApplyCannotCarrySelectionsIntoNextGame() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core(); var settings = new Settings(); settings.Load().SkinCoreEnabled = true;
+        using var page = new SkinToolsForm(core, settings, EmptySkinResources()); page.OnGamePhaseChanged(true);
+        page.ChangeOverlayCategoryAsync(SkinPickerCategory.Minion).GetAwaiter().GetResult();
+        core.PendingObjects = new(); var pending = page.SelectOverlayEntryAsync("3");
+        page.ChangeOverlayCategoryAsync(SkinPickerCategory.Ward).GetAwaiter().GetResult();
+        Assert.Equal(1, core.ObjectReads);
+        page.OnGamePhaseChanged(false);
+        core.PendingObjects.SetResult(new SkinCoreReply { StateVerified = true }); SecondPhaseRegressionTests.Pump(pending);
+        core.PendingObjects = null; core.Session = "abcdef1234567890"; page.OnGamePhaseChanged(true);
+        page.ChangeOverlayCategoryAsync(SkinPickerCategory.Ward).GetAwaiter().GetResult();
+        page.SelectOverlayEntryAsync("5").GetAwaiter().GetResult(); Assert.Equal((-1, 5), core.AppliedObjects.Last());
+    });
+
+    [Fact]
     public void SkinTabsAndPosterFollowAppliedSkinAndRestore() => MatchListScrollingTests.OnUiThread(() =>
     {
         var calls = new List<(string Model, int Skin)>();
@@ -132,6 +199,24 @@ public sealed class SkinToolsTests
             return Task.FromResult(LastCatalog);
         }
         public List<string> AppliedEntries { get; } = [];
+        public List<(int Minion, int Ward)> AppliedObjects { get; } = [];
+        public int ObjectReads { get; private set; }
+        public int ObjectRestores { get; private set; }
+        public int ObjectRestoreTargets { get; set; } = 7;
+        public TaskCompletionSource<SkinCoreReply>? PendingObjects { get; set; }
+        public Task<SkinCoreReply> GetObjectCatalogAsync(CancellationToken token = default)
+        {
+            ObjectReads++;
+            return Task.FromResult(new SkinCoreReply { Session = Session, LaneCount = 6, OwnWardCount = 1,
+                WardEntries = [new() { SkinNum = 5, Name = "测试眼位" }, new() { SkinNum = 19, Name = "另一眼位" }] });
+        }
+        public Task<SkinCoreReply> ApplyObjectsAsync(string session, int minionIndex, int wardSkin, CancellationToken token = default)
+        {
+            AppliedObjects.Add((minionIndex, wardSkin));
+            return PendingObjects?.Task ?? Task.FromResult(new SkinCoreReply { Session = Session, StateVerified = true, ObjectTargetCount = 7 });
+        }
+        public Task<SkinCoreReply> RestoreObjectsAsync(string session, CancellationToken token = default)
+        { ObjectRestores++; return Task.FromResult(new SkinCoreReply { Session = Session, StateVerified = ObjectRestoreTargets > 0, ObjectTargetCount = ObjectRestoreTargets }); }
         public bool VerifyApply { get; set; } = true;
         public Task<SkinCoreReply> ApplyAsync(string session, string entry, CancellationToken ct = default)
         {

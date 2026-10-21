@@ -51,6 +51,12 @@
     <Compile Include="..\LOL-GameAssistant\Domain\Settings\CloudAiSettings.cs" Link="Domain\CloudAiSettings.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\GameData\ChampionReference.cs" Link="Domain\GameData\ChampionReference.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Coaching\CoachRecommendation.cs" Link="Domain\Coaching\CoachRecommendation.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Coaching\AiGameContext.cs" Link="Domain\Coaching\AiGameContext.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Coaching\RecommendationPolicy.cs" Link="Domain\Coaching\RecommendationPolicy.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Coaching\CoachingTelemetry.cs" Link="Domain\Coaching\CoachingTelemetry.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Coaching\CoachingDecisionFrame.cs" Link="Domain\Coaching\CoachingDecisionFrame.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Coaching\CoachingImmediateAdvice.cs" Link="Domain\Coaching\CoachingImmediateAdvice.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Ai\ActionableAdviceParser.cs" Link="Infrastructure\Ai\ActionableAdviceParser.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Builds\IOpggBuildApplyService.cs" Link="Application\Builds\IOpggBuildApplyService.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\GameData\IChampionCatalog.cs" Link="Application\GameData\IChampionCatalog.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\LeagueClient\ILcuRequestSender.cs" Link="Application\LeagueClient\ILcuRequestSender.cs" />

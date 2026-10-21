@@ -14,10 +14,10 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// AI 时间线建议展示页。采集、定时和 AI 请求均由 RecommendationCoordinator 在后台管理，
 /// 因此本页未打开时，局内浮窗和建议状态仍会正常更新。
 /// </summary>
-public sealed class CoachForm : UserControl, IThemeAware
+public sealed partial class CoachForm : UserControl, IThemeAware
 {
     private readonly AntdUI.Label _status = new() { AutoSize = true, ForeColor = Color.DimGray };
-    private readonly AntdUI.Button _refresh = new() { Text = "立即更新建议", AutoSize = true };
+    private readonly AntdUI.Button _refresh = new() { Text = "重新分析", AutoSize = true };
     private readonly AntdUI.Button _applyOpgg = new() { Text = "OP.GG 一键配置当前英雄", AutoSize = true };
     private readonly AntdUI.Button _myRunes = new() { Text = "我的符文方案", AutoSize = true };
     private readonly AntdUI.Input _validation = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true };
@@ -27,7 +27,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly IOpggBuildApplyService _opggBuildApplyService;
     private readonly IGameAssetService? _gameAssetService;
-    private readonly RecommendationOverlayPresenter _overlay = new();
+    private readonly RecommendationOverlayPresenter _overlay;
     private bool _applyingOpgg;
     private bool _opggPickerOpen;
     private OpggBuildPickerForm? _activeBuildPicker;
@@ -36,7 +36,6 @@ public sealed class CoachForm : UserControl, IThemeAware
     private string _opggPromptedContext = "";
     private string _opggFailedContext = "";
     private DateTimeOffset _opggRetryAfter;
-    private string _lastOverlaySignature = "";
 
     /// <summary>初始化 CoachForm 的实例状态。</summary>
     public CoachForm() : this(
@@ -53,13 +52,15 @@ public sealed class CoachForm : UserControl, IThemeAware
         IRecommendationCoordinator recommendationCoordinator,
         IApplicationSettingsStore settingsStore,
         IOpggBuildApplyService opggBuildApplyService,
-        IGameAssetService? gameAssetService = null)
+        IGameAssetService? gameAssetService = null,
+        IGameOverlayBridge? overlayBridge = null)
     {
         _aiCoachingService = aiCoachingService;
         _recommendationCoordinator = recommendationCoordinator;
         _settingsStore = settingsStore;
         _opggBuildApplyService = opggBuildApplyService;
         _gameAssetService = gameAssetService;
+        _overlay = overlayBridge == null ? new() : new(overlayBridge);
         Dock = DockStyle.Fill;
         BuildUi();
         ApplyTheme(UiTheme.Palette);
@@ -77,6 +78,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         {
             _recommendationCoordinator.StateChanged -= OnRecommendationStateChanged;
             _overlay.Dispose();
+            _recommendation.Dispose();
             _activeBuildPicker?.Close();
             NotifyOpggStateChanged();
         };
@@ -91,6 +93,7 @@ public sealed class CoachForm : UserControl, IThemeAware
     /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
     {
+        ApplyAdviceTheme(palette);
         // AntdUI.Input hides Control's color properties; set its drawing colors directly.
         foreach (AntdUI.Input input in new[] { _validation, _recommendation })
         {
@@ -127,11 +130,12 @@ public sealed class CoachForm : UserControl, IThemeAware
     {
         if (IsDisposed) return;
         RefreshOpggAvailability();
-        _refresh.Enabled = state.Status != RecommendationStatus.Collecting;
+        _refresh.Enabled = state.Status != RecommendationStatus.Disabled;
         _status.ForeColor = GetStatusColor(state.Status);
         _status.Text = BuildStatusText(state);
         _validation.Text = BuildValidationText(state);
         _recommendation.Text = BuildRecommendationText(state);
+        RenderAdviceCards(state);
         ShowOverlayIfNeeded(state);
     }
 
@@ -238,7 +242,7 @@ public sealed class CoachForm : UserControl, IThemeAware
         _opggPickerOpen = true;
         try
         {
-            _status.Text = "正在读取当前英雄与对局模式…";
+            _buildStatus.Text = "正在读取当前英雄与对局模式…";
             RuntimeDiagnostics.Report("OP.GG 手动打开", "读取对局", "正在获取当前英雄与对局模式");
             AiGameContext context = await GetManualBuildContextAsync(cancellationToken);
             RuntimeDiagnostics.Report("OP.GG 手动打开", "已读取对局",
@@ -301,7 +305,7 @@ public sealed class CoachForm : UserControl, IThemeAware
                     try
                     {
                         OpggBuildApplyResult applied = await _opggBuildApplyService.ApplyPersonalRunePresetAsync(personal, cancellationToken);
-                        _status.Text = applied.Message;
+                        _buildStatus.Text = applied.Message;
                         RuntimeDiagnostics.Report("个人符文方案", applied.Succeeded ? "已应用" : "失败", applied.Message);
                         if (!applied.Succeeded) ScheduleOpggRetry(promptKey);
                     }
@@ -334,38 +338,46 @@ public sealed class CoachForm : UserControl, IThemeAware
     /// <summary>按当前配置决定是否展示推荐浮窗。</summary>
     private void ShowOverlayIfNeeded(RecommendationState state)
     {
+        if (_overlay.OverlayVisible && !state.Recommendations.Any(card => card.Id == _overlayRecommendationId && card.ExpiresAt > DateTimeOffset.UtcNow))
+            _overlay.Hide();
+        if (_overlaySessionVersion != state.SessionVersion)
+        {
+            _overlaySessionVersion = state.SessionVersion; _shownAdvice.Clear();
+            if (_overlay.OverlayVisible) _overlay.Hide();
+        }
         if (!string.Equals(state.Context.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
         {
-            _lastOverlaySignature = "";
+            _shownAdvice.Clear();
             if (_overlay.OverlayVisible) _overlay.Hide();
             return;
         }
 
         if (state.Status is RecommendationStatus.Disabled or RecommendationStatus.DataUnavailable or
-            RecommendationStatus.ConfigurationRequired or RecommendationStatus.Failed)
+            RecommendationStatus.ConfigurationRequired || state.Recommendations.Count == 0)
         {
-            _lastOverlaySignature = "";
             if (_overlay.OverlayVisible) _overlay.Hide();
             return;
         }
 
-        if (
-            state.Recommendations.Count == 0 ||
-            state.Status is RecommendationStatus.Collecting or RecommendationStatus.NoActiveGame)
+        if (state.Status == RecommendationStatus.NoActiveGame ||
+            state.Status == RecommendationStatus.Collecting && state.Recommendations[0].Source != RecommendationSource.LocalObservation)
             return;
 
         CloudAiSettings ai = _settingsStore.Load().Ai;
         if (!ai.RecommendationOverlayEnabled && !ai.ShowRecommendationPopup)
         {
-            _lastOverlaySignature = "";
             if (_overlay.OverlayVisible) _overlay.Hide();
             return;
         }
         CoachRecommendation recommendation = state.Recommendations[0];
-        string signature = $"{recommendation.Id}|{recommendation.Body}";
-        if (signature == _lastOverlaySignature) return;
+        if (recommendation.Priority != RecommendationPriority.Important || recommendation.IsFormatError ||
+            string.IsNullOrWhiteSpace(recommendation.ActionKey) || recommendation.ExpiresAt <= DateTimeOffset.UtcNow) return;
+        string signature = $"{state.Context.MyChampionId}|{state.Context.GameMode}|{recommendation.SemanticKey}";
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (_shownAdvice.TryGetValue(signature, out var lastShown) && now - lastShown < TimeSpan.FromSeconds(90)) return;
+        _shownAdvice[signature] = now;
 
-        _lastOverlaySignature = signature;
+        _overlayRecommendationId = recommendation.Id;
         _overlay.ShowRecommendation(recommendation, ai);
     }
 
@@ -386,8 +398,8 @@ public sealed class CoachForm : UserControl, IThemeAware
     {
         if (!_settingsStore.Load().OpggBuildAssistantEnabled)
         {
-            _status.ForeColor = Color.DarkGoldenrod;
-            _status.Text = "请先在“设置 → AI 设置”中开启 OP.GG 选人推荐。";
+            _buildStatus.ForeColor = Color.DarkGoldenrod;
+            _buildStatus.Text = "请先在“设置 → AI 设置”中开启 OP.GG 选人推荐。";
             return;
         }
 
@@ -433,8 +445,8 @@ public sealed class CoachForm : UserControl, IThemeAware
         _applyingOpgg = true;
         _opggPickerOpen = true;
         RefreshOpggAvailability();
-        _status.ForeColor = Color.DimGray;
-        _status.Text = automatic ? "检测到已选英雄，正在从 OP.GG 获取图文方案…" : "正在从 OP.GG 获取图文方案…";
+        _buildStatus.ForeColor = Color.DimGray;
+        _buildStatus.Text = automatic ? "检测到已选英雄，正在从 OP.GG 获取图文方案…" : "正在从 OP.GG 获取图文方案…";
         try
         {
             bool previewOnly = false;
@@ -442,9 +454,9 @@ public sealed class CoachForm : UserControl, IThemeAware
                 (context, previewOnly) = ResolveManualBuildContext(context);
             if (automatic && (!string.Equals(context.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || context.MyChampionId <= 0))
             {
-                _status.ForeColor = Color.DarkGoldenrod;
-                _status.Text = "请在英雄选择阶段选定英雄后使用 OP.GG 配置。";
-                return _status.Text;
+                _buildStatus.ForeColor = Color.DarkGoldenrod;
+                _buildStatus.Text = "请在英雄选择阶段选定英雄后使用 OP.GG 配置。";
+                return _buildStatus.Text;
             }
 
             OpggBuildChoices choices = await _opggBuildApplyService
@@ -458,8 +470,8 @@ public sealed class CoachForm : UserControl, IThemeAware
             if (!choices.Succeeded)
             {
                 if (automatic) ScheduleOpggRetry(_opggPromptedContext);
-                _status.ForeColor = Color.Firebrick;
-                _status.Text = choices.Message;
+                _buildStatus.ForeColor = Color.Firebrick;
+                _buildStatus.Text = choices.Message;
                 // 取数失败时不会弹窗，只写状态栏容易被忽略；同时写进消息区，让“没弹窗”总有原因可查。
                 Program.GameMain.infoMsg.AddMsg($"OP.GG 未弹出方案：{choices.Message}");
                 RuntimeDiagnostics.Report("OP.GG 选人推荐", "取数失败", choices.Message);
@@ -519,9 +531,9 @@ public sealed class CoachForm : UserControl, IThemeAware
                     picker.SelectedOption == null ? "未选择方案" : $"已选方案 {picker.SelectedOption.Order}");
                 if (dialogResult != DialogResult.OK || picker.SelectedOption == null)
                 {
-                    _status.ForeColor = Color.DimGray;
-                    _status.Text = "已取消 OP.GG 出装配置。";
-                    return _status.Text;
+                    _buildStatus.ForeColor = Color.DimGray;
+                    _buildStatus.Text = "已取消 OP.GG 出装配置。";
+                    return _buildStatus.Text;
                 }
 
                 // 选择窗完成写入后才返回 OK，不能再次应用同一方案。
@@ -535,15 +547,15 @@ public sealed class CoachForm : UserControl, IThemeAware
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _status.ForeColor = Color.DimGray;
-            _status.Text = "已离开选人阶段，取消 OP.GG 配置。";
+            _buildStatus.ForeColor = Color.DimGray;
+            _buildStatus.Text = "已离开选人阶段，取消 OP.GG 配置。";
         }
         catch (Exception ex)
         {
             if (automatic) ScheduleOpggRetry(_opggPromptedContext);
             RuntimeDiagnostics.WriteException(ex);
-            _status.ForeColor = Color.Firebrick;
-            _status.Text = "OP.GG 一键配置失败：" + ex.Message;
+            _buildStatus.ForeColor = Color.Firebrick;
+            _buildStatus.Text = "OP.GG 一键配置失败：" + ex.Message;
             Program.GameMain.infoMsg.AddMsg("OP.GG 一键配置失败：" + ex.Message);
         }
         finally
@@ -553,7 +565,7 @@ public sealed class CoachForm : UserControl, IThemeAware
             NotifyOpggStateChanged();
             RefreshOpggAvailability();
         }
-        return _status.Text ?? "";
+        return _buildStatus.Text ?? "";
     }
 
     /// <summary>核对最新对局并应用方案，将结果返回给仍在显示的选择窗。</summary>
@@ -575,13 +587,13 @@ public sealed class CoachForm : UserControl, IThemeAware
             result = OpggBuildApplyResult.Failure("当前阶段不可配置，或英雄已变化，请重新获取方案。");
         else
         {
-            _status.Text = $"正在应用 OP.GG 方案 {option.Order}…";
+            _buildStatus.Text = $"正在应用 OP.GG 方案 {option.Order}…";
             result = await _opggBuildApplyService.ApplyBuildAsync(context.MyChampionId, position, option,
                 cancellationToken, allowReplaceCurrentRunePage,
                 applySummonerSpells: string.Equals(latest.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase));
         }
-        _status.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
-        _status.Text = result.Message;
+        _buildStatus.ForeColor = result.Succeeded ? Color.ForestGreen : Color.Firebrick;
+        _buildStatus.Text = result.Message;
         RuntimeDiagnostics.Report("OP.GG 方案应用", result.Succeeded ? "成功" : "失败", result.Message);
         Program.GameMain?.infoMsg.AddMsg(result.Message);
         if (result.Succeeded)
@@ -653,45 +665,12 @@ public sealed class CoachForm : UserControl, IThemeAware
         return $"{championId}:{mode}:{normalizedPosition}";
     }
 
-    /// <summary>创建当前界面使用的布局和操作控件。</summary>
-    private void BuildUi()
-    {
-        var header = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            Height = 48,
-            Padding = new Padding(12, 9, 12, 6),
-            WrapContents = false
-        };
-        header.Controls.Add(_refresh);
-        header.Controls.Add(_applyOpgg);
-        header.Controls.Add(_myRunes);
-        header.Controls.Add(_status);
-        _status.Padding = new Padding(8, 6, 0, 0);
-
-        var left = new AntdUI.Panel { Dock = DockStyle.Fill, Padding = new Padding(10), Radius = 8, BorderWidth = 1 };
-        left.Controls.Add(_validation);
-        left.Controls.Add(new AntdUI.Label { Text = "数据状态与当前局势", Dock = DockStyle.Top, Height = 28 });
-        var right = new AntdUI.Panel { Dock = DockStyle.Fill, Padding = new Padding(10), Radius = 8, BorderWidth = 1 };
-        right.Controls.Add(_recommendation);
-        right.Controls.Add(new AntdUI.Label { Text = "AI 时间线建议", Dock = DockStyle.Top, Height = 28 });
-
-        var split = new AntdUI.Splitter { Dock = DockStyle.Fill };
-        split.Panel1.Controls.Add(left);
-        split.Panel2.Controls.Add(right);
-        split.SizeChanged += (_, _) => FitSplitter(split);
-        HandleCreated += (_, _) => BeginInvoke(() => FitSplitter(split));
-
-        Controls.Add(split);
-        Controls.Add(header);
-    }
-
     /// <summary>将当前业务状态组织为提示文本。</summary>
     private static string BuildStatusText(RecommendationState state)
     {
-        string time = state.UpdatedAt == DateTimeOffset.MinValue ? "" : $" · {state.UpdatedAt:HH:mm:ss}";
-        string next = state.NextRefreshAt is { } refreshAt ? $" · 下次 {refreshAt:HH:mm:ss}" : "";
-        return $"{GetStatusName(state.Status)}{time}{next}";
+        string sample = $" · 数据 {state.Context.CollectedAt.ToLocalTime():HH:mm:ss}";
+        string analyzed = state.AnalyzedAt is { } at ? $" · 分析 {at.ToLocalTime():HH:mm:ss}" : " · 尚未分析";
+        return $"{GetStatusName(state.Status)}{sample}{analyzed} · 请求 {state.RequestCount}/{state.RequestBudget}";
     }
 
     /// <summary>将验证结果组织为用户可读的文本。</summary>
@@ -708,8 +687,16 @@ public sealed class CoachForm : UserControl, IThemeAware
         };
         if (context.GameTimeSeconds > 0) lines.Add("游戏时间：" + context.GameTimeText);
         if (context.CurrentGold > 0) lines.Add("当前金币：" + context.CurrentGold);
+        lines.Add("对线对象：" + (string.IsNullOrWhiteSpace(context.MatchupChampion) ? "未确认" : context.MatchupChampion));
+        if (context.ConfirmedAugmentOptions.Count > 0) lines.Add("已确认增幅候选（非已选）：" + string.Join("、", context.ConfirmedAugmentOptions));
+        lines.Add("本次触发：" + state.Trigger);
         if (context.CurrentItems.Count > 0) lines.Add("已购装备：" + string.Join("、", context.CurrentItems));
         if (context.EnemyChampions.Count > 0) lines.Add("可见敌方阵容：" + string.Join("、", context.EnemyChampions));
+        var frame = CoachingDecisionFrame.Create(context);
+        lines.Add("可核验事实：");
+        lines.AddRange(frame.Facts.Select(f => $"[{f.Id}] {f.Value}"));
+        lines.Add("本轮决策范围：" + string.Join("、", frame.Opportunities.Select(o => o.Category)));
+        if (state.NextRefreshAt is { } next) lines.Add("最早再次分析：" + next.ToLocalTime().ToString("HH:mm:ss"));
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -723,6 +710,11 @@ public sealed class CoachForm : UserControl, IThemeAware
                 RecommendationStatus.ConfigurationRequired => "请先在设置中填写 AI 服务商、模型名称和 API Key。",
                 RecommendationStatus.DataUnavailable => "正在等待完整的本机实时对局数据。",
                 RecommendationStatus.Failed => "AI 暂未生成建议，请检查网络、服务地址和模型配置。",
+                RecommendationStatus.FormatError => "本次输出没有通过行动与事实校验，已拦截。可重新分析或检查模型是否支持结构化输出。",
+                RecommendationStatus.NoActionNeeded => "本次没有值得新增的可靠行动。保持当前计划，等待局势变化；不会为了凑数生成建议。",
+                RecommendationStatus.BudgetPaused => "已达到本局请求预算。可在设置中提高上限；新一局自动重置。",
+                RecommendationStatus.Collecting => "正在同步或分析新变化，失效建议已撤下。",
+                RecommendationStatus.Stale => "上次建议已失效。可点击“重新分析”获取当前建议。",
                 _ => "进入英雄选择或对局后，将在这里显示 AI 基于当前局势生成的建议。"
             };
 
@@ -735,13 +727,14 @@ public sealed class CoachForm : UserControl, IThemeAware
             item.Title + Environment.NewLine +
             item.Body + Environment.NewLine +
             (string.IsNullOrWhiteSpace(item.Evidence) ? "" : "依据：" + item.Evidence + Environment.NewLine) +
-            "来源：AI"));
+            (item.Source == RecommendationSource.LocalObservation ? "来源：本机状态提醒" : "来源：AI")));
     }
 
     /// <summary>取得当前状态对应的显示颜色。</summary>
     private static Color GetStatusColor(RecommendationStatus status) => status switch
     {
-        RecommendationStatus.AiReady => Color.ForestGreen,
+        RecommendationStatus.AiReady => UiTheme.Palette.IsDark ? Color.LightGreen : Color.DarkGreen,
+        RecommendationStatus.BudgetPaused or RecommendationStatus.Stale => UiTheme.Palette.IsDark ? Color.Khaki : Color.DarkGoldenrod,
         RecommendationStatus.ConfigurationRequired => Color.DarkGoldenrod,
         RecommendationStatus.Failed or RecommendationStatus.DataUnavailable => Color.Firebrick,
         _ => Color.DimGray
@@ -754,8 +747,12 @@ public sealed class CoachForm : UserControl, IThemeAware
         RecommendationStatus.Collecting => "正在读取对局信息",
         RecommendationStatus.NoActiveGame => "等待对局",
         RecommendationStatus.AiReady => "AI 时间线建议已更新",
+        RecommendationStatus.NoActionNeeded => "继续观察，暂无新行动",
         RecommendationStatus.ConfigurationRequired => "AI 服务未配置",
         RecommendationStatus.DataUnavailable => "对局数据不可用",
+        RecommendationStatus.BudgetPaused => "本局预算已用完",
+        RecommendationStatus.FormatError => "建议未通过质量校验",
+        RecommendationStatus.Stale => "建议已失效",
         _ => "建议生成失败"
     };
 
@@ -767,18 +764,4 @@ public sealed class CoachForm : UserControl, IThemeAware
         _ => "提示"
     };
 
-    /// <summary>按可用空间调整分隔区域大小。</summary>
-    private static void FitSplitter(SplitContainer split)
-    {
-        int usableWidth = split.ClientSize.Width - split.SplitterWidth;
-        const int leftMinimum = 260;
-        const int rightMinimum = 320;
-        if (usableWidth < leftMinimum + rightMinimum) return;
-
-        int target = usableWidth / 2;
-        split.SplitterDistance = Math.Clamp(target, 25, usableWidth - 25);
-        split.Panel1MinSize = leftMinimum;
-        split.Panel2MinSize = rightMinimum;
-        split.SplitterDistance = Math.Clamp(target, leftMinimum, usableWidth - rightMinimum);
-    }
 }

@@ -93,44 +93,17 @@ internal static class LocalLiveClientDataReader
     }
 
     /// <summary>
-    /// 同时读取 activeplayer 与 gamestats；建议刷新使用这一个快照，避免为金币、时间、模式各发一次请求。
+    /// 一次读取 allgamedata，关联 activePlayer 与 allPlayers 中的本人，获得一致的状态、装备和事件。
     /// </summary>
     public static async Task<LocalLiveClientSnapshot?> GetSnapshotAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            Task<HttpResponseMessage> playerTask = Client.GetAsync(
-                "https://127.0.0.1:2999/liveclientdata/activeplayer", cancellationToken);
-            Task<HttpResponseMessage> statsTask = Client.GetAsync(
-                "https://127.0.0.1:2999/liveclientdata/gamestats", cancellationToken);
-            await Task.WhenAll(playerTask, statsTask).ConfigureAwait(false);
-            using HttpResponseMessage playerResponse = playerTask.Result;
-            using HttpResponseMessage statsResponse = statsTask.Result;
-            if (!playerResponse.IsSuccessStatusCode) return null;
-
-            string playerContent = await playerResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            var json = JObject.Parse(playerContent);
-            var items = json["items"]?.Children<JObject>()
-                .Select(item => item["displayName"]?.Value<string>() ?? item["itemID"]?.ToString() ?? "未知装备")
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .ToList() ?? new List<string>();
-
-            int gameTime = 0;
-            string? gameMode = null;
-            if (statsResponse.IsSuccessStatusCode)
-            {
-                string statsContent = await statsResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                var stats = JObject.Parse(statsContent);
-                gameTime = (int)Math.Max(0, stats["gameTime"]?.Value<double>() ?? 0);
-                gameMode = stats["gameMode"]?.Value<string>();
-            }
-
-            return new LocalLiveClientSnapshot(
-                json["championStats"]?["currentGold"]?.Value<int>() ?? 0,
-                items,
-                gameTime,
-                gameMode);
+            using var response = await Client.GetAsync("https://127.0.0.1:2999/liveclientdata/allgamedata", cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return null;
+            return CoachingTelemetryParser.Parse(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (HttpRequestException)
         {
             return null;
@@ -185,4 +158,5 @@ internal static class LocalLiveClientDataReader
 /// <summary>从 Live Client API 提取的当前玩家金币、装备和游戏时间。</summary>
 internal sealed record LocalLiveClientOwnState(int CurrentGold, IReadOnlyList<string> Items, int GameTimeSeconds);
 /// <summary>一次读取得到的玩家状态、游戏时间和模式快照。</summary>
-internal sealed record LocalLiveClientSnapshot(int CurrentGold, IReadOnlyList<string> Items, int GameTimeSeconds, string? GameMode);
+internal sealed record LocalLiveClientSnapshot(int CurrentGold, IReadOnlyList<string> Items, int GameTimeSeconds, string? GameMode)
+{ public LOL_GameAssistant.Domain.Coaching.CoachingTelemetry? Telemetry { get; init; } }

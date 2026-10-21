@@ -303,6 +303,12 @@ namespace LOL_GameAssistant
         public void ApplyRecommendationSettings(AssistantSettings config) =>
             _recommendationCoordinator.UpdateSettings(config);
 
+        public void OpenAiRecommendationSettings()
+        {
+            tabs1.SelectedIndex = tabs1.Pages.IndexOf(tabPage5);
+            settingForm.ShowAiRecommendationSettings();
+        }
+
         /// <summary>启动主界面并初始化客户端连接、托盘和后台跟踪。</summary>
         public void GameMain_Load(object sender, EventArgs e)
         {

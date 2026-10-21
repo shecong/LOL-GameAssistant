@@ -7,7 +7,7 @@ public partial class LiveGameForm
 {
     private LiveGameWorkspace? _layoutWorkspace;
     private TableLayoutPanel? _classicLayout;
-    public LiveGameLayout DisplayLayout { get; private set; }
+    public LiveGameLayout DisplayLayout { get; private set; } = LiveGameLayout.Classic;
 
     public void SetDisplayLayout(LiveGameLayout layout)
     {

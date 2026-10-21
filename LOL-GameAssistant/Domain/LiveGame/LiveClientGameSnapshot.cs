@@ -5,4 +5,7 @@ public sealed record LiveClientGameSnapshot(
     int CurrentGold,
     IReadOnlyList<string> Items,
     int GameTimeSeconds,
-    string? GameMode);
+    string? GameMode)
+{
+    public Coaching.CoachingTelemetry? Telemetry { get; init; }
+}

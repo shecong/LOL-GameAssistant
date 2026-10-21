@@ -49,7 +49,7 @@ public sealed class GameOverlayProtocolTests
             bridge.PublishPanel(new(GameOverlayPanelKind.Battle, Image: image));
         }
         view.Write(aux+64,1); view.Write(aux+68,2); view.Write(aux+72,7);
-        bridge.PublishPanel(new(GameOverlayPanelKind.SkinPicker, Items: ["基础", "大元素使"], Selected: 1, Version: 8));
+        bridge.PublishPanel(new(GameOverlayPanelKind.SkinPicker, Items: ["基础", "大元素使"], Selected: 1, Version: 8, Category: 2, Page: 1, PageCount: 3));
         bridge.Disable();
         Assert.Equal(1,view.ReadInt32(8)); Assert.Equal(0,view.ReadInt32(80));
         Assert.Equal(1|2|8,view.ReadInt32(aux));
@@ -57,6 +57,7 @@ public sealed class GameOverlayProtocolTests
         Assert.Equal((byte)255,view.ReadByte(NativeGameOverlayBridge.BattlePixelOffset+2));
         Assert.Equal("大元素使",ReadText(view,aux+6784+192,192));
         Assert.Equal(1,view.ReadInt32(aux+52)); Assert.Equal(8,view.ReadInt32(aux+60));
+        Assert.Equal(2,view.ReadInt32(aux+76)); Assert.Equal(1,view.ReadInt32(aux+80)); Assert.Equal(3,view.ReadInt32(aux+84));
         Assert.Equal(new GameOverlayPanelCommand(1,2,7),bridge.ReadPanelCommand(GameOverlayPanelKind.SkinPicker));
         Assert.Null(bridge.ReadPanelCommand(GameOverlayPanelKind.SkinPicker));
         bridge.HidePanel(GameOverlayPanelKind.Coaching); bridge.HidePanel(GameOverlayPanelKind.SkinPicker);

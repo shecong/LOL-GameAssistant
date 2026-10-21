@@ -34,7 +34,9 @@ struct Auxiliary {
     int32_t coachPosition, coachOffsetX, coachOffsetY;
     int32_t skinReady, skinCanRefresh, skinSelected, skinCount, skinVersion;
     volatile LONG command, argument, commandVersion;
-    uint8_t reserved[52];
+    int32_t skinCategory; // 0 hero, 1 own wards, 2 lane minions; consumes reserved bytes in v2
+    int32_t skinPage, skinPageCount;
+    uint8_t reserved[40];
     char coachTitle[256], coachBody[2048], coachDetail[1024], skinToast[1024];
     char skinTitle[256], skinStatus[2048], skinNames[256][192];
 };
@@ -42,6 +44,7 @@ struct Auxiliary {
 static_assert(offsetof(Frame, title) == 128);
 static_assert(sizeof(Frame) == 51584);
 static_assert(offsetof(Auxiliary, coachTitle) == 128);
+static_assert(offsetof(Auxiliary, skinCategory) == 76);
 static_assert(offsetof(Auxiliary, skinNames) == 6784);
 static_assert(sizeof(Auxiliary) == 55936);
 inline void MappingName(wchar_t (&name)[160], DWORD game, DWORD owner, uint64_t nonce) {

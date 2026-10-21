@@ -88,6 +88,7 @@ HRESULT ForwardPresent(IDXGISwapChain* chain,UINT sync,UINT flags,std::unique_lo
 std::atomic<LONG> testPointerX{0}, testPointerY{0};
 std::atomic<bool> testPointerEnabled{false};
 std::atomic<float> testSkinScroll{0};
+RECT testSkinCategories[3]{}, testSkinFirstEntry{}, testSkinPages[2]{};
 #endif
 POINT ClientPointer(HWND window) {
 #ifdef SC_OVERLAY_TEST
@@ -481,6 +482,14 @@ extern "C" __declspec(dllexport) BOOL OverlayTestRegion(unsigned index, RECT* ou
 }
 extern "C" __declspec(dllexport) LONG OverlayTestWheel() { return wheel.load(); }
 extern "C" __declspec(dllexport) float OverlayTestSkinScroll() { return testSkinScroll.load(); }
+extern "C" __declspec(dllexport) BOOL OverlayTestSkinControl(int kind,int index,RECT* rect) {
+    if(!rect) return FALSE;
+    if(kind==0 && index>=0 && index<3) *rect=testSkinCategories[index];
+    else if(kind==1 && index==0) *rect=testSkinFirstEntry;
+    else if(kind==2 && index>=0 && index<2) *rect=testSkinPages[index];
+    else return FALSE;
+    return rect->right>rect->left && rect->bottom>rect->top;
+}
 extern "C" __declspec(dllexport) void OverlayTestRawWheel(RAWINPUT* input,UINT bytes) { MaskOverlayRawWheel(input,bytes); }
 extern "C" __declspec(dllexport) void OverlayTestRawBuffer(RAWINPUT* input,UINT count,UINT bytes) { MaskOverlayRawBuffer(input,count,bytes); }
 #endif
