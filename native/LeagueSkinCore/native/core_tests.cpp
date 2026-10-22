@@ -27,7 +27,7 @@ int main() {
     assert(cameraImage);
     memcpy(cameraImage+0x35ea31,CameraLookup,sizeof(CameraLookup));
     memcpy(cameraImage+0x346dfa,CameraDefault,sizeof(CameraDefault));
-    alignas(8) BYTE cameraConfig[0xa0]{};*(float*)(cameraConfig+0x20)=600.25f;
+    alignas(8) BYTE cameraConfig[0xa0]{};*(float*)(cameraConfig+0x20)=600.25f;*(float*)(cameraConfig+0x28)=2250.f;
     *(BYTE**)(cameraImage+CameraSlot)=cameraConfig;
     IndependentContext cameraContext{};cameraContext.base=cameraImage;strcpy_s(cameraContext.session,"1234567890abcdef");
     auto cameraRequest=(Request*)HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(Request));
@@ -52,7 +52,10 @@ int main() {
     assert(strstr(cameraRequest->result,"\"camera_view_distance\":600") && strstr(cameraRequest->result,"\"state_verified\":true"));
     CameraViewPair stale{2250.f,1800.f};assert(!cameraMove(currentView,stale,700.f));
     assert(!cameraMove(currentView,*currentView,NAN));
-    assert(!cameraMove(currentView,*currentView,1701.f));
+    assert(!cameraMove(currentView,*currentView,10001.f));
+    cameraRequest->index=cameraBits(2250.f);cameraWriter.used=0;
+    independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
+    assert(currentView->current==2250.f && currentView->target==2250.f && strstr(cameraRequest->result,"\"camera_default_view_distance\":2250"));
     cameraController[0x3e5]=1;cameraInvoked=false;cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
     assert(!cameraInvoked && strstr(cameraRequest->result,"camera_view_unavailable"));cameraController[0x3e5]=0;

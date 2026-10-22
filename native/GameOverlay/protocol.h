@@ -41,6 +41,7 @@ struct Auxiliary {
     uint8_t reserved[24];
     char coachTitle[256], coachBody[2048], coachDetail[1024], skinToast[1024];
     char skinTitle[256], skinStatus[2048], skinNames[256][192];
+    uint32_t skinPrefixBytes[256], skinPrefixColors[256]; // Optional quality label styling in v2 auxiliary tail.
 };
 #pragma pack(pop)
 static_assert(offsetof(Frame, title) == 128);
@@ -48,7 +49,9 @@ static_assert(sizeof(Frame) == 51584);
 static_assert(offsetof(Auxiliary, coachTitle) == 128);
 static_assert(offsetof(Auxiliary, skinCategory) == 76);
 static_assert(offsetof(Auxiliary, skinNames) == 6784);
-static_assert(sizeof(Auxiliary) == 55936);
+static_assert(offsetof(Auxiliary, skinPrefixBytes) == 55936);
+static_assert(offsetof(Auxiliary, skinPrefixColors) == 56960);
+static_assert(sizeof(Auxiliary) == 57984 && sizeof(Auxiliary) <= 65536);
 inline void MappingName(wchar_t (&name)[160], DWORD game, DWORD owner, uint64_t nonce) {
     swprintf_s(name, L"Local\\SC.MayhemOverlay.v2.%lu.%lu.%016llx", game, owner, nonce);
 }

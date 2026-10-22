@@ -14,6 +14,7 @@ internal static class LegacySettingsMapper
         {
             ThemeMode = source.ThemeMode,
             LiveGameLayout = source.LiveGameLayout,
+            LiveHistoryFilter = source.LiveHistoryFilter,
             LanguageMode = source.LanguageMode,
             AutoLaunchGameClient = source.AutoLaunchGameClient,
             SkinCoreEnabled = source.SkinCoreEnabled,
@@ -94,6 +95,7 @@ internal static class LegacySettingsMapper
         {
             ThemeMode = source.ThemeMode,
             LiveGameLayout = source.LiveGameLayout,
+            LiveHistoryFilter = source.LiveHistoryFilter,
             LanguageMode = source.LanguageMode,
             AutoLaunchGameClient = source.AutoLaunchGameClient,
             SkinCoreEnabled = source.SkinCoreEnabled,

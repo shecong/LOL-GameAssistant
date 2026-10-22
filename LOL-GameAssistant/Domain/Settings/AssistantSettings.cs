@@ -11,6 +11,7 @@ public sealed class AssistantSettings
     /// <summary>界面配色：跟随系统、浅色或深色。</summary>
     public string ThemeMode { get; set; } = "System";
     public LiveGameLayout LiveGameLayout { get; set; } = LiveGameLayout.Classic;
+    public LOL_GameAssistant.Domain.Matches.LiveHistoryFilter LiveHistoryFilter { get; set; }
     public string LanguageMode { get; set; } = "zh-CN";
 
     public bool AutoLaunchGameClient { get; set; }
@@ -103,6 +104,7 @@ public sealed class AssistantSettings
         Ai ??= new CloudAiSettings();
         ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
         if (!Enum.IsDefined(LiveGameLayout)) LiveGameLayout = LiveGameLayout.Classic;
+        if (!Enum.IsDefined(LiveHistoryFilter)) LiveHistoryFilter = LOL_GameAssistant.Domain.Matches.LiveHistoryFilter.Latest;
         HonorStrategy = HonorStrategy is "friends" or "manual" ? HonorStrategy : "random";
         LanguageMode = LanguageMode is "en-US" or "zh-TW" ? LanguageMode : "zh-CN";
         GameClientPath ??= "";

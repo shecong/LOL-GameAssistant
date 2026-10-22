@@ -58,7 +58,7 @@ public sealed class CoachThemeTests
     });
 
     [Fact]
-    public void SavedChoiceStillOpensPickerWhenAutoApplyIsOffAndManualClickReusesIt() => MatchListScrollingTests.OnUiThread(() =>
+    public void AutomaticRecommendationPreloadsWithoutPopupAndManualClickOpensSavedChoice() => MatchListScrollingTests.OnUiThread(() =>
     {
         int collections = 0;
         var pendingContext = new TaskCompletionSource<AiGameContext>();
@@ -79,31 +79,21 @@ public sealed class CoachThemeTests
                 : throw new InvalidOperationException("Browsing must not apply a saved choice.")),
             Service<IGameAssetService>((method, _) => method.Name.Contains("Icon")
                 ? Task.FromResult<GameAsset?>(null) : (object)Task.FromResult<string?>(null)));
-        bool opened = false;
         Task automatic = form.PromptOpggBuildIfNeededAsync();
-        Task<string> queuedManual = form.OpenOpggBuildPickerAsync();
-        Assert.False(queuedManual.IsCompleted);
-        using var timer = new System.Windows.Forms.Timer { Interval = 20 };
-        timer.Tick += (_, _) =>
-        {
-            var picker = System.Windows.Forms.Application.OpenForms.OfType<OpggBuildPickerForm>().SingleOrDefault();
-            if (picker == null || !queuedManual.IsCompleted) return;
-            timer.Stop();
-            try
-            {
-                opened = true;
-                Assert.Equal(2, picker.SelectedOption?.Order);
-                Assert.Equal("OP.GG 方案窗口已打开，请选择方案。", queuedManual.GetAwaiter().GetResult());
-                Assert.Equal("OP.GG 方案窗口已打开，请选择方案。", form.OpenOpggBuildPickerAsync().GetAwaiter().GetResult());
-                Assert.Equal(1, collections);
-            }
-            finally { picker.Close(); }
-        };
-        timer.Start();
         pendingContext.SetResult(new AiGameContext { Phase = "ChampSelect", MyChampionId = 122, GameMode = "ARAM" });
         PumpUntil(() => automatic.IsCompleted);
         automatic.GetAwaiter().GetResult();
-        Assert.True(opened);
+        Assert.Empty(System.Windows.Forms.Application.OpenForms.OfType<OpggBuildPickerForm>());
+        Assert.Equal(1, collections);
+        Task<string> manual = form.OpenOpggBuildPickerAsync();
+        PumpUntil(() => System.Windows.Forms.Application.OpenForms.OfType<OpggBuildPickerForm>().Any());
+        var picker = System.Windows.Forms.Application.OpenForms.OfType<OpggBuildPickerForm>().Single();
+        Assert.Equal(2, picker.SelectedOption?.Order);
+        Assert.Equal("OP.GG 方案窗口已打开，请选择方案。", form.OpenOpggBuildPickerAsync().GetAwaiter().GetResult());
+        Assert.Equal(2, collections);
+        picker.Close();
+        PumpUntil(() => manual.IsCompleted);
+        Assert.Equal("已取消 OP.GG 出装配置。", manual.GetAwaiter().GetResult());
     });
 
     [Fact]

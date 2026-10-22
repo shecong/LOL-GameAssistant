@@ -23,13 +23,14 @@ public sealed class SkinCameraUiTests
         public bool Enabled { get; private set; }
         public int CameraReads;
         public float Distance = 600;
+        public float OriginalDistance = 600;
         public bool RejectWrite;
         public float ViewDistance = 2250;
         public List<float> ViewMoves = [];
         public List<float> Writes = [];
         public void SetEnabled(bool value) => Enabled = value;
         public void InvalidateSession() { }
-        private SkinCoreReply State(float distance = 600) => new() { Session = "1234567890abcdef", Model = "Lux", CameraDistance = distance,
+        private SkinCoreReply State(float distance = 600) => new() { Session = "1234567890abcdef", Model = "Lux", CameraDistance = distance, CameraDefaultViewDistance = 2250,
             StateVerified = true, Entries = [new() { EntryId = "0:-1", Name = "基础皮肤", Model = "Lux" }] };
         public Task<SkinCoreReply> GetCatalogAsync(CancellationToken token = default) => Task.FromResult(State());
         public Task<SkinCoreReply> ApplyAsync(string session, string entry, CancellationToken token = default) => Task.FromResult(State());
@@ -43,7 +44,8 @@ public sealed class SkinCameraUiTests
             Distance = distance; return Task.FromResult(State(distance));
         }
         public Task<SkinCoreReply> RestoreCameraAsync(string session, CancellationToken token = default)
-        { Writes.Add(600); Distance = 600; return Task.FromResult(State()); }
+        { Writes.Add(OriginalDistance); Distance = OriginalDistance; ViewMoves.Add(2250); ViewDistance = 2250;
+            return Task.FromResult(State(Distance) with { CameraViewDistance = 2250, CameraViewTarget = 2250 }); }
         public Task<SkinCoreReply> MoveCameraAsync(string session, float distance, CancellationToken token = default)
         {
             ViewMoves.Add(distance); ViewDistance = distance;
@@ -94,8 +96,8 @@ public sealed class SkinCameraUiTests
             toggle.Checked = true; Assert.Empty(core.Writes);
             var distance = Descendants(page).OfType<AntdUI.Label>().Single(c => c.Name == "UnlimitedZoomDistance");
             Assert.Contains("600", distance.Text);
-            page.AdjustCameraWheelAsync(-1200).GetAwaiter().GetResult(); Assert.Equal(1200, Assert.Single(core.Writes));
-            Assert.Equal(1200f, settings.Load().RememberedCameraDistance);
+            page.AdjustCameraWheelAsync(-1200).GetAwaiter().GetResult(); Assert.Equal(780, Assert.Single(core.Writes));
+            Assert.Equal(780f, settings.Load().RememberedCameraDistance);
             toggle.Checked = false; Assert.Equal(600, core.Writes.Last());
             foreach (string theme in new[] { "Dark", "Light" })
             {
@@ -133,7 +135,7 @@ public sealed class SkinCameraUiTests
             Assert.Equal(1, core.CameraReads); Assert.Empty(core.Writes);
             Assert.Contains(LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.Camera, overlay.Panels.Keys);
             page.AdjustCameraWheelAsync(-60).GetAwaiter().GetResult(); Assert.Empty(core.Writes);
-            page.AdjustCameraWheelAsync(-60).GetAwaiter().GetResult(); Assert.Equal(660, Assert.Single(core.Writes));
+            page.AdjustCameraWheelAsync(-60).GetAwaiter().GetResult(); Assert.Equal(618, Assert.Single(core.Writes));
             page.AdjustCameraWheelAsync(120).GetAwaiter().GetResult(); Assert.Equal(600, core.Writes.Last());
             page.AdjustCameraWheelAsync(-12000).GetAwaiter().GetResult(); Assert.Equal(1700, core.Writes.Last());
             page.OnGamePhaseChanged(false);
@@ -153,11 +155,11 @@ public sealed class SkinCameraUiTests
     });
 
     [Fact]
-    public void MiddleButtonMovesCurrentViewTo600WithoutChangingLimitOrCache() => MatchListScrollingTests.OnUiThread(() =>
+    public void MiddleButtonRestoresOriginalViewAndLimitWithoutChangingCacheOrSwitch() => MatchListScrollingTests.OnUiThread(() =>
     {
         var settings = new Settings();
         settings.Load().UnlimitedZoomEnabled = true; settings.Load().RememberedCameraDistance = 1200;
-        var core = new Core { Distance = 600.25f };
+        var core = new Core { Distance = 600.25f, OriginalDistance = 600.25f };
         var resources = SecondPhaseRegressionTests.Service<IChampionSkinResourceService>((method, _) => method.Name == "GetCatalogAsync"
             ? Task.FromResult<IReadOnlyList<ChampionSkinResource>>([])
             : Task.FromResult<LOL_GameAssistant.Domain.GameData.GameAsset?>(null));
@@ -168,8 +170,8 @@ public sealed class SkinCameraUiTests
         page.AdjustCameraWheelAsync(-60).GetAwaiter().GetResult();
         overlay.CameraResetRequested = true;
         page.PollCameraAsync().GetAwaiter().GetResult();
-        Assert.Equal(600, core.ViewDistance); Assert.Equal(600, Assert.Single(core.ViewMoves));
-        Assert.Equal(1200, core.Distance); Assert.Equal(1200f, settings.Load().RememberedCameraDistance);
+        Assert.Equal(2250, core.ViewDistance); Assert.Equal(2250, Assert.Single(core.ViewMoves));
+        Assert.Equal(600.25f, core.Distance); Assert.Equal(1200f, settings.Load().RememberedCameraDistance);
         Assert.True(settings.Load().UnlimitedZoomEnabled);
         int writes = core.Writes.Count;
         page.PollCameraAsync().GetAwaiter().GetResult();
@@ -179,8 +181,10 @@ public sealed class SkinCameraUiTests
         page.OnGamePhaseChanged(true); page.PollCameraAsync().GetAwaiter().GetResult();
         Assert.Equal(1200, core.Distance);
         page.SetCameraEnabledAsync(false).GetAwaiter().GetResult();
+        Assert.Equal(2250, core.ViewDistance); Assert.Equal(600.25f, core.Distance);
         writes = core.Writes.Count;
-        page.MoveCameraTo600Async().GetAwaiter().GetResult(); Assert.Equal(writes, core.Writes.Count); Assert.Single(core.ViewMoves);
+        int resets = core.ViewMoves.Count;
+        page.RestoreDefaultCameraAsync().GetAwaiter().GetResult(); Assert.Equal(writes, core.Writes.Count); Assert.Equal(resets, core.ViewMoves.Count);
     });
 
     [Fact]

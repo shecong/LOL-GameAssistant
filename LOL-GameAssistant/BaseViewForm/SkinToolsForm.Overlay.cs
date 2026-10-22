@@ -92,7 +92,9 @@ public sealed partial class SkinToolsForm
             return;
         }
         var selected = _catalog?.Entries.FirstOrDefault(e => e.Model == _catalog.ActiveModel && e.SkinNum == _catalog.Skin && e.Gear == _catalog.Gear);
-        _skinPicker.SetState(_catalog?.Entries.Select(e => (e.EntryId, GetSkinDisplayName(e))).ToArray() ?? [],
-            selected?.EntryId, _status.Text ?? "", available && _catalog != null, available, _skinPickerCategory, _catalog?.Session ?? "");
+        _skinPicker.SetState(_catalog?.Entries.Select(e => (e.EntryId, GetSkinOptionText(e))).ToArray() ?? [],
+            selected?.EntryId, _status.Text ?? "", available && _catalog != null, available, _skinPickerCategory, _catalog?.Session ?? "",
+            _catalog?.Entries.Select(e => new LOL_GameAssistant.Application.GameData.GameOverlayItemStyle(GetSkinQualityPrefix(e),
+                SkinQualityStyle.Foreground(GetSkinQuality(e), UiTheme.Palette with { IsDark = true }))).ToArray());
     }
 }

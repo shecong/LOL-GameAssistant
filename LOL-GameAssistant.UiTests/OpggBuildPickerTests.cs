@@ -82,8 +82,53 @@ public sealed class OpggBuildPickerTests
         }
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ComparisonStaysAboveTopmostPickerAndCanBeDismissed(bool useEscape) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var picker = CreateForm();
+        picker.Show();
+        Exception? failure = null;
+        bool inspected = false;
+        picker.BeginInvoke((Action)(() =>
+        {
+            var comparison = System.Windows.Forms.Application.OpenForms.OfType<BuildComparisonForm>().Single();
+            try
+            {
+                inspected = true;
+                Assert.True(picker.TopMost);
+                Assert.True(comparison.TopMost);
+                Assert.True(comparison.Visible);
+                Assert.True(comparison.Modal);
+                Assert.Same(picker, comparison.Owner);
+                Assert.False(IsWindowEnabled(picker.Handle));
+                if (useEscape)
+                {
+                    bool handled = (bool)typeof(Form).GetMethod("ProcessDialogKey", BindingFlags.Instance | BindingFlags.NonPublic)!
+                        .Invoke(comparison, [Keys.Escape])!;
+                    Assert.True(handled);
+                }
+                else
+                    Children(comparison).OfType<AntdUI.Button>().Single(button => button.Name == "closeBuildComparison").PerformClick();
+                Assert.Equal(DialogResult.Cancel, comparison.DialogResult);
+            }
+            catch (Exception e) { failure = e; }
+            finally { comparison.Close(); }
+        }));
+        Children(picker).OfType<AntdUI.Button>().Single(button => button.Name == "compareBuildChoices").PerformClick();
+        Assert.True(inspected);
+        Assert.Null(failure);
+        Assert.Empty(System.Windows.Forms.Application.OpenForms.OfType<BuildComparisonForm>());
+        Assert.True(IsWindowEnabled(picker.Handle));
+        Assert.True(picker.Visible);
+    });
+
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetGuiResources(IntPtr process, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsWindowEnabled(IntPtr handle);
 
     [Theory]
     [InlineData(0)]

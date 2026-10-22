@@ -143,7 +143,7 @@ int main(int argc,char** argv) {
     if(argc==2 && !strcmp(argv[1],"camera-status")) command=15;
     if(argc==4 && !strcmp(argv[1],"camera-view")) {
         command=17;session=argv[2];char* end=nullptr;float selected=strtof(argv[3],&end);
-        if(end==argv[3] || *end || !cameraDistance(selected))return error("invalid_camera_distance",ERROR_INVALID_PARAMETER);
+        if(end==argv[3] || *end || !validCameraView(selected))return error("invalid_camera_distance",ERROR_INVALID_PARAMETER);
         index=cameraBits(selected);
     }
     if(argc==5 && !strcmp(argv[1],"camera")) {

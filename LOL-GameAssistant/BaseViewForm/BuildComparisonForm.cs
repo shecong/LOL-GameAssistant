@@ -16,6 +16,10 @@ internal sealed class BuildComparisonForm : AntdUI.Window, IThemeAware
         StartPosition = FormStartPosition.CenterParent; Font = new Font(UiMetrics.FontFamily, 10);
         Controls.Add(_text);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, WrapContents = true, Padding = new Padding(8) };
+        var close = new AntdUI.Button { Name = "closeBuildComparison", Text = "关闭", AutoSize = true };
+        close.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
+        CancelButton = close;
+        buttons.Controls.Add(close);
         if (select != null)
             foreach (var option in choices.Options.Take(6))
             {

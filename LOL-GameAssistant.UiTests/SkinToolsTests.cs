@@ -142,6 +142,23 @@ public sealed class SkinToolsTests
     });
 
     [Fact]
+    public void PickerQualityStylesFollowPaginationAndClearForObjectCategories() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var bridge = new RecordingGameOverlay();
+        using var picker = new SkinPickerOverlayController(() => true, _ => { }, () => { }, () => { }, bridge);
+        var items = Enumerable.Range(0, 241).Select(i => (i.ToString(), "【终极】皮肤" + i)).ToArray();
+        var styles = items.Select(_ => new LOL_GameAssistant.Application.GameData.GameOverlayItemStyle("【终极】", Color.Gold)).ToArray();
+        picker.SetState(items, null, "", true, true, styles: styles); picker.ShowOverGame(Rectangle.Empty);
+        var panel = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker];
+        Assert.Equal(240, panel.ItemStyles!.Count);
+        bridge.Command = new(6, 1, panel.Version); picker.PollCommands();
+        panel = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker];
+        Assert.Single(panel.Items!); Assert.Equal(styles[^1], Assert.Single(panel.ItemStyles!));
+        picker.SetState([("1", "眼位")], null, "", true, true, SkinPickerCategory.Ward);
+        Assert.Empty(bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker].ItemStyles!);
+    });
+
+    [Fact]
     public void HomeObjectSelectionWorksWhenPageIsHiddenAndPreservesOtherAppliedCategory() => MatchListScrollingTests.OnUiThread(() =>
     {
         var core = new Core(); var settings = new Settings(); settings.Load().SkinCoreEnabled = true;

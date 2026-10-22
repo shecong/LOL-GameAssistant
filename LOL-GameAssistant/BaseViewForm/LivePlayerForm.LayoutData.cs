@@ -30,6 +30,14 @@ public partial class LivePlayerForm
     private string _layoutPremadeNote = "";
     internal string LayoutNote => string.Join(" · ", new[] { _layoutPremadeNote, _encounterLabel.Text }
         .Where(text => !string.IsNullOrWhiteSpace(text)));
+    internal LiveHistoryFilter HistoryFilter { get; private set; }
+    internal void SetHistoryFilter(LiveHistoryFilter filter)
+    {
+        if (HistoryFilter == filter) return;
+        HistoryFilter = filter;
+        _layoutHistorySource = null;
+        if (_historySnapshot?.Data is { } history) RenderVisibleHistory(history);
+    }
     private Application.Matches.PlayerHistorySnapshot? _layoutHistorySource;
     private IReadOnlyList<MatchHistoryGame> _layoutHistory = [];
     internal IReadOnlyList<MatchHistoryGame> LayoutHistory
@@ -39,14 +47,14 @@ public partial class LivePlayerForm
             if (_layoutHistorySource != _historySnapshot)
             {
                 _layoutHistorySource = _historySnapshot;
-                _layoutHistory = _historySnapshot?.Data?.Games?.Games.Where(game => game.GameId > 0)
-                    .DistinctBy(game => game.GameId).OrderByDescending(game => game.GameCreation).Take(10).ToArray() ?? [];
+                _layoutHistory = _historySnapshot?.Data?.Games is { } page
+                    ? LiveHistorySelection.Select(page.Games, HistoryFilter, _currentQueueId, _currentGameMode) : [];
             }
             return _layoutHistory;
         }
     }
     internal string LayoutHistoryStatus => _isBot ? "机器人无玩家战绩" : _historySnapshot?.DataWarning is { Length: > 0 } warning
-        ? warning : _historySnapshot?.Available == true ? "暂无战绩" : RecentEncounterUnavailable ? "战绩暂不可用，请点击获取数据重试" : "正在加载战绩…";
+        ? warning : _historySnapshot?.Available == true ? (HistoryFilter == LiveHistoryFilter.CurrentMode ? "已获取摘要中暂无当前模式战绩" : "暂无战绩") : RecentEncounterUnavailable ? "战绩暂不可用，请点击获取数据重试" : "正在加载战绩…";
 
     internal RecentMatchRow CreateLayoutHistoryRow(MatchHistoryGame summary)
     {

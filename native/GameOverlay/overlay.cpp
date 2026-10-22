@@ -110,16 +110,26 @@ bool PointerOverOverlay() {
 
 // Games may inspect MSG before DispatchMessage, or poll raw input without
 // dispatching WM_INPUT. WndProc alone cannot prevent those paths from zooming.
+int ScaleCameraWheel(int delta,int& remainder,bool consume=true) {
+    int total=delta*3+remainder,scaled=total/10;
+    if(consume) remainder=total%10;
+    return scaled;
+}
 LRESULT CALLBACK WheelQueueProc(int code,WPARAM removed,LPARAM data) {
+    static thread_local int remainder=0;
+    if(!cameraListening || GetForegroundWindow()!=gameWindow || PointerOverOverlay()) remainder=0;
     if(code==HC_ACTION && data) {
         auto message=reinterpret_cast<MSG*>(data);
         if(message->hwnd==gameWindow && message->message==WM_MOUSEWHEEL && PointerOverOverlay()) {
             if(removed==PM_REMOVE) wheel.fetch_add(GET_WHEEL_DELTA_WPARAM(message->wParam));
             message->message=WM_NULL; message->wParam=0; message->lParam=0;
         }
-        else if(removed==PM_REMOVE && message->hwnd==gameWindow && message->message==WM_MOUSEWHEEL &&
-            cameraListening && GetForegroundWindow()==gameWindow)
-            cameraWheel.fetch_add(GET_WHEEL_DELTA_WPARAM(message->wParam));
+        else if(message->hwnd==gameWindow && message->message==WM_MOUSEWHEEL &&
+            cameraListening && GetForegroundWindow()==gameWindow) {
+            int delta=GET_WHEEL_DELTA_WPARAM(message->wParam);
+            if(removed==PM_REMOVE) cameraWheel.fetch_add(delta);
+            message->wParam=MAKEWPARAM(GET_KEYSTATE_WPARAM(message->wParam),static_cast<WORD>(ScaleCameraWheel(delta,remainder,removed==PM_REMOVE)));
+        }
         else if(removed==PM_REMOVE && message->hwnd==gameWindow &&
             (message->message==WM_MBUTTONDOWN || message->message==WM_MBUTTONDBLCLK) &&
             cameraListening && GetForegroundWindow()==gameWindow && !PointerOverOverlay())
@@ -128,8 +138,15 @@ LRESULT CALLBACK WheelQueueProc(int code,WPARAM removed,LPARAM data) {
     return CallNextHookEx(nullptr,code,removed,data);
 }
 void MaskOverlayRawWheel(RAWINPUT* input,size_t bytes) {
-    if(!input || bytes<offsetof(RAWINPUT,data)+sizeof(RAWMOUSE) || input->header.dwType!=RIM_TYPEMOUSE || !PointerOverOverlay()) return;
+    static thread_local int remainder=0;
+    if(!input || bytes<offsetof(RAWINPUT,data)+sizeof(RAWMOUSE) || input->header.dwType!=RIM_TYPEMOUSE) return;
     auto& mouse=input->data.mouse;
+    if(!cameraListening || GetForegroundWindow()!=gameWindow || PointerOverOverlay()) remainder=0;
+    if(!PointerOverOverlay()) {
+        if(cameraListening && GetForegroundWindow()==gameWindow && (mouse.usButtonFlags&RI_MOUSE_WHEEL))
+            mouse.usButtonData=static_cast<USHORT>(ScaleCameraWheel(static_cast<SHORT>(mouse.usButtonData),remainder));
+        return;
+    }
     if(mouse.usButtonFlags & RI_MOUSE_WHEEL) {
         mouse.usButtonFlags &= ~RI_MOUSE_WHEEL;
         if(!(mouse.usButtonFlags & RI_MOUSE_HWHEEL)) mouse.usButtonData=0;

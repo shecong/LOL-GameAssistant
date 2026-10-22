@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-22",
+  "verified": "Read-only live memory access and local-player F-slot primary cooldown countdown for Hexflash in the inspected build",
+  "not_verified": [
+    "Ordinary Flash 300-second base cooldown",
+    "Q/W/E/R cooldown behavior",
+    "Enemy or allied champion cooldown synchronization",
+    "Fog-of-war behavior",
+    "Other game builds",
+    "Protected-environment compatibility over time",
+    "Frame-by-frame visual HUD agreement",
+    "All active spell identities and charge semantics"
+  ],
+  "mode": "PRACTICETOOL",
+  "champion": "MasterYi",
+  "pid": 41996,
+  "native_samples": 90,
+  "all_native_reads_successful": true,
+  "active_spell_api_id": "SummonerFlashPerksHextechFlashtraptionV2",
+  "base_spell_identifier_observed": "summonerflash",
+  "cycles": [
+    {
+      "cooldown_end_game_seconds": 187.351822,
+      "observed_positive_samples": 17,
+      "duration_seconds": 16.949152,
+      "first_sample": {
+        "game_time": 170.919998,
+        "remaining": 16.431824
+      },
+      "last_positive_sample": {
+        "game_time": 186.936371,
+        "remaining": 0.415451
+      },
+      "first_zero_sample": {
+        "game_time": 187.938477,
+        "remaining": 0
+      }
+    },
+    {
+      "cooldown_end_game_seconds": 229.970596,
+      "observed_positive_samples": 17,
+      "duration_seconds": 16.949152,
+      "first_sample": {
+        "game_time": 213.951614,
+        "remaining": 16.018982
+      },
+      "last_positive_sample": {
+        "game_time": 229.949799,
+        "remaining": 0.020798
+      },
+      "first_zero_sample": {
+        "game_time": 230.965179,
+        "remaining": 0
+      }
+    }
+  ],
+  "clock_crosscheck": {
+    "api_read_after_native_read": true,
+    "median_sequential_sample_skew_seconds": 0.02227768798827867,
+    "max_abs_sequential_sample_skew_seconds": 0.16685460546875674,
+    "note": "Sequential request skew is not a measurement of cooldown error"
+  },
+  "inspected_build_timestamp": 1792188909,
+  "inspected_build_image_size": 32555008,
+  "inspected_structure": {
+    "local_player_rva": "0x1cbb718",
+    "slots_player_offset": "0x3388",
+    "slot_pointer_stride": 8,
+    "f_slot_index": 5,
+    "slot_rank_offset": "0x28",
+    "primary_cooldown_end_offset": "0x38",
+    "secondary_end_offset_not_behaviorally_verified": "0x74",
+    "duration_offset": "0x80",
+    "stored_slot_index_offset": "0x100",
+    "game_clock_manager_rva": "0x1c7beb0",
+    "game_clock_scale_rva": "0x1d3bd08"
+  },
+  "saved_code_evidence": {
+    "source": "tmp/skin-adaptation/runtime-code.bin",
+    "remaining_cooldown_getter_rva": "0x721ab0",
+    "meaning": "Reads game time; subtracts it from slot +0x38; conditionally includes +0x74 for a special state; clamps at zero",
+    "live_v4_full_getter_fingerprint_check": "Not run successfully: game had exited; see timers-fingerprint-confirmed.json"
+  },
+  "method": {
+    "external_read": "Module enumeration and PEB ReadProcessMemory denied with Win32 error 5",
+    "successful_read": "Isolated probe through standard WH_GETMESSAGE message bridge",
+    "gameplay_fields_written": false,
+    "game_functions_called_to_change_state": false,
+    "user_performed_skill_casts": true,
+    "all_sample_hooks_removed": true,
+    "dll_unload_verified": false,
+    "production_files_changed": false
+  }
+}

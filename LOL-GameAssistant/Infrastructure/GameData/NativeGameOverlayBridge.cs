@@ -70,8 +70,9 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         {
             if (_disposed) return;
             if (pixels==null && _panels.TryGetValue(panel.Kind,out var existing) &&
-                existing.Panel with { Items=null } == panel with { Items=null } &&
-                (existing.Panel.Items ?? []).SequenceEqual(panel.Items ?? [])) return;
+                existing.Panel with { Items=null, ItemStyles=null } == panel with { Items=null, ItemStyles=null } &&
+                (existing.Panel.Items ?? []).SequenceEqual(panel.Items ?? []) &&
+                (existing.Panel.ItemStyles ?? []).SequenceEqual(panel.ItemStyles ?? [])) return;
             _panels[panel.Kind] = new(panel, pixels, width, height); _panelsDirty = true; _dirtyPanels.Add(panel.Kind);
             if (panel.Kind == GameOverlayPanelKind.Battle) ++_battleVersion;
             Flush();
@@ -114,7 +115,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         }
     }
 
-    public bool ReadCameraMoveTo600()
+    public bool ReadCameraReset()
     {
         lock (_gate)
         {
@@ -173,7 +174,25 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                     view.Write(AuxOffset + 80, Math.Max(0, p.Page)); view.Write(AuxOffset + 84, Math.Max(1, p.PageCount));
                     view.Write(AuxOffset + 88, p.CameraEnabled ? 1 : 0); view.Write(AuxOffset + 92, p.CameraReady ? 1 : 0);
                     WriteText(view, AuxOffset + 4480, 256, p.Title); WriteText(view, AuxOffset + 4736, 2048, p.Body);
-                    for (int i = 0; i < Math.Min(256, p.Items?.Count ?? 0); i++) WriteText(view, AuxOffset + 6784 + i * 192, 192, p.Items![i]);
+                    for (int i = 0; i < 256; i++)
+                    {
+                        uint prefixBytes = 0, color = 0;
+                        if (i < (p.Items?.Count ?? 0))
+                        {
+                            WriteText(view, AuxOffset + 6784 + i * 192, 192, p.Items![i]);
+                            if (i < (p.ItemStyles?.Count ?? 0) && p.Items[i].StartsWith(p.ItemStyles![i].Prefix, StringComparison.Ordinal))
+                            {
+                                var style = p.ItemStyles[i]; int length = Encoding.UTF8.GetByteCount(style.Prefix);
+                                if (length > 0 && length < 192)
+                                {
+                                    prefixBytes = (uint)length;
+                                    color = (uint)(style.Color.R | style.Color.G << 8 | style.Color.B << 16 | 255 << 24);
+                                }
+                            }
+                        }
+                        view.Write(AuxOffset + 55936 + i * 4, prefixBytes);
+                        view.Write(AuxOffset + 56960 + i * 4, color);
+                    }
                     break;
             }
         }

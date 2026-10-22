@@ -13,6 +13,7 @@ public sealed class SkinCameraServiceTests
     {
         public float Distance = 600.25f;
         public float ViewDistance = 2250f, ViewTarget = 1800f;
+        public float DefaultViewDistance = 2250f;
         public bool ViewMismatch;
         public string CameraId = "abcdef1234567890";
         public bool Mismatch, Unknown;
@@ -30,7 +31,7 @@ public sealed class SkinCameraServiceTests
             }
             return Task.FromResult(new SkinCoreReply { Ok = true, Independent = true, OriginalRequired = false,
                 StateVerified = true, TransportHookReleased = true, Invoked = args[0] is "camera" or "restore" or "camera-view", Session = Session,
-                CameraViewDistance = ViewDistance, CameraViewTarget = ViewTarget, CameraViewId = "aabbccdd11223344",
+                CameraDefaultViewDistance = DefaultViewDistance, CameraViewDistance = ViewDistance, CameraViewTarget = ViewTarget, CameraViewId = "aabbccdd11223344",
                 ReferenceSha256 = "profile", CameraId = CameraId, CameraDistance = Distance, Model = "Lux", ActiveModel = "Lux", ActiveSkin = 0,
                 Entries = [new() { EntryId = "0:-1", Model = "Lux", Name = "Base" }] });
         }
@@ -42,7 +43,9 @@ public sealed class SkinCameraServiceTests
         await core.GetCameraAsync(); await core.SetCameraAsync(Session, 1700); await core.GetCameraAsync();
         await core.SetCameraAsync(Session, 1200); await core.RestoreCameraAsync(Session);
         Assert.Equal(600.25f, transport.Distance);
-        Assert.Equal(new[] { "camera", Session, "600.25", "1200" }, transport.Calls.Last());
+        Assert.Equal(new[] { "camera", Session, "600.25", "1200" }, transport.Calls.Last(c => c[0] == "camera"));
+        Assert.Equal(2250, transport.ViewDistance); Assert.Equal(2250, transport.ViewTarget);
+        Assert.Equal(new[] { "camera-view", Session, "2250" }, transport.Calls.Last());
     }
     [Fact]
     public async Task MoveChangesCurrentAndTargetWithoutChangingConfiguration()
@@ -54,6 +57,23 @@ public sealed class SkinCameraServiceTests
         Assert.Equal(new[] { "camera-view", Session, "600" }, transport.Calls.Last());
         await core.RestoreCameraAsync(Session);
         Assert.DoesNotContain(transport.Calls, c => c[0] == "camera");
+        Assert.Equal(2250, transport.ViewDistance); Assert.Equal(2250, transport.ViewTarget);
+    }
+
+    [Theory]
+    [InlineData(2250f)] [InlineData(2400f)]
+    public async Task PartialRestoreRetriesOriginalViewWithoutRewritingRestoredLimit(float originalView)
+    {
+        var transport = new CameraTransport { DefaultViewDistance = originalView };
+        var core = new NativeSkinCoreService(transport); core.SetEnabled(true);
+        await core.SetCameraAsync(Session, 1700);
+        transport.ViewMismatch = true;
+        var error = await Assert.ThrowsAsync<SkinCoreException>(() => core.RestoreCameraAsync(Session));
+        Assert.True(error.OutcomeUnknown); Assert.Equal(600.25f, transport.Distance);
+        transport.ViewMismatch = false;
+        await core.RestoreCameraAsync(Session);
+        Assert.Equal(originalView, transport.ViewDistance); Assert.Equal(originalView, transport.ViewTarget);
+        Assert.Equal(2, transport.Calls.Count(c => c[0] == "camera"));
     }
     [Fact]
     public async Task MoveRejectsStaleSessionAndUnverifiedCurrentView()

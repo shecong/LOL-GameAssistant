@@ -216,7 +216,8 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
         OpggBuildOption option,
         CancellationToken cancellationToken = default,
         bool allowReplaceCurrentRunePage = false,
-        bool applySummonerSpells = true)
+        bool applySummonerSpells = true,
+        bool applyItemSet = true)
     {
         if (championId <= 0)
             return OpggBuildApplyResult.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
@@ -254,14 +255,17 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch (Exception ex) { failed.Add($"符文页：{ex.Message}"); }
             }
-            string itemResult = "物品集未写入";
-            try
+            string itemResult = "本次保留当前物品集";
+            if (applyItemSet)
             {
-                itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
-                completed.Add("物品集");
+                try
+                {
+                    itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
+                    completed.Add("物品集");
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex) { failed.Add($"物品集：{ex.Message}"); }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-            catch (Exception ex) { failed.Add($"物品集：{ex.Message}"); }
             string spellResult = "当前未处于选人阶段，召唤师技能需在选人时应用";
             if (applySummonerSpells)
             {

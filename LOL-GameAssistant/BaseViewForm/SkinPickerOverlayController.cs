@@ -17,6 +17,7 @@ internal sealed class SkinPickerOverlayController : IDisposable
     private bool _cameraEnabled, _cameraReady;
     private readonly IGameOverlayBridge _overlay;
     private (string Id, string Name)[] _items = [];
+    private GameOverlayItemStyle[] _styles = [];
     private string _title = "游戏换肤", _status = "";
     private string? _selected;
     private bool _ready, _canRefresh;
@@ -42,11 +43,12 @@ internal sealed class SkinPickerOverlayController : IDisposable
         };
     }
     internal void SetState((string Id, string Name)[] items, string? selected, string status, bool ready, bool canRefresh,
-        SkinPickerCategory category = SkinPickerCategory.Hero, string scope = "")
+        SkinPickerCategory category = SkinPickerCategory.Hero, string scope = "", GameOverlayItemStyle[]? styles = null)
     {
-        if (!_items.SequenceEqual(items) || category != _category || scope != _scope)
+        if (!_items.SequenceEqual(items) || !_styles.SequenceEqual(styles ?? []) || category != _category || scope != _scope)
         {
             _items = items.ToArray(); ++_version;
+            _styles = styles?.ToArray() ?? [];
             int selectedIndex = Array.FindIndex(_items, item => item.Id == selected);
             _page = Math.Max(0, selectedIndex) / PageSize;
         }
@@ -90,7 +92,8 @@ internal sealed class SkinPickerOverlayController : IDisposable
         _overlay.PublishPanel(new(GameOverlayPanelKind.SkinPicker, _title, _status,
             Items: _items.Skip(_page * PageSize).Take(PageSize).Select(p => p.Name).ToArray(), Selected: Array.FindIndex(_items, p => p.Id == _selected) - _page * PageSize,
             Ready: _ready, CanRefresh: _canRefresh, Version: _version, Category: (int)_category, Page: _page, PageCount: PageCount,
-            CameraEnabled: _cameraEnabled, CameraReady: _cameraReady));
+            CameraEnabled: _cameraEnabled, CameraReady: _cameraReady,
+            ItemStyles: _styles.Skip(_page * PageSize).Take(PageSize).ToArray()));
     }
     public void Hide()
     {

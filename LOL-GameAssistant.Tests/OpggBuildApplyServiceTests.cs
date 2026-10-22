@@ -12,6 +12,22 @@ namespace LOL_GameAssistant.Tests;
 public sealed class OpggBuildApplyServiceTests
 {
     [Fact]
+    public async Task RuneOnlyApplicationPreservesItemsAndDoesNotDependOnItemWriteAvailability()
+    {
+        var lcu = new FakeLcuRequestSender(2, 0) { FailItemWrite = true };
+        lcu.ItemSets["itemSets"] = JArray.Parse("""[{"uid":"manual","title":"自己的出装"}]""");
+        var originalItems = lcu.ItemSets.DeepClone();
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption(),
+            applySummonerSpells: false, applyItemSet: false);
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(CreateOption().RunePerkIds, Assert.Single(lcu.RunePages)["selectedPerkIds"]!.Values<int>());
+        Assert.True(JToken.DeepEquals(originalItems, lcu.ItemSets));
+        Assert.DoesNotContain(lcu.PutEndpoints, endpoint => endpoint.Contains("item-sets"));
+        Assert.Empty(lcu.PatchEndpoints);
+    }
+
+    [Fact]
     public async Task RepeatedBuildsAcrossChampionsReplaceOneManagedSetAndKeepManualConfigurations()
     {
         var manualPage = new JObject { ["id"] = 11, ["name"] = "自己保存的符文", ["current"] = true };

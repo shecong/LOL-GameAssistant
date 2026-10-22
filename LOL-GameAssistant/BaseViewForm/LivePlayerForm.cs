@@ -40,7 +40,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly int _currentQueueId;
         private readonly string _currentGameMode;
         private readonly Color _teamColor;
-        private const int RecentGamesCount = MatchDataPolicy.VisibleRecentGames;
 
         /// <summary>单次获取摘要；只有最近十场的展示行读取详情。</summary>
         private const int HistoryFetchCount = MatchDataPolicy.SummaryLimit;
@@ -545,14 +544,22 @@ namespace LOL_GameAssistant.BaseViewForm
             if (history?.Games?.Games == null || IsDisposed) return;
             cancellationToken.ThrowIfCancellationRequested();
             SetRecentEncounterHistory(history);
-            var games = history.Games.Games.OrderByDescending(game => game.GameCreation)
-                .Where(game => game.GameId > 0).DistinctBy(game => game.GameId).Take(RecentGamesCount).ToArray();
+            RenderVisibleHistory(history);
+            await CompleteAssessmentAsync(history);
+            _loadingStage = "摘要已显示";
+            RuntimeDiagnostics.Report("对局摘要列表", "已显示", $"{LayoutHistory.Count} 行 · {timer.ElapsedMilliseconds}ms");
+        }
+
+        private void RenderVisibleHistory(MatchHistoryResponse history)
+        {
+            if (history.Games == null) return;
+            var games = LayoutHistory;
             var iconTasks = new List<Task>();
             panelMatches.SuspendLayout();
             try
             {
                 ControlLifetime.ClearAndDispose(panelMatches);
-                if (games.Length == 0 && history.Games.MissingSummaryCount > 0) panelMatches.Controls.Add(new AntdUI.Label
+                if (games.Count == 0 && history.Games.MissingSummaryCount > 0) panelMatches.Controls.Add(new AntdUI.Label
                 {
                     Text = history.Games.DataWarning, Height = 48,
                     ForeColor = UiTheme.Palette.TextSecondary, Padding = new Padding(8)
@@ -567,21 +574,22 @@ namespace LOL_GameAssistant.BaseViewForm
                     panelMatches.Controls.Add(row);
                     iconTasks.Add(row.SetSummaryAsync(game, _playerPuuid!));
                 }
-                if (games.Length == 0 && history.Games.MissingSummaryCount == 0) panelMatches.Controls.Add(new AntdUI.Label
+                if (games.Count == 0 && history.Games.MissingSummaryCount == 0) panelMatches.Controls.Add(new AntdUI.Label
                 {
-                    Text = "暂无战绩", AutoSize = true, ForeColor = UiTheme.Palette.TextSecondary, Padding = new Padding(8)
+                    Text = HistoryFilter == LiveHistoryFilter.CurrentMode ? "已获取摘要中暂无当前模式战绩" : "暂无战绩", AutoSize = true, ForeColor = UiTheme.Palette.TextSecondary, Padding = new Padding(8)
                 });
             }
             finally { panelMatches.ResumeLayout(); }
             if (_historyHeading != null)
-                _historyHeading.Text = $"最近战绩 · {games.Length} 场" + (games.Length > 0 ? " · 向下滚动查看" : "");
+                _historyHeading.Text = $"{(HistoryFilter == LiveHistoryFilter.CurrentMode ? "当前模式" : "最近战绩")} · {games.Count} 场" + (games.Count > 0 ? " · 向下滚动查看" : "");
             ResizeMatchRows();
             // 文字立即显示，图标各自异步补齐，不阻塞评级和卡片完成。
             _ = Task.WhenAll(iconTasks);
-            await CompleteAssessmentAsync(history);
-            _loadingStage = "摘要已显示";
-            RuntimeDiagnostics.Report("对局摘要列表", "已显示",
-                $"{games.Length} 行 · 无预加载详情 · {timer.ElapsedMilliseconds}ms（含摘要等待）");
+            var results = games.Select(game => game.GetParticipant(_playerPuuid!)?.stats)
+                .Where(stats => stats?.HasWinResult == true).ToArray();
+            RecentWins = results.Count(stats => stats!.Win);
+            RecentSampleSize = results.Length;
+            OverviewChanged?.Invoke(this, EventArgs.Empty);
         }
         private async Task CompleteAssessmentAsync(MatchHistoryResponse matchlists)
         {
@@ -666,8 +674,6 @@ namespace LOL_GameAssistant.BaseViewForm
             var statistics = PlayerAnalysisCoordinator.Analyze(firstPage, _playerPuuid!, _currentQueueId, _currentGameMode,
                 LolGameModeNames.GetModeText(_currentQueueId.ToString(), _currentGameMode));
             var assessment = statistics.Assessment with { Detail = $"{_historySnapshot?.ScopeText}。{statistics.Assessment.Detail}" };
-            RecentWins = statistics.RecentResults.Count(win => win);
-            RecentSampleSize = statistics.RecentResults.Count;
             OverviewChanged?.Invoke(this, EventArgs.Empty);
 
             string label = RecentPerformanceLabelFormatter.GetText(assessment);

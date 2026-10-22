@@ -141,7 +141,7 @@ public partial class LiveGameForm
         _teamOverview1.Text = DescribeTeam(panelTeam1.Controls.OfType<LivePlayerForm>());
         _teamOverview2.Text = DescribeTeam(panelTeam2.Controls.OfType<LivePlayerForm>());
         int count = panelTeam1.Controls.OfType<LivePlayerForm>().Count() + panelTeam2.Controls.OfType<LivePlayerForm>().Count();
-        _gameSubtitle.Text = count == 0 ? "等待进入大厅、选人或对局" : $"{_modeDescription}  |  {panelTeam1.Controls.OfType<LivePlayerForm>().Count()}v{panelTeam2.Controls.OfType<LivePlayerForm>().Count()}  |  {count} 名玩家  |  每人最近 10 场战绩";
+        _gameSubtitle.Text = count == 0 ? "等待进入大厅、选人或对局" : $"{_modeDescription}  |  {panelTeam1.Controls.OfType<LivePlayerForm>().Count()}v{panelTeam2.Controls.OfType<LivePlayerForm>().Count()}  |  {count} 名玩家  |  {(_historyFilter == LOL_GameAssistant.Domain.Matches.LiveHistoryFilter.CurrentMode ? "每人当前模式最近 10 场" : "每人最近 10 场战绩")}";
         _teamOverview1.ForeColor = _teamOverview2.ForeColor = _gameSubtitle.ForeColor = UiTheme.Palette.TextSecondary;
         SyncDisplayLayout();
     }

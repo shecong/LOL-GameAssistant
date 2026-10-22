@@ -23,7 +23,7 @@ struct CameraViewPair {float current,target;};
 static_assert(sizeof(CameraViewPair)==8);
 static bool validCameraView(float value) {return std::isfinite(value) && value>=100.f && value<=10000.f;}
 static bool cameraMove(CameraViewPair* fields,CameraViewPair expected,float selected) {
-    if((uintptr_t)fields%8 || !cameraDistance(selected) || !validCameraView(expected.current) || !validCameraView(expected.target) || !cameraWritable(fields,8))return false;
+    if((uintptr_t)fields%8 || !validCameraView(selected) || !validCameraView(expected.current) || !validCameraView(expected.target) || !cameraWritable(fields,8))return false;
     LONG64 before,after;CameraViewPair values{selected,selected};memcpy(&before,&expected,8);memcpy(&after,&values,8);
     return InterlockedCompareExchange64((volatile LONG64*)fields,after,before)==before;
 }
@@ -38,8 +38,11 @@ static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* i
     if(!objectReadable(config,0xa0) || !cameraWritable(config+0x20)) {fail(r,"camera_unavailable");return;}
     float* field=(float*)(config+0x20);float value=*field;
     if(!cameraDistance(value)){fail(r,"camera_state_not_supported");return;}
+    float defaultView=*(float*)(config+0x28);
+    if(!validCameraView(defaultView)){fail(r,"camera_default_view_not_verified");return;}
     if(r->command==17) {
         if(strcmp(r->session,c->session)){fail(r,"stale_session");return;}
+        if(!cameraDistance(cameraFloat(r->index)) && cameraFloat(r->index)!=defaultView){fail(r,"invalid_camera_distance");return;}
         if(memcmp(c->base+0x65ae96,CameraViewLookup,sizeof(CameraViewLookup)) || memcmp(c->base+0x98a028,CameraViewInit,sizeof(CameraViewInit))) {fail(r,"camera_view_profile_not_supported");return;}
         BYTE* manager=*(BYTE**)(c->base+CameraManagerSlot);
         if(!objectReadable(manager,0x20)){fail(r,"camera_view_unavailable");return;}
@@ -49,7 +52,7 @@ static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* i
         if(!cameraMove(fields,expected,cameraFloat(r->index))){fail(r,"camera_view_state_changed");return;}
         *invoked=true;CameraViewPair actual;memcpy(&actual,fields,8);
         uint64_t identity=digest(modelHash(c->session),&config,sizeof(config)),viewIdentity=digest(modelHash(c->session),&camera,sizeof(camera));
-        append(w,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"session\":\"%s\",\"reference_sha256\":\"%s\",\"request_id\":\"%016llx\",\"camera_id\":\"%016llx\",\"camera_distance\":%.9g,\"camera_view_id\":\"%016llx\",\"camera_view_distance\":%.9g,\"camera_view_target\":%.9g,\"invoked\":true,\"state_verified\":%s}",c->session,GameProfileSha,r->nonce,identity,(double)value,viewIdentity,(double)actual.current,(double)actual.target,(actual.current==cameraFloat(r->index) && actual.target==actual.current)?"true":"false");
+        append(w,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"session\":\"%s\",\"reference_sha256\":\"%s\",\"request_id\":\"%016llx\",\"camera_id\":\"%016llx\",\"camera_default_view_distance\":%.9g,\"camera_distance\":%.9g,\"camera_view_id\":\"%016llx\",\"camera_view_distance\":%.9g,\"camera_view_target\":%.9g,\"invoked\":true,\"state_verified\":%s}",c->session,GameProfileSha,r->nonce,identity,(double)defaultView,(double)value,viewIdentity,(double)actual.current,(double)actual.target,(actual.current==cameraFloat(r->index) && actual.target==actual.current)?"true":"false");
         return;
     }
     if(r->command==16) {
@@ -60,6 +63,6 @@ static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* i
         *invoked=true;value=*field;
     }
     uint64_t identity=digest(modelHash(c->session),&config,sizeof(config));
-    append(w,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"session\":\"%s\",\"reference_sha256\":\"%s\",\"request_id\":\"%016llx\",\"camera_id\":\"%016llx\",\"camera_distance\":%.9g,\"invoked\":%s,\"state_verified\":%s}",
-        c->session,GameProfileSha,r->nonce,identity,(double)value,*invoked?"true":"false",(r->command==15 || value==cameraFloat(r->index))?"true":"false");
+    append(w,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"session\":\"%s\",\"reference_sha256\":\"%s\",\"request_id\":\"%016llx\",\"camera_id\":\"%016llx\",\"camera_default_view_distance\":%.9g,\"camera_distance\":%.9g,\"invoked\":%s,\"state_verified\":%s}",
+        c->session,GameProfileSha,r->nonce,identity,(double)defaultView,(double)value,*invoked?"true":"false",(r->command==15 || value==cameraFloat(r->index))?"true":"false");
 }

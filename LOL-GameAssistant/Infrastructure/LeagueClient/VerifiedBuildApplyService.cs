@@ -27,8 +27,8 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
     {
         var account = await Read("/lol-summoner/v1/current-summoner", token).ConfigureAwait(false) as JObject;
         string? puuid = account?.Value<string>("puuid"); long id = account?.Value<long?>("summonerId") ?? 0;
-        var phase = (await lcu.GetStringAsync("/lol-gameflow/v1/gameflow-phase", token).ConfigureAwait(false))?.Trim('"');
-        if (string.IsNullOrWhiteSpace(puuid) || id <= 0 || phase is not ("Lobby" or "ChampSelect" or "None")) return null;
+        var phase = (await Read("/lol-gameflow/v1/gameflow-phase", token).ConfigureAwait(false))?.Value<string>();
+        if (string.IsNullOrWhiteSpace(puuid) || id <= 0 || phase is not ("Lobby" or "ChampSelect" or "None" or "Matchmaking" or "ReadyCheck")) return null;
         var pages = await Read("/lol-perks/v1/pages", token).ConfigureAwait(false) as JArray;
         if (pages == null) return null;
         string endpoint = $"/lol-item-sets/v1/item-sets/{id}/sets";
@@ -39,8 +39,9 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
     }
     private async Task<bool> SameAccount(Snapshot snapshot, CancellationToken token) =>
         (await Read("/lol-summoner/v1/current-summoner", token).ConfigureAwait(false))?.Value<string>("puuid") == snapshot.Account;
-    private async Task<OpggBuildApplyResult> Apply(Func<CancellationToken, Task<OpggBuildApplyResult>> action,
-        int championId, IReadOnlyList<int> runes, IReadOnlyList<int> items, IReadOnlyList<int> spells, CancellationToken token)
+    private async Task<OpggBuildApplyResult> Apply(Func<CancellationToken, bool, Task<OpggBuildApplyResult>> action,
+        int championId, IReadOnlyList<int> runes, IReadOnlyList<int> items, IReadOnlyList<int> spells, CancellationToken token,
+        bool allowSkipItems = false)
     {
         await _gate.WaitAsync(token).ConfigureAwait(false);
         using var scope = CancellationTokenSource.CreateLinkedTokenSource(token, _context.Token);
@@ -48,11 +49,13 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
         {
             var snapshot = await Capture(scope.Token).ConfigureAwait(false);
             if (snapshot == null) return OpggBuildApplyResult.Failure("无法确认当前账号、可配置阶段或符文页，未开始写入");
-            if (items.Count > 0 && snapshot.Items?["itemSets"] is not JArray) return OpggBuildApplyResult.Failure("物品集现状未读取到，未写入；请稍后重试");
+            bool skipItems = items.Count > 0 && snapshot.Items?["itemSets"] is not JArray;
+            if (skipItems && (!allowSkipItems || runes.Count < 6 && (spells.Count != 2 || snapshot.Selection == null)))
+                return OpggBuildApplyResult.Failure("物品集现状未读取到，未写入；请稍后重试");
             Directory.CreateDirectory(_storage); string file = FileName(snapshot.Account), temp = file + ".tmp";
             await File.WriteAllTextAsync(temp, JsonConvert.SerializeObject(snapshot), scope.Token).ConfigureAwait(false); File.Move(temp, file, true);
             OpggBuildApplyResult result;
-            try { result = await action(scope.Token).ConfigureAwait(false); }
+            try { result = await action(scope.Token, !skipItems).ConfigureAwait(false); }
             finally
             {
                 // Also retain the observed partial result when a write fails or is cancelled.
@@ -76,7 +79,7 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
                 var current = await Read("/lol-perks/v1/currentpage", scope.Token).ConfigureAwait(false);
                 if (current?["selectedPerkIds"]?.Values<int>().SequenceEqual(runes) != true) failed.Add("符文页");
             }
-            if (items.Count > 0)
+            if (items.Count > 0 && !skipItems)
             {
                 var current = await Read(snapshot.ItemEndpoint, scope.Token).ConfigureAwait(false);
                 bool verified = (current?["itemSets"] as JArray ?? []).OfType<JObject>()
@@ -89,6 +92,7 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
                 var current = await Read("/lol-champ-select/v1/session/my-selection", scope.Token).ConfigureAwait(false);
                 if (current?.Value<int?>("spell1Id") != spells[0] || current?.Value<int?>("spell2Id") != spells[1]) failed.Add("召唤师技能");
             }
+            if (skipItems) result = result with { Message = result.Message + "；物品集暂不可读取，本次保留原出装，仅应用可用的符文与召唤师技能" };
             return failed.Count > 0 ? OpggBuildApplyResult.Failure(result.Message + $"；读取核验未通过：{string.Join("、", failed)}。应用前快照已保留，可手动恢复")
                 : result with { Message = result.Message + "；已读取核验，应用前快照已保留" };
         }
@@ -97,12 +101,13 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
         finally { _gate.Release(); }
     }
     public Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(PersonalRunePreset preset, CancellationToken token = default) =>
-        Apply(t => inner.ApplyPersonalRunePresetAsync(preset, t), preset.ChampionId, preset.RunePerkIds,
+        Apply((t, _) => inner.ApplyPersonalRunePresetAsync(preset, t), preset.ChampionId, preset.RunePerkIds,
             (preset.ItemBlocks ?? []).SelectMany(b => b.ItemIds).ToArray(), preset.SummonerSpellIds, token);
     public Task<OpggBuildApplyResult> ApplyBuildAsync(int id, string? position, OpggBuildOption option, CancellationToken token = default,
-        bool allowReplaceCurrentRunePage = false, bool applySummonerSpells = true) =>
-        Apply(t => inner.ApplyBuildAsync(id, position, option, t, allowReplaceCurrentRunePage, applySummonerSpells), id, option.RunePerkIds,
-            option.CoreItemIds, applySummonerSpells ? option.SummonerSpellIds ?? [] : [], token);
+        bool allowReplaceCurrentRunePage = false, bool applySummonerSpells = true, bool applyItemSet = true) =>
+        Apply((t, canApplyItems) => inner.ApplyBuildAsync(id, position, option, t, allowReplaceCurrentRunePage,
+                applySummonerSpells, applyItemSet && canApplyItems), id, option.RunePerkIds,
+            applyItemSet ? option.CoreItemIds : [], applySummonerSpells ? option.SummonerSpellIds ?? [] : [], token, allowSkipItems: true);
     public async Task<OpggBuildApplyResult> ApplyForChampionAsync(int id, string? position, CancellationToken token = default)
     { var choices = await GetBuildChoicesAsync(id, position, token).ConfigureAwait(false); return choices.Options.FirstOrDefault() is { } option ? await ApplyBuildAsync(id, position, option, token).ConfigureAwait(false) : OpggBuildApplyResult.Failure(choices.Message); }
     public async Task<OpggBuildApplyResult> RestoreLastConfigurationAsync(CancellationToken token = default)
@@ -119,7 +124,8 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
             var removed = saved.Pages.OfType<JObject>().Where(p => Find(applied.Pages, p) == null).ToArray();
             var changed = saved.Pages.OfType<JObject>().Where(p => Find(applied.Pages, p) != null && !PageEquals(p, Find(applied.Pages, p))).ToArray();
             var created = applied.Pages.OfType<JObject>().Where(p => Find(saved.Pages, p) == null).ToArray();
-            bool itemsChanged = !JToken.DeepEquals(saved.Items?["itemSets"], applied.Items?["itemSets"]);
+            // Missing item baseline means the recommended-build path skipped item writes.
+            bool itemsChanged = saved.Items?["itemSets"] is JArray && !JToken.DeepEquals(saved.Items?["itemSets"], applied.Items?["itemSets"]);
             bool spellsChanged = !SpellsEqual(saved.Selection, applied.Selection);
             bool selectionChanged = saved.CurrentPage?.Value<long?>("id") != applied.CurrentPage?.Value<long?>("id");
             // Preflight every affected field before the first write; later manual changes remain untouched.

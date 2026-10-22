@@ -16,6 +16,7 @@ public sealed record SkinEntry
 public sealed record SkinCoreReply
 {
     public float CameraDistance { get; init; }
+    public float CameraDefaultViewDistance { get; init; }
     public float? CameraViewDistance { get; init; }
     public float? CameraViewTarget { get; init; }
     public string CameraViewId { get; init; } = "";

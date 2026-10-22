@@ -59,12 +59,20 @@ public sealed class GameOverlayProtocolTests
         Assert.Equal(1,view.ReadInt32(aux+52)); Assert.Equal(8,view.ReadInt32(aux+60));
         Assert.Equal(2,view.ReadInt32(aux+76)); Assert.Equal(1,view.ReadInt32(aux+80)); Assert.Equal(3,view.ReadInt32(aux+84));
         Assert.Equal(1, view.ReadInt32(aux+88)); Assert.Equal(1, view.ReadInt32(aux+92));
+        var gold = Color.FromArgb(255, 211, 74);
+        bridge.PublishPanel(new(GameOverlayPanelKind.SkinPicker, Items: ["【终极】大元素使"],
+            ItemStyles: [new("【终极】", gold)]));
+        Assert.Equal(Encoding.UTF8.GetByteCount("【终极】"), view.ReadInt32(aux + 55936));
+        Assert.Equal(0xff4ad3ffu, view.ReadUInt32(aux + 56960));
+        bridge.PublishPanel(new(GameOverlayPanelKind.SkinPicker, Items: ["眼位"]));
+        Assert.Equal(0u, view.ReadUInt32(aux + 55936));
+        Assert.Equal(0u, view.ReadUInt32(aux + 56960));
         view.Write(aux+96, -240);
         bridge.PublishPanel(new(GameOverlayPanelKind.Camera));
         Assert.Equal(1|2|8|16, view.ReadInt32(aux));
         Assert.Equal(-240, bridge.ReadCameraWheel()); Assert.Equal(0, bridge.ReadCameraWheel());
         view.Write(aux+96, -120); view.Write(aux+100, 1);
-        Assert.True(bridge.ReadCameraMoveTo600()); Assert.False(bridge.ReadCameraMoveTo600());
+        Assert.True(bridge.ReadCameraReset()); Assert.False(bridge.ReadCameraReset());
         Assert.Equal(0, bridge.ReadCameraWheel());
         bridge.HidePanel(GameOverlayPanelKind.Camera);
         Assert.Equal(new GameOverlayPanelCommand(1,2,7),bridge.ReadPanelCommand(GameOverlayPanelKind.SkinPicker));

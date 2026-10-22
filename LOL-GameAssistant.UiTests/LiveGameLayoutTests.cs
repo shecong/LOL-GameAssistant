@@ -61,6 +61,9 @@ public sealed class LiveGameLayoutTests
         System.Windows.Forms.Application.DoEvents();
         Assert.True(selector.Visible);
         Assert.True(selector.Right <= main.ClientSize.Width);
+        var settingsButton = Find(main, "liveGameSettings");
+        Assert.True(settingsButton.Visible);
+        Assert.True(settingsButton.Left >= selector.Right);
         selector.SelectedIndex = 2;
         Assert.Equal(LiveGameLayout.RoleComparison, stored.LiveGameLayout);
         Assert.Equal(LiveGameLayout.RoleComparison, main.liveGameForm.DisplayLayout);
@@ -68,6 +71,7 @@ public sealed class LiveGameLayoutTests
         main.ClientSize = new Size(1080, 740);
         System.Windows.Forms.Application.DoEvents();
         Assert.True(selector.Right <= main.ClientSize.Width);
+        Assert.True(settingsButton.Left >= selector.Right);
         string? screenshots = Environment.GetEnvironmentVariable("LIVE_LAYOUT_SCREENSHOTS");
         if (!string.IsNullOrEmpty(screenshots))
         {

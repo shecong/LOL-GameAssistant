@@ -113,7 +113,7 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
         try {
             await _gate.WaitAsync(token).ConfigureAwait(false); acquired = true; Check(revision);
             bool cameraRestored = true;
-            if (_cameraSession == session && _cameraChanged)
+            if (_cameraSession == session && (_cameraChanged || _cameraViewChanged))
             {
                 try { await RestoreCameraInternalAsync(revision, session, token).ConfigureAwait(false); }
                 catch (SkinCoreException error) { cameraRestored = false; Log(new { stage = "stop_camera_restore_failed", error.Code, error.OutcomeUnknown }); }

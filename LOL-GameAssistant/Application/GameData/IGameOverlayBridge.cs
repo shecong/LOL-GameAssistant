@@ -9,7 +9,7 @@ public interface IGameOverlayBridge : IDisposable
     void HidePanel(GameOverlayPanelKind kind) { }
     GameOverlayPanelCommand? ReadPanelCommand(GameOverlayPanelKind kind) => null;
     int ReadCameraWheel() => 0;
-    bool ReadCameraMoveTo600() => false;
+    bool ReadCameraReset() => false;
     Task<GameOverlayCapture?> CaptureAsync(CancellationToken cancellationToken = default);
 }
 
@@ -22,7 +22,9 @@ public enum GameOverlayPanelKind { Battle = 1, Coaching = 2, SkinNotice = 4, Ski
 public sealed record GameOverlayPanel(GameOverlayPanelKind Kind, string Title = "", string Body = "", string Detail = "",
     Bitmap? Image = null, IReadOnlyList<string>? Items = null, int Selected = -1, bool Ready = true, bool CanRefresh = true,
     long Deadline = 0, int Position = 0, int OffsetX = 24, int OffsetY = 24, int Version = 0, int Category = 0, int Page = 0, int PageCount = 1,
-    bool CameraEnabled = false, bool CameraReady = true);
+    bool CameraEnabled = false, bool CameraReady = true, IReadOnlyList<GameOverlayItemStyle>? ItemStyles = null);
+
+public sealed record GameOverlayItemStyle(string Prefix, Color Color);
 
 public sealed record GameOverlayPanelCommand(int Action, int Argument, int Version);
 

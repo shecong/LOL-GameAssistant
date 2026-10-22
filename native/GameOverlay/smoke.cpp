@@ -5,6 +5,7 @@
 #include <wrl/client.h>
 #include <cstdio>
 #include <cstring>
+#include <algorithm>
 using Microsoft::WRL::ComPtr;
 using namespace overlay;
 static void Check(bool condition, const char* message) { if (!condition) { printf("FAIL: %s\n", message); fflush(stdout); ExitProcess(1); } }
@@ -209,13 +210,32 @@ int main(int argc, char** argv) {
     frame->mayhemEnabled=0; aux->flags=2|4|8;
     strcpy_s(aux->coachTitle,"当前建议"); strcpy_s(aux->coachBody,"独立于增幅侧栏显示");
     strcpy_s(aux->skinToast,"已切换皮肤"); strcpy_s(aux->skinTitle,"选择皮肤");
-    strcpy_s(aux->skinNames[0],"基础皮肤"); aux->skinCount=1; aux->skinReady=1; aux->skinCanRefresh=1; aux->skinVersion=42;
+    strcpy_s(aux->skinNames[0],"【终极】大元素使 拉克丝"); aux->skinCount=1; aux->skinReady=1; aux->skinCanRefresh=1; aux->skinVersion=42;
+    aux->skinPrefixBytes[0]=static_cast<uint32_t>(strlen("【终极】")); aux->skinPrefixColors[0]=0xff4ad3ff;
     aux->cameraReady=1;
     present(); present();
     Check(frame->panelWidth==0 && frame->hitRegionCount==1,"other panels render while mayhem is disabled");
     RECT picker{}; Check(region(0,&picker) && picker.right>picker.left,"skin picker owns separate hit area");
     auto skinControl=reinterpret_cast<BOOL(*)(int,int,RECT*)>(GetProcAddress(module,"OverlayTestSkinControl"));
     Check(skinControl!=nullptr,"skin category and list test controls available");
+    {
+        RECT row{}; Check(skinControl(1,0,&row)!=FALSE,"quality row is visible");
+        ComPtr<ID3D11Texture2D> back,readback;
+        Check(SUCCEEDED(chain->GetBuffer(0,IID_PPV_ARGS(&back))),"quality backbuffer");
+        D3D11_TEXTURE2D_DESC d{};back->GetDesc(&d);d.Usage=D3D11_USAGE_STAGING;d.BindFlags=d.MiscFlags=0;d.CPUAccessFlags=D3D11_CPU_ACCESS_READ;
+        Check(SUCCEEDED(device->CreateTexture2D(&d,nullptr,&readback)),"quality staging");context->CopyResource(readback.Get(),back.Get());
+        D3D11_MAPPED_SUBRESOURCE pixels{};Check(SUCCEEDED(context->Map(readback.Get(),0,D3D11_MAP_READ,0,&pixels)),"quality readback");
+        unsigned gold=0,neutral=0;
+        for(int y=(std::max)(0L,row.top);y<(std::min)(LONG(d.Height),row.bottom);y++){
+            auto line=static_cast<const unsigned char*>(pixels.pData)+size_t(y)*pixels.RowPitch;
+            for(int x=(std::max)(0L,row.left);x<(std::min)(LONG(d.Width),row.right);x++){
+                auto p=line+x*4;if(p[0]>200 && p[1]>150 && p[2]<130)gold++;
+                if(p[0]>190 && p[1]>190 && p[2]>190)neutral++;
+            }
+        }
+        context->Unmap(readback.Get(),0);
+        Check(gold>10 && neutral>10,"quality prefix is gold while skin name stays neutral");
+    }
     auto clickSkinControl=[&](int kind,int index) {
         RECT r{}; Check(skinControl(kind,index,&r)!=FALSE,"skin control has hit rectangle");
         setPointer((r.left+r.right)/2,(r.top+r.bottom)/2,TRUE);
@@ -298,12 +318,17 @@ int main(int argc, char** argv) {
     PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),0);
     Check(PeekMessageW(&wheelMessage,window,WM_MOUSEWHEEL,WM_MOUSEWHEEL,PM_REMOVE) && wheelMessage.message==WM_MOUSEWHEEL,
         "wheel outside picker reaches game queue");
+    Check(GET_WHEEL_DELTA_WPARAM(wheelMessage.wParam)==36,"camera wheel sensitivity reduced by 70 percent");
     DispatchMessageW(&wheelMessage);
     present(); present();
     Check(aux->cameraWheel==WHEEL_DELTA,"game wheel is observed for camera while still reaching game");
     raw=originalRaw; raw.data.mouse.usButtonFlags=RI_MOUSE_WHEEL; originalRaw=raw; maskRaw(&raw,sizeof(raw));
-    Check(gameWheelMessages==1 && pendingWheel()==0 && memcmp(&raw,&originalRaw,sizeof(raw))==0,
-        "game wheel and raw input work outside picker");
+    Check(gameWheelMessages==1 && pendingWheel()==0 && static_cast<SHORT>(raw.data.mouse.usButtonData)==36 &&
+        raw.data.mouse.lLastX==originalRaw.data.mouse.lLastX && raw.data.mouse.usButtonFlags==originalRaw.data.mouse.usButtonFlags,
+        "raw camera wheel also reduces sensitivity without altering other input");
+    int scaledTotal=0;
+    for(int i=0;i<10;i++){raw=originalRaw;raw.data.mouse.usButtonData=1;maskRaw(&raw,sizeof(raw));scaledTotal+=static_cast<SHORT>(raw.data.mouse.usButtonData);}
+    Check(scaledTotal==3,"high resolution wheel retains fractional movement at 30 percent sensitivity");
     aux->flags=16; present(); present(); setPointer(picker.left+35,picker.top+100,TRUE);
     PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WORD(-WHEEL_DELTA)),0); present(); present();
     Check(gameWheelMessages==2 && aux->cameraWheel==0,"camera wheel remains active with Home panel hidden");

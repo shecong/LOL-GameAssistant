@@ -175,12 +175,16 @@ namespace LOL_GameAssistant.BaseViewForm
             UiTheme.Apply(this);
         }
 
-        internal void AttachLayoutSelector(Control selector)
+        internal void AttachLayoutSelector(Control selector, Control settingsButton)
         {
-            var holder = new Panel { Name = "liveLayoutToolbar", Dock = DockStyle.Right, Width = 210,
+            var holder = new Panel { Name = "liveLayoutToolbar", Dock = DockStyle.Right, Width = 294,
                 Padding = new Padding(4, 14, 4, 14), BackColor = Color.Transparent };
             selector.Dock = DockStyle.Fill;
             holder.Controls.Add(selector);
+            holder.Controls.Add(settingsButton);
+            infoBar.Layout += (_, _) =>
+                _gameSubtitle.Width = Math.Max(0, lblGameInfo.Right - _gameSubtitle.Left);
+            _gameSubtitle.AutoEllipsis = true;
             infoBar.Controls.Add(holder);
             holder.BringToFront();
             _dataFetchNotice.BringToFront();
@@ -1386,6 +1390,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     Height = PlayerCardHeight,
                     Margin = new Padding(0, 0, PlayerCardHorizontalMargin, PlayerCardVerticalMargin)
                 };
+                card.SetHistoryFilter(_historyFilter);
                 UiTheme.Apply(card);
                 card.RecentPerformanceReady += OnPlayerRecentPerformanceReady;
                 card.OverviewChanged += (_, _) => { UpdateTeamOverview(); UpdateRecentEncounters(); };

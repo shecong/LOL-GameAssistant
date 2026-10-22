@@ -208,7 +208,7 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         { auto p0=ImGui::GetItemRectMin(),p1=ImGui::GetItemRectMax(); testCameraToggle={LONG(p0.x/sx),LONG(p0.y/sy),LONG(p1.x/sx),LONG(p1.y/sy)}; }
 #endif
         ImGui::EndDisabled();
-        ImGui::TextDisabled("滚轮调节，中键将当前视距调至 600");
+        ImGui::TextDisabled("滚轮平缓调节，中键恢复游戏原本视距");
         ImGui::BeginDisabled(!aux.skinCanRefresh);
         const char* categories[]={"英雄皮肤","眼位皮肤","小兵皮肤"};
         for(int category=0;category<3;++category) {
@@ -231,7 +231,19 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         ImGuiListClipper skins; skins.Begin(std::clamp(aux.skinCount,0,256));
         while(skins.Step()) for(int i=skins.DisplayStart;i<skins.DisplayEnd;++i) {
             aux.skinNames[i][191]=0; ImGui::PushID(i);
-            if(ImGui::Selectable(aux.skinNames[i],aux.skinSelected==i,0,ImVec2(0,32))) command(1,i);
+            auto textPos=ImGui::GetCursorScreenPos();
+            if(ImGui::Selectable("##skin",aux.skinSelected==i,0,ImVec2(0,32))) command(1,i);
+            const char* name=aux.skinNames[i];size_t length=strlen(name);
+            uint32_t prefix=aux.skinPrefixBytes[i];
+            textPos.y+=(32-ImGui::GetTextLineHeight())*.5f;
+            auto draw=ImGui::GetWindowDrawList();
+            if(prefix>0 && prefix<=length && prefix<192 && (prefix==length || (static_cast<unsigned char>(name[prefix])&0xc0)!=0x80)) {
+                ImU32 color=aux.skinPrefixColors[i];
+                if(!aux.skinReady) color=(color&0x00ffffff)|0x80000000;
+                draw->AddText(textPos,color,name,name+prefix);
+                textPos.x+=ImGui::CalcTextSize(name,name+prefix).x;
+                draw->AddText(textPos,ImGui::GetColorU32(ImGuiCol_Text),name+prefix);
+            } else draw->AddText(textPos,ImGui::GetColorU32(ImGuiCol_Text),name);
 #ifdef SC_OVERLAY_TEST
             if(i==0) { auto p0=ImGui::GetItemRectMin(),p1=ImGui::GetItemRectMax(); testSkinFirstEntry={LONG(p0.x/sx),LONG(p0.y/sy),LONG(p1.x/sx),LONG(p1.y/sy)}; }
 #endif

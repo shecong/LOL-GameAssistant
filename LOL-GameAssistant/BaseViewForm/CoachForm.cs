@@ -320,6 +320,28 @@ public sealed partial class CoachForm : UserControl, IThemeAware
                 }
             }
             RuntimeDiagnostics.Report("OP.GG 选人推荐", "检测到英雄", $"英雄 {context.MyChampionId} · 位置 {context.MyRole}");
+            if (!settings.AutoApplyRuneBuild || modeKey == "aram_mayhem")
+            {
+                // Prepare cached data without opening or activating a window during champion select.
+                OpggBuildChoices choices;
+                try
+                {
+                    choices = await _opggBuildApplyService.GetBuildChoicesAsync(context.MyChampionId, context.MyRole,
+                        new OpggBuildRequest(context.GameMode, context.QueueId, context.EnemyChampionIds), cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex)
+                {
+                    RuntimeDiagnostics.WriteException(ex);
+                    choices = OpggBuildChoices.Failure("推荐后台加载失败，可点击一键配置重试。");
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                if (IsDisposed) return;
+                if (!choices.Succeeded) ScheduleOpggRetry(promptKey);
+                _buildStatus.Text = choices.Succeeded ? "推荐方案已就绪，点击一键配置查看并应用。" : choices.Message;
+                RuntimeDiagnostics.Report("OP.GG 选人推荐", choices.Succeeded ? "后台已加载" : "后台加载失败", _buildStatus.Text);
+                return;
+            }
             await ApplyOpggBuildAsync(context, automatic: true, cancellationToken, autoApply: settings.AutoApplyRuneBuild);
         }
         finally

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include "../../native/LeagueSkinCore/native/game_profile.h"
+#include "evidence_fingerprints.h"
 
 constexpr DWORD Magic=0x43445250;
 constexpr UINT Message=WM_APP+0x619;
@@ -50,6 +51,7 @@ static void execute(Request* r) {
     if(!readable(player,0x5000)){strcpy_s(r->result,"{\"ok\":false,\"error\":\"player_unreadable\"}");return;}
     Writer w{r->result,0,sizeof(r->result),false};
     if(r->operation==2) {
+        if(memcmp(base+0x721ab0,CooldownGetterFingerprint,sizeof(CooldownGetterFingerprint))){strcpy_s(r->result,"{\"ok\":false,\"error\":\"cooldown_getter_fingerprint_mismatch\"}");return;}
         const BYTE clockCode[]={0x0f,0xb6,0x51,0x08,0x0f,0x57,0xc0,0x48,0x8b,0x01,0x48,0xc1,0xe2,0x07};
         if(memcmp(base+0xffce20,clockCode,sizeof(clockCode))){strcpy_s(r->result,"{\"ok\":false,\"error\":\"clock_fingerprint_mismatch\"}");return;}
         BYTE* manager=*(BYTE**)(base+0x1c7beb0);
@@ -62,7 +64,7 @@ static void execute(Request* r) {
         if(!readable(ticks+index*128,8)){strcpy_s(r->result,"{\"ok\":false,\"error\":\"ticks_unreadable\"}");return;}
         float gameTime=float(double(*(int64_t*)(ticks+index*128)) * *(double*)(base+0x1d3bd08));
         if(!std::isfinite(gameTime) || gameTime<0 || gameTime>86400){strcpy_s(r->result,"{\"ok\":false,\"error\":\"clock_value_invalid\"}");return;}
-        append(&w,"{\"ok\":true,\"read_only\":true,\"pid\":%lu,\"base\":%llu,\"player\":%llu,\"game_time\":%.6f,\"slots\":[",GetCurrentProcessId(),(uint64_t)base,(uint64_t)player,gameTime);
+        append(&w,"{\"ok\":true,\"read_only\":true,\"cooldown_getter_fingerprint_matches\":true,\"pid\":%lu,\"base\":%llu,\"player\":%llu,\"game_time\":%.6f,\"slots\":[",GetCurrentProcessId(),(uint64_t)base,(uint64_t)player,gameTime);
         for(int n=0;n<6;n++) {
             if(n)append(&w,",");BYTE* slot=*(BYTE**)(player+0x3388+n*8);
             if(!readable(slot,0x150)){append(&w,"{\"index\":%d,\"valid\":false}",n);continue;}

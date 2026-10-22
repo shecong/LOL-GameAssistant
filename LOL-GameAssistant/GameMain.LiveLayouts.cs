@@ -1,3 +1,4 @@
+using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
 
@@ -21,7 +22,24 @@ public partial class GameMain
         var stored = _settingsStore.Load().LiveGameLayout;
         _liveLayoutSelector.SelectedIndex = (int)(Enum.IsDefined(stored) ? stored : LiveGameLayout.Classic);
         liveGameForm.SetDisplayLayout((LiveGameLayout)_liveLayoutSelector.SelectedIndex);
-        liveGameForm.AttachLayoutSelector(_liveLayoutSelector);
+        var settingsButton = new AntdUI.Button
+        {
+            Name = "liveGameSettings", Text = "设置", AccessibleName = "对局设置",
+            Width = 76, Dock = DockStyle.Right, Radius = 6
+        };
+        settingsButton.Click += (_, _) =>
+        {
+            using var dialog = new LiveGameSettingsForm(_settingsStore.Load().LiveHistoryFilter, filter =>
+            {
+                var latest = _settingsStore.Load();
+                latest.LiveHistoryFilter = filter;
+                _settingsStore.Save(latest);
+                liveGameForm.SetHistoryFilter(filter);
+            });
+            dialog.ShowDialog(this);
+        };
+        liveGameForm.SetHistoryFilter(_settingsStore.Load().LiveHistoryFilter);
+        liveGameForm.AttachLayoutSelector(_liveLayoutSelector, settingsButton);
         _liveLayoutSelector.SelectedIndexChanged += (_, _) =>
         {
             if (_restoringLiveLayout || _liveLayoutSelector.SelectedIndex < 0) return;

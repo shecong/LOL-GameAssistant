@@ -37,7 +37,7 @@ public sealed partial class SkinToolsForm
         _otherSettingsCard.Controls.Add(_cameraStatus);
         _otherSettingsCard.Controls.Add(buttons);
         _otherSettingsCard.Controls.Add(new AntdUI.Label { Dock = DockStyle.Top, Height = 80, TextMultiLine = true,
-            Text = "可提前开启；首次进入对局沿用默认值。滚轮调整缩放上限（600–1700）并自动记忆。按下滚轮中键将当前实际视距调至 600，不改缩放上限和历史记录。Home 面板也可切换开关。" });
+            Text = "可提前开启；滚轮缩放灵敏度降低 70%，缩放上限每格调整 18（600–1700）并自动记忆。按滚轮中键或关闭无限视距均恢复游戏原本视距，保留历史记录。Home 面板也可切换开关。" });
         _otherSettingsCard.Controls.Add(_cameraDistance);
         _otherSettingsCard.Controls.Add(row);
         _otherSettingsCard.Controls.Add(new AntdUI.Label { Text = "其他设置", Dock = DockStyle.Top, Height = 48,
@@ -81,7 +81,7 @@ public sealed partial class SkinToolsForm
         {
             _cameraOverlay.HidePanel(GameOverlayPanelKind.Camera);
             _cameraOverlay.ReadCameraWheel();
-            _cameraOverlay.ReadCameraMoveTo600();
+            _cameraOverlay.ReadCameraReset();
             _cameraWheelRemainder = 0;
         }
     }
@@ -122,6 +122,7 @@ public sealed partial class SkinToolsForm
     {
         _cameraReply = null; _cameraActive = false; _cameraFaulted = false; _nextCameraRead = 0;
         _cameraWheelRemainder = 0;
+        _cameraOverlay.ReadCameraWheel();
         _cameraStatus.Text = _cameraEnabled.Checked ? "已开启，等待下一局自动连接。" : "可在游戏前开启无限视距。";
     }
 
@@ -136,29 +137,33 @@ public sealed partial class SkinToolsForm
             await RunCameraAsync(0);
             return;
         }
-        if (_cameraOverlay.ReadCameraMoveTo600())
+        if (_cameraOverlay.ReadCameraReset())
         {
-            await MoveCameraTo600Async();
+            await RestoreDefaultCameraAsync();
             return;
         }
         await AdjustCameraWheelAsync(_cameraOverlay.ReadCameraWheel());
     }
 
-    internal async Task MoveCameraTo600Async()
+    internal async Task RestoreDefaultCameraAsync()
     {
         if (_disposing || !_cameraEnabled.Checked || _cameraFaulted || _cameraReply == null || !_inProgress || !_core.Enabled ||
             _cameraBusy || _busy || _refreshing || _pageRequests == null) return;
         _cameraWheelRemainder = 0;
+        _cameraOverlay.ReadCameraWheel();
         long revision = Interlocked.Read(ref _revision);
         var token = _pageRequests.Token;
         _cameraBusy = true; UpdateButtons();
         try
         {
-            var result = await _core.MoveCameraAsync(_cameraReply.Session, 600, token);
+            var result = await _core.RestoreCameraAsync(_cameraReply.Session, token);
             if (_disposing || revision != Interlocked.Read(ref _revision)) return;
-            if (!result.StateVerified || result.CameraViewDistance != 600 || result.CameraViewTarget != 600)
+            if (!result.StateVerified || result.CameraViewDistance != result.CameraDefaultViewDistance || result.CameraViewTarget != result.CameraDefaultViewDistance)
                 throw new SkinCoreException("camera_view_write_not_verified", true);
-            _cameraStatus.Text = $"当前实际视距已调整为 600；缩放上限 {_cameraDistanceValue:0.##} 和历史记录保持不变。";
+            _cameraReply = result; _cameraDistanceValue = (decimal)result.CameraDistance;
+            _cameraActive = true;
+            _cameraDistance.Text = $"当前缩放上限：{result.CameraDistance:0.##}";
+            _cameraStatus.Text = $"已恢复游戏原本视距 {result.CameraDefaultViewDistance:0.##}；无限视距仍开启，历史距离保留。";
         }
         catch (OperationCanceledException) { }
         catch (Exception error)
@@ -178,7 +183,7 @@ public sealed partial class SkinToolsForm
         int steps = _cameraWheelRemainder / 120;
         _cameraWheelRemainder %= 120;
         if (steps == 0) return;
-        decimal target = Math.Clamp(_cameraDistanceValue - steps * 60, 600, 1700);
+        decimal target = Math.Clamp(_cameraDistanceValue - steps * 18, 600, 1700);
         if (target == _cameraDistanceValue) return;
         _cameraDistanceValue = target;
         await RunCameraAsync(1);
@@ -221,8 +226,8 @@ public sealed partial class SkinToolsForm
                 var settings = _settings.Load(); settings.RememberedCameraDistance = result.CameraDistance; _settings.Save(settings);
             }
             _cameraStatus.Text = _cameraEnabled.Checked
-                ? $"已开启 · 当前缩放上限 {result.CameraDistance:0.##}；滚轮调节，中键将实际视距调至 600。"
-                : $"已关闭，已恢复本局默认上限 {result.CameraDistance:0.##}；历史距离保留。";
+                ? $"已开启 · 当前缩放上限 {result.CameraDistance:0.##}；滚轮平缓调节，中键恢复游戏原本视距。"
+                : $"已关闭，已恢复游戏原本视距 {result.CameraDefaultViewDistance:0.##} 和本局默认上限；历史距离保留。";
         }
         catch (OperationCanceledException) { }
         catch (Exception error)

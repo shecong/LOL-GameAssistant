@@ -287,7 +287,11 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             var options = _cards.Where(c => c.Root.Visible && c.Option.Mode == mode && c.Position == position)
                 .Select(c => c.Option).ToArray();
             using var dialog = new BuildComparisonForm(context with { Options = options }, _gameAssetService,
-                option => { var card = _cards.FirstOrDefault(c => c.Option == option); if (card != null) SelectCard(card); });
+                option => { var card = _cards.FirstOrDefault(c => c.Option == option); if (card != null) SelectCard(card); })
+            {
+                // 模态子窗必须与置顶的方案窗处于同一层级，否则会被已禁用的父窗遮挡。
+                TopMost = TopMost
+            };
             dialog.ShowDialog(this);
         };
         Controls.Add(_routeCards);

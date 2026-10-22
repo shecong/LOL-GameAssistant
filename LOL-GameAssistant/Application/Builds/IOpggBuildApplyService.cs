@@ -39,7 +39,8 @@ public interface IOpggBuildApplyService
         OpggBuildOption option,
         CancellationToken cancellationToken = default,
         bool allowReplaceCurrentRunePage = false,
-        bool applySummonerSpells = true);
+        bool applySummonerSpells = true,
+        bool applyItemSet = true);
 
     /// <summary>兼容旧调用方：直接应用使用率最高的路线。</summary>
     Task<OpggBuildApplyResult> ApplyForChampionAsync(
