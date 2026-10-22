@@ -188,8 +188,9 @@ public sealed partial class ClientToolsForm : UserControl, IThemeAware
     /// <summary>构建奖励查询和领取操作区域。</summary>
     private Control CreateRewardsCard()
     {
-        AntdUI.Panel card = Card("待领取奖励", 104, out FlowLayoutPanel body);
-        body.Controls.Add(Button("预览与选择待选奖励", (_, _) => { using var form = new RewardSelectionForm(_features); form.ShowDialog(FindForm()); }));
+        AntdUI.Panel card = Card("待领取奖励", 150, out FlowLayoutPanel body);
+        body.Controls.Add(Button("扫描与领取客户端奖励", (_, _) => { using var form = new RewardSelectionForm(_features); form.ShowDialog(FindForm()); }));
+        body.Controls.Add(Button("魄罗商店多选兑换", (_, _) => { using var form = new PoroShopForm(_features); form.ShowDialog(FindForm()); }));
         return card;
     }
 

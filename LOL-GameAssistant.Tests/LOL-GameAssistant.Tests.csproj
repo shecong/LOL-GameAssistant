@@ -16,6 +16,7 @@
     <Compile Include="..\LOL-GameAssistant\Domain\Skins\SkinEntryCycle.cs" Link="Domain\Skins\SkinEntryCycle.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Skins\ISkinCoreService.cs" Link="Application\Skins\ISkinCoreService.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\NativeSkinCoreService.cs" Link="Infrastructure\Skins\NativeSkinCoreService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\NativeSkinCoreService.Camera.cs" Link="Infrastructure\Skins\NativeSkinCoreService.Camera.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\NativeSkinCoreTransport.cs" Link="Infrastructure\Skins\NativeSkinCoreTransport.cs" />
     <Compile Include="..\LOL-GameAssistant\Helper\WebSocketClient.cs" Link="Helper\WebSocketClient.cs" />
     <Compile Include="..\LOL-GameAssistant\Helper\WebSocketMessagePump.cs" Link="Helper\WebSocketMessagePump.cs" />

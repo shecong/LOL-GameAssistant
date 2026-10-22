@@ -33,9 +33,15 @@ public sealed class LoungeTimelineTests
             }]);
             for (int i = 1; i <= 8; i++) Receive(client, Message(i) with { SenderId = i % 2 == 0 ? "member-a" : "member-b", Name = i % 2 == 0 ? "今晚一起开黑#12345" : "队友#67890", Text = i % 2 == 0 ? "有人一起打大乱斗吗？缺一位，轻松娱乐。" : "我来，等这场结束就进大厅。" });
             using var page = new LoungeForm(client); using var host = new Form { ClientSize = new(width, 760) }; host.Controls.Add(page); host.Show(); UiTheme.Apply(page); Refresh(page); System.Windows.Forms.Application.DoEvents();
-            var history = Field<RichTextBox>(page, "_history"); var members = Field<ListBox>(page, "_members");
-            Assert.True(history.Height > 400); Assert.Equal(2, members.Items.Count); Assert.True(members.Width >= 240);
-            var notice = Field<Label>(page, "_onlineNotice");
+            var history = Field<RichTextBox>(page, "_history"); var members = Field<AntdUI.Table>(page, "_members");
+            Assert.True(history.Height > 400); Assert.Equal(2, ((Array)members.DataSource!).Length); Assert.True(members.Width >= 240);
+            var filter = Field<AntdUI.Select>(page, "_messageFilter");
+            Assert.True(filter.Height >= 28);
+            filter.SelectedIndex = 2;
+            Assert.DoesNotContain("有人一起打大乱斗", history.Text);
+            filter.SelectedIndex = 0;
+            Assert.Contains("有人一起打大乱斗", history.Text);
+            var notice = Field<AntdUI.Label>(page, "_onlineNotice");
             Assert.True(notice.Width > 150, $"实时提示可用宽度: {notice.Width}");
             Assert.True(notice.Right <= notice.Parent!.ClientSize.Width);
             string? previews = Environment.GetEnvironmentVariable("LOL_LOUNGE_PREVIEW_DIRECTORY");
@@ -62,9 +68,9 @@ public sealed class LoungeTimelineTests
         Assert.Equal(200, window.Count); Assert.Equal(1, window.Keys.First()); Assert.Equal(200, window.Keys.Last());
         Assert.Equal(0, client.UnreadCount);
         Receive(client, Message(241)); Refresh(page);
-        Assert.DoesNotContain(241L, window.Keys); Assert.True(Field<Button>(page, "_newMessages").Visible);
-        Field<Button>(page, "_newMessages").PerformClick();
-        Assert.Equal(40, window.Count); Assert.Equal(241, window.Keys.Last()); Assert.False(Field<Button>(page, "_newMessages").Visible);
+        Assert.DoesNotContain(241L, window.Keys); Assert.True(Field<AntdUI.Button>(page, "_newMessages").Visible);
+        Field<AntdUI.Button>(page, "_newMessages").PerformClick();
+        Assert.Equal(40, window.Count); Assert.Equal(241, window.Keys.Last()); Assert.False(Field<AntdUI.Button>(page, "_newMessages").Visible);
         host.Close();
     });
 
@@ -79,12 +85,12 @@ public sealed class LoungeTimelineTests
         int newY = history.GetPositionFromCharIndex(history.Text.IndexOf("消息内容 0061", StringComparison.Ordinal)).Y;
         Assert.InRange(Math.Abs(newY - oldY), 0, history.Font.Height * 2);
         string oldText = history.Text; Receive(client, Message(101)); Refresh(page);
-        Assert.Equal(oldText, history.Text); Assert.True(Field<Button>(page, "_newMessages").Visible);
+        Assert.Equal(oldText, history.Text); Assert.True(Field<AntdUI.Button>(page, "_newMessages").Visible);
         host.Close();
     });
 
     [Fact]
-    public void OnlineEventsExpireWithoutHistoryOrUnreadAndUnknownRegionCodeIsHidden() => MatchListScrollingTests.OnUiThread(() =>
+    public void OnlineEventsAreAvailableOnlyInTheirFilterWithoutChatOrUnread() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var client = Client(); var now = DateTimeOffset.Now;
         Receive(client, new(1, "", "sender", "小明#123", "未知大区（TENCENT）", "online", "重复的欢迎来到休息室", now));
@@ -98,19 +104,47 @@ public sealed class LoungeTimelineTests
         var receiveOnline = typeof(LoungeClient).GetMethod("ReceiveOnline", BindingFlags.Instance | BindingFlags.NonPublic)!;
         receiveOnline.Invoke(client, [new LoungeOnlineNotice("小明#123", "未知大区（TENCENT）")]);
         Refresh(page);
-        var banner = Field<Label>(page, "_onlineNotice");
+        var banner = Field<AntdUI.Label>(page, "_onlineNotice");
+        Assert.Empty(banner.Text ?? "");
+        Assert.DoesNotContain("加入休息室", history.Text);
+        var filter = Field<AntdUI.Select>(page, "_messageFilter");
+        Assert.Contains("上线通知", filter.Items.Cast<object>());
+        filter.SelectedIndex = 4;
         Assert.Contains("小明#123 加入休息室", banner.Text);
         Assert.Contains("地区待确认", banner.Text); Assert.DoesNotContain("TENCENT", banner.Text);
+        Assert.Contains("小明#123 加入休息室", history.Text);
+        Assert.DoesNotContain("一起开黑吗", history.Text);
+        Assert.False(Field<AntdUI.Button>(page, "_older").Visible);
         receiveOnline.Invoke(client, [new LoungeOnlineNotice("切换账号#789", "艾欧尼亚")]);
         Refresh(page);
         Assert.Contains("切换账号#789", banner.Text); Assert.DoesNotContain("小明", banner.Text);
         Assert.Single(client.Messages); Assert.Equal(0, client.UnreadCount);
-        Assert.DoesNotContain("加入休息室", history.Text);
+        Assert.Contains("切换账号#789 加入休息室", history.Text);
         typeof(LoungeClient).GetField("_onlineNoticeUntil", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(client, DateTimeOffset.UtcNow.AddSeconds(-1));
         Refresh(page);
-        Assert.Empty(banner.Text); Assert.Null(client.OnlineNotice);
-        Field<ComboBox>(page, "_messageFilter").SelectedIndex = 1;
+        Assert.Empty(banner.Text ?? ""); Assert.Null(client.OnlineNotice);
+        Assert.Contains("小明#123 加入休息室", history.Text);
+        filter.SelectedIndex = 0;
+        Assert.DoesNotContain("加入休息室", history.Text); Assert.Contains("一起开黑吗", history.Text);
+        filter.SelectedIndex = 1;
         Assert.DoesNotContain("加入休息室", history.Text); Assert.Contains("一起开黑吗", history.Text);
         host.Close();
     });
+
+    [Fact]
+    public void OnlineHistoryIsBoundedAndLegacyReplaysDoNotDuplicateOrDisplaceChat()
+    {
+        using var client = Client();
+        Receive(client, Message(1));
+        var online = Message(2) with { Kind = "online" };
+        Receive(client, online); Receive(client, online);
+        Assert.Single(client.OnlineMessages);
+        var receiveOnline = typeof(LoungeClient).GetMethod("ReceiveOnline", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        for (int i = 0; i < 210; i++) receiveOnline.Invoke(client, [new LoungeOnlineNotice($"玩家{i}", "艾欧尼亚")]);
+        Assert.Equal(200, client.OnlineMessages.Length);
+        Assert.Equal("玩家10", client.OnlineMessages[0].Name);
+        Assert.Equal("玩家209", client.OnlineMessages[^1].Name);
+        Assert.Single(client.Messages);
+        Assert.Equal(0, client.UnreadCount);
+    }
 }

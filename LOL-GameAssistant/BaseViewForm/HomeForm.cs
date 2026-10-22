@@ -111,6 +111,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => UiLanguage.Changed -= LanguageChanged;
             game_pagin.Click -= game_pagin_Click;
             InitializeDashboardLayout();
+            InitializeQuickActions();
             LayoutSummary();
             stackPanel1.SizeChanged += (_, _) => LayoutRecordCards();
             ApplyTheme(UiTheme.Palette);

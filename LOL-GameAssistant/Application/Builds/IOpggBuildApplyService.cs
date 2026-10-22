@@ -80,6 +80,8 @@ public sealed record OpggBuildChoices(
     IReadOnlyList<OpggMatchup>? Matchups = null,
     int ChampionId = 0)
 {
+    public DateTimeOffset RetrievedAt { get; init; } = DateTimeOffset.UtcNow;
+    public string DataVersion { get; init; } = "";
     /// <summary>构建失败结果，向调用方保留可展示的原因。</summary>
     public static OpggBuildChoices Failure(string message) => new(false, message, "", "", Array.Empty<OpggBuildOption>());
 }

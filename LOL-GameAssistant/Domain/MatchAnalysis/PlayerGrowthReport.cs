@@ -3,7 +3,10 @@ using LOL_GameAssistant.Domain.Matches;
 namespace LOL_GameAssistant.Domain.MatchAnalysis;
 
 public sealed record GrowthMatch(long GameId, long CreatedAt, int ChampionId, string Mode, int Duration,
-    bool? Won, double? Kda, double? CsPerMinute, double? DamagePerMinute, double? VisionPerMinute);
+    bool? Won, double? Kda, double? CsPerMinute, double? DamagePerMinute, double? VisionPerMinute)
+{
+    public int? Deaths { get; init; }
+}
 public sealed record ChampionGrowth(int ChampionId, int Games, int ResultSamples, int Wins, double? WinRate,
     double? Kda, double? CsPerMinute, double? DamagePerMinute, double? VisionPerMinute);
 public sealed record GrowthReport(IReadOnlyList<GrowthMatch> Matches, IReadOnlyList<ChampionGrowth> Champions,
@@ -30,7 +33,8 @@ public static class PlayerGrowthCalculator
                 s.HasWinResult ? s.Win : null, s.HasKdaResult ? Math.Round((s.kills + s.assists) / (double)Math.Max(1, s.deaths), 2) : null,
                 s.HasFarmResult && minutes.HasValue ? Math.Round((s.totalMinionsKilled + s.neutralMinionsKilled) / minutes.Value, 2) : null,
                 s.HasDamageResult && minutes.HasValue ? Math.Round(s.totalDamageDealtToChampions / minutes.Value, 1) : null,
-                s.HasVisionResult && minutes.HasValue ? Math.Round(s.visionScore / minutes.Value, 2) : null));
+                s.HasVisionResult && minutes.HasValue ? Math.Round(s.visionScore / minutes.Value, 2) : null)
+                { Deaths = s.HasKdaResult ? s.deaths : null });
         }
         var champions = matches.GroupBy(x => x.ChampionId).Select(g =>
         {

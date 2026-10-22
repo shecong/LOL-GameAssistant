@@ -109,7 +109,7 @@ public sealed class PlayerHistoryRepositoryTests
         public CancellationToken RequestToken;
         public Task<MatchHistoryResponse?> GetPageAsync(string puuid, int beginIndex, int endIndex, CancellationToken cancellationToken = default)
         {
-            Assert.Equal(0, beginIndex); Assert.Equal(499, endIndex);
+            Assert.Equal(0, beginIndex); Assert.Equal(MatchDataPolicy.SummaryLimit - 1, endIndex);
             PageCalls++; RequestToken = cancellationToken; return Page(cancellationToken);
         }
         public Task<MatchDetail?> GetDetailAsync(long gameId, bool useCache = true, CancellationToken cancellationToken = default)

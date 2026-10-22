@@ -44,6 +44,12 @@ public sealed partial class LcuClientFeatureService
         await _rewardGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (grantId.StartsWith("event:", StringComparison.Ordinal))
+                return await ClaimEventRewardsAsync(grantId[6..], cancellationToken).ConfigureAwait(false);
+            if (grantId == "mall:daily-essence")
+                return await ClaimDailyEssenceAsync(cancellationToken).ConfigureAwait(false);
+            if (grantId.StartsWith("poro:", StringComparison.Ordinal))
+                return await ClaimPoroRewardAsync(grantId, cancellationToken).ConfigureAwait(false);
             JObject? grant = TryFindGrant(await _lcu.GetStringAsync("/lol-rewards/v1/grants", cancellationToken).ConfigureAwait(false), grantId);
             if (grant?.SelectToken("info.status")?.Value<string>() != "PENDING_SELECTION") return ClientFeatureResult.Failure("奖励状态已变化，请刷新后重新选择");
             var parsed = ToRewardGrant(grant); var selected = selections.Distinct(StringComparer.Ordinal).ToArray();

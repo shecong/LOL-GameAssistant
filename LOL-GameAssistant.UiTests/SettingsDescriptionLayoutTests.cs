@@ -12,6 +12,45 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SettingsDescriptionLayoutTests
 {
     [Fact]
+    public void AiCardsFitTheirRowsOnFirstDisplayAndAfterSwitching() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var settings = new SettingForm(Service<IGameClientLauncher>((_, _) => null),
+            Service<IApplicationSettingsStore>((method, _) => method.Name == "GetStoragePath"
+                ? "test-settings.json" : new AssistantSettings()),
+            Service<ISettingsSecretProtector>((_, _) => null), Service<IClientFeatureService>((_, _) => null));
+        using var host = new Form { ClientSize = new Size(1594, 780), ShowInTaskbar = false, Opacity = 0 };
+        settings.Dock = DockStyle.Fill;
+        host.Controls.Add(settings);
+        host.Show();
+        var navigation = (AntdUI.Segmented)typeof(SettingForm)
+            .GetField("_settingsSegmented", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
+        var initialHeights = new Dictionary<string, int>();
+        foreach (int width in new[] { 1594, 1000, 1594, 1594 })
+        {
+            host.ClientSize = new Size(width, 780);
+            navigation.SelectIndex = 4;
+            System.Windows.Forms.Application.DoEvents();
+            foreach (var card in Children(settings).Where(control => control.Name.StartsWith("ai") && control.Name.EndsWith("Card")))
+            {
+                var rows = Assert.Single(card.Controls.OfType<TableLayoutPanel>());
+                Assert.True(Math.Abs(card.Height - rows.Height - card.Padding.Vertical) <= 1,
+                    $"{card.Name}: card {card.Height}, rows {rows.Height}, padding {card.Padding.Vertical}");
+                foreach (Control child in rows.Controls)
+                    Assert.True(child.Bottom + child.Margin.Bottom <= rows.Height,
+                        $"{card.Name}: row content extends beyond the card: {child.Bounds}");
+                if (width == 1594)
+                {
+                    if (initialHeights.TryGetValue(card.Name, out int initialHeight))
+                        Assert.True(initialHeight == card.Height,
+                            $"{card.Name}: first display {initialHeight}, after resizing {card.Height}");
+                    else initialHeights.Add(card.Name, card.Height);
+                }
+            }
+            navigation.SelectIndex = 0;
+        }
+    });
+
+    [Fact]
     public void AiDescriptionsUseAvailableWidthAndRewrapAfterResizing() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var settings = new SettingForm(Service<IGameClientLauncher>((_, _) => null),

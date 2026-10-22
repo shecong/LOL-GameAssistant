@@ -8,21 +8,20 @@ namespace LOL_GameAssistant.BaseViewForm;
 public sealed partial class LoungeForm : UserControl, IThemeAware
 {
     private readonly LoungeClient _client;
-    private readonly Label _status = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
-    private readonly TextBox _server = new() { Dock = DockStyle.Fill, PlaceholderText = "http://服务器IP:5000 或 https://域名" };
-    private readonly CheckBox _share = new() { Text = "公开游戏状态与战绩", AutoSize = true, Checked = true };
-    private readonly CheckBox _victories = new() { Text = "显示战绩播报", AutoSize = true, Checked = true };
+    private readonly AntdUI.Label _status = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+    private readonly AntdUI.Input _server = new() { Dock = DockStyle.Fill, PlaceholderText = "http://服务器IP:5000 或 https://域名" };
+    private readonly AntdUI.Checkbox _share = new() { Text = "公开游戏状态与战绩", AutoSize = true, Checked = true };
+    private readonly AntdUI.Checkbox _victories = new() { Text = "显示战绩播报", AutoSize = true, Checked = true };
     private readonly AntdUI.Button _connect = new() { Text = "保存并连接", Dock = DockStyle.Fill, Type = AntdUI.TTypeMini.Primary };
+    // RichEdit preserves inline sticker images, text selection and the reading anchor when prepending history.
     private readonly RichTextBox _history = new() { Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BorderStyle = BorderStyle.None };
-    private readonly ListBox _members = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, IntegralHeight = false, HorizontalScrollbar = true };
-    private readonly Label _memberCount = new() { Dock = DockStyle.Top, Height = 36, Text = "在线成员 · 0", TextAlign = ContentAlignment.MiddleLeft };
-    private readonly TextBox _input = new() { Dock = DockStyle.Fill, Multiline = true, MaxLength = LoungeRules.MaxTextLength,
-        ScrollBars = ScrollBars.Vertical, PlaceholderText = "登录 LOL 后发言，Enter 发送，Shift+Enter 换行（最多 500 字）" };
+    private readonly AntdUI.Table _members = CreateLoungeList();
+    private readonly AntdUI.Label _memberCount = new() { Dock = DockStyle.Top, Height = 36, Text = "在线成员 · 0", TextAlign = ContentAlignment.MiddleLeft };
+    private readonly AntdUI.Input _input = new() { Dock = DockStyle.Fill, Multiline = true, MaxLength = LoungeRules.MaxTextLength,
+        PlaceholderText = "登录 LOL 后发言，Enter 发送，Shift+Enter 换行（最多 500 字）" };
     private readonly AntdUI.Button _send = new() { Text = "发送", Dock = DockStyle.Fill, Type = AntdUI.TTypeMini.Primary };
-    private readonly Label _feedback = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+    private readonly AntdUI.Label _feedback = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly System.Windows.Forms.Timer _refresh = new() { Interval = 500 };
-    private readonly ContextMenuStrip _context = new();
-    private readonly ContextMenuStrip _memberContext = new();
     private LoungeMember[] _visibleMembers = [];
     private readonly List<(int Start, string Sender, LoungeMessage Message)> _senders = [];
     private string _historyKey = "\0";
@@ -30,6 +29,7 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
     private string _pendingId = Guid.NewGuid().ToString("N");
     private string _pendingText = "";
     private bool _sending;
+    private bool _resourcesDisposed;
 
     public LoungeForm(LoungeClient client)
     {
@@ -48,18 +48,18 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.Controls.Add(new Label { Text = "lol休息室", Font = new Font(UiMetrics.FontFamily, 18F, FontStyle.Bold), Dock = DockStyle.Fill }, 0, 0);
-        layout.Controls.Add(new Label { Text = "所有助手用户共享一个频道 · 昵称与大区公开展示 · 未登录 LOL 时可查看消息", Dock = DockStyle.Fill, AutoEllipsis = true }, 0, 1);
+        layout.Controls.Add(new AntdUI.Label { Text = "lol休息室", Font = new Font(UiMetrics.FontFamily, 18F, FontStyle.Bold), Dock = DockStyle.Fill }, 0, 0);
+        layout.Controls.Add(new AntdUI.Label { Text = "所有助手用户共享一个频道 · 昵称与大区公开展示 · 未登录 LOL 时可查看消息", Dock = DockStyle.Fill, AutoEllipsis = true }, 0, 1);
         var connection = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
         connection.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
         connection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         connection.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124));
-        connection.Controls.Add(new Label { Text = "服务器地址", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        connection.Controls.Add(new AntdUI.Label { Text = "服务器地址", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         connection.Controls.Add(_server, 1, 0);
         connection.Controls.Add(_connect, 2, 0);
         layout.Controls.Add(connection, 0, 2);
         var options = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        var clearBlocks = new LinkLabel { Text = "清空屏蔽名单", AutoSize = true, Margin = new Padding(12, 3, 0, 0) };
+        var clearBlocks = new AntdUI.Button { Text = "清空屏蔽名单", AutoSize = true, Ghost = true, Margin = new Padding(12, 3, 0, 0) };
         options.Controls.AddRange([_share, _victories, clearBlocks]);
         layout.Controls.Add(options, 0, 3);
         layout.Controls.Add(BuildPreferences(), 0, 4);
@@ -104,57 +104,36 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
             if (!_sending && _input.Text != _pendingText) { _pendingId = Guid.NewGuid().ToString("N"); _pendingText = _input.Text; }
         };
         _victories.CheckedChanged += (_, _) => { _historyKey = "\0"; RefreshView(); };
-        clearBlocks.LinkClicked += (_, _) =>
+        clearBlocks.Click += (_, _) =>
         {
             try { _client.ClearBlocks(); _historyKey = "\0"; RefreshView(); }
             catch (Exception ex) { _feedback.Text = ex.Message; }
         };
-        _context.Items.Add("屏蔽此消息发送者", null, (_, _) =>
+        _history.MouseUp += (_, e) =>
         {
-            var sender = _senders.LastOrDefault(s => s.Start <= _history.SelectionStart).Sender;
-            if (string.IsNullOrEmpty(sender)) return;
-            try { _client.BlockSender(sender); _historyKey = "\0"; RefreshView(); }
-            catch (Exception ex) { _feedback.Text = ex.Message; }
-        });
-        _history.ContextMenuStrip = _context;
-        _history.MouseDown += (_, e) => { if (e.Button == MouseButtons.Right) _history.SelectionStart = _history.GetCharIndexFromPosition(e.Location); };
-        _context.Items.Add("复制玩家完整游戏 ID", null, (_, _) =>
-        {
-            var message = _senders.LastOrDefault(s => s.Start <= _history.SelectionStart).Message;
-            if (message != null) TryCopyText(message.Name);
-        });
-        _context.Items.Add("@此玩家", null, (_, _) =>
-        {
-            var message = _senders.LastOrDefault(s => s.Start <= _history.SelectionStart).Message;
-            var member = _client.Members.FirstOrDefault(m => m.Name == message?.Name && m.Region == message?.Region);
-            if (member != null) Mention(member); else _feedback.Text = "该玩家不在线，暂时无法提及";
-        });
-        var recruitmentDetails = _context.Items.Add("查看开黑招募 / 加入", null, (_, _) => OpenSelectedRecruitment());
-        _context.Opening += (_, _) => recruitmentDetails.Enabled = SelectedRecruitmentId() != null;
-        _history.MouseDoubleClick += (_, _) => OpenSelectedRecruitment();
-        foreach (string field in new[] { "名称", "编号", "完整游戏ID", "频道标识" })
-            _memberContext.Items.Add("复制" + field, null, (_, _) => CopyMember(field));
-        _memberContext.Items.Add("@此成员", null, (_, _) => WithMember(Mention));
-        var follow = _memberContext.Items.Add("关注 / 取消关注", null, (_, _) => WithMember(m =>
-        {
-            try { _client.ToggleFollow(m.Id); _memberKey = ""; RefreshView(); }
-            catch (Exception ex) { _feedback.Text = ex.Message; }
-        }));
-        _members.ContextMenuStrip = _memberContext;
-        _members.MouseDown += (_, e) =>
-        {
-            if (e.Button == MouseButtons.Right) _members.SelectedIndex = _members.IndexFromPoint(e.Location);
+            if (e.Button != MouseButtons.Right) return;
+            _history.SelectionStart = _history.GetCharIndexFromPosition(e.Location);
+            ShowHistoryMenu(_history.PointToScreen(e.Location));
         };
-        _memberContext.Opening += (_, e) =>
+        _history.KeyDown += (_, e) =>
         {
-            e.Cancel = _members.SelectedIndex < 0;
-            if (!e.Cancel) follow.Text = _client.IsFollowed(_visibleMembers[_members.SelectedIndex].Id) ? "取消关注" : "关注上线提醒";
+            if (e.KeyCode == Keys.Apps || (e.Shift && e.KeyCode == Keys.F10))
+            { ShowHistoryMenu(_history.PointToScreen(Point.Empty)); e.SuppressKeyPress = true; }
+        };
+        _history.MouseDoubleClick += (_, _) => OpenSelectedRecruitment();
+        _members.CellClick += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Right || _members.DataSource is not LoungeListRow[] rows) return;
+            _members.SelectedIndex = Array.IndexOf(rows, e.Record);
+            ShowMemberMenu(_members.PointToScreen(e.Location));
         };
         _members.KeyDown += (_, e) =>
         {
             if (e.Control && e.KeyCode == Keys.C) { CopyMember("完整游戏ID"); e.SuppressKeyPress = true; }
+            else if (e.KeyCode == Keys.Apps || (e.Shift && e.KeyCode == Keys.F10))
+            { ShowMemberMenu(_members.PointToScreen(Point.Empty)); e.SuppressKeyPress = true; }
         };
-        _refresh.Tick += (_, _) => RefreshView();
+        _refresh.Tick += (_, _) => { if (PageActivity.IsActive(this)) RefreshView(); };
         _refresh.Start();
         ApplyTheme(UiTheme.Palette);
         RefreshView();
@@ -221,13 +200,14 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
     private void RefreshView()
     {
         if (IsDisposed) return;
-        _client.SetReading(IsHistoryAtBottom() && _pendingMessages.Count == 0 && (_window.Count == 0 || _window.Keys.Last() >= _newestSeen) && Visible && FindForm() is { Visible: true, ContainsFocus: true, WindowState: not FormWindowState.Minimized });
+        _ = LoadSocialPreferencesAsync();
+        _client.SetReading(_messageFilter.SelectedIndex != 4 && IsHistoryAtBottom() && _pendingMessages.Count == 0 && (_window.Count == 0 || _window.Keys.Last() >= _newestSeen) && Visible && FindForm() is { Visible: true, ContainsFocus: true, WindowState: not FormWindowState.Minimized });
         UpdateFeatureBar();
         var online = _client.OnlineNotice;
-        _onlineNotice.Text = online == null ? "" : NormalizeRegion($"{online.Name} 加入休息室 · {online.Region}");
+        _onlineNotice.Text = _messageFilter.SelectedIndex != 4 || online == null ? "" : NormalizeRegion($"{online.Name} 加入休息室 · {online.Region}");
         _status.Text = NormalizeRegion(_client.Status);
         _connectionState.Text = _client.Status.StartsWith("已连接", StringComparison.Ordinal) ? "● 已连接" : "○ 未连接";
-        _counter.Text = $"{_input.TextLength}/{LoungeRules.MaxTextLength}";
+        _counter.Text = $"{_input.Text.Length}/{LoungeRules.MaxTextLength}";
         _send.Enabled = !_sending && _client.CanSend;
         var members = _client.Members;
         string memberKey = string.Join('|', members.Select(m => $"{m.Id}:{m.Name}:{m.Region}:{m.Status}:{m.Rank}:{_client.IsFollowed(m.Id)}"));
@@ -237,12 +217,9 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
             string? selected = _members.SelectedIndex >= 0 && _members.SelectedIndex < _visibleMembers.Length
                 ? _visibleMembers[_members.SelectedIndex].Id : null;
             _visibleMembers = members;
-            _members.BeginUpdate();
-            _members.Items.Clear();
-            foreach (var member in members) _members.Items.Add($"{(_client.IsFollowed(member.Id) ? "★" : "●")} {member.Name} · {member.Region} · {member.Status}" +
-                (string.IsNullOrWhiteSpace(member.Rank) ? "" : " · " + member.Rank));
+            _members.DataSource = members.Select(member => new LoungeListRow(
+                $"{(_socialExperience.FavoriteTeammates.ContainsKey(member.Id) ? "♥" : _client.IsFollowed(member.Id) ? "★" : "●")} {member.Name}\n{NormalizeRegion(member.Region)}{(string.IsNullOrWhiteSpace(member.Rank) ? "" : " · " + member.Rank)}\n{member.Status}")).ToArray();
             _members.SelectedIndex = Array.FindIndex(members, m => m.Id == selected);
-            _members.EndUpdate();
         }
         _memberCount.Text = $"在线成员 · {members.Length} · 右键复制 ID";
         RefreshTimeline();
@@ -253,17 +230,20 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
 
     public void ApplyTheme(ThemePalette palette)
     {
+        AntdContentTheme.Apply(this, palette);
         BackColor = palette.Surface;
         ForeColor = palette.TextPrimary;
-        _history.BackColor = _members.BackColor = palette.SurfaceRaised;
-        _history.ForeColor = _members.ForeColor = palette.TextPrimary;
+        _history.BackColor = palette.SurfaceRaised;
+        _history.ForeColor = palette.TextPrimary;
+        _members.BackColor = palette.SurfaceRaised;
+        _members.ForeColor = palette.TextPrimary;
+        _members.RowSelectedBg = palette.SurfaceMuted;
+        _members.RowSelectedFore = palette.TextPrimary;
         _onlineNotice.ForeColor = palette.TextSecondary;
         foreach (var button in _featureButtons)
         {
-            button.FlatStyle = FlatStyle.Flat;
-            button.FlatAppearance.BorderColor = palette.Border;
-            button.UseVisualStyleBackColor = false;
-            button.BackColor = palette.SurfaceRaised;
+            button.DefaultBorderColor = palette.Border;
+            button.DefaultBack = palette.SurfaceRaised;
             button.ForeColor = palette.TextPrimary;
         }
         _historyKey = "\0";
@@ -271,9 +251,23 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
         _members.Invalidate();
     }
 
+    private sealed record LoungeListRow(string Text);
+
+    private static AntdUI.Table CreateLoungeList()
+    {
+        var table = new AntdUI.Table
+        {
+            Dock = DockStyle.Fill, VisibleHeader = false,
+            MultipleRows = false, LostFocusClearSelection = false, ClipboardCopy = false
+        };
+        table.Columns.Add(new AntdUI.Column(nameof(LoungeListRow.Text), "") { Width = "100%", LineBreak = true });
+        return table;
+    }
+
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _historyLoads.Dispose(); _memberTips.Dispose(); _moreMenu.Dispose(); _client.SetReading(false); _refresh.Dispose(); _context.Dispose(); _memberContext.Dispose(); }
+        if (disposing && !_resourcesDisposed)
+        { _resourcesDisposed = true; _socialLifetime.Cancel(); _socialLifetime.Dispose(); _historyLoads.Dispose(); _memberTips.Dispose(); _client.SetReading(false); _refresh.Dispose(); }
         base.Dispose(disposing);
     }
 }

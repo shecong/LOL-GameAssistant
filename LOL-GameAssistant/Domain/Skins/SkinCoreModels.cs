@@ -15,6 +15,12 @@ public sealed record SkinEntry
 
 public sealed record SkinCoreReply
 {
+    public float CameraDistance { get; init; }
+    public float? CameraViewDistance { get; init; }
+    public float? CameraViewTarget { get; init; }
+    public string CameraViewId { get; init; } = "";
+    public string CameraId { get; init; } = "";
+    public bool? CameraRestoreVerified { get; init; }
     public int LaneCount { get; init; }
     public int OwnWardCount { get; init; }
     public int BaselineMinionSkin { get; init; } = -1;

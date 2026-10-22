@@ -11,6 +11,48 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class SkinToolsTests
 {
+    [Fact]
+    public void SkinQualityLabelsAndColorsFollowThemeWithoutApplyingAnotherSkin() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        string previousMode = UiTheme.Mode;
+        try
+        {
+            UiTheme.SetMode("Light");
+            var assets = SecondPhaseRegressionTests.Service<IChampionSkinResourceService>((method, _) => method.Name == "GetCatalogAsync"
+                ? Task.FromResult<IReadOnlyList<ChampionSkinResource>>([new(0, "拉克丝", []), new(7, "大元素使 拉克丝", [], SkinQuality.Ultimate)])
+                : Task.FromResult<LOL_GameAssistant.Domain.GameData.GameAsset?>(null));
+            var core = new Core(); var settings = new Settings(); settings.Load().SkinCoreEnabled = true;
+            using var host = new Form { ClientSize = new Size(1100, 850), ShowInTaskbar = false };
+            using var page = new SkinToolsForm(core, settings, assets); host.Controls.Add(page); host.Show(); page.OnGamePhaseChanged(true);
+            var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries");
+            SecondPhaseRegressionTests.PumpUntil(() => select.Items.Count == 2 && select.Items[1] is AntdUI.SelectItem item && item.Text.Contains("终极"));
+            Assert.Contains("【基础】", ((AntdUI.SelectItem)select.Items[0]!).Text);
+            var ultimate = (AntdUI.SelectItem)select.Items[1]!;
+            Assert.Equal("【终极】", ultimate.Text);
+            Assert.Contains("大元素使 拉克丝", ultimate.SubText);
+            Assert.Contains("烈焰", ultimate.SubText);
+            Assert.Equal(SkinQualityStyle.Foreground(SkinQuality.Ultimate, UiTheme.Palette), ultimate.Fore);
+            Assert.Equal(UiTheme.Palette.TextPrimary, ultimate.ForeSub);
+            select.SelectedIndex = 1;
+            Assert.Equal(ultimate.Fore, select.PrefixFore);
+            Assert.Equal("【终极】", select.PrefixText);
+            Assert.Equal(ultimate.SubText, select.Text);
+            Assert.Equal(UiTheme.Palette.TextPrimary, select.ForeColor);
+            Assert.Single(core.AppliedEntries);
+            UiTheme.SetMode("Dark"); UiTheme.Apply(page);
+            Assert.Equal(SkinQualityStyle.Foreground(SkinQuality.Ultimate, UiTheme.Palette), ultimate.Fore);
+            Assert.Equal(ultimate.Fore, select.PrefixFore);
+            Assert.Equal(UiTheme.Palette.TextPrimary, ultimate.ForeSub);
+            Assert.Equal(UiTheme.Palette.TextPrimary, select.ForeColor);
+            Assert.Equal(1, select.SelectedIndex); Assert.Single(core.AppliedEntries);
+            var search = Descendants(page).OfType<AntdUI.Input>().Single(c => c.Name == "SkinSearch");
+            search.Text = "终极";
+            Assert.Single(select.Items); Assert.Contains("大元素使", ((AntdUI.SelectItem)select.Items[0]!).SubText);
+            Assert.Single(core.AppliedEntries);
+        }
+        finally { UiTheme.SetMode(previousMode); }
+    });
+
     private static IChampionSkinResourceService EmptySkinResources() => SecondPhaseRegressionTests.Service<IChampionSkinResourceService>((method, _) =>
         method.Name == "GetCatalogAsync" ? Task.FromResult<IReadOnlyList<ChampionSkinResource>>([]) : Task.FromResult<LOL_GameAssistant.Domain.GameData.GameAsset?>(null));
 
@@ -50,6 +92,27 @@ public sealed class SkinToolsTests
         overlay.SetState([("c", "新列表")], "c", "列表已更新", true, true);
         bridge.Command = new(1,0,version); overlay.PollCommands(); Assert.Single(selected);
         overlay.Hide(); Assert.Empty(bridge.Panels);
+    });
+
+    [Fact]
+    public void HomeCameraSwitchUsesSharedStateAndRejectsBusyAndStaleCommands() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var bridge = new RecordingGameOverlay();
+        var changes = new List<bool>();
+        using var picker = new SkinPickerOverlayController(() => true, _ => { }, () => { }, () => { }, bridge, changeCamera: changes.Add);
+        picker.SetState([], null, "", false, true);
+        picker.SetCameraState(false, true); picker.ShowOverGame(Rectangle.Empty);
+        var panel = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker];
+        bridge.Command = new(7, 1, panel.Version); picker.PollCommands();
+        Assert.True(Assert.Single(changes));
+        picker.SetCameraState(true, false);
+        bridge.Command = new(7, 0, panel.Version); picker.PollCommands(); Assert.Single(changes);
+        picker.SetCameraState(true, true);
+        picker.SetState([], null, "", false, true, scope: "new-session");
+        bridge.Command = new(7, 0, panel.Version); picker.PollCommands(); Assert.Single(changes);
+        var updated = bridge.Panels[LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.SkinPicker];
+        Assert.True(updated.CameraEnabled);
+        bridge.Command = new(7, 0, updated.Version); picker.PollCommands(); Assert.False(changes.Last());
     });
 
     [Fact]
@@ -151,7 +214,7 @@ public sealed class SkinToolsTests
         var selector = Descendants(page).OfType<AntdUI.Select>().Single(select => select.Name == "HeroSkinEntries");
         selector.SelectedIndex = 1;
         SecondPhaseRegressionTests.PumpUntil(() => calls.Last().Skin == 7 && poster.Image != null);
-        Assert.Contains("大元素使 拉克丝", selector.Items[1]!.ToString());
+        Assert.Contains("大元素使 拉克丝", ((AntdUI.SelectItem)selector.Items[1]!).SubText);
         Assert.Single(core.AppliedEntries); // Updating client names must not apply another skin.
         var tabs = Descendants(page).OfType<AntdUI.Button>();
         var heroTab = tabs.Single(b => b.Name == "HeroSkinTab");

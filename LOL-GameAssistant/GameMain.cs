@@ -149,6 +149,10 @@ namespace LOL_GameAssistant
             }
         }
 
+        public void ShowCoachPage() => tabs1.SelectedIndex = CoachTabIndex;
+        public void ShowLoungePage() => tabs1.SelectedIndex = tabs1.Pages.IndexOf(_loungeTab);
+        public void ShowSettingsPage() => tabs1.SelectedIndex = tabs1.Pages.IndexOf(tabPage5);
+
         /// <summary>初始化 GameMain 的实例状态。</summary>
         public GameMain() : this(
             AppCompositionRoot.LeagueClientEventStream,
@@ -394,7 +398,8 @@ namespace LOL_GameAssistant
             }
             else if (tabs1.SelectedIndex == CoachTabIndex)
             {
-                _ = coachForm.RefreshRecommendationAsync(manual: true);
+                coachForm.RefreshVisibleState();
+                _ = coachForm.RefreshRecommendationAsync(manual: false);
             }
         }
 

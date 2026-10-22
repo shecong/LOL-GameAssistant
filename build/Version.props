@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- 每次发布只修改这里，格式为三段数字；编译后统一用于显示、更新比较和打包。 -->
-    <SoftwareVersion>1.0.3</SoftwareVersion>
+    <SoftwareVersion>26.1022.1</SoftwareVersion>
     <Version>$(SoftwareVersion)</Version>
     <AssemblyVersion>$(SoftwareVersion).0</AssemblyVersion>
     <FileVersion>$(SoftwareVersion).0</FileVersion>

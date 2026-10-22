@@ -7,7 +7,7 @@ using LOL_GameAssistant.Domain.Skins;
 namespace LOL_GameAssistant.Infrastructure.Skins;
 
 /// <summary>One queue for all native requests; lifecycle revisions invalidate queued selections.</summary>
-public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? logPath = null) : ISkinCoreService
+public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, string? logPath = null) : ISkinCoreService
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private int _enabled;
@@ -112,6 +112,12 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
         InvalidateSession(); long revision = Interlocked.Read(ref _revision); bool acquired = false;
         try {
             await _gate.WaitAsync(token).ConfigureAwait(false); acquired = true; Check(revision);
+            bool cameraRestored = true;
+            if (_cameraSession == session && _cameraChanged)
+            {
+                try { await RestoreCameraInternalAsync(revision, session, token).ConfigureAwait(false); }
+                catch (SkinCoreException error) { cameraRestored = false; Log(new { stage = "stop_camera_restore_failed", error.Code, error.OutcomeUnknown }); }
+            }
             bool objectsRestored = true;
             if (_objectSession == session && (_minionChanged || _wardChanged))
             {
@@ -135,8 +141,8 @@ public sealed class NativeSkinCoreService(ISkinCoreTransport transport, string? 
                 }
                 catch (SkinCoreException error) { Log(new { stage = "stop_module_check_failed", error.Code }); }
             }
-            return restored with { HeroRestoreVerified = restored.StateVerified, ObjectRestoreVerified = objectsRestored,
-                StateVerified = restored.StateVerified && objectsRestored };
+            return restored with { HeroRestoreVerified = restored.StateVerified, ObjectRestoreVerified = objectsRestored, CameraRestoreVerified = cameraRestored,
+                StateVerified = restored.StateVerified && objectsRestored && cameraRestored };
         }
         catch (SkinCoreException error) { Log(new { stage = "stop_failed", error.Code, error.OutcomeUnknown }); throw; }
         finally {

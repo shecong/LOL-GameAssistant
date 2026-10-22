@@ -74,6 +74,8 @@ public static class AppCompositionRoot
 
     /// <summary>用户明确选择的文本导出服务。</summary>
     public static ITextExportService TextExportService { get; } = new TextExportService();
+    public static ICompanionExperienceStore CompanionExperienceStore { get; } = new CompanionExperienceStore();
+    public static IPatchWatchService PatchWatchService { get; } = new DataDragonPatchWatchService();
 
     private static readonly LeagueClientConnection LeagueClientConnectionImplementation = new();
 

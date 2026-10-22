@@ -210,6 +210,7 @@ int main(int argc, char** argv) {
     strcpy_s(aux->coachTitle,"当前建议"); strcpy_s(aux->coachBody,"独立于增幅侧栏显示");
     strcpy_s(aux->skinToast,"已切换皮肤"); strcpy_s(aux->skinTitle,"选择皮肤");
     strcpy_s(aux->skinNames[0],"基础皮肤"); aux->skinCount=1; aux->skinReady=1; aux->skinCanRefresh=1; aux->skinVersion=42;
+    aux->cameraReady=1;
     present(); present();
     Check(frame->panelWidth==0 && frame->hitRegionCount==1,"other panels render while mayhem is disabled");
     RECT picker{}; Check(region(0,&picker) && picker.right>picker.left,"skin picker owns separate hit area");
@@ -220,6 +221,11 @@ int main(int argc, char** argv) {
         setPointer((r.left+r.right)/2,(r.top+r.bottom)/2,TRUE);
         present(); SendMessageW(window,WM_LBUTTONDOWN,MK_LBUTTON,0); present(); SendMessageW(window,WM_LBUTTONUP,0,0); present();
     };
+    clickSkinControl(3,0);
+    Check(aux->command==7 && aux->argument==1 && aux->commandVersion==42,"Home camera toggle emits versioned command");
+    aux->cameraReady=0; aux->command=0; present(); clickSkinControl(3,0);
+    Check(aux->command==0,"busy Home camera toggle ignores clicks");
+    aux->cameraReady=1; aux->command=0;
     clickSkinControl(1,0);
     Check(aux->command==1 && aux->argument==0 && aux->commandVersion==42,"skin selection command includes list version");
     aux->command=0; clickSkinControl(0,1);
@@ -284,18 +290,32 @@ int main(int argc, char** argv) {
     unsigned char savedKeyboard[sizeof(RAWINPUT)]{}; memcpy(savedKeyboard,keyboard,next);
     maskBuffer(keyboard,2,UINT(next+sizeof(RAWINPUT)));
     Check(memcmp(savedKeyboard,keyboard,next)==0 && mouse->data.mouse.usButtonFlags==0,"buffered raw wheel masked without altering keyboard");
+    Check(aux->cameraWheel==0,"scrolling picker list does not adjust camera");
+    aux->flags|=16; ++frame->revision; present(); present();
+    PostMessageW(window,WM_MBUTTONDOWN,MK_MBUTTON,0); PostMessageW(window,WM_MBUTTONUP,0,0); present(); present();
+    Check(aux->cameraReset==0,"middle button over Home panel does not reset camera");
     setPointer(picker.right+20,picker.top+100,TRUE);
     PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),0);
     Check(PeekMessageW(&wheelMessage,window,WM_MOUSEWHEEL,WM_MOUSEWHEEL,PM_REMOVE) && wheelMessage.message==WM_MOUSEWHEEL,
         "wheel outside picker reaches game queue");
     DispatchMessageW(&wheelMessage);
+    present(); present();
+    Check(aux->cameraWheel==WHEEL_DELTA,"game wheel is observed for camera while still reaching game");
     raw=originalRaw; raw.data.mouse.usButtonFlags=RI_MOUSE_WHEEL; originalRaw=raw; maskRaw(&raw,sizeof(raw));
     Check(gameWheelMessages==1 && pendingWheel()==0 && memcmp(&raw,&originalRaw,sizeof(raw))==0,
         "game wheel and raw input work outside picker");
-    aux->flags=0; present(); present(); setPointer(picker.left+35,picker.top+100,TRUE);
+    aux->flags=16; present(); present(); setPointer(picker.left+35,picker.top+100,TRUE);
+    PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WORD(-WHEEL_DELTA)),0); present(); present();
+    Check(gameWheelMessages==2 && aux->cameraWheel==0,"camera wheel remains active with Home panel hidden");
+    PostMessageW(window,WM_MBUTTONDOWN,MK_MBUTTON,0); PostMessageW(window,WM_MBUTTONUP,0,0); present(); present();
+    Check(aux->cameraReset==1,"middle button requests camera reset with Home panel hidden");
+    aux->cameraReset=0;
+    aux->flags=0; present(); present();
+    PostMessageW(window,WM_MBUTTONDOWN,MK_MBUTTON,0); PostMessageW(window,WM_MBUTTONUP,0,0); present(); present();
+    Check(aux->cameraReset==0,"disabled camera ignores middle button");
     PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),0); present();
     raw=originalRaw; maskRaw(&raw,sizeof(raw));
-    Check(gameWheelMessages==2 && memcmp(&raw,&originalRaw,sizeof(raw))==0,"closed picker restores game wheel");
+    Check(gameWheelMessages==3 && memcmp(&raw,&originalRaw,sizeof(raw))==0,"closed picker restores game wheel");
     aux->command=0; aux->flags=0; frame->mayhemEnabled=1;
     setPointer(0,0,FALSE); if(previousForeground && previousForeground!=window) SetForegroundWindow(previousForeground);
     Check(SUCCEEDED(chain->ResizeBuffers(2, 1024, 768, DXGI_FORMAT_UNKNOWN, 0)), "resize has no retained backbuffers");

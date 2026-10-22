@@ -7,7 +7,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
 /// <summary>
 /// 外置助手可安全复用的客户端操作集合。
-/// 不做 DOM/XHR Hook，也不读取游戏进程内存；所有写入均通过本机 LCU 完成。
+/// 通过本机 LCU、国服原生 RPCS 与官方活动服务完成操作。
 /// </summary>
 public sealed partial class LcuClientFeatureService : IClientFeatureService
 {
@@ -23,8 +23,15 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
     /// <summary>初始化 LcuClientFeatureService 的实例状态，并保存传入的依赖或数据。</summary>
     private readonly IClientCapabilityService _capabilities;
     private readonly string? _backupRoot;
-    public LcuClientFeatureService(ILcuRequestSender lcu, IClientCapabilityService? capabilities = null, string? backupRoot = null)
-    { _lcu = lcu; _capabilities = capabilities ?? new LcuClientCapabilityService(lcu); _backupRoot = backupRoot; }
+    public LcuClientFeatureService(ILcuRequestSender lcu, IClientCapabilityService? capabilities = null, string? backupRoot = null, HttpClient? rewardHttpClient = null)
+    {
+        _lcu = lcu; _capabilities = capabilities ?? new LcuClientCapabilityService(lcu); _backupRoot = backupRoot;
+        _rewardHttp = rewardHttpClient ?? RewardHttp;
+        _poroRpc = new TencentClientRpc(() => int.TryParse(HttpClientHelper.Port, out int port) ? port : null);
+    }
+
+    internal LcuClientFeatureService(ILcuRequestSender lcu, HttpClient rewardHttpClient, ITencentClientRpc poroRpc)
+        : this(lcu, rewardHttpClient: rewardHttpClient) => _poroRpc = poroRpc;
 
     /// <summary>向客户端提交拒绝当前匹配确认的请求。</summary>
     public async Task<ClientFeatureResult> DeclineReadyCheckAsync(CancellationToken cancellationToken = default) =>
@@ -149,36 +156,26 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
     }
 
     /// <summary>读取待领取奖励列表。</summary>
-    public async Task<IReadOnlyList<ClientRewardGrant>> GetPendingRewardsAsync(CancellationToken cancellationToken = default)
-    {
-        string? json = await _lcu.GetStringAsync("/lol-rewards/v1/grants", cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<ClientRewardGrant>();
-        try
-        {
-            return (JArray.Parse(json)).OfType<JObject>()
+    private static IReadOnlyList<ClientRewardGrant> ParseSelectionRewards(JArray grants) =>
+            grants.OfType<JObject>()
                 .Where(grant => string.Equals(grant.SelectToken("info.status")?.Value<string>(), "PENDING_SELECTION", StringComparison.OrdinalIgnoreCase))
                 .Select(ToRewardGrant)
                 .Where(grant => !string.IsNullOrWhiteSpace(grant.GrantId))
                 .ToArray();
-        }
-        catch (JsonException)
-        {
-            return Array.Empty<ClientRewardGrant>();
-        }
-    }
 
     /// <summary>逐项领取当前可领取的奖励。</summary>
     public async Task<ClientFeatureResult> ClaimAllPendingRewardsAsync(CancellationToken cancellationToken = default)
     {
         var grants = await GetPendingRewardsAsync(cancellationToken).ConfigureAwait(false);
-        int submitted = 0, skipped = 0;
+        int submitted = 0, skipped = 0, failed = 0;
         foreach (var grant in grants)
         {
-            if (grant.RewardIds.Count != 1 || grant.AvailableChoices < 1) { skipped++; continue; }
+            if (grant.RequiresSelection && (grant.RewardIds.Count != 1 || grant.AvailableChoices < 1)) { skipped++; continue; }
             if ((await ClaimRewardAsync(grant.GrantId, grant.RewardIds, cancellationToken).ConfigureAwait(false)).Succeeded) submitted++;
+            else failed++;
         }
-        return submitted > 0 ? ClientFeatureResult.Success($"已提交 {submitted} 组唯一选项奖励；{skipped} 组需要在奖励选择器中手动选择")
-            : ClientFeatureResult.Failure(skipped > 0 ? "存在多选奖励，请打开选择器预览并自行选择；未默认消耗选项" : "没有可快捷领取的奖励");
+        return submitted > 0 ? ClientFeatureResult.Success($"已提交 {submitted} 组奖励领取；{failed} 组失败；{skipped} 组需要自行选择")
+            : ClientFeatureResult.Failure(failed > 0 ? $"{failed} 组奖励领取未成功，请重新扫描后核对" : skipped > 0 ? "存在多选奖励，请打开选择器预览并自行选择；未默认消耗选项" : "没有已确认可快捷领取的奖励，请查看各来源扫描状态");
     }
 
     /// <summary>列出当前账号已有的游戏设置备份。</summary>

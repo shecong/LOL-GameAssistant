@@ -6,18 +6,20 @@ namespace LOL_GameAssistant.BaseViewForm;
 public sealed partial class CoachForm
 {
     private readonly AntdUI.Label _buildStatus = new() { AutoSize = true };
-    private readonly Label _summary = new() { AutoSize = true, Margin = new Padding(0, 8, 0, 8) };
-    private readonly Label _analysisStatus = new() { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(12, 4, 12, 8) };
+    private readonly AntdUI.Label _summary = new() { AutoSize = true, Margin = new Padding(0, 8, 0, 8) };
+    private readonly AntdUI.Label _analysisStatus = new() { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(12, 4, 12, 8) };
     private readonly Dictionary<string, DateTimeOffset> _shownAdvice = new(StringComparer.Ordinal);
     private readonly HashSet<string> _expandedAdvice = new(StringComparer.Ordinal);
     private int _overlaySessionVersion;
     private string _overlayRecommendationId = "";
     private readonly AntdUI.Button _reviewAugments = new() { Text = "确认增幅候选", AutoSize = true, Visible = false };
-    private readonly ComboBox _matchupPicker = new() { Name = "coachMatchup", DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
+    private readonly AntdUI.Select _matchupPicker = new() { Name = "coachMatchup", List = true, DropDownArrow = true, Width = 180, Height = UiMetrics.ControlHeight };
     private readonly FlowLayoutPanel _cardsPanel = new() { Name = "coachCards", Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(12) };
     private readonly Panel _dataPanel = new() { Dock = DockStyle.Bottom, Height = 160, Visible = false, Padding = new Padding(12, 0, 12, 8) };
     private bool _updatingMatchup;
     private string _cardsSignature = "";
+    private bool _showSecondaryAdvice;
+    private readonly AntdUI.Button _moreAdvice = new() { Name = "moreAdvice", Text = "展开后续建议", AutoSize = true, Visible = false };
 
     private void BuildUi()
     {
@@ -27,6 +29,13 @@ public sealed partial class CoachForm
         var history = new AntdUI.Button { Text = "本局建议记录", AutoSize = true };
         history.Click += (_, _) => ShowAdviceHistory();
         header.Controls.Add(history);
+        header.Controls.Add(_moreAdvice);
+        _moreAdvice.Click += (_, _) =>
+        {
+            _showSecondaryAdvice = !_showSecondaryAdvice;
+            for (int i = 0; i < _cardsPanel.Controls.Count; i++) _cardsPanel.Controls[i].Visible = i == 0 || _showSecondaryAdvice;
+            _moreAdvice.Text = _showSecondaryAdvice ? "只看当前重点" : "展开后续建议";
+        };
         var data = new AntdUI.Button { Text = "本次使用的数据 ▾", AutoSize = true };
         data.Click += (_, _) => { _dataPanel.Visible = !_dataPanel.Visible; data.Text = _dataPanel.Visible ? "收起数据 ▴" : "本次使用的数据 ▾"; };
         header.Controls.Add(data);
@@ -43,14 +52,14 @@ public sealed partial class CoachForm
         _status.AutoSize = false; _status.Dock = DockStyle.Top; _status.Height = 28; _status.Padding = new Padding(12, 0, 12, 0);
         var context = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true, Padding = new Padding(12, 0, 12, 6) };
         context.Controls.Add(_summary);
-        context.Controls.Add(new Label { Text = "确认对线对象", AutoSize = true, Margin = new Padding(12, 8, 8, 0) });
+        context.Controls.Add(new AntdUI.Label { Text = "确认对线对象", AutoSize = true, Margin = new Padding(12, 8, 8, 0) });
         context.Controls.Add(_matchupPicker);
         _matchupPicker.SelectedIndexChanged += (_, _) =>
         {
-            if (!_updatingMatchup) _recommendationCoordinator.ConfirmMatchup(_matchupPicker.SelectedIndex <= 0 ? null : _matchupPicker.SelectedItem?.ToString());
+            if (!_updatingMatchup) _recommendationCoordinator.ConfirmMatchup(_matchupPicker.SelectedIndex <= 0 ? null : _matchupPicker.SelectedValue?.ToString());
         };
         var builds = new FlowLayoutPanel { Name = "coachBuildConfiguration", Dock = DockStyle.Bottom, AutoSize = true, WrapContents = true, Padding = new Padding(12, 6, 12, 6) };
-        builds.Controls.Add(new Label { Text = "选人配置", AutoSize = true, Margin = new Padding(0, 10, 12, 0) });
+        builds.Controls.Add(new AntdUI.Label { Text = "选人配置", AutoSize = true, Margin = new Padding(0, 10, 12, 0) });
         builds.Controls.Add(_applyOpgg); builds.Controls.Add(_myRunes); builds.Controls.Add(_buildStatus);
         _dataPanel.Controls.Add(_validation);
         _recommendation.Dock = DockStyle.None;
@@ -62,6 +71,7 @@ public sealed partial class CoachForm
     private void RenderAdviceCards(RecommendationState state)
     {
         var c = state.Context;
+        _moreAdvice.Visible = state.Recommendations.Count > 1;
         _reviewAugments.Visible = c.Phase == "InProgress" && c.Mode.Contains("海克斯", StringComparison.Ordinal);
         _analysisStatus.Text = state.Diagnostic;
         _summary.Text = $"{c.MyChampion} · {c.MyRole} · {c.Mode} · {c.GameTimeText}";
@@ -91,7 +101,11 @@ public sealed partial class CoachForm
             if (state.Recommendations.Count == 0) _cardsPanel.Controls.Add(_recommendation);
             else
                 for (int i = 0; i < state.Recommendations.Count; i++)
-                    _cardsPanel.Controls.Add(CreateAdviceCard(state.Recommendations[i], i, state));
+                {
+                    var card = CreateAdviceCard(state.Recommendations[i], i, state);
+                    card.Visible = i == 0 || _showSecondaryAdvice;
+                    _cardsPanel.Controls.Add(card);
+                }
             SizeAdviceCards();
         }
         finally { _cardsPanel.ResumeLayout(true); }
@@ -137,9 +151,10 @@ public sealed partial class CoachForm
         panel.Controls.Add(actions);
         return panel;
     }
-    private static Label AdviceLabel(string text, bool bold = false) => new()
+    private static AntdUI.Label AdviceLabel(string text, bool bold = false) => new()
     {
-        Text = text, AutoSize = true, Margin = new Padding(0, 0, 0, 10),
+        Text = text, AutoSizeMode = AntdUI.TAutoSize.Height, TextMultiLine = true,
+        TextAlign = ContentAlignment.TopLeft, Dock = DockStyle.Top, Margin = new Padding(0, 0, 0, 10),
         Font = new Font(UiMetrics.FontFamily, bold ? 11 : 10, bold ? FontStyle.Bold : FontStyle.Regular)
     };
     private void SizeAdviceCards()
@@ -152,12 +167,13 @@ public sealed partial class CoachForm
             {
                 table.MinimumSize = new Size(width, 0);
                 table.MaximumSize = new Size(width, 0);
-                foreach (Label label in table.Controls.OfType<Label>()) label.MaximumSize = new Size(Math.Max(100, width - table.Padding.Horizontal - 8), 0);
+                foreach (AntdUI.Label label in table.Controls.OfType<AntdUI.Label>()) label.MaximumSize = new Size(Math.Max(100, width - table.Padding.Horizontal - 8), 0);
             }
         }
     }
     private void ApplyAdviceTheme(ThemePalette palette)
     {
+        AntdContentTheme.Apply(this, palette);
         _summary.ForeColor = palette.TextPrimary;
         _analysisStatus.ForeColor = palette.TextSecondary;
         _cardsPanel.BackColor = palette.Surface;
@@ -165,17 +181,17 @@ public sealed partial class CoachForm
         {
             if (card == _recommendation) continue;
             card.BackColor = palette.SurfaceRaised;
-            foreach (Label label in card.Controls.OfType<Label>()) label.ForeColor = palette.TextPrimary;
+            foreach (AntdUI.Label label in card.Controls.OfType<AntdUI.Label>()) label.ForeColor = palette.TextPrimary;
             if (card.Controls.Count > 0) card.Controls[0].ForeColor = palette.Accent;
         }
     }
     private void ShowAdviceHistory()
     {
         var history = _recommendationCoordinator.Current.History;
-        using var dialog = new Form { Text = "本局建议记录（仅保留本局最近60条）", Width = 760, Height = 560, StartPosition = FormStartPosition.CenterParent, Font = Font };
+        using var dialog = new AntdContentWindow { Text = "本局建议记录（仅保留本局最近60条）", Width = 760, Height = 560, StartPosition = FormStartPosition.CenterParent, Font = Font };
         var text = new AntdUI.Input { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true,
             Text = history.Count == 0 ? "本局暂无建议记录。" : string.Join("\n\n", history.Reverse().Select(h =>
                 $"{h.At.ToLocalTime():HH:mm:ss} · 游戏 {h.GameTime} · {h.Recommendation.Title}\n{h.Recommendation.Body}\n适用：{h.Recommendation.Conditions}\n预期：{h.Recommendation.ExpectedOutcome}\n备选：{h.Recommendation.Fallback}\n判断：{h.Recommendation.Why}\n依据：{h.Recommendation.Evidence}\n反馈：{(h.Feedback.Length == 0 ? "未评价" : h.Feedback)}")) };
-        dialog.Controls.Add(text); UiTheme.Apply(dialog); dialog.ShowDialog(FindForm());
+        dialog.Controls.Add(text); AntdWindowChrome.AddHeader(dialog); UiTheme.Apply(dialog); dialog.ShowDialog(FindForm());
     }
 }

@@ -89,6 +89,8 @@ public sealed partial class CoachForm : UserControl, IThemeAware
     /// <summary>供主窗体切换到该页面时触发；实际调度不依赖该页面是否打开。</summary>
     public Task RefreshRecommendationAsync(bool manual = false) =>
         _recommendationCoordinator.RefreshAsync(force: manual);
+    public Task ApplyCurrentBuildAsync() => ApplyOpggBuildAsync();
+    public void RefreshVisibleState() => RenderState(_recommendationCoordinator.Current);
 
     /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
     public void ApplyTheme(ThemePalette palette)
@@ -135,7 +137,7 @@ public sealed partial class CoachForm : UserControl, IThemeAware
         _status.Text = BuildStatusText(state);
         _validation.Text = BuildValidationText(state);
         _recommendation.Text = BuildRecommendationText(state);
-        RenderAdviceCards(state);
+        if (!IsHandleCreated || PageActivity.IsActive(this)) RenderAdviceCards(state);
         ShowOverlayIfNeeded(state);
     }
 

@@ -98,6 +98,7 @@ internal sealed class DeferredPageHost : UserControl, IThemeAware
         {
             // Flush the placeholder before synchronous WinForms control construction.
             Update();
+            using var performance = new UiPerformanceSample("首次打开页面");
             page = _factory();
             if (IsDisposed || Disposing) { page.Dispose(); return; }
             page.Visible = false;

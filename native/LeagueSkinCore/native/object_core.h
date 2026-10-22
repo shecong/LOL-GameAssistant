@@ -1,6 +1,6 @@
 // Current-build object adapter. Model allowlists replace the obsolete F0 slot.
 #include "object_skin_rules.h"
-constexpr uintptr_t ObjectListSlot=0x1eec800;
+constexpr uintptr_t ObjectListSlot=Game_object_list_slot;
 static bool objectLaneModel(const char* model) {
     const char* names[]={"SRU_OrderMinionMelee","SRU_OrderMinionRanged","SRU_OrderMinionSiege","SRU_OrderMinionSuper",
         "SRU_ChaosMinionMelee","SRU_ChaosMinionRanged","SRU_ChaosMinionSiege","SRU_ChaosMinionSuper"};
@@ -16,9 +16,8 @@ static bool objectReadable(const void* p,size_t length) {
         !(region.Protect&(PAGE_NOACCESS|PAGE_GUARD)) && address+length<=(uintptr_t)region.BaseAddress+region.RegionSize;
 }
 static bool objectProfile(BYTE* base) {
-    const BYTE owner[]={0x48,0x81,0xc1,0xf8,0x06,0,0,0xe9,0x74,0x3b,0xf8,0xff};
-    const BYTE getter[]={0x48,0x8b,0x81,0x48,0x3e,0,0,0x48,0x85,0xc0,0x74,0x05,0x48,0x8b,0x40,0x28,0xc3,0xc3};
-    return !memcmp(base+0x29f530,owner,sizeof(owner)) && !memcmp(base+0x29cca0,getter,sizeof(getter));
+    // The common profile fingerprints the object list, owner accessor and descriptor.
+    return gameProfileMatches(base);
 }
 struct ObjectTarget {BYTE* object;int skin;bool ward;char model[64];};
 static bool objectList(IndependentContext* c,BYTE*** objects,int* count) {
@@ -30,7 +29,7 @@ static bool objectList(IndependentContext* c,BYTE*** objects,int* count) {
 static bool objectLocalWard(IndependentContext* c,BYTE* object) {
     // The current GoldRedirect candidate returns a wrapper, not the root object.
     // Only accept the observed wrapper layout when its first field is our player.
-    BYTE* wrapper=*(BYTE**)(object+0x6f8);
+    BYTE* wrapper=*(BYTE**)(object+Game_owner_offset);
     return objectReadable(wrapper,64) && *(BYTE**)wrapper==c->player;
 }
 static bool objectWardName(IndependentContext* c,int skin,char* name,size_t size) {
@@ -45,6 +44,8 @@ static void independentObjects(Request* r,Writer* writer,IndependentContext* c,b
     BYTE** objects;int count;if(!objectList(c,&objects,&count)){fail(r,"object_list_not_verified");return;}
     if(r->command!=12 && strcmp(r->session,c->session)){fail(r,"stale_session");return;}
     if(r->command!=12 && (r->index < -1 || r->index>(r->command==13?10:10000) || r->gear < -1 || r->gear>1000)){fail(r,"invalid_object_selection");return;}
+    int playerTeam=c->player[Game_team_offset];
+    if(r->command==13 && r->index>=0 && playerTeam!=1 && playerTeam!=2){fail(r,"object_team_not_verified");return;}
     char wardName[1024];
     if(r->command!=12 && r->gear>=0 && !objectWardName(c,r->gear,wardName,sizeof(wardName))){fail(r,"ward_skin_not_in_catalog");return;}
     int lanes=0,wards=0,baselineMinion=-1,baselineWard=-1;bool mixedMinion=false,mixedWard=false;
@@ -63,7 +64,7 @@ static void independentObjects(Request* r,Writer* writer,IndependentContext* c,b
             if(r->command==12)continue;
             int selected=-1;
             if(r->command==14)selected=lane?r->index:r->gear;
-            else {ObjectSkinObservation observation{lane,ward,ward,c->player[0x239],skin,0,model,c->hero};
+            else {ObjectSkinObservation observation{lane,ward,ward,playerTeam,skin,0,model,c->hero};
                 selected=selectObjectSkin(observation,{r->index,r->gear}).skin;}
             if(selected<0)continue;
             IndependentContext objectContext=*c;objectContext.player=object;objectContext.stack=object+Game_stack_offset;

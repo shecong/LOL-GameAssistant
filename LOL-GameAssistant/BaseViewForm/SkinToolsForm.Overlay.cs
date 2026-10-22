@@ -19,7 +19,7 @@ public sealed partial class SkinToolsForm
         {
             _skinPicker = new SkinPickerOverlayController(() => CanUseSkinPicker,
                 id => _ = SelectOverlayEntryAsync(id), () => _ = RefreshOverlayCategoryAsync(), () => _ = RestoreOverlayCategoryAsync(),
-                changeCategory: category => _ = ChangeOverlayCategoryAsync(category));
+                changeCategory: category => _ = ChangeOverlayCategoryAsync(category), changeCamera: enabled => _ = SetCameraEnabledAsync(enabled));
             _status.TextChanged += (_, _) => UpdateSkinPicker();
             _objectStatus.TextChanged += (_, _) => UpdateSkinPicker();
         }
@@ -78,6 +78,7 @@ public sealed partial class SkinToolsForm
         if (_skinPicker == null || _skinPicker.IsDisposed) return;
         if (!CanUseSkinPicker) { _skinPicker.Hide(); return; }
         _skinPicker.SetHotkey(_settings.Load().SkinPickerHotkey);
+        _skinPicker.SetCameraState(_cameraEnabled.Checked, !_cameraBusy && !_busy && !_refreshing);
         bool available = !_busy && !_refreshing && !_objectsBusy;
         if (_skinPickerCategory != SkinPickerCategory.Hero)
         {

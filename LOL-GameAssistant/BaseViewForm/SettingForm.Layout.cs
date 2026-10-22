@@ -4,11 +4,41 @@ namespace LOL_GameAssistant.BaseViewForm;
 
 public partial class SettingForm
 {
+    private void CreateCooldownPreviewCard(TableLayoutPanel content)
+    {
+        const string message = "该功能正在测试，即将上线";
+        var rows = CreateAiSettingsCard(content, "aiCooldownPreviewCard", "技能冷却计时 · 功能预览");
+        (string Name, string Caption, string Text)[] options =
+        [
+            ("summonerCooldownPreview", "召唤师技能：", "敌我召唤师技能冷却计时"),
+            ("allyAbilityCooldownPreview", "我方英雄：", "我方英雄技能冷却计时"),
+            ("enemyAbilityCooldownPreview", "敌方英雄：", "敌方英雄技能冷却计时")
+        ];
+        for (int index = 0; index < options.Length; index++)
+        {
+            var option = options[index];
+            var checkbox = new AntdUI.Checkbox { Name = option.Name, Text = option.Text, AutoSize = true };
+            checkbox.CheckedChanged += (_, _) =>
+            {
+                if (!checkbox.Checked) return;
+                // Preview controls never enable a feature or persist a setting.
+                checkbox.Checked = false;
+                if ((FindForm() ?? Program.GameMain) is { } owner)
+                    UiMessage.info(owner, message);
+            };
+            AddSegmentRow(rows, index + 1, option.Caption, checkbox, message);
+        }
+        AddSegmentRow(rows, options.Length + 1, "功能状态：",
+            CreateAiNote("该功能正在测试，即将上线。当前仅供预览，暂不支持启用。"));
+        rows.ResumeLayout(true);
+    }
+
     private Control CreateAiDashboard(out TableLayoutPanel content)
     {
         var page = new SettingsDashboard
         {
             Name = "aiSettingsDashboard", AutoScroll = true,
+            Size = _settingsSegmentHost.ClientSize,
             Padding = new Padding(20, 12, 20, 20)
         };
         content = new TableLayoutPanel
@@ -17,6 +47,7 @@ public partial class SettingForm
             Margin = Padding.Empty, Padding = Padding.Empty,
             ColumnStyles = { new ColumnStyle(SizeType.Percent, 100) }
         };
+        content.SuspendLayout();
         content.Controls.Add(new AntdUI.Label
         {
             Text = "AI 与推荐", AutoSize = true,
@@ -38,9 +69,9 @@ public partial class SettingForm
 
     private static TableLayoutPanel CreateAiSettingsCard(TableLayoutPanel content, string name, string title)
     {
-        var card = new SettingsCard
+        var card = new AiSettingsCard
         {
-            Name = name, Dock = DockStyle.Top, Radius = 12,
+            Name = name, Dock = DockStyle.Top, Radius = 12, AutoSize = true,
             Padding = new Padding(16), Margin = new Padding(0, 0, 0, 16)
         };
         var rows = CreateSegmentLayout();
@@ -63,7 +94,6 @@ public partial class SettingForm
             }
         };
         card.Controls.Add(rows);
-        rows.SizeChanged += (_, _) => card.Height = rows.Height + card.Padding.Vertical;
         content.Controls.Add(card);
         return rows;
     }
@@ -87,6 +117,7 @@ public partial class SettingForm
             Margin = Padding.Empty, Padding = Padding.Empty
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        content.SuspendLayout();
         var heading = new AntdUI.Label
         {
             Text = "对局自动化", AutoSize = true,
@@ -115,6 +146,7 @@ public partial class SettingForm
         var right = Stack();
         columns.Controls.Add(left, 0, 0);
         columns.Controls.Add(right, 1, 0);
+        content.Controls.Add(CreatePresetBar());
         content.Controls.Add(columns);
         page.Controls.Add(content);
 
@@ -226,10 +258,23 @@ public partial class SettingForm
         page.SizeChanged += (_, _) => Reflow();
         page.Layout += (_, _) => Reflow();
         Reflow();
+        content.ResumeLayout(true);
         return page;
     }
 
-    private sealed class SettingsCard : AntdUI.Panel, IThemeAware
+    private sealed class AiSettingsCard : SettingsCard
+    {
+        // AntdUI.Panel does not measure its children for AutoSize. Let the table's
+        // current preferred size drive the card, including its first visible layout.
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            if (Controls.Count == 0) return base.GetPreferredSize(proposedSize);
+            int width = Math.Max(1, (proposedSize.Width > 0 ? proposedSize.Width : Width) - Padding.Horizontal);
+            return Controls[0].GetPreferredSize(new Size(width, 0)) + Padding.Size;
+        }
+    }
+
+    private class SettingsCard : AntdUI.Panel, IThemeAware
     {
         public void ApplyTheme(ThemePalette palette)
         {

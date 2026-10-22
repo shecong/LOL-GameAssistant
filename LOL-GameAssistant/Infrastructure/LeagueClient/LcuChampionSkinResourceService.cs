@@ -1,6 +1,7 @@
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.Skins;
 using Newtonsoft.Json.Linq;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
@@ -38,13 +39,15 @@ public sealed class LcuChampionSkinResourceService(ILcuRequestSender lcu, Func<s
                 int fullId = skin.Value<int?>("id") ?? -1;
                 if (fullId < 0 || fullId / 1000 != id) continue;
                 var paths = ReadPaths(skin);
-                result.Add(new(fullId % 1000, skin.Value<string>("name") ?? model, paths));
+                var quality = ReadQuality(skin.Value<string>("rarity"), skin.Value<bool?>("isBase") == true || fullId % 1000 == 0);
+                result.Add(new(fullId % 1000, skin.Value<string>("name") ?? model, paths, quality));
                 foreach (var chroma in skin["chromas"]?.Children<JObject>() ?? [])
                 {
                     int chromaId = chroma.Value<int?>("id") ?? -1;
                     if (chromaId < 0 || chromaId / 1000 != id) continue;
                     result.Add(new(chromaId % 1000, chroma.Value<string>("name") ?? skin.Value<string>("name") ?? model,
-                        ReadPaths(chroma).Concat(paths).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()));
+                        ReadPaths(chroma).Concat(paths).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                        quality, true));
                 }
             }
             IReadOnlyList<ChampionSkinResource> catalog = result.DistinctBy(skin => skin.SkinNumber).ToArray();
@@ -85,6 +88,17 @@ public sealed class LcuChampionSkinResourceService(ILcuRequestSender lcu, Func<s
         if (string.IsNullOrWhiteSpace(json)) return null;
         try { return JToken.Parse(json); } catch (Newtonsoft.Json.JsonException) { return null; }
     }
+    internal static SkinQuality ReadQuality(string? rarity, bool isBase) => isBase ? SkinQuality.Base : rarity?.Trim().ToLowerInvariant() switch
+    {
+        "knorarity" => SkinQuality.Standard,
+        "kepic" => SkinQuality.Epic,
+        "klegendary" => SkinQuality.Legendary,
+        "kultimate" => SkinQuality.Ultimate,
+        "kmythic" => SkinQuality.Mythic,
+        "kexalted" => SkinQuality.Exalted,
+        "ktranscendent" => SkinQuality.Transcendent,
+        _ => SkinQuality.Unknown
+    };
     private static string[] ReadPaths(JObject skin) => new[] { "splashPath", "uncenteredSplashPath", "chromaPath", "tilePath", "loadScreenPath" }
         .Select(field => NormalizeAssetPath(skin.Value<string>(field))).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 

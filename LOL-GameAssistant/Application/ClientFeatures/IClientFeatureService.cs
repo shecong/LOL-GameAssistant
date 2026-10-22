@@ -43,6 +43,14 @@ public interface IClientFeatureService
     /// <summary>读取待领取奖励列表。</summary>
     Task<IReadOnlyList<ClientRewardGrant>> GetPendingRewardsAsync(CancellationToken cancellationToken = default);
 
+    async Task<ClientRewardScan> ScanRewardsAsync(CancellationToken cancellationToken = default) =>
+        new(await GetPendingRewardsAsync(cancellationToken), []);
+
+    Task<PoroShopSnapshot> GetPoroShopAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new PoroShopSnapshot("", 0, 0, [], "当前服务未提供魄罗商店"));
+    Task<PoroShopBatchResult> ExchangePoroShopItemsAsync(PoroShopSnapshot preview, IReadOnlyList<PoroShopSelection> selections,
+        CancellationToken cancellationToken = default) => Task.FromResult(new PoroShopBatchResult([], "当前服务未提供魄罗商店兑换"));
+
     /// <summary>逐项领取当前可领取的奖励。</summary>
     Task<ClientFeatureResult> ClaimAllPendingRewardsAsync(CancellationToken cancellationToken = default);
 
@@ -100,7 +108,22 @@ public sealed record ClientRewardGrant(
 {
     public IReadOnlyList<ClientRewardChoice> Choices { get; init; } = [];
     public int MinimumSelections { get; init; } = 1;
+    public string Source { get; init; } = "待选奖励";
+    public string Description { get; init; } = "";
+    public bool RequiresSelection { get; init; } = true;
 }
+
+public sealed record ClientRewardSourceStatus(string Source, string Message);
+public sealed record ClientRewardScan(IReadOnlyList<ClientRewardGrant> Rewards, IReadOnlyList<ClientRewardSourceStatus> Sources);
+
+public enum PoroShopCurrency { Silver, Gold }
+public sealed record PoroShopItem(string Id, string Name, string Description, long UnitPrice, PoroShopCurrency Currency,
+    int Remaining, bool CanExchange, string Availability);
+public sealed record PoroShopSnapshot(string AccountKey, long Silver, long Gold, IReadOnlyList<PoroShopItem> Items, string Message);
+public sealed record PoroShopSelection(string ItemId, int Quantity);
+public enum PoroShopExchangeState { Succeeded, Rejected, Unconfirmed, Skipped }
+public sealed record PoroShopItemResult(string ItemId, string Name, int Requested, int Succeeded, PoroShopExchangeState State, string Message);
+public sealed record PoroShopBatchResult(IReadOnlyList<PoroShopItemResult> Items, string Message);
 
 public sealed record ClientRewardChoice(string Id, string Name, string Description);
 public enum ReplayAvailability { Unknown, Downloadable, Downloading, Ready, Unavailable }

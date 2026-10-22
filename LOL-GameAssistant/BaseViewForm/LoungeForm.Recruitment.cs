@@ -1,6 +1,7 @@
-﻿using LOL.Lounge;
+using LOL.Lounge;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.Lounge;
+using LOL_GameAssistant.Domain.MatchAnalysis;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -14,6 +15,7 @@ public sealed partial class LoungeForm
 
     internal Form CreateRecruitmentDialog()
     {
+        string openedAccount = _client.CurrentPlayerId;
         var dialog = RecruitmentDialog("发布开黑招募", new Size(540, 520));
         var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 9, Padding = new Padding(16) };
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 94));
@@ -23,9 +25,9 @@ public sealed partial class LoungeForm
         grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
         grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        ComboBox Dropdown(string name, IEnumerable<string> choices)
+        AntdUI.Select Dropdown(string name, IEnumerable<string> choices)
         {
-            var box = new ComboBox { Name = name, Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            var box = new AntdUI.Select { Name = name, Dock = DockStyle.Fill, List = true, DropDownArrow = true };
             box.Items.AddRange(choices.Cast<object>().ToArray()); box.SelectedIndex = 0; return box;
         }
         var regions = Enumerable.Range(1, 19).Select(i => LoungeLcuReader.RegionName("HN" + i))
@@ -37,12 +39,12 @@ public sealed partial class LoungeForm
         var mode = Dropdown("Mode", modes.Select(m => m.Value + "（" + m.Key + "）"));
         var rank = Dropdown("Rank", LoungeContent.Ranks);
         var position = Dropdown("Position", LoungeContent.Positions);
-        var needed = new NumericUpDown { Name = "Needed", Dock = DockStyle.Fill, Minimum = 1, Maximum = 4, Value = 1 };
-        var note = new TextBox { Name = "Note", Dock = DockStyle.Fill, MaxLength = 120, Multiline = true,
-            ScrollBars = ScrollBars.Vertical, PlaceholderText = "最多 120 字，例如：轻松上分，友好交流" };
-        var hint = new Label { Dock = DockStyle.Fill, Text = "发布后 30 分钟过期；报名满员后可由发起人结束。", TextAlign = ContentAlignment.MiddleLeft };
-        var error = new Label { Name = "Feedback", Dock = DockStyle.Fill, AutoEllipsis = true };
-        var publish = new Button { Name = "Publish", Text = "发布到公频", Dock = DockStyle.Fill };
+        var needed = new AntdUI.InputNumber { Name = "Needed", Dock = DockStyle.Fill, Minimum = 1, Maximum = 4, Value = 1 };
+        var note = new AntdUI.Input { Name = "Note", Dock = DockStyle.Fill, MaxLength = 120, Multiline = true,
+            PlaceholderText = "偏好标签与说明合计最多120字，例如：友好交流" };
+        var hint = new AntdUI.Label { Dock = DockStyle.Fill, Text = $"{_socialExperience.PlayStyle} · {(_socialExperience.Voice ? "愿意语音" : "无需语音")}；可在休息室更多菜单修改偏好。30分钟后到期。", TextMultiLine = true, TextAlign = ContentAlignment.MiddleLeft };
+        var error = new AntdUI.Label { Name = "Feedback", Dock = DockStyle.Fill, TextMultiLine = true, AutoEllipsis = true };
+        var publish = new AntdUI.Button { Name = "Publish", Text = "发布到公频", Dock = DockStyle.Fill };
         Control[] fields = [region, mode, rank, position, needed, note];
         string id = Guid.NewGuid().ToString("N");
         string? payloadKey = null;
@@ -51,6 +53,8 @@ public sealed partial class LoungeForm
         publish.Click += async (_, _) =>
         {
             if (sending) return;
+            if (openedAccount.Length > 0 && openedAccount != _client.CurrentPlayerId)
+            { error.Text = "账号已切换，请关闭后重新发布招募。"; return; }
             sending = true;
             publish.Enabled = false;
             publish.Text = "正在发布…";
@@ -59,7 +63,7 @@ public sealed partial class LoungeForm
             try
             {
                 var recruitment = new LoungeRecruitment(region.Text, modes[mode.SelectedIndex].Key, rank.Text,
-                    position.Text, (int)needed.Value, note.Text);
+                    position.Text, (int)needed.Value, RecruitmentPreferences.Compose(_socialExperience.PlayStyle, _socialExperience.Voice, _socialExperience.AvailableTime, note.Text ?? ""));
                 string nextKey = LoungeContent.Serialize(recruitment);
                 if (payloadKey != null && payloadKey != nextKey) id = Guid.NewGuid().ToString("N");
                 payloadKey = nextKey;
@@ -87,13 +91,13 @@ public sealed partial class LoungeForm
         int row = 0;
         foreach (var (label, control) in new (string, Control)[] { ("大区", region), ("模式", mode), ("段位要求", rank),
             ("缺少位置", position), ("缺少人数", needed), ("补充说明", note), ("", hint), ("", error), ("", publish) })
-        { grid.Controls.Add(new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, row); grid.Controls.Add(control, 1, row++); }
+        { grid.Controls.Add(new AntdUI.Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, row); grid.Controls.Add(control, 1, row++); }
         dialog.Controls.Add(grid);
-        UiTheme.Apply(dialog);
+        AntdWindowChrome.AddHeader(dialog); UiTheme.Apply(dialog);
         return dialog;
     }
 
-    private Form RecruitmentDialog(string title, Size size) => new()
+    private AntdContentWindow RecruitmentDialog(string title, Size size) => new()
     {
         Text = title, ClientSize = size, Font = Font, StartPosition = FormStartPosition.CenterParent,
         FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
@@ -123,17 +127,36 @@ public sealed partial class LoungeForm
 
     private void ShowRecruitmentList()
     {
-        using var dialog = RecruitmentDialog("开黑招募列表 · 选择后查看详情", new Size(700, 420));
-        var list = new ListBox { Dock = DockStyle.Fill, HorizontalScrollbar = true };
-        var open = new Button { Text = "查看详情 / 加入 / 管理", Dock = DockStyle.Bottom, Height = 42 };
-        var hint = new Label { Dock = DockStyle.Top, Height = 44, Text = "报名后复制发起人游戏 ID，在 LOL 客户端添加好友组队。段位及位置由双方确认。" };
+        using var dialog = CreateRecruitmentListDialog();
+        dialog.ShowDialog(FindForm());
+    }
+    internal Form CreateRecruitmentListDialog()
+    {
+        var dialog = RecruitmentDialog("开黑招募列表 · 选择后查看详情", new Size(760, 480));
+        var list = CreateLoungeList();
+        list.Name = "recruitmentResults";
+        var filters = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true, Padding = new Padding(8) };
+        var sameRegion = new AntdUI.Checkbox { Name = "sameRegion", Text = "同大区", Checked = true, AutoSize = true };
+        var active = new AntdUI.Checkbox { Name = "activeRecruitments", Text = "仅可加入", Checked = true, AutoSize = true };
+        var style = new AntdUI.Select { Name = "recruitmentStyle", List = true, DropDownArrow = true, Width = 140, Height = 36 };
+        style.Items.Add("全部目的"); style.Items.AddRange(RecruitmentPreferences.Styles.Cast<object>().ToArray()); style.SelectedIndex = 0;
+        var position = new AntdUI.Select { Name = "recruitmentPosition", List = true, DropDownArrow = true, Width = 140, Height = 36 };
+        position.Items.AddRange(LoungeContent.Positions.Cast<object>().ToArray()); position.SelectedIndex = 0;
+        filters.Controls.AddRange([sameRegion, active, style, position]);
+        var open = new AntdUI.Button { Text = "查看详情 / 加入 / 管理", Dock = DockStyle.Bottom, Height = 42 };
+        var hint = new AntdUI.Label { Dock = DockStyle.Top, Height = 44, Text = "报名后复制发起人游戏 ID，在 LOL 客户端添加好友组队。段位及位置由双方确认。" };
         LoungeRecruitmentState[] states = [];
         string key = "\0";
         void RefreshList()
         {
             var blocked = _client.Settings.BlockedSenders ?? [];
             var deletedOrBlocked = _client.Messages.Where(m => m.Kind == "deleted" || blocked.Contains(m.SenderId)).Select(m => m.Id).ToHashSet();
-            var next = _client.Recruitments.Where(r => !deletedOrBlocked.Contains(r.MessageId)).ToArray();
+            var next = _client.Recruitments.Where(r => !deletedOrBlocked.Contains(r.MessageId) &&
+                (!sameRegion.Checked || string.IsNullOrWhiteSpace(_client.CurrentRegion) || r.Recruitment.Region == _client.CurrentRegion) &&
+                (!active.Checked || (!r.Closed && r.ExpiresAt > DateTimeOffset.UtcNow && r.Participants.Length < r.Recruitment.Needed)) &&
+                (style.SelectedIndex <= 0 || RecruitmentPreferences.Style(r.Recruitment.Note) == style.SelectedValue?.ToString()) &&
+                (position.SelectedIndex <= 0 || r.Recruitment.Position == "任意位置" || r.Recruitment.Position == position.SelectedValue?.ToString()))
+                .OrderByDescending(r => _socialExperience.FavoriteTeammates.ContainsKey(r.OwnerId)).ThenByDescending(r => r.MessageId).ToArray();
             string nextKey = string.Join('|', next.Select(r => $"{r.MessageId}:{r.Revision}:{r.Status}"));
             hint.Text = !_client.SupportsRecruitment ? "服务器尚未支持完整开黑招募，请更新 LOL-GameApi 到协议 v3 并重新连接。" :
                 next.Length == 0 ? "暂无招募，登录 LOL 后可点击“开黑招募”发布。" :
@@ -141,8 +164,7 @@ public sealed partial class LoungeForm
             if (key == nextKey) return;
             long selected = list.SelectedIndex >= 0 ? states[list.SelectedIndex].MessageId : 0;
             states = next; key = nextKey;
-            list.Items.Clear();
-            list.Items.AddRange(states.Select(s => (object)$"[{s.Status}] {s.Recruitment.Region} · {LoungeRules.Modes.GetValueOrDefault(s.Recruitment.QueueId)} · {s.OwnerName} · {s.Participants.Length}/{s.Recruitment.Needed}").ToArray());
+            list.DataSource = states.Select(s => new LoungeListRow($"[{s.Status}] {s.Recruitment.Region} · {LoungeRules.Modes.GetValueOrDefault(s.Recruitment.QueueId)} · {s.OwnerName} · {s.Participants.Length}/{s.Recruitment.Needed}")).ToArray();
             list.SelectedIndex = Array.FindIndex(states, s => s.MessageId == selected);
             if (list.SelectedIndex < 0 && states.Length > 0) list.SelectedIndex = 0;
             open.Enabled = states.Length > 0;
@@ -154,11 +176,14 @@ public sealed partial class LoungeForm
             detail.ShowDialog(dialog);
             RefreshList();
         };
-        list.DoubleClick += (_, _) => open.PerformClick();
-        dialog.Controls.Add(list); dialog.Controls.Add(open); dialog.Controls.Add(hint);
-        using var timer = new System.Windows.Forms.Timer { Interval = 500 };
+        list.CellDoubleClick += (_, _) => open.PerformClick();
+        sameRegion.CheckedChanged += (_, _) => { key = "\0"; RefreshList(); }; active.CheckedChanged += (_, _) => { key = "\0"; RefreshList(); };
+        style.SelectedIndexChanged += (_, _) => { key = "\0"; RefreshList(); }; position.SelectedIndexChanged += (_, _) => { key = "\0"; RefreshList(); };
+        dialog.Controls.Add(list); dialog.Controls.Add(open); dialog.Controls.Add(hint); dialog.Controls.Add(filters);
+        var timer = new System.Windows.Forms.Timer { Interval = 500 };
         timer.Tick += (_, _) => RefreshList(); timer.Start();
-        RefreshList(); UiTheme.Apply(dialog); dialog.ShowDialog(FindForm());
+        dialog.Disposed += (_, _) => timer.Dispose();
+        RefreshList(); AntdWindowChrome.AddHeader(dialog); UiTheme.Apply(dialog); return dialog;
     }
 
     internal Form CreateRecruitmentDetails(long id)
@@ -169,16 +194,17 @@ public sealed partial class LoungeForm
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
-        var description = new TextBox { Name = "Description", Dock = DockStyle.Fill, ReadOnly = true,
-            Multiline = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, TabStop = false };
-        var participants = new ListBox { Name = "Participants", Dock = DockStyle.Fill, HorizontalScrollbar = true };
-        var feedback = new Label { Name = "Feedback", Dock = DockStyle.Fill, Text = "报名占用一个名额。复制游戏 ID 后，在 LOL 客户端添加好友组队；段位和位置请双方确认。" };
+        var description = new AntdUI.Input { Name = "Description", Dock = DockStyle.Fill, ReadOnly = true,
+            Multiline = true, BorderWidth = 0, TabStop = false };
+        var participants = CreateLoungeList();
+        participants.Name = "Participants";
+        var feedback = new AntdUI.Label { Name = "Feedback", Dock = DockStyle.Fill, TextMultiLine = true, Text = "报名占用一个名额。复制游戏 ID 后，在 LOL 客户端添加好友组队；段位和位置请双方确认。" };
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
-        var join = new Button { Name = "Join", Text = "报名加入", AutoSize = true };
-        var leave = new Button { Name = "Leave", Text = "退出报名", AutoSize = true };
-        var close = new Button { Name = "CloseRecruitment", Text = "结束招募", AutoSize = true };
-        var copy = new Button { Text = "复制发起人 ID", AutoSize = true };
-        var party = new Button { Name = "OpenPartyHub", Text = "进入开黑大厅", AutoSize = true };
+        var join = new AntdUI.Button { Name = "Join", Text = "报名加入", AutoSize = true };
+        var leave = new AntdUI.Button { Name = "Leave", Text = "退出报名", AutoSize = true };
+        var close = new AntdUI.Button { Name = "CloseRecruitment", Text = "结束招募", AutoSize = true };
+        var copy = new AntdUI.Button { Text = "复制发起人 ID", AutoSize = true };
+        var party = new AntdUI.Button { Name = "OpenPartyHub", Text = "进入开黑大厅", AutoSize = true };
         buttons.Controls.AddRange([join, leave, close, copy, party]);
         party.Click += (_, _) =>
         {
@@ -201,7 +227,7 @@ public sealed partial class LoungeForm
             {
                 description.Text = "此招募尚未同步、已被删除，或来自旧版服务器。请重新连接后查看招募列表。";
                 join.Enabled = leave.Enabled = close.Enabled = copy.Enabled = false;
-                participants.Items.Clear(); return;
+                participants.DataSource = Array.Empty<LoungeListRow>(); return;
             }
             string availability = !_client.CanSend ? "连接频道并登录 LOL 后可报名或管理招募。" :
                 _client.CurrentRegion != state.Recruitment.Region ? "当前账号大区与招募不同，切换到对应大区后可报名。" : "";
@@ -211,8 +237,12 @@ public sealed partial class LoungeForm
             string nextKey = $"{state.MessageId}:{state.Revision}";
             if (nextKey != key)
             {
-                key = nextKey; participants.Items.Clear();
-                participants.Items.AddRange(state.Participants.Select(p => (object)$"{p.Name} · {p.Region} · {p.Rank}").ToArray());
+                var selected = participants.SelectedIndex >= 0 && participants.DataSource is LoungeListRow[] previous && participants.SelectedIndex < previous.Length
+                    ? previous[participants.SelectedIndex] : null;
+                key = nextKey;
+                var rows = state.Participants.Select(p => new LoungeListRow($"{p.Name} · {p.Region} · {p.Rank}")).ToArray();
+                participants.DataSource = rows;
+                participants.SelectedIndex = selected == null ? -1 : Array.IndexOf(rows, selected);
             }
             bool active = !state.Closed && state.ExpiresAt > DateTimeOffset.UtcNow;
             bool owner = state.OwnerId == _client.CurrentPlayerId;
@@ -251,7 +281,7 @@ public sealed partial class LoungeForm
         var timer = new System.Windows.Forms.Timer { Interval = 500 };
         timer.Tick += (_, _) => RefreshDetails(); timer.Start();
         dialog.Disposed += (_, _) => timer.Dispose();
-        RefreshDetails(); UiTheme.Apply(dialog);
+        RefreshDetails(); AntdWindowChrome.AddHeader(dialog); UiTheme.Apply(dialog);
         return dialog;
     }
 }

@@ -99,7 +99,8 @@ public sealed class UiRedesignTests
         host.ClientSize = new Size(1440, 850);
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal(440, cards[0].Height);
-        Assert.Equal("最近战绩", heading.Text);
+        Assert.StartsWith("最近战绩", heading.Text);
+        Assert.Contains("10 场", heading.Text);
         Assert.True(Field<Control>(cards[0], "panelMatches").Visible);
         host.Controls.Remove(live);
         typeof(LiveGameForm).GetMethod("UpdateTeamOverview", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(live, null);

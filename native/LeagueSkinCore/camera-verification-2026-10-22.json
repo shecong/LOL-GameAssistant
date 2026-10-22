@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-22",
+  "mode": "PRACTICETOOL",
+  "before": {
+    "ok": true,
+    "independent": true,
+    "original_required": false,
+    "session": "5162aea97943918a",
+    "reference_sha256": "36c4715121fc8af987c63c61ae5fc85b496004ec801bea2d76cdf8b3e8682e28",
+    "request_id": "6cea8d0d8c1ec317",
+    "camera_id": "86c48f50a7ef368f",
+    "camera_distance": 600,
+    "invoked": false,
+    "state_verified": true,
+    "transport_hook_released": true
+  },
+  "visual_confirmation": "pending",
+  "apply": {
+    "ok": true,
+    "independent": true,
+    "original_required": false,
+    "session": "5162aea97943918a",
+    "reference_sha256": "36c4715121fc8af987c63c61ae5fc85b496004ec801bea2d76cdf8b3e8682e28",
+    "request_id": "0da14dfa136aab27",
+    "camera_id": "86c48f50a7ef368f",
+    "camera_distance": 1700,
+    "invoked": true,
+    "state_verified": true,
+    "transport_hook_released": true
+  },
+  "readback": {
+    "ok": true,
+    "independent": true,
+    "original_required": false,
+    "session": "5162aea97943918a",
+    "reference_sha256": "36c4715121fc8af987c63c61ae5fc85b496004ec801bea2d76cdf8b3e8682e28",
+    "request_id": "393f261df7c6f594",
+    "camera_id": "86c48f50a7ef368f",
+    "camera_distance": 1700,
+    "invoked": false,
+    "state_verified": true,
+    "transport_hook_released": true
+  },
+  "restore": {
+    "ok": true,
+    "independent": true,
+    "original_required": false,
+    "session": "5162aea97943918a",
+    "reference_sha256": "36c4715121fc8af987c63c61ae5fc85b496004ec801bea2d76cdf8b3e8682e28",
+    "request_id": "6c7c271f6a032fa3",
+    "camera_id": "86c48f50a7ef368f",
+    "camera_distance": 600,
+    "invoked": true,
+    "state_verified": true,
+    "transport_hook_released": true
+  },
+  "final": {
+    "ok": true,
+    "independent": true,
+    "original_required": false,
+    "session": "5162aea97943918a",
+    "reference_sha256": "36c4715121fc8af987c63c61ae5fc85b496004ec801bea2d76cdf8b3e8682e28",
+    "request_id": "ab3acbdaaa07b886",
+    "camera_id": "86c48f50a7ef368f",
+    "camera_distance": 600,
+    "invoked": false,
+    "state_verified": true,
+    "transport_hook_released": true
+  }
+}

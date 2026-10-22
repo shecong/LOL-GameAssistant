@@ -11,9 +11,9 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private readonly ISkinCoreService _core;
     private readonly IApplicationSettingsStore _settings;
     private readonly AntdUI.Switch _enabled = new() { Name = "SkinCoreEnabled", Width = 52, Height = 30 };
-    private readonly AntdUI.Input _search = new() { Name = "SkinSearch", Dock = DockStyle.Top, Height = 48, PlaceholderText = "搜索皮肤名称或模型" };
+    private readonly AntdUI.Input _search = new() { Name = "SkinSearch", Dock = DockStyle.Top, Height = 48, PlaceholderText = "搜索皮肤、品质或模型" };
     private readonly AntdUI.Select _entries = new() { Name = "HeroSkinEntries", Dock = DockStyle.Top, Height = 56, List = true, MaxCount = 12,
-        DropDownArrow = true, DropDownRadius = 10, Font = new Font(UiMetrics.FontFamily, 11), PlaceholderText = "请先启用并读取当前英雄" };
+        DropDownArrow = true, DropDownRadius = 10, AutoText = false, Font = new Font(UiMetrics.FontFamily, 11), PlaceholderText = "请先启用并读取当前英雄" };
     private readonly AntdUI.Button _refresh = new() { Name = "SkinActionRefresh", Text = "读取当前英雄", Width = 146, Height = 42, Margin = new Padding(0, 8, 12, 4) };
     private readonly AntdUI.Button _restore = new() { Name = "SkinActionRestore", Text = "恢复基础皮肤", Width = 146, Height = 42, Margin = new Padding(0, 8, 0, 4) };
     private readonly AntdUI.Button _stop = new() { Name = "SkinActionStop", Text = "恢复原皮并停用", Width = 146, Height = 42, Margin = new Padding(12, 8, 0, 4) };
@@ -34,9 +34,10 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private readonly HashSet<string> _rememberedSessions = [];
 
     public SkinToolsForm(ISkinCoreService core, IApplicationSettingsStore settings,
-        IChampionSkinResourceService? skinResources = null)
+        IChampionSkinResourceService? skinResources = null, LOL_GameAssistant.Application.GameData.IGameOverlayBridge? cameraOverlay = null)
     {
         _core = core; _settings = settings; _skinResources = skinResources ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ChampionSkinResourceService; Dock = DockStyle.Fill;
+        _cameraOverlay = cameraOverlay ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.GameOverlay;
         var viewport = new AntdUI.Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = Padding.Empty, Radius = 0 };
         var heading = new TableLayoutPanel { Dock = DockStyle.Top, Height = 56, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
@@ -72,12 +73,21 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             content.SetBounds(12, 12, width, skinHeight + 456);
         }
         viewport.Controls.Add(content); viewport.Resize += (_, _) => PositionContent(); PositionContent(); BuildSkinNavigation(viewport);
-        _enabled.Checked = settings.Load().SkinCoreEnabled;
+        var initialSettings = settings.Load();
+        if (initialSettings.UnlimitedZoomEnabled && !initialSettings.SkinCoreEnabled)
+        {
+            initialSettings.SkinCoreEnabled = true;
+            settings.Save(initialSettings);
+        }
+        _enabled.Checked = initialSettings.SkinCoreEnabled;
         _core.SetEnabled(_enabled.Checked);
+        InitializeCameraAutomation();
         _enabled.CheckedChanged += (_, _) => ToggleEnabled();
         _search.TextChanged += (_, _) => FilterEntries();
+        _entries.DrawItem += (_, e) => { e.Fore = e.Item.Fore; e.ForeSub = UiTheme.Palette.TextPrimary; };
         _entries.SelectedIndexChanged += async (_, _) =>
         {
+            UpdateSkinQualityColors(UiTheme.Palette);
             UpdateButtons();
             if (!_updatingSelection) { await ChangeAsync(false); await UpdatePreviewAsync(); }
         };
@@ -104,7 +114,12 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     private void ToggleEnabled()
     {
-        try { var settings = _settings.Load(); settings.SkinCoreEnabled = _enabled.Checked; _settings.Save(settings); }
+        try
+        {
+            var settings = _settings.Load(); settings.SkinCoreEnabled = _enabled.Checked;
+            if (!_enabled.Checked) { settings.UnlimitedZoomEnabled = false; SetCameraToggle(false); }
+            _settings.Save(settings);
+        }
         catch (Exception ex) { _status.Text = $"设置保存失败：{ex.Message}"; }
         _skinNotice?.Hide(); _core.SetEnabled(_enabled.Checked); ResetSession(); UpdateActivity();
         HotkeySettingsChanged?.Invoke();
@@ -140,6 +155,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _posterCaption.Text = "连接游戏后显示当前英雄皮肤海报";
         Interlocked.Increment(ref _revision); _catalog = null; _filtered.Clear(); _entries.Items.Clear(); _entries.SelectedIndex = -1;
         _objectCatalog = null;
+        ResetCameraSelection();
         ResetObjectSelection(); _skinPickerCategory = SkinPickerCategory.Hero;
         _current.Text = UiLanguage.T("尚未连接游戏"); UpdateButtons();
     }
@@ -147,16 +163,24 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         string? previous = _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count ? _filtered[_entries.SelectedIndex].EntryId : null;
         string query = _search.Text.Trim();
-        _filtered = _catalog?.Entries.Where(e => $"{GetSkinDisplayName(e)} {e.Name} {e.Model} {e.SkinNum} {e.GearName}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
+        _filtered = _catalog?.Entries.Where(e => $"{GetSkinOptionText(e)} {e.Name} {e.Model} {e.SkinNum} {e.GearName}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
         bool wasUpdating = _updatingSelection;
         _updatingSelection = true;
         try
         {
-            _entries.Items.Clear();
-            foreach (var entry in _filtered) _entries.Items.Add(GetSkinDisplayName(entry));
-            _entries.SelectedIndex = previous == null ? -1 : _filtered.FindIndex(e => e.EntryId == previous);
+            bool unchanged = _entries.Items.Count == _filtered.Count && _filtered.Select((entry, i) =>
+                _entries.Items[i] is AntdUI.SelectItem item && Equals(item.Tag, entry.EntryId)
+                && item.Text == GetSkinQualityPrefix(entry) && item.SubText == GetSkinDisplayName(entry)).All(match => match);
+            if (!unchanged)
+            {
+                _entries.Items.Clear();
+                foreach (var entry in _filtered) _entries.Items.Add(new AntdUI.SelectItem(GetSkinQualityPrefix(entry), entry.EntryId)
+                    { SubText = GetSkinDisplayName(entry), Fore = SkinQualityStyle.Foreground(GetSkinQuality(entry), UiTheme.Palette), ForeSub = UiTheme.Palette.TextPrimary });
+                _entries.SelectedIndex = previous == null ? -1 : _filtered.FindIndex(e => e.EntryId == previous);
+            }
         }
         finally { _updatingSelection = wasUpdating; }
+        UpdateSkinQualityColors(UiTheme.Palette);
         UpdateButtons();
     }
     private void UpdateButtons()
@@ -169,6 +193,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _restore.Enabled = ready && !_refreshing;
         _stop.Enabled = ready && !_refreshing;
         UpdateObjectButtons();
+        UpdateCameraButtons();
     }
     private async Task StopAsync()
     {
@@ -200,6 +225,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         string restored = hero && objects ? "本局原皮恢复已核验，功能已停用。"
             : hero ? "英雄原皮已恢复，对象原皮恢复未核验；功能已停用。"
             : "英雄原皮恢复未核验；功能已停用，请检查游戏画面。";
+        if (result.CameraRestoreVerified == false) restored += "视距恢复未核验，请检查游戏镜头。";
         if (result.ModuleUnloadVerified == true && result.ModuleLoaded == false)
             return restored + "游戏内核心已确认卸载。";
         if (result.ModulePinned == true)
@@ -311,10 +337,11 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     public void ApplyTheme(ThemePalette palette)
     {
+        AntdContentTheme.Apply(this, palette);
         BackColor = palette.Surface; ForeColor = palette.TextPrimary;
         _skinNavigation.BackColor = palette.SurfaceMuted;
         _skinNavigation.ForeColor = palette.TextPrimary;
-        foreach (var button in new[] { _heroSkinTab, _objectSkinTab })
+        foreach (var button in new[] { _heroSkinTab, _objectSkinTab, _otherSettingsTab })
         {
             button.BackColor = palette.Accent;
             button.DefaultBack = palette.SurfaceRaised;
@@ -331,6 +358,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             foreach (Control child in parent.Controls)
             {
                 if (child is AntdUI.Label or AntdUI.Switch) child.BackColor = palette.SurfaceRaised;
+                if (child is AntdUI.Label label) label.ForeColor = palette.TextPrimary;
                 ThemeCardLabels(child);
             }
         }
@@ -338,6 +366,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (_hotkeyCard != null) ThemeCardLabels(_hotkeyCard);
         _status.BackColor = palette.SurfaceRaised; _status.ForeColor = palette.TextSecondary;
         _current.BackColor = palette.SurfaceMuted; _current.ForeColor = palette.TextPrimary;
+        UpdateSkinQualityColors(palette);
         foreach (var input in new[] { _previousKey, _nextKey, _pickerKey })
         {
             input.BackColor = palette.SurfaceMuted; input.ForeColor = palette.TextPrimary;
@@ -345,6 +374,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         }
         if (_hotkeyCard != null) { _hotkeyCard.Back = palette.SurfaceRaised; _hotkeyCard.BackColor = palette.SurfaceRaised; _hotkeyCard.BorderColor = palette.Border; }
         if (_objectCard != null) { _objectCard.Back = palette.SurfaceRaised; _objectCard.BackColor = palette.SurfaceRaised; _objectCard.BorderColor = palette.Border; ThemeCardLabels(_objectCard); }
+        if (_otherSettingsCard != null) { _otherSettingsCard.Back = palette.SurfaceRaised; _otherSettingsCard.BackColor = palette.SurfaceRaised; _otherSettingsCard.BorderColor = palette.Border; ThemeCardLabels(_otherSettingsCard); }
     }
     protected override void Dispose(bool disposing)
     {
@@ -356,6 +386,8 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             UiLanguage.Changed -= LanguageChanged;
             CancelPageRequests();
             CancelHotkeyRequests();
+            _cameraWatch.Dispose();
+            _cameraOverlay.HidePanel(LOL_GameAssistant.Application.GameData.GameOverlayPanelKind.Camera);
             _previewCancellation?.Cancel();
             _previewCancellation?.Dispose();
             _poster.Image?.Dispose();

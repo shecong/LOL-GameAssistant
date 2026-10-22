@@ -36,7 +36,9 @@ struct Auxiliary {
     volatile LONG command, argument, commandVersion;
     int32_t skinCategory; // 0 hero, 1 own wards, 2 lane minions; consumes reserved bytes in v2
     int32_t skinPage, skinPageCount;
-    uint8_t reserved[40];
+    int32_t cameraEnabled, cameraReady;
+    volatile LONG cameraWheel, cameraReset;
+    uint8_t reserved[24];
     char coachTitle[256], coachBody[2048], coachDetail[1024], skinToast[1024];
     char skinTitle[256], skinStatus[2048], skinNames[256][192];
 };

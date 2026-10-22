@@ -15,6 +15,8 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("autoLaunchGameClient")]
         public bool AutoLaunchGameClient { get; set; } = false;
         public bool SkinCoreEnabled { get; set; } = false;
+        public bool UnlimitedZoomEnabled { get; set; }
+        public float? RememberedCameraDistance { get; set; }
         [JsonProperty("rememberedHeroSkins")]
         public Dictionary<string, LOL_GameAssistant.Domain.Skins.SkinEntry> RememberedHeroSkins { get; set; } = new();
         public bool SkinHotkeysEnabled { get; set; }

@@ -322,12 +322,12 @@ public sealed class LoungeTests
         T Find<T>(Control root, string name) where T : Control => (T)root.Controls.Find(name, true).Single();
         dialog.Show();
         System.Windows.Forms.Application.DoEvents();
-        var note = Find<TextBox>(dialog, "Note");
-        var publish = Find<Button>(dialog, "Publish");
+        var note = Find<AntdUI.Input>(dialog, "Note");
+        var publish = Find<AntdUI.Button>(dialog, "Publish");
         note.Text = "1111";
         publish.PerformClick(); // A disconnected publish must give feedback and retain the draft.
         System.Windows.Forms.Application.DoEvents();
-        Assert.Contains("尚未连接", Find<Label>(dialog, "Feedback").Text);
+        Assert.Contains("尚未连接", Find<AntdUI.Label>(dialog, "Feedback").Text);
         Assert.Equal("1111", note.Text);
         Assert.True(note.Enabled && publish.Enabled);
         Assert.True(note.Height >= 50);
@@ -339,11 +339,11 @@ public sealed class LoungeTests
         receive.Invoke(client, [state]);
         using var detail = page.CreateRecruitmentDetails(42);
         detail.Show(); System.Windows.Forms.Application.DoEvents();
-        Assert.Contains("已满员", Find<TextBox>(detail, "Description").Text);
-        Assert.Contains("1/1", Find<TextBox>(detail, "Description").Text);
-        Assert.True(Find<TextBox>(detail, "Description").Lines.Length >= 5);
-        Assert.Contains("Bob#456", Assert.Single(Find<ListBox>(detail, "Participants").Items.Cast<string>()));
-        Assert.False(Find<Button>(detail, "Join").Enabled);
+        Assert.Contains("已满员", Find<AntdUI.Input>(detail, "Description").Text);
+        Assert.Contains("1/1", Find<AntdUI.Input>(detail, "Description").Text);
+        Assert.True(Find<AntdUI.Input>(detail, "Description").Lines.Length >= 5);
+        Assert.Contains("Bob#456", Assert.Single(((Array)Find<AntdUI.Table>(detail, "Participants").DataSource!).Cast<object>().Select(row => row.ToString())));
+        Assert.False(Find<AntdUI.Button>(detail, "Join").Enabled);
         foreach (string theme in new[] { "Dark", "Light" })
         {
             UiTheme.SetMode(theme); UiTheme.Apply(dialog); UiTheme.Apply(detail);

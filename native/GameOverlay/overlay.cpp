@@ -42,6 +42,9 @@ std::mutex sessionGate, renderGate;
 std::shared_ptr<Session> session;
 std::atomic<int> installState{0};
 std::atomic<LONG> overlayLeft{0}, overlayTop{0}, overlayRight{0}, overlayBottom{0}, wheel{0};
+std::atomic<LONG> cameraWheel{0};
+std::atomic<bool> cameraReset{false};
+std::atomic<bool> cameraListening{false};
 std::atomic<bool> acceptsMouse{false};
 std::atomic<WNDPROC> previousProc{nullptr};
 std::atomic<HWND> gameWindow{nullptr};
@@ -88,7 +91,7 @@ HRESULT ForwardPresent(IDXGISwapChain* chain,UINT sync,UINT flags,std::unique_lo
 std::atomic<LONG> testPointerX{0}, testPointerY{0};
 std::atomic<bool> testPointerEnabled{false};
 std::atomic<float> testSkinScroll{0};
-RECT testSkinCategories[3]{}, testSkinFirstEntry{}, testSkinPages[2]{};
+RECT testSkinCategories[3]{}, testSkinFirstEntry{}, testSkinPages[2]{}, testCameraToggle{};
 #endif
 POINT ClientPointer(HWND window) {
 #ifdef SC_OVERLAY_TEST
@@ -114,6 +117,13 @@ LRESULT CALLBACK WheelQueueProc(int code,WPARAM removed,LPARAM data) {
             if(removed==PM_REMOVE) wheel.fetch_add(GET_WHEEL_DELTA_WPARAM(message->wParam));
             message->message=WM_NULL; message->wParam=0; message->lParam=0;
         }
+        else if(removed==PM_REMOVE && message->hwnd==gameWindow && message->message==WM_MOUSEWHEEL &&
+            cameraListening && GetForegroundWindow()==gameWindow)
+            cameraWheel.fetch_add(GET_WHEEL_DELTA_WPARAM(message->wParam));
+        else if(removed==PM_REMOVE && message->hwnd==gameWindow &&
+            (message->message==WM_MBUTTONDOWN || message->message==WM_MBUTTONDBLCLK) &&
+            cameraListening && GetForegroundWindow()==gameWindow && !PointerOverOverlay())
+            cameraReset=true;
     }
     return CallNextHookEx(nullptr,code,removed,data);
 }
@@ -313,7 +323,21 @@ HRESULT STDMETHODCALLTYPE OnPresent(IDXGISwapChain* chain, UINT sync, UINT flags
         }
     }
     Frame& snapshot=current->cached; Auxiliary& auxiliary=current->auxiliary;
-    if(!Live(snapshot) || snapshot.status<0) { acceptsMouse=false; drawReady=false; return ForwardPresent(chain,sync,flags,renderLock); }
+    if(!Live(snapshot) || snapshot.status<0) { cameraListening=false; cameraWheel=0; cameraReset=false; acceptsMouse=false; drawReady=false; return ForwardPresent(chain,sync,flags,renderLock); }
+    cameraListening=(auxiliary.flags & 16)!=0;
+    if(!cameraListening) { cameraWheel=0; cameraReset=false; }
+    if(cameraListening && (cameraWheel.load()!=0 || cameraReset.load())) {
+        DWORD acquired=WaitForSingleObject(current->mutex,0);
+        if(acquired==WAIT_OBJECT_0 || acquired==WAIT_ABANDONED) {
+            auto output=reinterpret_cast<Auxiliary*>(reinterpret_cast<uint8_t*>(current->frame)+AuxOffset);
+            if(output->flags & 16) {
+                if(cameraReset.exchange(false)) { output->cameraReset=1; output->cameraWheel=0; cameraWheel=0; }
+                else output->cameraWheel+=cameraWheel.exchange(0);
+            }
+            else { cameraWheel=0; cameraReset=false; }
+            ReleaseMutex(current->mutex);
+        }
+    }
     DXGI_SWAP_CHAIN_DESC desc{}; DWORD pid = 0;
     if (FAILED(chain->GetDesc(&desc)) || !IsWindowVisible(desc.OutputWindow) || IsIconic(desc.OutputWindow))
         return ForwardPresent(chain,sync,flags,renderLock);
@@ -487,6 +511,7 @@ extern "C" __declspec(dllexport) BOOL OverlayTestSkinControl(int kind,int index,
     if(kind==0 && index>=0 && index<3) *rect=testSkinCategories[index];
     else if(kind==1 && index==0) *rect=testSkinFirstEntry;
     else if(kind==2 && index>=0 && index<2) *rect=testSkinPages[index];
+    else if(kind==3 && index==0) *rect=testCameraToggle;
     else return FALSE;
     return rect->right>rect->left && rect->bottom>rect->top;
 }

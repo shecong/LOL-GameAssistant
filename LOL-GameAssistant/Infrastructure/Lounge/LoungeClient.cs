@@ -10,6 +10,8 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
     private readonly object _gate = new();
     private readonly SemaphoreSlim _configuration = new(1, 1);
     private readonly SortedDictionary<long, LoungeMessage> _messages = [];
+    private readonly Queue<LoungeMessage> _onlineMessages = [];
+    private long _onlineSequence;
     private readonly Dictionary<long, LoungeRecruitmentState> _recruitments = [];
     private readonly HashSet<long> _deleted = [];
     private LoungeMember[] _members = [];
@@ -41,6 +43,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
     {
         get { lock (_gate) return DateTimeOffset.UtcNow < _onlineNoticeUntil ? _onlineNotice : null; }
     }
+    public LoungeMessage[] OnlineMessages { get { lock (_gate) return _onlineMessages.OrderBy(m => m.SentAt).ToArray(); } }
     public bool SupportsRichMessages => _protocolVersion >= 2;
     public bool SupportsRecruitment => _protocolVersion >= 3;
     public bool SupportsHistory => _protocolVersion >= 4;
@@ -139,7 +142,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
             _worker = null;
             if (serverChanged)
             {
-                lock (_gate) { _messages.Clear(); _recruitments.Clear(); _members = []; _deleted.Clear(); _cursor = 0; _initialSync = false; _inbox.Clear(); }
+                lock (_gate) { _messages.Clear(); _onlineMessages.Clear(); _onlineNotice = null; _recruitments.Clear(); _members = []; _deleted.Clear(); _cursor = 0; _initialSync = false; _inbox.Clear(); }
             }
             Start();
         }
@@ -359,8 +362,17 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
 
     private void Receive(LoungeMessage message, bool notify)
     {
-        // Older servers may still replay persisted presence messages.
-        if (message.Kind == "online") return;
+        // Presence has a separate bounded history and never enters chat or unread counts.
+        if (message.Kind == "online")
+        {
+            lock (_gate)
+            {
+                if (_onlineMessages.Any(m => m.Id == message.Id)) return;
+                RecordOnline(message);
+            }
+            Notify();
+            return;
+        }
         bool mentioned;
         lock (_gate)
         {
@@ -382,8 +394,16 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
         {
             _onlineNotice = notice;
             _onlineNoticeUntil = DateTimeOffset.UtcNow.AddSeconds(6);
+            RecordOnline(new(--_onlineSequence, "", "", notice.Name, notice.Region, "online", "", DateTimeOffset.UtcNow));
         }
         Notify();
+    }
+
+    // Called under _gate; local presence IDs never advance the server history cursor.
+    private void RecordOnline(LoungeMessage message)
+    {
+        _onlineMessages.Enqueue(message);
+        while (_onlineMessages.Count > 200) _onlineMessages.Dequeue();
     }
 
     private void UpdateMembers(LoungeMember[] members)

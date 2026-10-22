@@ -255,10 +255,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         _replaceCurrentRunePage.Visible = _choices.Options.Any(option => option.RunePerkIds.Count >= 6);
         footer.Controls.Add(_replaceCurrentRunePage, 0, 0);
+        var compare = new AntdUI.Button { Text = "比较方案与依据", Name = "compareBuildChoices", Dock = DockStyle.Right, Width = 160 };
+        var sourceRow = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
+        footer.RowStyles[1].Height = 36;
         _source.Text = "数据来源：" + (_choices.Mode == "aram_mayhem" ? "aramgg / ARAMKit" : "OP.GG");
         _source.Dock = DockStyle.Fill;
         _source.ForeColor = Muted;
-        footer.Controls.Add(_source, 0, 1);
+        sourceRow.Controls.Add(_source); sourceRow.Controls.Add(compare);
+        footer.Controls.Add(sourceRow, 0, 1);
         footer.Controls.Add(_applyStatus, 0, 2);
         footer.SetColumnSpan(_applyStatus, 2);
         _apply.Anchor = AnchorStyles.Right;
@@ -275,6 +279,17 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _loadMore.Height = 36;
         _loadMore.Enabled = _buildService != null;
         _loadMore.Click += async (_, _) => await ChangeCategoryAsync(_filter, _position, true);
+        compare.Click += (_, _) =>
+        {
+            string mode = _selectedCard?.Option.Mode ?? _choices.Mode;
+            string position = _selectedCard?.Position ?? _position;
+            var context = _cache.GetValueOrDefault((mode, position)) ?? _choices;
+            var options = _cards.Where(c => c.Root.Visible && c.Option.Mode == mode && c.Position == position)
+                .Select(c => c.Option).ToArray();
+            using var dialog = new BuildComparisonForm(context with { Options = options }, _gameAssetService,
+                option => { var card = _cards.FirstOrDefault(c => c.Option == option); if (card != null) SelectCard(card); });
+            dialog.ShowDialog(this);
+        };
         Controls.Add(_routeCards);
         Controls.Add(_loadMore);
         Controls.Add(footer);

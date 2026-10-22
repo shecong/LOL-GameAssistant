@@ -1,12 +1,43 @@
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.Infrastructure.LeagueClient;
+using LOL_GameAssistant.Domain.Skins;
 using Xunit;
 
 namespace LOL_GameAssistant.UiTests;
 
 public sealed class ChampionSkinResourceTests
 {
+    [Theory]
+    [InlineData("kNoRarity", SkinQuality.Standard)]
+    [InlineData("kEpic", SkinQuality.Epic)]
+    [InlineData("kLegendary", SkinQuality.Legendary)]
+    [InlineData("kUltimate", SkinQuality.Ultimate)]
+    [InlineData("kMythic", SkinQuality.Mythic)]
+    [InlineData("kExalted", SkinQuality.Exalted)]
+    [InlineData("kTranscendent", SkinQuality.Transcendent)]
+    [InlineData("futureQuality", SkinQuality.Unknown)]
+    [InlineData(null, SkinQuality.Unknown)]
+    public void ReadsClientQualityWithoutGuessing(string? rarity, SkinQuality expected)
+    {
+        Assert.Equal(expected, LcuChampionSkinResourceService.ReadQuality(rarity, false));
+        Assert.Equal(SkinQuality.Base, LcuChampionSkinResourceService.ReadQuality(rarity, true));
+    }
+
+    [Fact]
+    public async Task ChromasInheritQualityAndMissingMetadataStaysUnknown()
+    {
+        var sender = SecondPhaseRegressionTests.Service<ILcuRequestSender>((_, args) => Task.FromResult<string?>(((string)args[0]!).EndsWith("champion-summary.json")
+            ? "[{\"id\":99,\"alias\":\"Lux\"}]"
+            : """{"skins":[{"id":99000,"name":"拉克丝"},{"id":99007,"name":"大元素使","rarity":"kUltimate","chromas":[{"id":99008,"name":"炫彩","rarity":"kNoRarity"}]},{"id":99009,"name":"传说名字不能代表品质"}]}"""));
+        var catalog = await new LcuChampionSkinResourceService(sender).GetCatalogAsync("Lux");
+        Assert.Equal(SkinQuality.Base, catalog.Single(s => s.SkinNumber == 0).Quality);
+        Assert.Equal(SkinQuality.Ultimate, catalog.Single(s => s.SkinNumber == 7).Quality);
+        var chroma = catalog.Single(s => s.SkinNumber == 8);
+        Assert.True(chroma.IsChroma); Assert.Equal(SkinQuality.Ultimate, chroma.Quality);
+        Assert.Equal(SkinQuality.Unknown, catalog.Single(s => s.SkinNumber == 9).Quality);
+    }
+
     private static readonly byte[] Png = [0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 0, 0, 0, 0];
 
     [Fact]

@@ -52,7 +52,7 @@ static void independentObjectProbe(Writer* w,IndependentContext* c) {
                     for(int n=0;n<count && n<256;n++) {
                         BYTE* object=objects[n];char model[64];if(!object || !cstring(*(const char**)(object+Game_stack_offset+0x18),model,sizeof(model)))continue;
                         if(emitted++)append(w,",");append(w,"{\"model\":");quoted(w,model);
-                        append(w,",\"base_skin\":%d,\"minion_kind_candidate\":%u,\"classifier_candidates\":[",*(int*)(object+Game_stack_offset+0x38),object[0x4b39]);
+                        append(w,",\"base_skin\":%d,\"classifier_candidates\":[",*(int*)(object+Game_stack_offset+0x38));
                         BYTE** table=*(BYTE***)object;
                         for(int j=0;j<2;j++) {
                             if(j)append(w,",");BYTE* function=table[j?0xf1:0xf0];intptr_t rva=function-c->base;
@@ -62,15 +62,15 @@ static void independentObjectProbe(Writer* w,IndependentContext* c) {
                         append(w,"],\"descriptor_getter_rva\":%lld",(long long)(table[0x3e]-c->base));
                         intptr_t getter=table[0x3e]-c->base;
                         if(getter>0 && getter+64<(intptr_t)Game_image_size){append(w,",\"descriptor_getter_code\":");objectHex(w,table[0x3e],64);}
-                        const BYTE getterBytes[]={0x48,0x8b,0x81,0x48,0x3e,0,0,0x48,0x85,0xc0,0x74,0x05,0x48,0x8b,0x40,0x28,0xc3,0xc3};
+                        const BYTE getterBytes[]={0x48,0x8b,0x81,0xf0,0x35,0,0,0x48,0x85,0xc0,0x74,0x05,0x48,0x8b,0x40,0x28,0xc3,0xc3};
                         if(getter>0 && getter+sizeof(getterBytes)<Game_image_size && !memcmp(table[0x3e],getterBytes,sizeof(getterBytes))) {
-                            BYTE* descriptor=*(BYTE**)(object+0x3e48);if(descriptor)descriptor=*(BYTE**)(descriptor+0x28);
+                            BYTE* descriptor=*(BYTE**)(object+0x35f0);if(descriptor)descriptor=*(BYTE**)(descriptor+0x28);
                             if(descriptor)append(w,",\"type_flags_candidate\":%u,\"slot_f0_result_candidate\":%s",*(unsigned*)(descriptor+0x60),(descriptor[0x60]&2)?"true":"false");
                         }
-                        BYTE* candidateOwner=*(BYTE**)(object+0x6f8);
+                        BYTE* candidateOwner=*(BYTE**)(object+Game_owner_offset);
                         append(w,",\"owner_present_candidate\":%s,\"local_owner_candidate\":%s",candidateOwner?"true":"false",candidateOwner==c->player?"true":"false");
                         if(!strcmp(model,"YellowTrinket")) {
-                            append(w,",\"ownership_field\":");objectHex(w,object+0x6d0,128);
+                            append(w,",\"ownership_field\":");objectHex(w,object+Game_owner_offset,64);
                             MEMORY_BASIC_INFORMATION region{};
                             if(candidateOwner && VirtualQuery(candidateOwner,&region,sizeof(region)) && region.State==MEM_COMMIT && !(region.Protect&(PAGE_GUARD|PAGE_NOACCESS)) && (uintptr_t)candidateOwner+64<=(uintptr_t)region.BaseAddress+region.RegionSize){append(w,",\"owner_head\":");objectHex(w,candidateOwner,64);append(w,",\"owner_wrapper_local_candidate\":%s",*(BYTE**)candidateOwner==c->player?"true":"false");}
                         }
@@ -93,5 +93,5 @@ static void independentObjectProbe(Writer* w,IndependentContext* c) {
         if(method>0 && method+64<(intptr_t)Game_image_size){append(w,",\"code\":");objectHex(w,playerTable[j],64);}append(w,"}");
     }
     append(w,"]");
-    append(w,",\"player_address\":%llu,\"team_candidate_239\":%u,\"team_candidate_251\":%u}",(uint64_t)c->player,c->player[0x239],c->player[0x251]);
+    append(w,",\"player_address\":%llu,\"team_index\":%u}",(uint64_t)c->player,c->player[Game_team_offset]);
 }

@@ -11,15 +11,14 @@ public sealed partial class LoungeForm
     private readonly SortedDictionary<long, LoungeMessage> _window = [];
     private readonly HashSet<long> _pendingMessages = [];
     private readonly UiRequestScope _historyLoads = new();
-    private readonly ComboBox _messageFilter = new() { Name = "messageFilter", DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
-    private readonly Button _older = new() { Name = "loadOlderMessages", Text = "加载更早消息", AutoSize = true };
-    private readonly Button _newMessages = new() { Name = "jumpToLatestMessages", Text = "返回最新消息", AutoSize = true, Visible = false };
-    private readonly Label _connectionState = new() { Dock = DockStyle.Right, Width = 105, TextAlign = ContentAlignment.MiddleCenter };
-    private readonly Label _counter = new() { Dock = DockStyle.Right, Width = 72, Text = "0/500", TextAlign = ContentAlignment.MiddleRight };
+    private readonly AntdUI.Select _messageFilter = new() { Name = "messageFilter", List = true, DropDownArrow = true, Width = 110, Height = 32 };
+    private readonly AntdUI.Button _older = new() { Name = "loadOlderMessages", Text = "加载更早消息", AutoSize = true };
+    private readonly AntdUI.Button _newMessages = new() { Name = "jumpToLatestMessages", Text = "返回最新消息", AutoSize = true, Visible = false };
+    private readonly AntdUI.Label _connectionState = new() { Dock = DockStyle.Right, Width = 105, TextAlign = ContentAlignment.MiddleCenter };
+    private readonly AntdUI.Label _counter = new() { Dock = DockStyle.Right, Width = 72, Text = "0/500", TextAlign = ContentAlignment.MiddleRight };
     private readonly ToolTip _memberTips = new();
-    private readonly Label _onlineNotice = new() { Name = "onlineNotice", Dock = DockStyle.Fill, AutoEllipsis = true,
+    private readonly AntdUI.Label _onlineNotice = new() { Name = "onlineNotice", Dock = DockStyle.Fill, AutoEllipsis = true,
         TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0) };
-    private readonly ContextMenuStrip _moreMenu = new();
     private string _timelineServer = "";
     private bool _windowInitialized, _loadingOlder, _hasOlder = true, _renderingHistory;
     private long _newestSeen;
@@ -35,12 +34,12 @@ public sealed partial class LoungeForm
         var oldTitle = layout.GetControlFromPosition(0, 0)!; layout.Controls.Remove(oldTitle); oldTitle.Dispose();
         var heading = new Panel { Dock = DockStyle.Fill };
         var settings = new AntdUI.Button { Name = "loungeSettings", Text = "通知设置 ⚙", Dock = DockStyle.Right, Width = 120 };
-        heading.Controls.Add(new Label { Text = "公共休息室", Font = new Font(UiMetrics.FontFamily, 18, FontStyle.Bold), Dock = DockStyle.Fill });
+        heading.Controls.Add(new AntdUI.Label { Text = "公共休息室", Font = new Font(UiMetrics.FontFamily, 18, FontStyle.Bold), Dock = DockStyle.Fill });
         heading.Controls.Add(_connectionState); heading.Controls.Add(settings); layout.Controls.Add(heading, 0, 0);
         var description = layout.GetControlFromPosition(0, 1)!; layout.Controls.Remove(description); description.Dispose();
         var filters = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 4, 0, 0) };
-        _messageFilter.Items.AddRange(new object[] { "全部", "聊天", "战绩", "招募" }); _messageFilter.SelectedIndex = 0;
-        _memberTips.SetToolTip(_messageFilter, "筛选已加载的消息；向上翻页可继续加载更早内容");
+        _messageFilter.Items.AddRange(new object[] { "全部", "聊天", "战绩", "招募", "上线通知" }); _messageFilter.SelectedIndex = 0;
+        _memberTips.SetToolTip(_messageFilter, "上线通知单独保留最近 200 条，不计入全部消息；其他消息可向上翻页加载");
         filters.Controls.AddRange([_messageFilter, _older, _newMessages]);
         var toolbar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -59,30 +58,14 @@ public sealed partial class LoungeForm
         }
         settings.Click += (_, _) => { settingsOpen = !settingsOpen; ShowSettings(); }; ShowSettings();
         conversation.ColumnStyles[1].Width = 280;
-        _members.HorizontalScrollbar = false; _members.DrawMode = DrawMode.OwnerDrawFixed; _members.ItemHeight = 82;
-        _members.DrawItem += (_, e) =>
+        _members.CellHover += (_, e) =>
         {
-            if (e.Index < 0 || e.Index >= _visibleMembers.Length) return;
-            var member = _visibleMembers[e.Index]; var p = UiTheme.Palette;
-            using var background = new SolidBrush(e.State.HasFlag(DrawItemState.Selected) ? p.SurfaceMuted : p.SurfaceRaised);
-            e.Graphics.FillRectangle(background, e.Bounds);
-            using var bold = new Font(Font, FontStyle.Bold);
-            var rect = new Rectangle(e.Bounds.X + 8, e.Bounds.Y + 8, e.Bounds.Width - 16, 24);
-            TextRenderer.DrawText(e.Graphics, (_client.IsFollowed(member.Id) ? "★ " : "● ") + member.Name, bold, rect, p.TextPrimary, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-            rect.Y += 25; rect.Height = 22;
-            TextRenderer.DrawText(e.Graphics, NormalizeRegion(member.Region) + (member.Rank.Length > 0 ? " · " + member.Rank : ""), Font, rect, p.TextSecondary, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-            rect.Y += 22;
-            TextRenderer.DrawText(e.Graphics, member.Status, Font, rect, p.Accent, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-        };
-        int hovered = -1;
-        _members.MouseMove += (_, e) =>
-        {
-            int index = _members.IndexFromPoint(e.Location); if (index == hovered) return; hovered = index;
+            int index = _members.DataSource is LoungeListRow[] rows ? Array.IndexOf(rows, e.Record) : -1;
             _memberTips.SetToolTip(_members, index >= 0 && index < _visibleMembers.Length ? $"{_visibleMembers[index].Name}\n{NormalizeRegion(_visibleMembers[index].Region)} · {_visibleMembers[index].Rank}\n右键复制 ID、提及或关注" : "");
         };
         var footer = (TableLayoutPanel)layout.GetControlFromPosition(0, 8)!;
         footer.ColumnCount = 3; footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72)); footer.Controls.Add(_counter, 2, 0);
-        _input.TextChanged += (_, _) => _counter.Text = $"{_input.TextLength}/{LoungeRules.MaxTextLength}";
+        _input.TextChanged += (_, _) => _counter.Text = $"{_input.Text.Length}/{LoungeRules.MaxTextLength}";
         _featureButtons.AddRange([_older, _newMessages]);
     }
 
@@ -169,16 +152,18 @@ public sealed partial class LoungeForm
         }
         if (latest.Length > 0) _newestSeen = Math.Max(_newestSeen, latest[^1].Id);
         while (_window.Count > MaximumVisibleMessages) _window.Remove(_window.Keys.First());
-        _newMessages.Visible = _pendingMessages.Count > 0 || _window.Count > 0 && _window.Keys.Last() < _newestSeen;
+        _newMessages.Visible = _messageFilter.SelectedIndex != 4 && (_pendingMessages.Count > 0 || _window.Count > 0 && _window.Keys.Last() < _newestSeen);
         _newMessages.Text = _pendingMessages.Count > 0 ? $"{_pendingMessages.Count}{(_pendingMessages.Count == 1000 ? "+" : "")} 条新消息 ↓" : "返回最新消息 ↓";
+        _older.Visible = _messageFilter.SelectedIndex != 4;
         if (!_loadingOlder) { _older.Enabled = _hasOlder && _window.Count > 0; _older.Text = _hasOlder ? "加载更早消息" : "已到最早消息"; }
         RenderTimeline(forceBottom: forceBottom);
     }
     private void RenderTimeline(bool preserveAnchor = false, bool forceBottom = false)
     {
         var blocked = _client.Settings.BlockedSenders ?? [];
-        var messages = _window.Values.Where(m => m.Kind != "online" && !blocked.Contains(m.SenderId) && (_victories.Checked || m.Kind is not ("victory" or "highlight")))
-            .Where(m => _messageFilter.SelectedIndex switch { 1 => m.Kind is "chat" or "sticker", 2 => m.Kind is "victory" or "highlight", 3 => m.Kind == "recruit", _ => true })
+        IEnumerable<LoungeMessage> source = _messageFilter.SelectedIndex == 4 ? _client.OnlineMessages : _window.Values;
+        var messages = source.Where(m => !blocked.Contains(m.SenderId) && (_victories.Checked || m.Kind is not ("victory" or "highlight")))
+            .Where(m => _messageFilter.SelectedIndex switch { 1 => m.Kind is "chat" or "sticker", 2 => m.Kind is "victory" or "highlight", 3 => m.Kind == "recruit", 4 => m.Kind == "online", _ => m.Kind != "online" })
             .Select(m => _client.IsDeleted(m.Id) ? m with { Kind = "deleted", Text = "此消息已被管理员删除" } : m).ToArray();
         string[] keys = messages.Select(m => $"{m.Id}:{m.Kind}:{m.Text}:{_client.Recruitments.FirstOrDefault(r => r.MessageId == m.Id)?.Revision}").ToArray();
         string key = string.Join('|', keys) + ":" + _messageFilter.SelectedIndex;

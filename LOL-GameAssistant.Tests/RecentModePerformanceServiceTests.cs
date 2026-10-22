@@ -8,12 +8,12 @@ namespace LOL_GameAssistant.Tests;
 public sealed class RecentModePerformanceServiceTests
 {
     [Fact]
-    public async Task RequestsOneBatchOfFiveHundredWithoutDetailsOrPagination()
+    public async Task RequestsOneBudgetedBatchWithoutDetailsOrPagination()
     {
         var source = new FakeHistory(Enumerable.Range(1, 600).Select(id => Game(id)).ToList());
         var result = await new RecentModePerformanceService(source).EvaluateAsync("self", 450, "ARAM", "大乱斗");
         Assert.Equal(50, result.SampleSize);
-        Assert.Equal([(0, 499)], source.Requests);
+        Assert.Equal([(0, MatchDataPolicy.SummaryLimit - 1)], source.Requests);
         Assert.Equal(0, source.DetailRequests);
     }
 

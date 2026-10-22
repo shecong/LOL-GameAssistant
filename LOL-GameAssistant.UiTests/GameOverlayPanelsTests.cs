@@ -10,6 +10,8 @@ internal sealed class RecordingGameOverlay : IGameOverlayBridge
 {
     public Dictionary<GameOverlayPanelKind, GameOverlayPanel> Panels { get; } = [];
     public GameOverlayPanelCommand? Command { get; set; }
+    public bool CameraResetRequested { get; set; }
+    public bool ReadCameraMoveTo600() { bool reset = CameraResetRequested; CameraResetRequested = false; return reset; }
     public int Publish(GameOverlayFrame frame) => 0;
     public void Disable() { }
     public void PublishPanel(GameOverlayPanel panel)

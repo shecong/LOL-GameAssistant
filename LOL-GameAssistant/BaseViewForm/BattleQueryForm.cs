@@ -696,6 +696,13 @@ namespace LOL_GameAssistant.BaseViewForm
             return Task.FromResult(picker.SelectedCandidate);
         }
 
+        public async Task OpenGrowthAsync(string puuid, bool pool)
+        {
+            await PerformSearchAsync(puuid);
+            if (IsDisposed || _currentPlayer?.Puuid != puuid) return;
+            _viewSwitch.SelectIndex = pool ? 2 : 3;
+        }
+
         private async Task ShowGrowthAsync(bool pool)
         {
             if (_queryPlatform.Length > 0)

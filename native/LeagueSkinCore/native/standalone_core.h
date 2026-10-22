@@ -11,11 +11,17 @@ static bool independentImage(BYTE* base) {
     return nt->Signature==IMAGE_NT_SIGNATURE && nt->OptionalHeader.Magic==IMAGE_NT_OPTIONAL_HDR64_MAGIC &&
         nt->FileHeader.TimeDateStamp==Game_timestamp && nt->OptionalHeader.SizeOfImage==Game_image_size && gameProfileMatches(base);
 }
+static uint32_t skinRotateRight(uint32_t value,unsigned bits) {
+    return (value>>bits)|(value<<(32-bits));
+}
+static uint32_t skinEncoded(int value) {
+    // Inspected encoder at RVA 0x2821d4; inverse of the game's two rotations.
+    return skinRotateRight(skinRotateRight((uint32_t)value,13)^0x3dc9cb21u,11);
+}
 static bool skinValue(BYTE* field,int* value) {
-    if(field[20]!=1 || field[21]>1 || field[22]>4 || field[23]>3 || field[21]*4+field[22]!=4)return false;
-    uint32_t decoded=*(uint32_t*)(field+4+field[23]*4),key=*(uint32_t*)field;
-    if(field[21])decoded^=~key;
-    for(int i=4-field[22];i<4;i++)((BYTE*)&decoded)[i]^=(BYTE)~((BYTE*)&key)[i];
+    // This build uses one encoded DWORD, not the old 24-byte rotating buffer.
+    uint32_t decoded=skinRotateRight(skinRotateRight(*(uint32_t*)field,21)^0x3dc9cb21u,19);
+    if(decoded>10000)return false;
     *value=(int)decoded;return true;
 }
 static bool independentAdd(IndependentContext* c,int index,int skin,int gear,const char* model,const char* name,const char* gearName) {
@@ -128,9 +134,8 @@ static void independentState(Writer* writer,IndependentContext* c) {
 }
 static bool independentWriteSkin(IndependentContext* c,int skin) {
     BYTE* field=c->player+Game_skin_offset;int previous;if(!skinValue(field,&previous))return false;
-    uint32_t key=*(uint32_t*)field,value=(uint32_t)skin;if(field[21])value^=~key;
-    for(int n=4-field[22];n<4;n++)((BYTE*)&value)[n]^=(BYTE)~((BYTE*)&key)[n];
-    BYTE index=(field[23]+1)&3;*(uint32_t*)(field+4+index*4)=value;field[23]=index;*(int*)(c->stack+0x38)=skin;return true;
+    if(skin<0 || skin>10000)return false;
+    *(uint32_t*)field=skinEncoded(skin);*(int*)(c->stack+0x38)=skin;return true;
 }
 static int independentDefaultGear(const char* hero,int skin,int current) {
     if(!strcmp(hero,"Kayn"))return current;
@@ -145,6 +150,7 @@ static int independentDefaultGear(const char* hero,int skin,int current) {
 }
 #include "object_probe.h"
 #include "object_core.h"
+#include "camera_core.h"
 static void independentProcess(Request* r) {
     IndependentContext c{};c.entries=(IndependentEntry*)calloc(IndependentMaxEntries,sizeof(IndependentEntry));
     if(!c.entries){fail(r,"independent_allocation_failed");return;}bool invoked=false;
@@ -152,6 +158,7 @@ static void independentProcess(Request* r) {
         __try {
             if(!independentContext(&c,r))__leave;
             Writer writer{r->result,0,sizeof(r->result),false};
+            if(r->command>=15 && r->command<=17){independentCamera(r,&writer,&c,&invoked);if(writer.failed)fail(r,"reply_too_large","serialization",invoked);__leave;}
             if(r->command>=12 && r->command<=14){independentObjects(r,&writer,&c,&invoked);if(writer.failed)fail(r,"reply_too_large","serialization",invoked);__leave;}
             if(r->command==11){independentObjectProbe(&writer,&c);if(writer.failed)fail(r,"reply_too_large");__leave;}
             if(r->command==10){

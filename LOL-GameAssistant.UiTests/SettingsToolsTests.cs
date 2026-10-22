@@ -16,7 +16,11 @@ public sealed class SettingsToolsTests
     public void HeavySettingsPagesAreCreatedOnDemandAndReused() => MatchListScrollingTests.OnUiThread(() =>
     {
         int saves = 0;
-        var settings = new AssistantSettings { QuickMessageCustomPhrases = "按需加载的文案" };
+        var settings = new AssistantSettings
+        {
+            QuickMessageCustomPhrases = "按需加载的文案", WindowOpacityPercent = 78, ThemeMode = "Dark",
+            Ai = new CloudAiSettings { Model = "saved-model", BaseUrl = "https://example.com/v1" }
+        };
         using var form = new SettingForm(Service<IGameClientLauncher>((_, _) => null),
             Service<IApplicationSettingsStore>((method, _) => method.Name switch
             {
@@ -27,11 +31,28 @@ public sealed class SettingsToolsTests
             }), Service<ISettingsSecretProtector>((_, _) => null),
             Service<IClientFeatureService>((_, _) => null));
         var segments = Field<Control[]>(form, "_settingsSegments");
-        Assert.Null(segments[3]);
-        Assert.Null(segments[5]);
+        Assert.NotNull(segments[0]);
+        Assert.All(segments.Skip(1), segment => Assert.Null(segment));
         ((Task)Invoke(form, "LoadCachedSettings")!).GetAwaiter().GetResult();
         typeof(SettingForm).GetField("_isLoading", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(form, false);
         var navigation = Field<AntdUI.Segmented>(form, "_settingsSegmented");
+        foreach (int index in new[] { 1, 2, 4 })
+        {
+            navigation.SelectIndex = index;
+            var page = segments[index];
+            Assert.NotNull(page);
+            navigation.SelectIndex = 0;
+            navigation.SelectIndex = index;
+            Assert.Same(page, segments[index]);
+        }
+        Assert.Equal(78, Field<AntdUI.InputNumber>(form, "_opacity").Value);
+        Assert.Equal(2, Field<AntdUI.Select>(form, "_themeMode").SelectedIndex);
+        Assert.Equal("saved-model", Field<ComboBox>(form, "_model").Text);
+        Assert.Equal("https://example.com/v1", Field<AntdUI.Input>(form, "_baseUrl").Text);
+        Field<ComboBox>(form, "_model").Text = "unsaved-draft";
+        navigation.SelectIndex = 0;
+        navigation.SelectIndex = 4;
+        Assert.Equal("unsaved-draft", Field<ComboBox>(form, "_model").Text);
         navigation.SelectIndex = 3;
         var shout = Assert.IsType<QuickShoutForm>(segments[3]);
         Assert.Equal(settings.QuickMessageCustomPhrases, Field<AntdUI.Input>(shout, "_customPhrases").Text);

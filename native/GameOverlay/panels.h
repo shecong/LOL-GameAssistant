@@ -201,6 +201,14 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         ImGui::TextColored(ImVec4(.82f,.72f,1,1),"游戏换肤"); ImGui::SameLine(ImGui::GetWindowWidth()-72);
         if(ImGui::SmallButton("隐藏")) command(4);
         ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinTitle); ImGui::PopTextWrapPos(); ImGui::Separator();
+        bool cameraEnabled=aux.cameraEnabled!=0;
+        ImGui::BeginDisabled(!aux.cameraReady);
+        if(ImGui::Checkbox("无限视距",&cameraEnabled)) command(7,cameraEnabled ? 1 : 0);
+#ifdef SC_OVERLAY_TEST
+        { auto p0=ImGui::GetItemRectMin(),p1=ImGui::GetItemRectMax(); testCameraToggle={LONG(p0.x/sx),LONG(p0.y/sy),LONG(p1.x/sx),LONG(p1.y/sy)}; }
+#endif
+        ImGui::EndDisabled();
+        ImGui::TextDisabled("滚轮调节，中键将当前视距调至 600");
         ImGui::BeginDisabled(!aux.skinCanRefresh);
         const char* categories[]={"英雄皮肤","眼位皮肤","小兵皮肤"};
         for(int category=0;category<3;++category) {

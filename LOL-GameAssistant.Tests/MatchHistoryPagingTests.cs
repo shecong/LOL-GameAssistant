@@ -31,13 +31,14 @@ public sealed class MatchHistoryPagingTests
     }
 
     [Fact]
-    public void MissingRangeMetadataKeepsAnAlreadyLimitedResponse()
+    public void MissingRangeMetadataDoesNotPresentAnUnverifiedRangeAsTheRequestedPage()
     {
         var source = Response(20, 29, 10);
         source.Games!.GameIndexBegin = 0;
         source.Games.GameIndexEnd = 0;
         var result = LegacyMatchReadModelMapper.ToDomainPage(source, 20, 29)!.Games!;
-        Assert.Equal(Enumerable.Range(20, 10).Select(id => (long)id), result.Games.Select(game => game.GameId));
+        Assert.Empty(result.Games);
+        Assert.Equal(1234, result.GameCount);
     }
 
     private static GameHeadModel.MatchHistoryResponse Response(int begin, int end, int count) => new()

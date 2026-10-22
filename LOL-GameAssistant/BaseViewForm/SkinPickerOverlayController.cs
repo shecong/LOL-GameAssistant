@@ -13,6 +13,8 @@ internal sealed class SkinPickerOverlayController : IDisposable
     private readonly Action<string> _select;
     private readonly Action _refresh, _restore;
     private readonly Action<SkinPickerCategory>? _changeCategory;
+    private readonly Action<bool>? _changeCamera;
+    private bool _cameraEnabled, _cameraReady;
     private readonly IGameOverlayBridge _overlay;
     private (string Id, string Name)[] _items = [];
     private string _title = "游戏换肤", _status = "";
@@ -27,10 +29,11 @@ internal sealed class SkinPickerOverlayController : IDisposable
     internal bool OverlayVisible { get; private set; }
 
     internal SkinPickerOverlayController(Func<bool> available, Action<string> select, Action refresh, Action restore,
-        IGameOverlayBridge? overlay = null, Action<SkinPickerCategory>? changeCategory = null)
+        IGameOverlayBridge? overlay = null, Action<SkinPickerCategory>? changeCategory = null, Action<bool>? changeCamera = null)
     {
         _available = available; _select = select; _refresh = refresh; _restore = restore;
         _changeCategory = changeCategory;
+        _changeCamera = changeCamera;
         _overlay = overlay ?? AppCompositionRoot.GameOverlay;
         _watch.Tick += (_, _) =>
         {
@@ -51,6 +54,10 @@ internal sealed class SkinPickerOverlayController : IDisposable
         _selected = selected; _status = status; _ready = ready; _canRefresh = canRefresh;
         PublishOverlay();
     }
+    internal void SetCameraState(bool enabled, bool ready)
+    {
+        _cameraEnabled = enabled; _cameraReady = ready; PublishOverlay();
+    }
     internal void ShowOverGame(Rectangle bounds)
     {
         OverlayVisible = true; _watch.Start(); PublishOverlay();
@@ -62,6 +69,7 @@ internal sealed class SkinPickerOverlayController : IDisposable
         if (command == null || !OverlayVisible || !_available() || command.Version != _version) return;
         switch (command.Action)
         {
+            case 7 when _cameraReady && command.Argument is 0 or 1: _changeCamera?.Invoke(command.Argument == 1); break;
             case 1 when _ready && command.Argument >= 0 && command.Argument < Math.Min(PageSize, _items.Length - _page * PageSize):
                 _select(_items[_page * PageSize + command.Argument].Id); break;
             case 2 when _canRefresh: _refresh(); break;
@@ -81,7 +89,8 @@ internal sealed class SkinPickerOverlayController : IDisposable
         if (!OverlayVisible) return;
         _overlay.PublishPanel(new(GameOverlayPanelKind.SkinPicker, _title, _status,
             Items: _items.Skip(_page * PageSize).Take(PageSize).Select(p => p.Name).ToArray(), Selected: Array.FindIndex(_items, p => p.Id == _selected) - _page * PageSize,
-            Ready: _ready, CanRefresh: _canRefresh, Version: _version, Category: (int)_category, Page: _page, PageCount: PageCount));
+            Ready: _ready, CanRefresh: _canRefresh, Version: _version, Category: (int)_category, Page: _page, PageCount: PageCount,
+            CameraEnabled: _cameraEnabled, CameraReady: _cameraReady));
     }
     public void Hide()
     {

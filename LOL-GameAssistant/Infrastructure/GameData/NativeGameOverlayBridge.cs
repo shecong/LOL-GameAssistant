@@ -99,6 +99,37 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         }
     }
 
+    public int ReadCameraWheel()
+    {
+        lock (_gate)
+        {
+            if (_disposed || _session is not { Failed: false } session || !TryAcquire(session.Mutex)) return 0;
+            try
+            {
+                int delta = session.View.ReadInt32(AuxOffset + 96);
+                session.View.Write(AuxOffset + 96, 0);
+                return delta;
+            }
+            finally { session.Mutex.ReleaseMutex(); }
+        }
+    }
+
+    public bool ReadCameraMoveTo600()
+    {
+        lock (_gate)
+        {
+            if (_disposed || _session is not { Failed: false } session || !TryAcquire(session.Mutex)) return false;
+            try
+            {
+                bool reset = session.View.ReadInt32(AuxOffset + 100) != 0;
+                session.View.Write(AuxOffset + 100, 0);
+                if (reset) session.View.Write(AuxOffset + 96, 0);
+                return reset;
+            }
+            finally { session.Mutex.ReleaseMutex(); }
+        }
+    }
+
     private void Flush()
     {
         if (_session is not { Failed: false } session || !TryAcquire(session.Mutex)) return;
@@ -140,6 +171,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                     view.Write(AuxOffset + 52, p.Selected); view.Write(AuxOffset + 56, Math.Min(256, p.Items?.Count ?? 0)); view.Write(AuxOffset + 60, p.Version);
                     view.Write(AuxOffset + 76, Math.Clamp(p.Category, 0, 2));
                     view.Write(AuxOffset + 80, Math.Max(0, p.Page)); view.Write(AuxOffset + 84, Math.Max(1, p.PageCount));
+                    view.Write(AuxOffset + 88, p.CameraEnabled ? 1 : 0); view.Write(AuxOffset + 92, p.CameraReady ? 1 : 0);
                     WriteText(view, AuxOffset + 4480, 256, p.Title); WriteText(view, AuxOffset + 4736, 2048, p.Body);
                     for (int i = 0; i < Math.Min(256, p.Items?.Count ?? 0); i++) WriteText(view, AuxOffset + 6784 + i * 192, 192, p.Items![i]);
                     break;

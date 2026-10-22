@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-22",
+  "game_profile_sha256": "36c4715121fc8af987c63c61ae5fc85b496004ec801bea2d76cdf8b3e8682e28",
+  "model": "Lux",
+  "skin": 7,
+  "resource_slots": [
+    {
+      "offset": "0xb8",
+      "resource_names": [
+        "LuxSkin07"
+      ]
+    },
+    {
+      "offset": "0xc0",
+      "resource_names": [
+        "LuxSkin07"
+      ]
+    },
+    {
+      "offset": "0xc8",
+      "resource_names": [
+        "LuxSkin07"
+      ]
+    },
+    {
+      "offset": "0xd0",
+      "resource_names": [
+        "LuxSkin07"
+      ]
+    },
+    {
+      "offset": "0xd8",
+      "resource_names": [
+        "LuxSkin07"
+      ]
+    }
+  ],
+  "inspection": "read-only; all five cached resource slots identify LuxSkin07",
+  "skill_visual_confirmation": "passed; user confirmed Q/W/E/R effects are normal",
+  "recall_visual_confirmation": "passed; user confirmed recall effects are normal",
+  "limitation": "Verified in this session for Lux skin 7 only; other champions, skins and transformed forms were not visually verified."
+}

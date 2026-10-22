@@ -180,6 +180,11 @@ namespace LOL_GameAssistant.BaseViewForm
             InitializeComponent();
             WindowLayout.ConfigureDpi(this);
             _config = new AssistantSettings();
+            // Populate choices before settings hydration, even when their page is not built yet.
+            _themeMode.Items.AddRange(new object[] { "跟随系统", "浅色", "深色" });
+            _languageMode.Items.AddRange(new object[] { "简体中文", "English", "繁體中文" });
+            _provider.Items.AddRange(Enum.GetValues<LOL_GameAssistant.Domain.Settings.AiProvider>().Cast<object>().ToArray());
+            _overlayPosition.Items.AddRange(new object[] { "左下", "左上", "右下", "右上", "屏幕中央" });
             _featureTip.Popup += (_, e) => _activeFeatureTipControl = e.AssociatedControl;
             toolTip1.Popup += (_, e) => _activeDesignerTipControl = e.AssociatedControl;
             VisibleChanged += (_, _) => { if (!Visible) HideSettingTips(); };
@@ -240,9 +245,6 @@ namespace LOL_GameAssistant.BaseViewForm
 
             _settingsSegmentHost.Dock = DockStyle.Fill;
             _settingsSegments[0] = CreateMatchSegment();
-            _settingsSegments[1] = CreateClientSegment();
-            _settingsSegments[2] = CreateWindowSegment();
-            _settingsSegments[4] = CreateAiSegment();
             foreach (Control? segment in _settingsSegments)
             {
                 if (segment is null) continue;
@@ -280,13 +282,17 @@ namespace LOL_GameAssistant.BaseViewForm
             ShowSettingsSegment(4);
         }
 
-        /// <summary>较重的工具页在首次使用时创建，切换回来复用原有状态。</summary>
+        /// <summary>子页面在首次使用时创建，切换回来复用原有状态。</summary>
         private Control EnsureSettingsSegment(int index)
         {
             if (_settingsSegments[index] is Control existing) return existing;
+            using var performance = new UiPerformanceSample("设置子页 " + index);
             Control segment = index switch
             {
+                1 => CreateClientSegment(),
+                2 => CreateWindowSegment(),
                 3 => CreateShoutSegment(),
+                4 => CreateAiSegment(),
                 5 => new ClientToolsForm(_matchFeatures,
                     AppCompositionRoot.ChampionInsightsService, AppCompositionRoot.ProfileIconService),
                 _ => throw new ArgumentOutOfRangeException(nameof(index))
@@ -532,8 +538,6 @@ namespace LOL_GameAssistant.BaseViewForm
             _hotkey.Click += (_, _) => _hotkey.Focus();
             _hotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
             _hotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
-            _themeMode.Items.AddRange(new object[] { "跟随系统", "浅色", "深色" });
-            _languageMode.Items.AddRange(new object[] { "简体中文", "English", "繁體中文" });
             var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后隐藏到托盘；默认是键盘左上角的 · 键。\nWindows 会接管已注册的按键；快捷键不会注入或修改游戏客户端。");
 
             AddSegmentRow(layout, 0, "界面主题：", _themeMode,
@@ -613,7 +617,6 @@ namespace LOL_GameAssistant.BaseViewForm
             {
                 _gameKdaOnePlayerPerLine.Enabled = true;
             };
-            _provider.Items.AddRange(Enum.GetValues<LOL_GameAssistant.Domain.Settings.AiProvider>().Cast<object>().ToArray());
             _provider.SelectedIndexChanged += (_, _) => ApplyProviderDefaults();
             _apiKey.TextChanged += (_, _) =>
             {
@@ -652,7 +655,6 @@ namespace LOL_GameAssistant.BaseViewForm
             budgetPanel.Controls.Add(_aiBudget);
 
             _showPopup.Text = "生成 AI 建议后显示提醒";
-            _overlayPosition.Items.AddRange(new object[] { "左下", "左上", "右下", "右上", "屏幕中央" });
             var overlayOffsetPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             overlayOffsetPanel.Controls.Add(new AntdUI.Label { Text = "横向", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayOffsetX);
@@ -742,7 +744,9 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(display, 5, "浮窗说明：", overlayNote);
             display.ResumeLayout(true);
 
+            CreateCooldownPreviewCard(content);
 
+            content.ResumeLayout(true);
             return panel;
         }
 
@@ -1366,13 +1370,11 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>加载基础配置并同步到设置控件。</summary>
         private async Task LoadBase()
         {
-            var allChampions = AppCompositionRoot.ChampionCatalog.GetAll();
-            foreach (var champion in allChampions)
-            {
-                this.setting_select_jyx.Items.Add(champion.DisplayName);
-                this.setting_select_xyx.Items.Add(champion.DisplayName);
-                _aramBenchPriority.Items.Add(champion.DisplayName);
-            }
+            var names = AppCompositionRoot.ChampionCatalog.GetAll()
+                .Select(champion => (object)champion.DisplayName).ToArray();
+            setting_select_jyx.Items.AddRange(names);
+            setting_select_xyx.Items.AddRange(names);
+            _aramBenchPriority.Items.AddRange(names);
             RestoreSelectedChampions();
         }
 

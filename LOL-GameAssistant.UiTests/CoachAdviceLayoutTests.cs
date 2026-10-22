@@ -62,20 +62,40 @@ public sealed class CoachAdviceLayoutTests
                 InvalidWhen = "自身控制已交、队友离开或撤退路线被封时停止。" };
             var state = new RecommendationState(RecommendationStatus.AiReady, context, [card, card with { Id = "secondary", Priority = RecommendationPriority.Info, Category = "团战", Title = "团战中优先保持输出位置", Body = "根据己方阵容承担输出职责，进场前保留足够的安全距离。", ActionKey = "teamfight:position" }],
                 "建议已更新；展开卡片可查看适用条件和分析依据。", now, null) { AnalyzedAt = now, RequestCount = 4, RequestBudget = 30 };
+            string? confirmedMatchup = null;
             using var form = new CoachForm(Proxy<IAiCoachingService>((_, _) => Task.FromResult(context)),
-                Proxy<IRecommendationCoordinator>((method, _) => method.Name == "get_Current" ? state : null),
+                Proxy<IRecommendationCoordinator>((method, args) =>
+                {
+                    if (method.Name == "ConfirmMatchup") confirmedMatchup = (string?)args[0];
+                    return method.Name == "get_Current" ? state : null;
+                }),
                 Proxy<IApplicationSettingsStore>((_, _) => new AssistantSettings { OpggBuildAssistantEnabled = true }),
                 Proxy<IOpggBuildApplyService>((_, _) => null));
             using var host = new Form { ClientSize = new Size(width, 760), Opacity = 0, ShowInTaskbar = false };
             host.Controls.Add(form); host.Show(); UiTheme.Apply(form);
             System.Windows.Forms.Application.DoEvents(); form.PerformLayout(); System.Windows.Forms.Application.DoEvents();
+            var matchup = Descendants(form).OfType<AntdUI.Select>().Single(c => c.Name == "coachMatchup");
+            Assert.True(matchup.Height >= 32);
+            matchup.SelectedIndex = 1;
+            Assert.Equal("盖伦", confirmedMatchup);
+            matchup.SelectedIndex = 0;
+            Assert.Null(confirmedMatchup);
             var cards = Descendants(form).OfType<TableLayoutPanel>().Where(c => c.Name.Contains("Card")).ToArray();
             Assert.Equal(2, cards.Length);
+            Assert.False(cards[1].Visible);
+            Descendants(form).OfType<AntdUI.Button>().Single(b => b.Name == "moreAdvice").PerformClick();
+            System.Windows.Forms.Application.DoEvents();
+            Assert.True(cards[1].Visible);
             Assert.All(cards, c => Assert.InRange(c.Right, 1, c.Parent!.ClientSize.Width));
             Assert.True(cards[1].Top >= cards[0].Bottom);
             var expand = Descendants(cards[0]).OfType<AntdUI.Button>().Single(b => b.Text == "查看分析依据");
             expand.PerformClick(); System.Windows.Forms.Application.DoEvents();
             Assert.True(Descendants(cards[0]).Single(c => c.Name == "coachCardEvidence").Visible);
+            foreach (var label in cards.SelectMany(Descendants).OfType<AntdUI.Label>())
+            {
+                Assert.True(label.TextMultiLine);
+                Assert.True(label.Height >= label.GetPreferredSize(new Size(label.Width, 0)).Height);
+            }
             var buildStatus = (Control)typeof(CoachForm).GetField("_buildStatus", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(form)!;
             Assert.NotSame(buildStatus, typeof(CoachForm).GetField("_status", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(form));
             string? directory = Environment.GetEnvironmentVariable("COACH_PREVIEW_DIR");
