@@ -1,1 +1,0 @@
-selector={X=864,Y=4,Width=202,Height=24}, Visible=True, ItemSize=70, tab=1, children=grid_main,HeadContent

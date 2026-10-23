@@ -1,0 +1,13 @@
+{
+  "DeletedFiles": 2471,
+  "DeletedBytes": 12698420435.0,
+  "ProtectedFilesChecked": 4185,
+  "ProtectedMissing": 0,
+  "DeletedStillPresent": 27,
+  "LockedFiles": 11,
+  "SkippedFiles": 1616,
+  "PackWorkExists": false,
+  "GitDynamicNote": "初次核对发现一个 Codex 内部临时引用已变化；清理目标未包含 .git，业务文件核对已排除 Git 动态元数据。",
+  "RecreatedFiles": 27,
+  "RecreatedNote": "部分构建中间文件被运行中的开发工具重新生成，保留，不重复清理。"
+}

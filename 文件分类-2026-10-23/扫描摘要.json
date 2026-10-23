@@ -1,0 +1,40 @@
+{
+  "Files": 10148,
+  "Bytes": 15932790147.0,
+  "Summary": [
+    {
+      "Category": "部署文件",
+      "Action": "保留",
+      "Count": 40,
+      "Bytes": 2904372.0
+    },
+    {
+      "Category": "部署文件",
+      "Action": "可重新生成",
+      "Count": 648,
+      "Bytes": 11793757270.0
+    },
+    {
+      "Category": "其他文件",
+      "Action": "可重新生成",
+      "Count": 3450,
+      "Bytes": 2994968145.0
+    },
+    {
+      "Category": "其他文件",
+      "Action": "确认后归档或删除",
+      "Count": 377,
+      "Bytes": 314058876.0
+    },
+    {
+      "Category": "项目文件",
+      "Action": "保留",
+      "Count": 5633,
+      "Bytes": 827101484.0
+    }
+  ],
+  "Errors": [],
+  "SkippedLinks": [],
+  "ExcludedReportDirectory": "E:\\code\\weather-app\\文件分类-2026-10-23",
+  "SnapshotUtc": "2026-10-23T03:46:39.8369756Z"
+}

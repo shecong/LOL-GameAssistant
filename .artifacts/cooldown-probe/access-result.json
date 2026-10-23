@@ -1,9 +1,0 @@
-{
-  "pid": 32704,
-  "read_only": true,
-  "observed_at_unix": 1792659060.7465808,
-  "verified_cooldown": false,
-  "read_handle_opened": true,
-  "success": false,
-  "error": "[Errno 5] ReadProcessMemory(0x2f4010, 0x8) read 0"
-}
