@@ -25,7 +25,7 @@ public sealed partial class SkinToolsForm
     {
         var navigation = _skinNavigation;
         navigation.AutoScroll = true;
-        navigation.Controls.AddRange([_heroSkinTab, _objectSkinTab, _otherSettingsTab]);
+        navigation.Controls.AddRange([_heroSkinTab, _objectSkinTab, _rankBorderTab, _otherSettingsTab]);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(0, 8, 12, 12) };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
@@ -37,9 +37,11 @@ public sealed partial class SkinToolsForm
         objectCard.Height = 520;
         objects.Controls.Add(objectCard);
         var otherSettings = CreateOtherSettingsPage();
+        var rankBorders = CreateRankBorderPage();
         operations.Controls.Add(heroPage);
         operations.Controls.Add(objects);
         operations.Controls.Add(otherSettings);
+        operations.Controls.Add(rankBorders);
         var preview = new Panel { Name = "SkinPosterPanel", Dock = DockStyle.Fill, Padding = new Padding(12), Margin = Padding.Empty };
         preview.Controls.Add(_poster);
         preview.Controls.Add(_posterCaption);
@@ -52,7 +54,8 @@ public sealed partial class SkinToolsForm
             heroPage.Visible = index == 0;
             objects.Visible = index == 1;
             otherSettings.Visible = index == 2;
-            var tabs = new[] { _heroSkinTab, _objectSkinTab, _otherSettingsTab };
+            rankBorders.Visible = index == 3;
+            var tabs = new[] { _heroSkinTab, _objectSkinTab, _otherSettingsTab, _rankBorderTab };
             for (int i = 0; i < tabs.Length; i++)
             {
                 tabs[i].Type = i == index ? AntdUI.TTypeMini.Primary : AntdUI.TTypeMini.Default;
@@ -62,6 +65,7 @@ public sealed partial class SkinToolsForm
         _heroSkinTab.Click += (_, _) => SelectPage(0);
         _objectSkinTab.Click += (_, _) => SelectPage(1);
         _otherSettingsTab.Click += (_, _) => SelectPage(2);
+        _rankBorderTab.Click += (_, _) => SelectPage(3);
         layout.SizeChanged += (_, _) =>
         {
             bool wide = layout.ClientSize.Width >= 900;

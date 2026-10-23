@@ -50,7 +50,10 @@ public static class AppCompositionRoot
     }
     public static LOL_GameAssistant.Application.Skins.ISkinCoreService SkinCoreService { get; } =
         new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreService(
-            new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore")),
+            new LOL_GameAssistant.Infrastructure.Skins.SelectableSkinCoreTransport(
+                new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore")),
+                new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCoreHybrid"), kernelRelay: true),
+                new LegacyApplicationSettingsStore().Load().SkinCoreMode),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
     private static readonly Infrastructure.Sgp.SgpClient Sgp = new(LcuRequestSender);

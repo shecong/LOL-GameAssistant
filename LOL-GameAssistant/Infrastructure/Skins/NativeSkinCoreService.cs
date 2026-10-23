@@ -7,8 +7,20 @@ using LOL_GameAssistant.Domain.Skins;
 namespace LOL_GameAssistant.Infrastructure.Skins;
 
 /// <summary>One queue for all native requests; lifecycle revisions invalidate queued selections.</summary>
-public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, string? logPath = null) : ISkinCoreService
+public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, string? logPath = null) : ISkinCoreService, ISkinCoreModeSelector
 {
+    public SkinCoreMode Mode => (transport as ISkinCoreModeSelector)?.Mode ?? SkinCoreMode.Classic;
+    public void SetMode(SkinCoreMode mode)
+    {
+        if (Enabled || !_gate.Wait(0)) throw new SkinCoreException("core_mode_busy");
+        try
+        {
+            if (transport is not ISkinCoreModeSelector selector) throw new SkinCoreException("core_mode_not_supported");
+            selector.SetMode(mode);
+            InvalidateSession();
+        }
+        finally { _gate.Release(); }
+    }
     private readonly SemaphoreSlim _gate = new(1, 1);
     private int _enabled;
     private int _stopping;
@@ -112,6 +124,12 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
         InvalidateSession(); long revision = Interlocked.Read(ref _revision); bool acquired = false;
         try {
             await _gate.WaitAsync(token).ConfigureAwait(false); acquired = true; Check(revision);
+            bool borderRestored = true;
+            if (_borderSession == session && _borderChanged)
+            {
+                try { borderRestored = (await ChangeBorderAsync(revision, session, _borderProfile!, "", true, token).ConfigureAwait(false)).StateVerified; }
+                catch (SkinCoreException error) { borderRestored = false; Log(new { stage = "stop_rank_border_restore_failed", error.Code, error.OutcomeUnknown }); }
+            }
             bool cameraRestored = true;
             if (_cameraSession == session && (_cameraChanged || _cameraViewChanged))
             {
@@ -142,7 +160,7 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
                 catch (SkinCoreException error) { Log(new { stage = "stop_module_check_failed", error.Code }); }
             }
             return restored with { HeroRestoreVerified = restored.StateVerified, ObjectRestoreVerified = objectsRestored, CameraRestoreVerified = cameraRestored,
-                StateVerified = restored.StateVerified && objectsRestored && cameraRestored };
+                RankBorderRestoreVerified = borderRestored, StateVerified = restored.StateVerified && objectsRestored && cameraRestored && borderRestored };
         }
         catch (SkinCoreException error) { Log(new { stage = "stop_failed", error.Code, error.OutcomeUnknown }); throw; }
         finally {

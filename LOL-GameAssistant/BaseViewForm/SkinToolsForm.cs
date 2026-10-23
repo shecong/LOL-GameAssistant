@@ -54,12 +54,12 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         var searchGap = new AntdUI.Label { Dock = DockStyle.Top, Height = 8, Text = "" };
         _card.Controls.Add(_status); _card.Controls.Add(buttons); _card.Controls.Add(gap);
         _card.Controls.Add(_entries); _card.Controls.Add(selectionLabel); _card.Controls.Add(searchGap);
-        _card.Controls.Add(_search); _card.Controls.Add(stateGap); _card.Controls.Add(_current); _card.Controls.Add(heading);
+        _card.Controls.Add(_search); _card.Controls.Add(stateGap); _card.Controls.Add(_current); _card.Controls.Add(CreateCoreModeRow()); _card.Controls.Add(heading);
         _surfaceRows.AddRange([heading, toggleRow, buttons, gap, selectionLabel, stateGap, searchGap]);
         var notice = new AntdUI.Label { Dock = DockStyle.Top, Height = 96, Padding = new Padding(8, 16, 8, 8), Text = "实验性功能：游戏更新后可能需要重新适配。第三方换肤存在账号处罚风险。\n关闭开关停止新的请求，不会卸载已加载的游戏模块或自动恢复皮肤。" };
         var content = new TableLayoutPanel { ColumnCount = 1, RowCount = 3, Margin = Padding.Empty, Padding = Padding.Empty };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 472));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 592));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 356));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
         _card.Dock = DockStyle.Fill; _card.Margin = Padding.Empty;
@@ -68,7 +68,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         void PositionContent()
         {
             int width = Math.Max(360, viewport.ClientSize.Width - 24);
-            int skinHeight = width < 560 ? 528 : 472;
+            int skinHeight = width < 560 ? 648 : 592;
             content.RowStyles[0].Height = skinHeight;
             content.SetBounds(12, 12, width, skinHeight + 456);
         }
@@ -155,6 +155,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _posterCaption.Text = "连接游戏后显示当前英雄皮肤海报";
         Interlocked.Increment(ref _revision); _catalog = null; _filtered.Clear(); _entries.Items.Clear(); _entries.SelectedIndex = -1;
         _objectCatalog = null;
+        ResetRankBorder();
         ResetCameraSelection();
         ResetObjectSelection(); _skinPickerCategory = SkinPickerCategory.Hero;
         _current.Text = UiLanguage.T("尚未连接游戏"); UpdateButtons();
@@ -194,6 +195,8 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _stop.Enabled = ready && !_refreshing;
         UpdateObjectButtons();
         UpdateCameraButtons();
+        UpdateCoreModeControls();
+        UpdateRankBorderButtons();
     }
     private async Task StopAsync()
     {
@@ -226,6 +229,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             : hero ? "英雄原皮已恢复，对象原皮恢复未核验；功能已停用。"
             : "英雄原皮恢复未核验；功能已停用，请检查游戏画面。";
         if (result.CameraRestoreVerified == false) restored += "视距恢复未核验，请检查游戏镜头。";
+        if (result.RankBorderRestoreVerified == false) restored += "段位边框恢复未核验，请检查游戏画面。";
         if (result.ModuleUnloadVerified == true && result.ModuleLoaded == false)
             return restored + "游戏内核心已确认卸载。";
         if (result.ModulePinned == true)
@@ -324,6 +328,10 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             : error is SkinCoreException core ? core.Code switch
         {
             "core_files_missing" => "核心文件缺失，请重新安装完整运行包。",
+            "hybrid_files_missing" => "混合模式文件缺失，请先构建并部署 SkinCoreHybrid 运行文件。",
+            "kernel_driver_unavailable" => "驱动通道不可用。请确认 SkinCoreRelay 已安装并启动，且以管理员身份运行助手；可在退出对局并关闭功能后切回经典模式。",
+            "kernel_protocol_mismatch" => "驱动协议版本不匹配，请安装配套版本的驱动。",
+            "kernel_submit_failed" => "驱动未接受请求，本次未执行换肤。",
             "game_window_not_found" => "未检测到游戏对局，请进入游戏后刷新。",
             "independent_game_version_not_supported" => "当前游戏版本尚未适配，已停止调用。",
             "independent_skin_layer_not_verified" => "当前皮肤层或模型不兼容，已停止换肤。请恢复正常形态后重新读取。",
@@ -341,7 +349,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         BackColor = palette.Surface; ForeColor = palette.TextPrimary;
         _skinNavigation.BackColor = palette.SurfaceMuted;
         _skinNavigation.ForeColor = palette.TextPrimary;
-        foreach (var button in new[] { _heroSkinTab, _objectSkinTab, _otherSettingsTab })
+        foreach (var button in new[] { _heroSkinTab, _objectSkinTab, _rankBorderTab, _otherSettingsTab })
         {
             button.BackColor = palette.Accent;
             button.DefaultBack = palette.SurfaceRaised;
@@ -375,6 +383,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (_hotkeyCard != null) { _hotkeyCard.Back = palette.SurfaceRaised; _hotkeyCard.BackColor = palette.SurfaceRaised; _hotkeyCard.BorderColor = palette.Border; }
         if (_objectCard != null) { _objectCard.Back = palette.SurfaceRaised; _objectCard.BackColor = palette.SurfaceRaised; _objectCard.BorderColor = palette.Border; ThemeCardLabels(_objectCard); }
         if (_otherSettingsCard != null) { _otherSettingsCard.Back = palette.SurfaceRaised; _otherSettingsCard.BackColor = palette.SurfaceRaised; _otherSettingsCard.BorderColor = palette.Border; ThemeCardLabels(_otherSettingsCard); }
+        if (_borderCard != null) { _borderCard.Back = palette.SurfaceRaised; _borderCard.BackColor = palette.SurfaceRaised; _borderCard.BorderColor = palette.Border; ThemeCardLabels(_borderCard); }
     }
     protected override void Dispose(bool disposing)
     {

@@ -382,6 +382,10 @@ FodyWeavers.xsd
 
 
 # Build output artifacts (large binaries, do not commit)
+/.artifacts/wdk-nuget/
+/.artifacts/skin-core-backup-2026-10-23/
+/.artifacts/skin-core-ui/
+/.artifacts/skin-core-dual-mode/
 /output/
 output/
 *.exe

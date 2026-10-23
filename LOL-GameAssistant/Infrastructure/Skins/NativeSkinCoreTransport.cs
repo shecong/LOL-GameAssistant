@@ -6,19 +6,20 @@ using LOL_GameAssistant.Domain.Skins;
 
 namespace LOL_GameAssistant.Infrastructure.Skins;
 
-public sealed class NativeSkinCoreTransport(string directory) : ISkinCoreTransport
+public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay = false) : ISkinCoreTransport
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
     internal static SkinCoreReply ParseReply(string json, bool outcomeUnknown = false) => JsonSerializer.Deserialize<SkinCoreReply>(json, JsonOptions)
         ?? throw new SkinCoreException("invalid_bridge_reply", outcomeUnknown);
     public async Task<SkinCoreReply> InvokeAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
-        string host = Path.Combine(directory, "league-skin-core-host.exe");
+        string host = Path.Combine(directory, kernelRelay ? "league-skin-hybrid-host.exe" : "league-skin-core-host.exe");
         if (!File.Exists(host) || !File.Exists(Path.Combine(directory, "league-skin-core.dll")))
-            throw new SkinCoreException("core_files_missing");
-        if (arguments.Count == 0 || arguments[0] is not ("catalog" or "status" or "entry" or "restore" or "object-catalog" or "objects" or "objects-restore" or "module-state" or "camera-status" or "camera" or "camera-view"))
+            throw new SkinCoreException(kernelRelay ? "hybrid_files_missing" : "core_files_missing");
+        if (arguments.Count == 0 || arguments[0] is not ("catalog" or "status" or "entry" or "restore" or "object-catalog" or "objects" or "objects-restore" or "module-state" or "camera-status" or "camera" or "camera-view" or "rank-border" or "driver-status") ||
+            (arguments[0] == "driver-status" && !kernelRelay))
             throw new SkinCoreException("invalid_request");
-        bool write = arguments[0] is "entry" or "restore" or "objects" or "objects-restore" or "camera" or "camera-view";
+        bool write = arguments[0] is "entry" or "restore" or "objects" or "objects-restore" or "camera" or "camera-view" or "rank-border";
         var info = new ProcessStartInfo(host) { UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardOutput = true, RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, WorkingDirectory = directory };
@@ -37,6 +38,8 @@ public sealed class NativeSkinCoreTransport(string directory) : ISkinCoreTranspo
                 reply.Error == "request_outcome_unknown" || reply.Invoked);
             if (process.ExitCode != 0 || !reply.Independent || reply.OriginalRequired)
                 throw new SkinCoreException("invalid_independent_reply", write);
+            if (kernelRelay && arguments[0] != "module-state" && reply.Backend != "kernel_relay")
+                throw new SkinCoreException("invalid_kernel_reply", write);
             return reply;
         }
         catch (OperationCanceledException)

@@ -86,7 +86,19 @@ public sealed class SkinCameraUiTests
             host.Controls.Add(page); host.Show(); page.OnGamePhaseChanged(true);
             AntdUI.Button Button(string name) => Descendants(page).OfType<AntdUI.Button>().Single(c => c.Name == name);
             var navigation = Descendants(page).Single(c => c.Name == "SkinNavigation");
-            Assert.Equal(new[] { "HeroSkinTab", "ObjectSkinTab", "OtherSkinSettingsTab" }, navigation.Controls.Cast<Control>().Select(c => c.Name));
+            Assert.Equal(new[] { "HeroSkinTab", "ObjectSkinTab", "RankBorderTab", "OtherSkinSettingsTab" }, navigation.Controls.Cast<Control>().Select(c => c.Name));
+            Button("RankBorderTab").PerformClick();
+            Assert.True(Descendants(page).Single(c => c.Name == "RankBorderPage").Visible);
+            Assert.False(Button("RankBorderApply").Enabled);
+            Assert.False(Button("RankBorderRestore").Enabled);
+            Button("RankBorderRead").PerformClick();
+            Assert.Contains("待适配", Descendants(page).OfType<AntdUI.Label>().Single(c => c.Name == "RankBorderStatus").Text);
+            Assert.False(Button("RankBorderApply").Enabled); Assert.Empty(core.Writes);
+            using (var borderPreview = new Bitmap(host.ClientSize.Width, host.ClientSize.Height))
+            {
+                host.DrawToBitmap(borderPreview, host.ClientRectangle);
+                borderPreview.Save(Path.Combine(AppContext.BaseDirectory, "rank-border-preview.png"));
+            }
             Button("OtherSkinSettingsTab").PerformClick();
             Assert.True(Descendants(page).Single(c => c.Name == "OtherSkinSettingsPage").Visible);
             Assert.Equal(0, core.CameraReads); Assert.Empty(core.Writes);

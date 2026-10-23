@@ -8,8 +8,26 @@
   </Project>
   <Project Path="LOL-GameAssistant/LOL-GameGUI.csproj">
     <Platform Solution="*|x64" Project="x64" />
+    <BuildDependency Project="native/LeagueSkinCore/LeagueSkinCore.vcxproj" />
+    <BuildDependency Project="native/LeagueSkinHybrid/LeagueSkinHybrid.vcxproj" />
   </Project>
   <Project Path="LOL-GameAssistant.Tests/LOL-GameAssistant.Tests.csproj" />
   <Project Path="LOL-GameApi.Tests/LOL-GameApi.Tests.csproj" />
   <Project Path="LOL-GameAssistant.UiTests/LOL-GameAssistant.UiTests.csproj" />
+  <Folder Name="/换肤核心/">
+    <File Path="native/README.VS.md" />
+    <Project Path="native/LeagueSkinCore/LeagueSkinCore.vcxproj">
+      <Platform Project="x64" />
+      <Build Solution="*|Any CPU" Project="false" />
+    </Project>
+    <Project Path="native/LeagueSkinHybrid/LeagueSkinHybrid.vcxproj">
+      <Platform Project="x64" />
+      <Build Solution="*|Any CPU" Project="false" />
+    </Project>
+    <Project Path="native/SkinCoreRelay/SkinCoreRelay.vcxproj">
+      <Platform Project="x64" />
+      <Build Project="false" />
+      <BuildDependency Project="native/LeagueSkinHybrid/LeagueSkinHybrid.vcxproj" />
+    </Project>
+  </Folder>
 </Solution>

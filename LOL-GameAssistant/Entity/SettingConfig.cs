@@ -16,6 +16,7 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("autoLaunchGameClient")]
         public bool AutoLaunchGameClient { get; set; } = false;
         public bool SkinCoreEnabled { get; set; } = false;
+        public LOL_GameAssistant.Domain.Skins.SkinCoreMode SkinCoreMode { get; set; }
         public bool UnlimitedZoomEnabled { get; set; }
         public float? RememberedCameraDistance { get; set; }
         [JsonProperty("rememberedHeroSkins")]
@@ -204,6 +205,7 @@ namespace LOL_GameAssistant.Entity
         /// <summary>兼容旧版本 settings.json，确保新增设置始终可用。</summary>
         public void Normalize()
         {
+            if (!Enum.IsDefined(SkinCoreMode)) SkinCoreMode = LOL_GameAssistant.Domain.Skins.SkinCoreMode.Classic;
             Ai ??= new AiSettings();
             ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
             if (!Enum.IsDefined(LiveGameLayout)) LiveGameLayout = LOL_GameAssistant.Domain.Settings.LiveGameLayout.Classic;

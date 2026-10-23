@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ConfigurationType>Makefile</ConfigurationType>
+    <SkinSdkVersion Condition="'$(SkinSdkVersion)' == ''">10.0.26100.0</SkinSdkVersion>
+    <SkinWdkRoot Condition="'$(SkinWdkRoot)' == '' and Exists('$(MSBuildThisFileDirectory)..\.artifacts\wdk-nuget\wdk\c\Include\$(SkinSdkVersion)\km\ntddk.h')">$(MSBuildThisFileDirectory)..\.artifacts\wdk-nuget\wdk\c</SkinWdkRoot>
+    <SkinWdkRoot Condition="'$(SkinWdkRoot)' == ''">$(MSBuildProgramFiles32)\Windows Kits\10</SkinWdkRoot>
+    <NMakeBuildCommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)Build-SkinCoreProject.ps1&quot; -Project $(SkinProjectKind) -Action Build -WdkRoot &quot;$(SkinWdkRoot)&quot; -SdkVersion &quot;$(SkinSdkVersion)&quot;</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>$(NMakeBuildCommandLine)</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)Build-SkinCoreProject.ps1&quot; -Project $(SkinProjectKind) -Action Clean</NMakeCleanCommandLine>
+    <NMakeOutput>$(ProjectDir)bin\$(SkinOutputName)</NMakeOutput>
+    <NMakeIncludeSearchPath>$(ProjectDir)native;$(MSBuildThisFileDirectory)LeagueSkinCore\native;$(MSBuildThisFileDirectory)SkinCoreRelay;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+    <NMakePreprocessorDefinitions>WIN32;_WIN64;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <OutDir>$(ProjectDir)bin\</OutDir>
+    <IntDir>$(ProjectDir)obj\$(Configuration)\</IntDir>
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+  </PropertyGroup>
+</Project>

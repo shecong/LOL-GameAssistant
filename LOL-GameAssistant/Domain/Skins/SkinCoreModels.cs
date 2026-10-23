@@ -1,6 +1,14 @@
 namespace LOL_GameAssistant.Domain.Skins;
 
+public enum SkinCoreMode { Classic, KernelRelay }
+
 public enum SkinPickerCategory { Hero, Ward, Minion }
+
+public sealed record RankBorderEntry
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+}
 
 public sealed record SkinEntry
 {
@@ -15,6 +23,12 @@ public sealed record SkinEntry
 
 public sealed record SkinCoreReply
 {
+    public bool RankBorderSupported { get; init; }
+    public string RankBorderProfile { get; init; } = "";
+    public string RankBorderId { get; init; } = "";
+    public IReadOnlyList<RankBorderEntry> RankBorderEntries { get; init; } = [];
+    public bool? RankBorderRestoreVerified { get; init; }
+    public string Backend { get; init; } = "";
     public float CameraDistance { get; init; }
     public float CameraDefaultViewDistance { get; init; }
     public float? CameraViewDistance { get; init; }

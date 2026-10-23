@@ -11,6 +11,9 @@ public interface ISkinCoreService
     Task<SkinCoreReply> ApplyAsync(string session, string entryId, CancellationToken cancellationToken = default);
     Task<SkinCoreReply> RestoreAsync(string session, CancellationToken cancellationToken = default);
     Task<SkinCoreReply> StopAsync(string session, CancellationToken cancellationToken = default);
+    Task<SkinCoreReply> GetRankBorderAsync(CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("rank_border_not_supported"));
+    Task<SkinCoreReply> ApplyRankBorderAsync(string session, string profile, string id, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("rank_border_not_supported"));
+    Task<SkinCoreReply> RestoreRankBorderAsync(string session, string profile, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("rank_border_not_supported"));
     Task<SkinCoreReply> GetObjectCatalogAsync(CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("objects_not_supported"));
     Task<SkinCoreReply> ApplyObjectsAsync(string session, int minionIndex, int wardSkin, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("objects_not_supported"));
     Task<SkinCoreReply> RestoreObjectsAsync(string session, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("objects_not_supported"));
@@ -23,4 +26,10 @@ public interface ISkinCoreService
 public interface ISkinCoreTransport
 {
     Task<SkinCoreReply> InvokeAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken);
+}
+
+public interface ISkinCoreModeSelector
+{
+    SkinCoreMode Mode { get; }
+    void SetMode(SkinCoreMode mode);
 }

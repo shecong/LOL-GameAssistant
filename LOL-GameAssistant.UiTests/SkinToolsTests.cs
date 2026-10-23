@@ -12,6 +12,35 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SkinToolsTests
 {
     [Fact]
+    public void CoreModePersistsAndLocksDuringEnableOrGame() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new Settings(); var core = new Core();
+        using var host = new Form { ClientSize = new Size(1100, 900), ShowInTaskbar = false };
+        using var page = new SkinToolsForm(core, settings, EmptySkinResources());
+        host.Controls.Add(page); host.Show();
+        var mode = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "SkinCoreMode");
+        var enabled = Descendants(page).OfType<AntdUI.Switch>().Single(c => c.Name == "SkinCoreEnabled");
+        Assert.True(mode.Enabled); Assert.Equal(0, mode.SelectedIndex);
+        mode.SelectedIndex = 1;
+        Assert.Equal(SkinCoreMode.KernelRelay, core.Mode);
+        Assert.Equal(SkinCoreMode.KernelRelay, settings.Load().SkinCoreMode);
+        if (Environment.GetEnvironmentVariable("SKIN_CORE_UI_SNAPSHOT") is string snapshot && snapshot.Length > 0)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(snapshot)!);
+            using var bitmap = new Bitmap(host.Width, host.Height);
+            host.DrawToBitmap(bitmap, host.ClientRectangle);
+            bitmap.Save(snapshot, System.Drawing.Imaging.ImageFormat.Png);
+        }
+        var legacy = LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToLegacy(settings.Load());
+        Assert.Equal(SkinCoreMode.KernelRelay, LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToDomain(legacy).SkinCoreMode);
+        enabled.Checked = true; Assert.False(mode.Enabled);
+        enabled.Checked = false; Assert.True(mode.Enabled);
+        page.OnGamePhaseChanged(true); Assert.False(mode.Enabled);
+        page.OnGamePhaseChanged(false); Assert.True(mode.Enabled);
+        mode.SelectedIndex = 0; Assert.Equal(SkinCoreMode.Classic, settings.Load().SkinCoreMode);
+    });
+
+    [Fact]
     public void SkinQualityLabelsAndColorsFollowThemeWithoutApplyingAnotherSkin() => MatchListScrollingTests.OnUiThread(() =>
     {
         string previousMode = UiTheme.Mode;
@@ -256,8 +285,10 @@ public sealed class SkinToolsTests
         public void Save(AssistantSettings settings) => _settings = settings;
         public string GetStoragePath() => "unused";
     }
-    private sealed class Core : ISkinCoreService
+    private sealed class Core : ISkinCoreService, ISkinCoreModeSelector
     {
+        public SkinCoreMode Mode { get; private set; }
+        public void SetMode(SkinCoreMode mode) => Mode = mode;
         public bool Enabled { get; private set; }
         public int Reads { get; private set; }
         public TaskCompletionSource<SkinCoreReply>? PendingRead { get; set; }

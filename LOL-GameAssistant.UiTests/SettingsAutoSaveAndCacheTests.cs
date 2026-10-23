@@ -53,6 +53,7 @@ public sealed class SettingsAutoSaveAndCacheTests
         Field<AntdUI.Input>(form, "_baseUrl").Text = "http://invalid.example";
         Field<AntdUI.Input>(form, "_apiKey").Text = "未完成的密钥草稿";
         latest.SkinNextHotkey = "Ctrl+F8";
+        latest.SkinCoreMode = LOL_GameAssistant.Domain.Skins.SkinCoreMode.KernelRelay;
         string[] settingsFields = ["swi_open:AutoMatch", "swi_gametrue:AutoAccept", "swi_jyyx:AutoBan", "swi_xyx:AutoPick",
             "swi_tray:MinimizeToTray", "swi_auto_refresh:AutoRefresh", "swi_notify_end:NotifyOnGameEnd",
             "_preselectOnly:AutoPickPreselectOnly", "_skipFill:SkipAutoPickOnFill", "_autoHonor:AutoHonor",
@@ -79,6 +80,7 @@ public sealed class SettingsAutoSaveAndCacheTests
             Assert.Equal("", latest.Ai.BaseUrl);
             Assert.Equal("", latest.Ai.EncryptedApiKey);
             Assert.Equal("Ctrl+F8", latest.SkinNextHotkey);
+            Assert.Equal(LOL_GameAssistant.Domain.Skins.SkinCoreMode.KernelRelay, latest.SkinCoreMode);
             checkedProperty.SetValue(control, original);
             Assert.Equal(before + 2, saves);
         }

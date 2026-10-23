@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{DF757D0A-E5A4-7086-08CF-04715E489803}</ProjectGuid>
+    <Keyword>MakeFileProj</Keyword>
+    <ProjectName>SkinCoreRelay.Driver</ProjectName>
+    <SkinProjectKind>Relay</SkinProjectKind>
+    <SkinOutputName>SkinCoreRelay.sys</SkinOutputName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="..\SkinCore.Makefile.props" />
+  <PropertyGroup>
+    <NMakeIncludeSearchPath>$(SkinWdkRoot)\Include\$(SkinSdkVersion)\km;$(SkinWdkRoot)\Include\wdf\kmdf\1.31;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+    <NMakePreprocessorDefinitions>_KERNEL_MODE;_AMD64_;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemGroup>
+    <ClCompile Include="driver.c" />
+    <ClInclude Include="public.h" />
+    <None Include="test_client.cpp" />
+    <None Include="tests\*" />
+    <None Include="build.ps1" />
+    <None Include="manage.ps1" />
+    <None Include="README.md" />
+    <None Include="..\Build-SkinCoreProject.ps1" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

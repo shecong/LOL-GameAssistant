@@ -38,6 +38,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Tools\SkinCoreHybrid\**\*" Condition="Exists('Tools\SkinCoreHybrid\league-skin-hybrid-host.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
     <Content Include="Tools\GameOverlay\sc-game-overlay.dll;Tools\GameOverlay\sc-game-overlay-host.exe;Tools\GameOverlay\ImGui-LICENSE.txt;Tools\GameOverlay\MinHook-LICENSE.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
