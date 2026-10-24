@@ -161,6 +161,56 @@ public sealed class DenseBattleQueryTests
     });
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(8)]
+    [InlineData(10)]
+    public void WorkspaceDefersOrientationChangeUntilBothPanelsFit(int height) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var query = Create((id, _, _) => Task.FromResult<MatchDetail?>(Detail(id)));
+        var workspace = Field<SplitContainer>(query, "_matchWorkspace");
+        workspace.Dock = DockStyle.None;
+        workspace.Size = new Size(1200, 600);
+        workspace.Panel2Collapsed = false;
+        workspace.Size = new Size(900, height);
+        Assert.Equal(Orientation.Vertical, workspace.Orientation);
+        workspace.Size = new Size(900, 600);
+        Assert.Equal(Orientation.Horizontal, workspace.Orientation);
+        Assert.InRange(workspace.SplitterDistance, 1, workspace.Height - workspace.SplitterWidth - 1);
+        workspace.Size = Size.Empty;
+        Assert.Equal(Orientation.Horizontal, workspace.Orientation);
+        workspace.Size = new Size(1400, 700);
+        Assert.Equal(Orientation.Vertical, workspace.Orientation);
+        Assert.InRange(workspace.SplitterDistance, 1, workspace.Width - workspace.SplitterWidth - 1);
+    });
+
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(1.5f)]
+    [InlineData(2f)]
+    public void ScaledWorkspaceCanRepeatedlyResizeWithDetailPaneOpen(float scale) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var query = Create((id, _, _) => Task.FromResult<MatchDetail?>(Detail(id)));
+        var workspace = Field<SplitContainer>(query, "_matchWorkspace");
+        workspace.Dock = DockStyle.None;
+        query.Scale(new SizeF(scale, scale));
+        workspace.Panel2Collapsed = false;
+        int unit = query.DeviceDpi;
+        for (int i = 0; i < 3; i++)
+        {
+            workspace.Size = new Size(1600 * unit / 96, 700 * unit / 96);
+            Assert.Equal(Orientation.Vertical, workspace.Orientation);
+            workspace.Size = new Size(900 * unit / 96, workspace.SplitterWidth - 1);
+            Assert.Equal(Orientation.Vertical, workspace.Orientation);
+            workspace.Size = new Size(900 * unit / 96, 600 * unit / 96);
+            Assert.Equal(Orientation.Horizontal, workspace.Orientation);
+            Assert.InRange(workspace.SplitterDistance, 1, workspace.Height - workspace.SplitterWidth - 1);
+        }
+        Assert.False(workspace.Panel2Collapsed);
+    });
+
+    [Theory]
     [InlineData(1600, 1000, true)]
     [InlineData(1920, 1080, true)]
     [InlineData(1280, 900, false)]

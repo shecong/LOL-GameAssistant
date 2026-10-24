@@ -74,6 +74,7 @@ public sealed class CompanionExperienceTests
         Assert.Equal("D:/LOL", settings.GameClientPath); Assert.True(settings.SkinCoreEnabled); Assert.Equal("安妮", Assert.Single(settings.PickChampions));
         Assert.False(settings.AutoPick); Assert.False(settings.AutoMatch); Assert.False(settings.GameKdaAnnouncementEnabled); Assert.False(settings.Ai.RecommendationEnabled);
         Assert.Equal(preset == AssistantPreset.Aram, settings.MayhemOverlayEnabled);
+        Assert.Equal(preset != AssistantPreset.Quiet, settings.AutoApplyRuneBuild);
     }
 
     [Fact]

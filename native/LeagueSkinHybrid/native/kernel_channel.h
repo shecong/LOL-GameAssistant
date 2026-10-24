@@ -68,12 +68,12 @@ static int kernelHost(const SKIN_RELAY_COMMAND& command, DWORD thread) {
     wchar_t path[32768]; GetModuleFileNameW(nullptr, path, 32768); wchar_t* slash = wcsrchr(path, L'\\');
     HMODULE dll = nullptr; HHOOK hook = nullptr; int result = 1; bool completed = false;
     if (slash) { wcscpy_s(slash + 1, 32768 - (slash + 1 - path), L"league-skin-core.dll"); dll = LoadLibraryW(path); }
-    if (!dll) result = error("load_own_bridge_failed", GetLastError());
+    if (!dll) result = error("load_own_bridge_failed", GetLastError(), "bridge_load");
     else {
         auto callback = (HOOKPROC)GetProcAddress(dll, "KernelHookProc");
         hook = callback ? SetWindowsHookExW(WH_GETMESSAGE, callback, dll, thread) : nullptr;
-        if (!hook) result = error("standard_windows_hook_rejected", GetLastError());
-        else if (!PostThreadMessageW(thread, KernelMessage, Magic, (LPARAM)command.Nonce)) result = error("request_expired", GetLastError());
+        if (!hook) result = error("standard_windows_hook_rejected", GetLastError(), "hook_install");
+        else if (!PostThreadMessageW(thread, KernelMessage, Magic, (LPARAM)command.Nonce)) result = error("message_post_failed", GetLastError(), "message_post");
         else {
             const DWORD capacity = sizeof(SKIN_RELAY_RESULT) + SKIN_RELAY_RESULT_MAX;
             ULONGLONG until = GetTickCount64() + 5500;
@@ -89,7 +89,8 @@ static int kernelHost(const SKIN_RELAY_COMMAND& command, DWORD thread) {
                 valid = relayReceive(device, SKIN_RELAY_CANCEL, command.Nonce, response, capacity) && valid;
                 auto header = (SKIN_RELAY_RESULT*)response;
                 if (valid && header->Phase == SKIN_RELAY_DONE) completed = true;
-                else result = error(!valid || header->Phase == SKIN_RELAY_RUNNING ? "request_outcome_unknown" : "request_expired", ERROR_TIMEOUT);
+                else result = error(!valid || header->Phase == SKIN_RELAY_RUNNING ? "request_outcome_unknown" : "core_response_timeout",
+                    ERROR_TIMEOUT, "response_wait", valid ? (LONG)header->Phase : -1);
             }
         }
     }

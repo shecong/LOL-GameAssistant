@@ -94,7 +94,7 @@ public sealed class AssistantSettings
     public int QuickLobbyQueueId { get; set; } = 430;
     public Dictionary<string, int> OpggManualBuildSelections { get; set; } = new();
     public List<PersonalRunePreset> PersonalRunePresets { get; set; } = new();
-    public bool AutoApplyRuneBuild { get; set; }
+    public bool AutoApplyRuneBuild { get; set; } = true;
     public bool MayhemOverlayEnabled { get; set; } = true;
     public bool ChampSelectCompanionEnabled { get; set; } = true;
     public bool LaunchOnStartup { get; set; }

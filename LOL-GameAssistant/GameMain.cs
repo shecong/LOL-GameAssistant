@@ -185,6 +185,7 @@ namespace LOL_GameAssistant
             _gameClientLauncher = gameClientLauncher;
             _recommendationCoordinator = recommendationCoordinator;
             InitializeComponent();
+            PoroShopExchangeCoordinator.For(_clientFeatureService).Changed += PoroShopExchangeChanged;
             AntdWindowChrome.Configure(this);
             Icon = AppIcon.Shared;
             // ShowInTaskbar 仅设置窗口样式；无边框窗口还需在显示后可靠登记到 Shell。
@@ -225,6 +226,7 @@ namespace LOL_GameAssistant
             _eventStream.Reconnecting += WebSocketReconnecting;
             Disposed += (_, _) =>
             {
+                PoroShopExchangeCoordinator.For(_clientFeatureService).Changed -= PoroShopExchangeChanged;
                 // These may have been created by a shortcut before their tab was opened.
                 _battleQueryForm?.Dispose();
                 _diagnosticsForm?.Dispose();
@@ -258,7 +260,7 @@ namespace LOL_GameAssistant
         /// <summary>响应语言切换，刷新界面文本和相关状态提示。</summary>
         private void UiLanguageChanged(object? sender, EventArgs e)
         {
-            if (_trayIcon != null) _trayIcon.Text = UiLanguage.T("LOL GameAssistant 运行中");
+            if (_trayIcon != null) _trayIcon.Text = UiLanguage.T("sc助手 运行中");
             if (_trayMenu is { Items.Count: >= 3 })
             {
                 _trayMenu.Items[0].Text = UiLanguage.T("显示窗口");
@@ -1099,7 +1101,7 @@ namespace LOL_GameAssistant
         }
 
         /// <summary>
-        /// 选人期间以较低频率检查当前已选英雄。实际弹窗和“同英雄只提示一次”由 CoachForm 管理，
+        /// 选人期间检查当前预选或已选英雄。自动配置和同英雄去重由 CoachForm 管理，
         /// 使该功能不依赖用户是否正停留在智能建议页。
         /// </summary>
         private void StartOpggChampSelectMonitor()
@@ -1110,7 +1112,7 @@ namespace LOL_GameAssistant
             _lastAramBenchSwapKey = "";
             _opggPromptCts = new CancellationTokenSource();
             _ = MonitorOpggChampSelectAsync(_opggPromptCts.Token);
-            RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测中", "已进入选人阶段，开始检测已选英雄");
+            RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测中", "已进入选人阶段，开始检测预选或已选英雄");
         }
 
         /// <summary>停止选人阶段的推荐监控并取消等待任务。</summary>
@@ -1213,7 +1215,7 @@ namespace LOL_GameAssistant
                     // 气泡提示要求托盘图标可见；提示显示期间先保持图标，
                     // 6 秒后再交回"窗口隐藏才显示图标"的规则，避免把最后的入口关掉。
                     _trayIcon.Visible = true;
-                    _trayIcon.ShowBalloonTip(5000, "LOL GameAssistant", UiLanguage.T("对局已结束，可查看战绩详情。"), ToolTipIcon.Info);
+                    _trayIcon.ShowBalloonTip(5000, "sc助手", UiLanguage.T("对局已结束，可查看战绩详情。"), ToolTipIcon.Info);
                     _ = Task.Delay(6000).ContinueWith(_ => RunOnUiThread(UpdateTrayVisibility));
                 }
             }
@@ -1229,7 +1231,7 @@ namespace LOL_GameAssistant
         {
             _trayIcon = new NotifyIcon
             {
-                Text = UiLanguage.T("LOL GameAssistant 运行中"),
+                Text = UiLanguage.T("sc助手 运行中"),
                 Icon = AppIcon.Shared,
                 Visible = false
             };
@@ -1349,7 +1351,7 @@ namespace LOL_GameAssistant
                 UpdateTrayVisibility();
                 if (_trayIcon != null)
                 {
-                    _trayIcon.ShowBalloonTip(2000, "LOL GameAssistant", "已最小化到系统托盘，单击或双击图标恢复窗口", ToolTipIcon.Info);
+                    _trayIcon.ShowBalloonTip(2000, "sc助手", "已最小化到系统托盘，单击或双击图标恢复窗口", ToolTipIcon.Info);
                 }
             }
             else
@@ -1442,7 +1444,7 @@ namespace LOL_GameAssistant
                 UpdateTrayVisibility();
                 if (_trayIcon != null)
                 {
-                    _trayIcon.ShowBalloonTip(2000, "LOL GameAssistant", "已最小化到系统托盘", ToolTipIcon.Info);
+                    _trayIcon.ShowBalloonTip(2000, "sc助手", "已最小化到系统托盘", ToolTipIcon.Info);
                 }
             }
         }

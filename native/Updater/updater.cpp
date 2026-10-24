@@ -172,7 +172,7 @@ Job Load(const fs::path& path) {
     job.stage = job.root / L"stage";
     job.backup = job.root / L"backup";
     job.entry = Value(job.path, L"Entry");
-    Require(job.entry == L"LOL-GameGUI.exe", "Unexpected application executable");
+    Require(job.entry == L"sc助手.exe", "Unexpected application executable");
     job.manifestHash = Lower(Value(job.path, L"ManifestSha256"));
     Require(IsHex(job.manifestHash, 64), "Missing manifest hash");
     job.parentPid = std::stoul(Value(job.path, L"ParentPid"));

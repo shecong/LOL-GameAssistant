@@ -45,7 +45,7 @@ public sealed class UpdatePlatformTests
     public void ConfigCannotSelectAnotherArchitecture(string runtime)
     {
         var release = new UpdateRelease(new Version(99, 0, 0), "v99.0.0", "https://github.com", "");
-        var manifest = new UpdateManifest(1, "99.0.0", runtime, UpdatePlatform.Package(runtime), 123, new string('a', 64), "LOL-GameGUI.exe");
+        var manifest = new UpdateManifest(1, "99.0.0", runtime, UpdatePlatform.Package(runtime), 123, new string('a', 64), "sc助手.exe");
         if (runtime == UpdatePlatform.Current) UpdatePackageService.ValidateManifest(manifest, release);
         else Assert.Throws<InvalidDataException>(() => UpdatePackageService.ValidateManifest(manifest, release));
     }

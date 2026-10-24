@@ -1,0 +1,1452 @@
+using LOL_GameAssistant.Application.ChampionSelect;
+using LOL_GameAssistant.Application.ClientFeatures;
+using LOL_GameAssistant.Application.Coaching;
+using LOL_GameAssistant.Application.LeagueClient;
+using LOL_GameAssistant.Application.Lobby;
+using LOL_GameAssistant.Application.Settings;
+using LOL_GameAssistant.BaseViewForm;
+using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Domain.ChampionSelect;
+using LOL_GameAssistant.Domain.LeagueClient;
+using LOL_GameAssistant.Domain.Settings;
+using LOL_GameAssistant.Helper;
+using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
+
+namespace LOL_GameAssistant
+{
+    /// <summary>主窗口：管理页面切换、客户端阶段事件、托盘和自动操作。</summary>
+    public partial class GameMain : AntdUI.Window
+    {
+        public readonly InfoMsgForm infoMsg = new InfoMsgForm();
+        public readonly HomeForm home;
+        public readonly LiveGameForm liveGameForm = new LiveGameForm();
+        private BattleQueryForm? _battleQueryForm;
+        public BattleQueryForm battleQueryForm => _battleQueryForm is { IsDisposed: false }
+            ? _battleQueryForm : _battleQueryForm = new BattleQueryForm();
+        public readonly CoachForm coachForm = new CoachForm();
+        private readonly MayhemOverlayController _mayhemOverlay = new();
+        private readonly BattleOverlayController _battleOverlay = new();
+        private readonly ChampSelectCompanionForm _champSelectCompanion = new();
+        private DiagnosticsForm? _diagnosticsForm;
+        public DiagnosticsForm diagnosticsForm => _diagnosticsForm is { IsDisposed: false }
+            ? _diagnosticsForm : _diagnosticsForm = new DiagnosticsForm();
+
+        // Startup behavior reads the settings store directly; the editor is built on demand.
+        private SettingForm? _settingForm;
+        public SettingForm settingForm => _settingForm is { IsDisposed: false }
+            ? _settingForm : _settingForm = new SettingForm();
+
+        private readonly ILeagueClientEventStream _eventStream;
+        private readonly ILobbyService _lobbyService;
+        private readonly IChampionSelectService _championSelectService;
+        private readonly IClientFeatureService _clientFeatureService;
+        private readonly IApplicationSettingsStore _settingsStore;
+        private readonly IGameClientLauncher _gameClientLauncher;
+        private readonly IRecommendationCoordinator _recommendationCoordinator;
+        private readonly LeagueClientConnectionMonitor _connectionMonitor;
+        private NotifyIcon? _trayIcon;
+        private ContextMenuStrip? _trayMenu;
+        private Image? _headerIconImage;
+        private CancellationTokenSource? _autoActionCts;
+        private bool _autoActionStartedForChampSelect;
+        private CancellationTokenSource? _autoAcceptCts;
+        private CancellationTokenSource? _opggPromptCts;
+        private DateTimeOffset _lastAramBenchPoll;
+        private DateTimeOffset _lastAramBenchSwapAttempt;
+        private string _lastAramBenchSwapKey = "";
+        private CancellationTokenSource? _phaseDataLoadCts;
+        private GameFlowPhase? _lastNotifiedEndPhase;
+        private bool _readyCheckDeclinedByUser;
+        private bool _postGameAutomationsTriggered;
+        private bool _restoringFromTray;
+        private bool _startupCompleted;
+        private readonly WindowHoldController _windowHoldController;
+        private readonly QuickMessageSenderController _quickMessageController;
+        private bool _autoClientLaunchAttempted;
+        private bool? _lastAntdDarkMode;
+        private long _gameFlowRevision;
+        private DateTimeOffset _lastAutoMatchAttempt = DateTimeOffset.MinValue;
+
+        /// <summary>
+        /// 游戏状态枚举
+        /// </summary>
+        public GameFlowPhase gameFlowPhase;
+
+        /// <summary>
+        /// 当前是否停留在“对局”标签页。
+        /// </summary>
+        private const int LiveGameTabIndex = 1;
+        private const int BattleQueryTabIndex = 2;
+        private const int CoachTabIndex = 5;
+        private readonly AntdUI.TabPage _coachTab;
+        private readonly AntdUI.TabPage _skinTab;
+        private readonly AntdUI.TabPage _loungeTab;
+        private readonly Infrastructure.Lounge.LoungeClient _lounge = AppCompositionRoot.CreateLoungeClient();
+        private readonly SkinToolsForm _skinTools;
+
+        /// <summary>判断用户当前是否停留在对局页面。</summary>
+        public bool IsLiveGameTabActive => tabs1.SelectedIndex == LiveGameTabIndex;
+
+        /// <summary>按当前输入方式将一条快捷喊话发送到游戏聊天。</summary>
+        public Task<GameShoutSendResult> SendQuickShoutToGameAsync(string phrase, bool sendToAll,
+            bool useClipboard, bool perCharacter, int minimumIntervalSeconds) =>
+            _quickMessageController.SendSelectedToGameAsync(phrase, sendToAll,
+                useClipboard, perCharacter, minimumIntervalSeconds);
+
+        /// <summary>按配置的间隔逐条发送快捷喊话，避免连续输入互相覆盖。</summary>
+        public Task<GameShoutSendResult> SendQuickShoutBatchToGameAsync(IReadOnlyList<string> phrases,
+            bool sendToAll, bool useClipboard, bool perCharacter, int minimumIntervalSeconds) =>
+            _quickMessageController.SendSelectedBatchToGameAsync(phrases, sendToAll,
+                useClipboard, perCharacter, minimumIntervalSeconds);
+
+        /// <summary>测试游戏聊天框是否能被快捷键打开。</summary>
+        public Task<GameShoutSendResult> TestGameChatOpenAsync() =>
+            _quickMessageController.TestChatOpenAsync();
+
+        /// <summary>将逐人 KDA 测评消息交给游戏聊天发送器。</summary>
+        public Task<GameShoutSendResult> SendGameKdaAnnouncementAsync(
+            IReadOnlyList<string> messages, AssistantSettings settings, bool requireForeground = false) =>
+            _quickMessageController.SendBatchToGameAsync(messages,
+                settings.QuickShoutSendToAll, settings.QuickShoutUseClipboard,
+                settings.QuickMessageSendIntervalSeconds, requireForeground);
+
+        /// <summary>注册快捷喊话热键，并将热键动作分派到对应的发送流程。</summary>
+        public void ConfigureQuickShoutHotkeys(AssistantSettings config) =>
+            _windowHoldController.ConfigureQuickShoutHotkeys(config,
+                action => _ = action switch
+                {
+                    QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext or QuickShoutHotkeyAction.SkinPicker => ApplySkinHotkeyAsync(action),
+                    >= QuickShoutHotkeyAction.Player1 and <= QuickShoutHotkeyAction.Player10 => liveGameForm.SendGameKdaManuallyAsync((int)action - 100),
+                    QuickShoutHotkeyAction.GameKda => liveGameForm.SendGameKdaManuallyAsync(),
+                    QuickShoutHotkeyAction.SelectedBatch => settingForm.SendSelectedQuickShoutToGameAsync(),
+                    _ => settingForm.SendRandomQuickShoutToGameAsync(action == QuickShoutHotkeyAction.RandomCustom)
+                });
+
+        private Task ApplySkinHotkeyAsync(QuickShoutHotkeyAction action) =>
+            gameFlowPhase == GameFlowPhase.InProgress ? _skinTools.ApplyHotkeyAsync(action) : Task.CompletedTask;
+
+        /// <summary>录制新热键时暂停已有窗口热键，避免录制按键触发旧动作。</summary>
+        public void SetWindowHotkeyCapturePaused(bool paused) =>
+            _windowHoldController.SetCapturePaused(paused);
+
+        /// <summary>处理当前窗口关注的原生消息，其余消息继续交给基类。</summary>
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WindowHoldController.HotkeyMessage &&
+                _windowHoldController?.HandleHotkey(m.WParam) == true)
+                return;
+            base.WndProc(ref m);
+        }
+
+        /// <summary>
+        /// 切换到“战绩查询”标签页（供其他界面点击玩家头像跳转使用）。
+        /// </summary>
+        public void ShowBattleQueryPage()
+        {
+            if (tabs1.SelectedIndex != BattleQueryTabIndex)
+            {
+                tabs1.SelectedIndex = BattleQueryTabIndex;
+            }
+        }
+
+        public void ShowCoachPage() => tabs1.SelectedIndex = CoachTabIndex;
+        public void ShowLoungePage() => tabs1.SelectedIndex = tabs1.Pages.IndexOf(_loungeTab);
+        public void ShowSettingsPage() => tabs1.SelectedIndex = tabs1.Pages.IndexOf(tabPage5);
+
+        /// <summary>初始化 GameMain 的实例状态。</summary>
+        public GameMain() : this(
+            AppCompositionRoot.LeagueClientEventStream,
+            AppCompositionRoot.LobbyService,
+            AppCompositionRoot.ChampionSelectService,
+            AppCompositionRoot.ClientFeatureService,
+            AppCompositionRoot.ApplicationSettingsStore,
+            AppCompositionRoot.GameClientLauncher,
+            AppCompositionRoot.RecommendationCoordinator)
+        {
+        }
+
+        /// <summary>主窗体仅接收连接与大厅应用端口，认证细节保留在基础设施层。</summary>
+        internal GameMain(
+            ILeagueClientEventStream eventStream,
+            ILobbyService lobbyService,
+            IChampionSelectService championSelectService,
+            IClientFeatureService clientFeatureService,
+            IApplicationSettingsStore settingsStore,
+            IGameClientLauncher gameClientLauncher,
+            IRecommendationCoordinator recommendationCoordinator)
+        {
+            home = new HomeForm(infoMsg);
+            _eventStream = eventStream;
+            _connectionMonitor = new LeagueClientConnectionMonitor(eventStream, RuntimeDiagnostics.WriteException);
+            _lobbyService = lobbyService;
+            _championSelectService = championSelectService;
+            _clientFeatureService = clientFeatureService;
+            _settingsStore = settingsStore;
+            _gameClientLauncher = gameClientLauncher;
+            _recommendationCoordinator = recommendationCoordinator;
+            InitializeComponent();
+            PoroShopExchangeCoordinator.For(_clientFeatureService).Changed += PoroShopExchangeChanged;
+            AntdWindowChrome.Configure(this);
+            Icon = AppIcon.Shared;
+            // ShowInTaskbar 仅设置窗口样式；无边框窗口还需在显示后可靠登记到 Shell。
+            _ = new TaskbarWindowRegistration(this);
+            _headerIconImage = AppIcon.Shared.ToBitmap();
+            HeadContent.Icon = _headerIconImage;
+            UpdateBadge.AddToHeader(HeadContent);
+            tabs1.Pages.Remove(tabPageFriends);
+            tabs1.Controls.Remove(tabPageFriends);
+            tabs1.Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold);
+            tabs1.ItemSize = 112;
+            tabs1.Gap = 12;
+            _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
+            _skinTab = new AntdUI.TabPage { Text = "游戏换肤", Dock = DockStyle.Fill };
+            _skinTools = new SkinToolsForm(AppCompositionRoot.SkinCoreService, _settingsStore);
+            _skinTab.Controls.Add(_skinTools);
+            tabs1.Controls.Add(_coachTab);
+            tabs1.Pages.Add(_coachTab);
+            tabs1.Controls.Add(_skinTab);
+            tabs1.Pages.Add(_skinTab);
+            _loungeTab = new AntdUI.TabPage { Text = "lol休息室", Name = "tabPageLounge", Dock = DockStyle.Fill };
+            tabs1.Controls.Add(_loungeTab);
+            tabs1.Pages.Add(_loungeTab);
+            tabs1.Pages.Add(tabPage4);
+            ConfigureLiveLayoutSelector();
+            _windowHoldController = new WindowHoldController(this);
+            _windowHoldController.ConfigureBattleOverlay(
+                () => gameFlowPhase == GameFlowPhase.InProgress,
+                ShowBattleOverlay,
+                () => _battleOverlay.Hide());
+            _quickMessageController = new QuickMessageSenderController(this);
+            _skinTools.HotkeySettingsChanged += () => ConfigureQuickShoutHotkeys(_settingsStore.Load());
+            UiTheme.Changed += UiThemeChanged;
+            UiLanguage.Changed += UiLanguageChanged;
+            _eventStream.EventReceived += LeagueClientEventReceived;
+            _eventStream.ErrorOccurred += WebSocketError;
+            _eventStream.ConnectionChanged += WebSocketChange;
+            _eventStream.Reconnecting += WebSocketReconnecting;
+            Disposed += (_, _) =>
+            {
+                PoroShopExchangeCoordinator.For(_clientFeatureService).Changed -= PoroShopExchangeChanged;
+                // These may have been created by a shortcut before their tab was opened.
+                _battleQueryForm?.Dispose();
+                _diagnosticsForm?.Dispose();
+                _settingForm?.Dispose();
+                _lounge.Dispose();
+            };
+        }
+
+        /// <summary>应用设置页中的透明度和“按住置顶”快捷键。</summary>
+        public void ApplyWindowSettings(AssistantSettings config)
+        {
+            _windowHoldController.Apply(config);
+            RefreshBattleOverlaySetting(config);
+            ConfigureQuickShoutHotkeys(config);
+            UiTheme.SetMode(config.ThemeMode);
+            UiLanguage.SetMode(config.LanguageMode);
+            _settingForm?.ApplyLanguage();
+            foreach (AboutForm about in tab4_grid1.Controls.OfType<DeferredPageHost>()
+                .SelectMany(host => host.Controls.OfType<AboutForm>())) about.ApplyLanguage();
+            ApplyTheme();
+        }
+
+        /// <summary>响应主题变化，更新当前界面的颜色和绘制配置。</summary>
+        private void UiThemeChanged(object? sender, EventArgs e)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired) BeginInvoke(ApplyTheme);
+            else ApplyTheme();
+        }
+
+        /// <summary>响应语言切换，刷新界面文本和相关状态提示。</summary>
+        private void UiLanguageChanged(object? sender, EventArgs e)
+        {
+            if (_trayIcon != null) _trayIcon.Text = UiLanguage.T("sc助手 运行中");
+            if (_trayMenu is { Items.Count: >= 3 })
+            {
+                _trayMenu.Items[0].Text = UiLanguage.T("显示窗口");
+                _trayMenu.Items[2].Text = UiLanguage.T("退出");
+            }
+        }
+
+        /// <summary>Reapply the semantic palette to all pages already attached to the main window.</summary>
+        public void ApplyTheme()
+        {
+            ThemePalette palette = UiTheme.Palette;
+            // 与参考实现一致：AntdUI 的全局主题和窗口语义色同时更新，避免混用控件出现两套配色。
+            if (_lastAntdDarkMode != palette.IsDark)
+            {
+                AntdUI.Style.Clear();
+                if (palette.IsDark)
+                {
+                    AntdUI.Style.Set(AntdUI.Colour.BgBase, palette.Surface);
+                    AntdUI.Style.Set(AntdUI.Colour.BgLayout, palette.Surface);
+                    AntdUI.Style.Set(AntdUI.Colour.BgContainer, palette.SurfaceRaised);
+                    AntdUI.Style.Set(AntdUI.Colour.BgElevated, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.TextBase, palette.TextPrimary);
+                    AntdUI.Style.Set(AntdUI.Colour.Text, palette.TextPrimary);
+                    AntdUI.Style.Set(AntdUI.Colour.TextSecondary, palette.TextSecondary);
+                    AntdUI.Style.Set(AntdUI.Colour.TextTertiary, palette.TextSecondary);
+                    AntdUI.Style.Set(AntdUI.Colour.TextQuaternary, palette.TextSecondary);
+                    AntdUI.Style.Set(AntdUI.Colour.Fill, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.FillSecondary, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.FillTertiary, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.FillQuaternary, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.HoverBg, palette.SurfaceMuted);
+                    AntdUI.Style.Set(AntdUI.Colour.BorderColor, palette.Border);
+                }
+                _lastAntdDarkMode = palette.IsDark;
+            }
+            AntdUI.Config.IsDark = palette.IsDark;
+            btn_theme_toggle.IconSvg = palette.IsDark ? "MoonFilled" : "SunOutlined";
+            btn_theme_toggle.AccessibleName = palette.IsDark ? "切换到浅色主题" : "切换到深色主题";
+            BackColor = palette.Surface;
+            ForeColor = palette.TextPrimary;
+            UiTheme.Apply(this);
+            Refresh();
+        }
+
+        /// <summary>同步建议开关与调度周期；协调器不依赖设置页是否可见。</summary>
+        public void ApplyRecommendationSettings(AssistantSettings config) =>
+            _recommendationCoordinator.UpdateSettings(config);
+
+        public void OpenAiRecommendationSettings()
+        {
+            tabs1.SelectedIndex = tabs1.Pages.IndexOf(tabPage5);
+            settingForm.ShowAiRecommendationSettings();
+        }
+
+        /// <summary>启动主界面并初始化客户端连接、托盘和后台跟踪。</summary>
+        public void GameMain_Load(object sender, EventArgs e)
+        {
+            using var startup = new StartupDiagnostics("主窗口 Load");
+            // 托盘与窗口事件先挂好：它们不依赖 LCU/网络，
+            // 若放在 await 之后，客户端探测卡住时这段时间窗口既没有托盘图标也没有关闭拦截。
+            InitializeTray();
+            VisibleChanged += (_, _) => UpdateTrayVisibility();
+            FormClosing += GameMain_FormClosing;
+            Resize += GameMain_Resize;
+            tabs1.SelectedIndexChanged += Tabs1_SelectedIndexChanged;
+
+            // 设置页并不一定会被用户打开；在主窗体启动时立即恢复已保存的快捷键，
+            // 使快捷消息不依赖设置页的 Load 事件才开始注册。
+            AssistantSettings startupSettings = _settingsStore.Load();
+            SettingForm.ApplyStartupSetting(startupSettings.LaunchOnStartup);
+            using (new StartupDiagnostics("窗口设置与快捷键")) ApplyWindowSettings(startupSettings);
+            _recommendationCoordinator.Start(startupSettings);
+            TryAutoLaunchLeagueClient(startupSettings);
+            // 首页优先；只读页面和设置编辑器首次打开时再创建。
+            using (new StartupDiagnostics("挂载页面与后台服务")) LoadAllForm();
+            using (new StartupDiagnostics("界面翻译")) UiLanguage.Refresh();
+            liveGameForm.ConfigureAutoRefresh(startupSettings.AutoRefresh,
+                Math.Max(10, startupSettings.AutoRefreshIntervalSeconds));
+            _ = InitializeLiveGameAsync();
+        }
+
+        /// <summary>
+        /// 自动启动属于主窗口生命周期，而不是设置页生命周期。
+        /// 这样即使用户从未切换到“设置”标签，保存过的开关也会在助手启动时执行一次。
+        /// </summary>
+        private void TryAutoLaunchLeagueClient(AssistantSettings settings)
+        {
+            if (_autoClientLaunchAttempted) return;
+            _autoClientLaunchAttempted = true;
+
+            if (!settings.AutoLaunchGameClient) return;
+
+            _ = AutoLaunchLeagueClientAsync(settings.GameClientPath);
+        }
+
+        /// <summary>自动匹配不依赖设置编辑器的创建或加载。</summary>
+        private async Task TryAutoMatchAsync()
+        {
+            if (AppCompositionRoot.Automation.IsPaused || !_settingsStore.Load().AutoMatch ||
+                DateTimeOffset.UtcNow - _lastAutoMatchAttempt < TimeSpan.FromSeconds(10)) return;
+            _lastAutoMatchAttempt = DateTimeOffset.UtcNow;
+            try { await _lobbyService.StartMatchmakingAsync(); }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.WriteException(ex);
+                RuntimeDiagnostics.Report("大厅操作", "失败", ex.Message);
+            }
+        }
+
+        /// <summary>根据配置尝试启动客户端，避免在启动流程中重复发起。</summary>
+        private async Task AutoLaunchLeagueClientAsync(string configuredPath)
+        {
+            try
+            {
+                GameClientLaunchResult result = await _gameClientLauncher.StartAndVerifyAsync(configuredPath);
+                AddInfoMessage($"自动启动 LOL：{result.Message}");
+            }
+            catch (OperationCanceledException)
+            {
+                // Application shutdown.
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.Report("LOL 客户端", "启动失败", ex.Message);
+                AddInfoMessage($"自动启动 LOL 失败：{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 切换到“对局”标签页时自动拉取最新对局信息。
+        /// </summary>
+        private void Tabs1_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (tabs1.SelectedIndex == LiveGameTabIndex)
+            {
+                _ = liveGameForm.AddView(force: true);
+            }
+            else if (tabs1.SelectedIndex == CoachTabIndex)
+            {
+                coachForm.RefreshVisibleState();
+                _ = coachForm.RefreshRecommendationAsync(manual: false);
+            }
+        }
+
+        /// <summary>
+        /// 用 LCU 返回的阶段字符串更新全局阶段与表头显示。
+        /// 不能只依赖 WebSocket 事件：LCU 只在阶段"变化"时推送，订阅当下不会补发当前阶段，
+        /// 因此启动或重连时可能一直停在旧值，导致"刷新"按钮点了没反应。
+        /// </summary>
+        internal long GameFlowRevision => Interlocked.Read(ref _gameFlowRevision);
+
+        public void ApplyGameFlowPhase(string? phaseText, long? expectedRevision = null)
+        {
+            if (string.IsNullOrEmpty(phaseText)) return;
+            if (!Enum.TryParse(phaseText, true, out GameFlowPhase parsed)) return;
+            if (IsDisposed) return;
+            if (IsHandleCreated && InvokeRequired)
+            {
+                RunOnUiThread(() => ApplyGameFlowPhase(phaseText, expectedRevision));
+                return;
+            }
+            if (expectedRevision.HasValue && expectedRevision.Value != GameFlowRevision) return;
+            gameFlowPhase = parsed;
+            _skinTools.OnGamePhaseChanged(parsed == GameFlowPhase.InProgress);
+            Interlocked.Increment(ref _gameFlowRevision);
+            gameFlowPhaseName.Text = parsed.GetChineseName();
+        }
+
+        /// <summary>
+        /// 程序启动时检测客户端是否已在对局流程中，若是则立即加载对局信息。
+        /// </summary>
+        private async Task InitializeLiveGameAsync()
+        {
+            try
+            {
+                long revision = Interlocked.Read(ref _gameFlowRevision);
+                string? phase = await _lobbyService.GetGameFlowPhaseAsync();
+                if (revision != Interlocked.Read(ref _gameFlowRevision)) return;
+                if (string.IsNullOrEmpty(phase)) return;
+
+                // 先写回全局阶段，否则 AddView 读到的是默认值，会什么都不做
+                ApplyGameFlowPhase(phase, revision);
+                RefreshMayhemOverlaySetting();
+                RefreshChampSelectCompanionSetting();
+                _recommendationCoordinator.NotifyGamePhaseChanged(phase);
+
+                if (Enum.TryParse(phase, true, out GameFlowPhase parsed) &&
+                    (parsed == GameFlowPhase.Lobby ||
+                     parsed == GameFlowPhase.ChampSelect ||
+                     parsed == GameFlowPhase.InProgress))
+                {
+                    if (parsed is GameFlowPhase.ChampSelect or GameFlowPhase.InProgress)
+                        StartPhaseDataLoad(parsed);
+                    else
+                        await liveGameForm.AddView(force: true);
+                }
+                if (parsed == GameFlowPhase.ChampSelect)
+                    StartOpggChampSelectMonitor();
+            }
+            catch
+            {
+                // 启动阶段检测失败不影响主流程
+            }
+        }
+
+        /// <summary>
+        /// 挂载首页及后台功能页面，其余页面首次可见时再创建。
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        private void LoadAllForm()
+        {
+            //使用websokect连接
+            ConnectWebSocket();
+            //加载首页
+            tab0_grid1.Controls.Clear();
+            home.Dock = DockStyle.Fill;
+            tab0_grid1.Controls.Add(home);
+
+            //加载对局
+            tab1_grid1.Controls.Clear();
+            liveGameForm.Dock = DockStyle.Fill;
+            tab1_grid1.Controls.Add(liveGameForm);
+            // 首次显示占位内容后再创建复杂编辑器，避免首次启动争抢 UI 线程。
+            tabPage3.Controls.Add(new DeferredPageHost(() => battleQueryForm));
+            //加载智能建议
+            _coachTab.Controls.Clear();
+            coachForm.Dock = DockStyle.Fill;
+            _coachTab.Controls.Add(coachForm);
+            //关于
+            _loungeTab.Controls.Add(new DeferredPageHost(() => new LoungeForm(_lounge)));
+            _lounge.Changed += () => RunOnUiThread(() =>
+            {
+                if (!IsDisposed) _loungeTab.Text = _lounge.UnreadCount > 0 ? $"lol休息室 ({_lounge.UnreadCount})" : "lol休息室";
+            });
+            _lounge.Notification += (title, text) => RunOnUiThread(() =>
+            {
+                if (IsDisposed) return;
+                infoMsg.AddMsg(title + "：" + text);
+                if (_trayIcon == null) return;
+                _trayIcon.Visible = true;
+                _trayIcon.ShowBalloonTip(5000, title, text.Length > 240 ? text[..240] : text, ToolTipIcon.Info);
+                _ = Task.Delay(6000).ContinueWith(_ => RunOnUiThread(UpdateTrayVisibility));
+            });
+            _lounge.Start();
+            tab4_grid1.Controls.Add(new DeferredPageHost(() => new AboutForm()));
+            //加载设置
+            tabPage5.Controls.Add(new DeferredPageHost(() => settingForm));
+            //加载日志窗口
+            tab5_grid1.Controls.Clear();
+            tab5_grid1.Controls.Add(new LogToolsForm(infoMsg, () => diagnosticsForm));
+        }
+
+        /// <summary>
+        /// 刷新对局
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void dj_refresh_Click(object sender, EventArgs e)
+        {
+            dj_refresh.Loading = true;
+            try
+            {
+                if (tabs1.SelectedIndex == 0) await home.RefreshAsync();
+                else if (tabs1.SelectedIndex == BattleQueryTabIndex) await battleQueryForm.PerformSearchAsync();
+                else if (tabs1.Pages[tabs1.SelectedIndex] == _loungeTab) return;
+                else await liveGameForm.FetchAllPlayersAsync();
+            }
+            finally { if (!IsDisposed) dj_refresh.Loading = false; }
+        }
+
+        /// <summary>标题栏快捷切换明确写入浅色/深色，不改变用户在设置中选择的“跟随系统”之外的其它配置。</summary>
+        private void btn_theme_toggle_Click(object sender, EventArgs e)
+        {
+            AssistantSettings settings = _settingsStore.Load();
+            settings.ThemeMode = UiTheme.Palette.IsDark ? "Light" : "Dark";
+            settings.Normalize();
+            _settingsStore.Save(settings);
+            UiTheme.SetMode(settings.ThemeMode);
+            ApplyTheme();
+            LOL_GameAssistant.Helper.UiMessage.success(this, settings.ThemeMode == "Dark" ? "已切换为深色主题" : "已切换为浅色主题");
+        }
+
+        /// <summary>
+        /// 启动 WebSocket 连接（首次调用）。
+        /// LCU 探测内部是 WMI 查询（Win32_Process），同步跑在 UI 线程上会让窗口白屏假死，
+        /// 因此探测与连接整体放到后台线程；需要更新界面的地方都会自己切回 UI 线程。
+        /// </summary>
+        public void ConnectWebSocket() => _connectionMonitor.Start();
+
+        /// <summary>
+        /// LCU WebSocket 订阅不会补发“当前阶段”。客户端晚于助手启动、或连接重建时，
+        /// 主动读取一次阶段并复用常规阶段处理，避免已经选人/进游戏却没有自动加载数据。
+        /// </summary>
+        private async Task SynchronizeCurrentGameFlowAsync()
+        {
+            try
+            {
+                long revision = Interlocked.Read(ref _gameFlowRevision);
+                string? phase = await _lobbyService.GetGameFlowPhaseAsync();
+                if (revision != Interlocked.Read(ref _gameFlowRevision)) return;
+                if (string.IsNullOrWhiteSpace(phase)) return;
+                if (RunOnUiThread(() => _ = SynchronizeCurrentGameFlowAsync())) return;
+                await gameflowphaseStatus(phase);
+            }
+            catch
+            {
+                // 连接建立的极短暂窗口内 LCU 可能还未准备好；后续事件或手动刷新会再次读取。
+            }
+        }
+
+        /// <summary>
+        /// 选人和刚进入游戏时，相关 LCU 端点会比 gameflow 事件晚就绪。
+        /// 立即加载后再做两次短延迟重试，确保无需用户手点刷新，同时用取消令牌防止旧局回填。
+        /// </summary>
+        private void StartPhaseDataLoad(GameFlowPhase expectedPhase)
+        {
+            StopPhaseDataLoad();
+            _phaseDataLoadCts = new CancellationTokenSource();
+            _ = LoadPhaseDataAsync(expectedPhase, _phaseDataLoadCts.Token);
+        }
+
+        /// <summary>取消上一阶段尚未完成的数据加载。</summary>
+        private void StopPhaseDataLoad()
+        {
+            _phaseDataLoadCts?.Cancel();
+            _phaseDataLoadCts?.Dispose();
+            _phaseDataLoadCts = null;
+        }
+
+        /// <summary>根据当前游戏阶段读取展示数据，支持取消过期请求。</summary>
+        private async Task LoadPhaseDataAsync(GameFlowPhase expectedPhase, CancellationToken cancellationToken)
+        {
+            try
+            {
+                foreach (int delayMilliseconds in new[] { 0, 1500, 4500 })
+                {
+                    if (delayMilliseconds > 0)
+                        await Task.Delay(delayMilliseconds, cancellationToken);
+                    if (IsDisposed || cancellationToken.IsCancellationRequested ||
+                        gameFlowPhase != expectedPhase) return;
+
+                    await liveGameForm.AddView(force: true);
+                }
+                // 刚进入对局时 LCU 当前阵容可能比 gameflow 事件晚很多才就绪。
+                // 即使用户留在游戏窗口、未打开对局页，也继续寻找本局 KDA 名单。
+                while (!cancellationToken.IsCancellationRequested &&
+                       gameFlowPhase == expectedPhase && expectedPhase == GameFlowPhase.InProgress &&
+                       liveGameForm.NeedsGameAssessmentRoster)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    if (IsDisposed || cancellationToken.IsCancellationRequested ||
+                        gameFlowPhase != expectedPhase) return;
+                    await liveGameForm.AddView(force: true);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // 正常阶段切换；不允许上一局的延迟加载覆盖新阵容。
+            }
+        }
+
+        /// <summary>
+        /// 把后台线程回调切回 UI 线程执行。
+        /// LCU 事件流由后台线程回调，
+        /// 在池线程上操作控件会在 native 层破坏窗口句柄：Release 未挂调试器时
+        /// CheckForIllegalCrossThreadCalls 为 false，不会抛"跨线程操作无效"，
+        /// 只会莫名其妙地报"创建窗口句柄时出错"。
+        /// </summary>
+        /// <returns>true 表示已转投到 UI 线程（或窗口正在退出），调用方应立即返回。</returns>
+        private bool RunOnUiThread(Action action)
+        {
+            if (IsDisposed || !IsHandleCreated) return true;
+            if (!InvokeRequired) return false;
+
+            try
+            {
+                BeginInvoke(action);
+            }
+            catch (InvalidOperationException)
+            {
+                // 窗口正在销毁，丢弃本次回调
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// WebSocket 连接状态变化处理
+        /// </summary>
+        private void WebSocketChange(bool connected)
+        {
+            if (RunOnUiThread(() => WebSocketChange(connected))) return;
+            AppCompositionRoot.ClientCapabilities.Invalidate();
+            AppCompositionRoot.OpggBuildApplyService.ResetClientContext();
+            AppCompositionRoot.PlayerProfileService.ResetClientContext();
+            AppCompositionRoot.RankedStatsService.ResetClientContext();
+            LOL_GameAssistant.Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared.Clear();
+            AppCompositionRoot.Automation.Reset();
+            Interlocked.Increment(ref _gameFlowRevision);
+
+            if (connected)
+            {
+                RuntimeDiagnostics.Report("LCU WebSocket", "已连接", "已订阅游戏流程事件");
+                infoMsg.AddMsg("WebSocket已连接");
+                // 客户端是后启动的，刷新首页玩家数据
+                _ = home.RefreshAsync();
+                // 连接成功后重新订阅事件（重连后 LCU 侧需要重新订阅）
+                _ = _eventStream.SubscribeToJsonApiEventsAsync();
+                _ = SynchronizeCurrentGameFlowAsync();
+            }
+            else
+            {
+                _skinTools.OnGamePhaseChanged(false);
+                RuntimeDiagnostics.Report("LCU WebSocket", "已断开", "正在重新检测 lockfile 与客户端端口");
+                infoMsg.AddMsg("WebSocket已断开，正在检测 LCU 端口变化...");
+            }
+        }
+
+        /// <summary>将事件连接错误转为界面可显示的状态提示。</summary>
+        private void WebSocketError(string err)
+        {
+            RuntimeDiagnostics.Report("LCU WebSocket", "错误", err);
+            AddInfoMessage(err);
+        }
+
+        /// <summary>显示事件连接正在重连的状态。</summary>
+        private void WebSocketReconnecting(string message)
+        {
+            RuntimeDiagnostics.Report("LCU WebSocket", "重连中", message);
+            AddInfoMessage(message);
+        }
+
+        /// <summary>所有后台连接反馈都通过此方法切回界面线程。</summary>
+        private void AddInfoMessage(string message)
+        {
+            if (RunOnUiThread(() => AddInfoMessage(message))) return;
+            infoMsg.AddMsg(message);
+        }
+
+        /// <summary>处理基础设施已解析的 LCU 事件；表现层不再解析 WebSocket 原始 JSON。</summary>
+        private async Task LeagueClientEventReceived(LeagueClientEvent gameEvent, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                await this.InvokeAsync(async token => await LeagueClientEventReceived(gameEvent, token), cancellationToken);
+                return;
+            }
+
+            if (string.Equals(gameEvent.Uri, "/lol-gameflow/v1/gameflow-phase", StringComparison.Ordinal))
+            {
+                RuntimeDiagnostics.Report("游戏流程", gameEvent.Data, "来自 LCU 游戏流程事件");
+                await gameflowphaseStatus(gameEvent.Data, cancellationToken);
+                infoMsg.AddMsg(gameEvent.Data);
+            }
+            else if (string.Equals(gameEvent.Uri, "/lol-matchmaking/v1/ready-check", StringComparison.Ordinal))
+            {
+                ObserveReadyCheckResponse(gameEvent.Data);
+            }
+            else if (string.Equals(gameEvent.Uri, "/lol-champ-select/v1/session", StringComparison.Ordinal))
+            {
+                var selection = Infrastructure.LeagueClient.ChampionSelectionSnapshotMapper.ParseEvent(gameEvent.Data);
+                if (selection != null) _champSelectCompanion.ObserveChampionSelection(selection);
+            }
+        }
+
+        /// <summary>
+        /// 仅在明确收到 Declined 时抑制本轮自动接受，保证手动拒绝不会被延迟任务覆盖。
+        /// </summary>
+        private void ObserveReadyCheckResponse(string data)
+        {
+            if (!data.Contains("\"playerResponse\":\"Declined\"", StringComparison.OrdinalIgnoreCase) &&
+                !data.Contains("\"playerResponse\": \"Declined\"", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _readyCheckDeclinedByUser = true;
+            CancelAutoAccept();
+            AddInfoMessage("检测到手动拒绝，本轮不再自动接受");
+        }
+
+        /// <summary>
+        /// 游戏流程状态处理
+        /// </summary>
+        /// <param name="statustype"></param>
+        private async Task gameflowphaseStatus(String? statustype, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrEmpty(statustype)) return;
+            // 下面会直接操作对局页控件（AddView / ResetRosterCache），必须回到 UI 线程
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                await this.InvokeAsync(async token => await gameflowphaseStatus(statustype, token), cancellationToken);
+                return;
+            }
+
+            AppCompositionRoot.Automation.NotifyPhase(statustype);
+            if (!string.Equals(statustype, "ChampSelect", StringComparison.OrdinalIgnoreCase)) Infrastructure.LeagueClient.ChampionSelectSessionCache.Shared.Clear();
+            string phase = statustype.ToLowerInvariant();
+            long revision = Interlocked.Increment(ref _gameFlowRevision);
+
+            //修改主页状态
+            if (Enum.TryParse(statustype, true, out GameFlowPhase parsedPhase))
+            {
+                gameFlowPhase = parsedPhase;
+                _skinTools.OnGamePhaseChanged(parsedPhase == GameFlowPhase.InProgress);
+                // 离开结束状态后重置“已通知”标记，保证下一局还能再次提醒
+                if (parsedPhase != GameFlowPhase.WaitingForStats && parsedPhase != GameFlowPhase.EndOfGame)
+                {
+                    _lastNotifiedEndPhase = null;
+                    _postGameAutomationsTriggered = false;
+                }
+                if (parsedPhase != GameFlowPhase.ReadyCheck)
+                {
+                    CancelAutoAccept();
+                    _readyCheckDeclinedByUser = false;
+                }
+                // 已在 UI 线程上，直接更新表头即可
+                this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
+            }
+            _recommendationCoordinator.NotifyGamePhaseChanged(statustype);
+            RefreshMayhemOverlaySetting();
+            RefreshChampSelectCompanionSetting();
+            if (!string.Equals(phase, "champselect", StringComparison.OrdinalIgnoreCase))
+            {
+                _autoActionCts?.Cancel();
+                _autoActionStartedForChampSelect = false;
+                StopOpggChampSelectMonitor();
+            }
+            switch (phase)
+            {
+                case "none":
+                    StopPhaseDataLoad();
+                    liveGameForm.ResetRosterCache();
+                    break;
+
+                case "lobby":
+                    StopPhaseDataLoad();
+                    liveGameForm.ClearPartySnapshots();
+                    //在大厅,如果有开启自动对局,则自动开启
+                    _ = TryAutoMatchAsync();
+                    _ = liveGameForm.AddView(force: true);
+                    break;
+
+                case "matchmaking":
+                    StopPhaseDataLoad();
+                    await liveGameForm.CapturePartyLobbyAsync();
+                    break;
+
+                case "readycheck":
+                    StopPhaseDataLoad();
+                    ScheduleAutoAccept();
+                    liveGameForm.ResetRosterCache(clearPartySnapshots: false);
+                    break;
+
+                case "champselect":
+                    // 立即加载，并在选人会话/玩家列表就绪后自动重试两次。
+                    StartPhaseDataLoad(GameFlowPhase.ChampSelect);
+                    _ = AutoBanPickLoopAsync();
+                    StartOpggChampSelectMonitor();
+                    break;
+
+                case "gamestart":
+                    StopPhaseDataLoad();
+                    break;
+
+                case "inprogress":
+                    // 游戏进程、实时客户端接口和全员阵容并非同时可用，使用同一套延迟加载策略。
+                    StartPhaseDataLoad(GameFlowPhase.InProgress);
+                    break;
+
+                case "waitingforstats":
+                case "terminatedinerror":
+                case "endofgame":
+                    StopPhaseDataLoad();
+                    //结束对局：通知 + 刷新战绩
+                    // 该局已经结束，清除对局页阵容和房间标识；下一局重新读取会话。
+                    liveGameForm.ResetRosterCache();
+                    await NotifyGameEndedAsync();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (revision != Interlocked.Read(ref _gameFlowRevision)) return;
+                    TriggerPostGameAutomations();
+                    _ = liveGameForm.AddView();
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        /// <summary>根据持久化延迟范围安排一次自动接受；同一轮 Ready Check 不重复排队。</summary>
+        internal void ResumeAutomations()
+        {
+            AppCompositionRoot.Automation.Resume();
+            if (gameFlowPhase == GameFlowPhase.ReadyCheck) ScheduleAutoAccept();
+            if (gameFlowPhase == GameFlowPhase.ChampSelect)
+            {
+                _autoActionCts?.Cancel();
+                _autoActionCts = null;
+                _autoActionStartedForChampSelect = false;
+                _ = AutoBanPickLoopAsync();
+            }
+            if (gameFlowPhase == GameFlowPhase.Lobby) _ = TryAutoMatchAsync();
+            if (gameFlowPhase is GameFlowPhase.EndOfGame or GameFlowPhase.WaitingForStats)
+                _ = RunPostGameAutomationsAsync(_settingsStore.Load());
+        }
+
+        private void ScheduleAutoAccept()
+        {
+            if (_readyCheckDeclinedByUser || _autoAcceptCts != null) return;
+
+            AssistantSettings config = _settingsStore.Load();
+            if (AppCompositionRoot.Automation.IsPaused || !config.AutoAccept) return;
+
+            _autoAcceptCts = new CancellationTokenSource();
+            _ = AcceptReadyCheckAfterDelayAsync(config, _autoAcceptCts);
+        }
+
+        /// <summary>等待配置的延迟后接受匹配确认，并响应取消信号。</summary>
+        private async Task AcceptReadyCheckAfterDelayAsync(AssistantSettings config, CancellationTokenSource source)
+        {
+            try
+            {
+                int min = Math.Max(0, config.AutoAcceptDelayMinMilliseconds);
+                int max = Math.Max(min, config.AutoAcceptDelayMaxMilliseconds);
+                int delay = min == max ? min : Random.Shared.Next(min, max + 1);
+                if (delay > 0)
+                    await Task.Delay(delay, source.Token).ConfigureAwait(true);
+
+                if (AppCompositionRoot.Automation.IsPaused || source.Token.IsCancellationRequested || _readyCheckDeclinedByUser ||
+                    gameFlowPhase != GameFlowPhase.ReadyCheck)
+                {
+                    return;
+                }
+
+                await _lobbyService.AcceptReadyCheckAsync(source.Token).ConfigureAwait(true);
+                AddInfoMessage(delay > 0 ? $"已延迟 {delay}ms 自动接受对局" : "已自动接受对局");
+            }
+            catch (OperationCanceledException)
+            {
+                // 阶段结束、用户拒绝或应用关闭时，取消本轮延迟是预期行为。
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.Report("自动接受", "执行失败", ex.Message);
+                AddInfoMessage($"自动接受失败：{ex.Message}");
+            }
+            finally
+            {
+                if (ReferenceEquals(_autoAcceptCts, source))
+                {
+                    _autoAcceptCts.Dispose();
+                    _autoAcceptCts = null;
+                }
+            }
+        }
+
+        /// <summary>取消尚未执行的自动接受任务。</summary>
+        private void CancelAutoAccept()
+        {
+            CancellationTokenSource? source = _autoAcceptCts;
+            _autoAcceptCts = null;
+            source?.Cancel();
+            source?.Dispose();
+        }
+
+        /// <summary>赛后自动化只在同一局的第一个结束阶段执行一次。</summary>
+        private void TriggerPostGameAutomations()
+        {
+            if (_postGameAutomationsTriggered) return;
+            _postGameAutomationsTriggered = true;
+            _ = RunPostGameAutomationsAsync(_settingsStore.Load());
+        }
+
+        /// <summary>在对局结束后执行已启用的自动操作。</summary>
+        private async Task RunPostGameAutomationsAsync(AssistantSettings config)
+        {
+            await AppCompositionRoot.Automation.RunAsync(config.AutoHonor, config.AutoReturnToLobby, config.AutoReturnStartMatchmaking, strategy: config.HonorStrategy);
+            foreach (var step in AppCompositionRoot.Automation.Snapshot()) AddInfoMessage($"{step.Name} · {step.State} · {step.Detail}");
+        }
+
+        /// <summary>
+        /// 选人阶段后台处理自动禁用和自动选用英雄。
+        /// 禁用和选用分别快速轮询，避免错过各自的短暂动作窗口。
+        /// </summary>
+        private async Task AutoBanPickLoopAsync()
+        {
+            if (AppCompositionRoot.Automation.IsPaused || _autoActionStartedForChampSelect) return;
+            _autoActionStartedForChampSelect = true;
+            var actionCts = new CancellationTokenSource();
+            _autoActionCts = actionCts;
+            var token = actionCts.Token;
+
+            try
+            {
+                // 读取持久化配置（避免设置页未打开时读取到内存默认值）
+                var config = _settingsStore.Load();
+                bool autoBanEnabled = config.AutoBan;
+                bool autoPickEnabled = config.AutoPick;
+                var cachedBanIds = ResolveChampionIds(config.BanChampions);
+                var cachedPickIds = ResolveChampionIds(config.PickChampions);
+
+                // 自动抢英雄立即开始，独立于自动禁用循环。
+                Task pickTask = autoPickEnabled && cachedPickIds.Count > 0
+                    ? AutoPickFastLoopAsync(cachedPickIds, config, token)
+                    : Task.CompletedTask;
+
+                // 禁用窗口通常很短，快速检查直到首次成功；成功后不再重复提交。
+                while (!AppCompositionRoot.Automation.IsPaused && autoBanEnabled && cachedBanIds.Count > 0 &&
+                       gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        if (await _championSelectService.AutoBanAsync(cachedBanIds, token))
+                        {
+                            AddInfoMessage("自动禁用英雄成功");
+                            break;
+                        }
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        RuntimeDiagnostics.Report("自动禁英雄", "重试中", ex.Message);
+                    }
+
+                    await Task.Delay(
+                        TimeSpan.FromMilliseconds(250),
+                        token).ConfigureAwait(false);
+                }
+
+                // 等待快速抢英雄任务正常收尾，避免留下未观察的后台任务。
+                await pickTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // 窗体关闭时正常取消
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.Report("自动禁选英雄", "失败", ex.Message);
+                AddInfoMessage($"自动禁选英雄失败：{ex.Message}");
+            }
+            finally
+            {
+                if (ReferenceEquals(_autoActionCts, actionCts))
+                    _autoActionCts = null;
+                actionCts.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 快速尝试自动选英雄：首次立即请求，选人动作尚未生成时每 100ms 重试一次。
+        /// </summary>
+        private async Task AutoPickFastLoopAsync(
+            List<int> pickChampionIds,
+            AssistantSettings config,
+            CancellationToken token)
+        {
+            const int RetryDelayMilliseconds = 100;
+
+            while (!AppCompositionRoot.Automation.IsPaused && gameFlowPhase == GameFlowPhase.ChampSelect && !token.IsCancellationRequested)
+            {
+                try
+                {
+                    if (AppCompositionRoot.Automation.IsPaused) return;
+                    if (config.SkipAutoPickOnFill && await ShouldSkipAutoPickForFillAsync(token))
+                    {
+                        AddInfoMessage("检测到补位，已跳过自动选人");
+                        return;
+                    }
+                    if (await _championSelectService.AutoPickAsync(
+                        pickChampionIds,
+                        lockIn: !config.AutoPickPreselectOnly,
+                        cancellationToken: token))
+                    {
+                        AddInfoMessage(config.AutoPickPreselectOnly ? "已自动预选英雄" : "自动选用英雄成功");
+                        return;
+                    }
+                }
+                catch
+                {
+                    // 选人会话尚未准备好时静默重试，不影响自动抢英雄流程。
+                }
+
+                await Task.Delay(RetryDelayMilliseconds, token).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// 仅在客户端同时给出偏好分路和实际分路时判定补位；信息缺失时继续自动选人，
+        /// 避免在没有分路概念的模式误跳过。
+        /// </summary>
+        private async Task<bool> ShouldSkipAutoPickForFillAsync(CancellationToken cancellationToken)
+        {
+            ChampionSelectionSnapshot? selection = await _championSelectService.GetSessionAsync(cancellationToken);
+            if (selection == null) return false;
+
+            var me = selection.MyTeam.FirstOrDefault(member => member.CellId == selection.LocalPlayerCellId);
+            if (me?.IsAutofilled == true) return true;
+            LobbySnapshot? lobby = await _lobbyService.GetLobbyAsync(cancellationToken);
+            if (lobby == null) return false;
+            string assigned = NormalizePosition(me?.AssignedPosition);
+            string primary = NormalizePosition(lobby.LocalPrimaryPosition);
+            string secondary = NormalizePosition(lobby.LocalSecondaryPosition);
+            if (string.IsNullOrEmpty(assigned) || string.IsNullOrEmpty(primary)) return false;
+
+            return !string.Equals(assigned, primary, StringComparison.Ordinal) &&
+                   !string.IsNullOrEmpty(secondary) &&
+                   !string.Equals(assigned, secondary, StringComparison.Ordinal);
+        }
+
+        /// <summary>将分路别名归一化，供方案选择和推荐匹配使用。</summary>
+        private static string NormalizePosition(string? position) => position?.Trim().ToUpperInvariant() switch
+        {
+            "TOP" => "TOP",
+            "JUNGLE" or "JNG" => "JUNGLE",
+            "MIDDLE" or "MID" => "MIDDLE",
+            "BOTTOM" or "BOT" or "ADC" => "BOTTOM",
+            "UTILITY" or "SUPPORT" or "SUP" => "UTILITY",
+            _ => ""
+        };
+
+        /// <summary>
+        /// 把设置中的英雄名列表转换为英雄 ID 列表。
+        /// </summary>
+        private static List<int> ResolveChampionIds(List<string> names)
+        {
+            return names
+                .Select(AppCompositionRoot.ChampionCatalog.FindIdByDisplayName)
+                .OfType<int>()
+                .ToList();
+        }
+
+        /// <summary>
+        /// 选人期间检查当前预选或已选英雄。自动配置和同英雄去重由 CoachForm 管理，
+        /// 使该功能不依赖用户是否正停留在智能建议页。
+        /// </summary>
+        private void StartOpggChampSelectMonitor()
+        {
+            StopOpggChampSelectMonitor();
+            coachForm.ResetOpggChampSelectPrompt();
+            _lastAramBenchPoll = DateTimeOffset.MinValue;
+            _lastAramBenchSwapKey = "";
+            _opggPromptCts = new CancellationTokenSource();
+            _ = MonitorOpggChampSelectAsync(_opggPromptCts.Token);
+            RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测中", "已进入选人阶段，开始检测预选或已选英雄");
+        }
+
+        /// <summary>停止选人阶段的推荐监控并取消等待任务。</summary>
+        private void StopOpggChampSelectMonitor()
+        {
+            _opggPromptCts?.Cancel();
+            _opggPromptCts?.Dispose();
+            _opggPromptCts = null;
+            coachForm.ResetOpggChampSelectPrompt();
+        }
+
+        /// <summary>跟踪选人阶段变化，在英雄或场景变化后触发推荐流程。</summary>
+        private async Task MonitorOpggChampSelectAsync(CancellationToken cancellationToken)
+        {
+            while (gameFlowPhase == GameFlowPhase.ChampSelect && !cancellationToken.IsCancellationRequested)
+            {
+                // 异常只在单次轮询内消化：写在循环外的话，一次偶发失败会让整个选人阶段
+                // 再也不提示 OP.GG，而界面上没有任何反馈。
+                try
+                {
+                    AssistantSettings buildSettings = _settingsStore.Load();
+                    if (buildSettings.OpggBuildAssistantEnabled || buildSettings.AutoApplyRuneBuild)
+                        await coachForm.PromptOpggBuildIfNeededAsync(cancellationToken);
+                    if (buildSettings.AutoSwapAramBench &&
+                        DateTimeOffset.UtcNow - _lastAramBenchPoll >= TimeSpan.FromSeconds(1))
+                    {
+                        _lastAramBenchPoll = DateTimeOffset.UtcNow;
+                        await TryAutoSwapAramBenchAsync(buildSettings, cancellationToken);
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(550), cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // 选人结束、离开客户端或关闭主窗口时正常停止。
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    RuntimeDiagnostics.Report("OP.GG 选人推荐", "监测失败", ex.Message);
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>按已配置的英雄优先级尝试交换大乱斗备选英雄。</summary>
+        private async Task TryAutoSwapAramBenchAsync(AssistantSettings settings, CancellationToken cancellationToken)
+        {
+            if (AppCompositionRoot.Automation.IsPaused) return;
+            int[] priority = ResolveChampionIds(settings.AramBenchPriorityChampions).Distinct().ToArray();
+            if (priority.Length == 0) return;
+            LobbySnapshot? lobby = await _lobbyService.GetLobbyAsync(cancellationToken);
+            ActiveGameSnapshot? game = lobby == null || (lobby.QueueId == 0 && string.IsNullOrWhiteSpace(lobby.GameMode))
+                ? await _lobbyService.GetCurrentSessionAsync(cancellationToken) : null;
+            string mode = lobby?.GameMode ?? game?.GameMode ?? "";
+            int queueId = lobby?.QueueId ?? game?.QueueId ?? 0;
+            if (queueId is not (450 or 2400 or 3270) &&
+                !string.Equals(mode, "ARAM", StringComparison.OrdinalIgnoreCase) &&
+                !mode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase)) return;
+            ChampionSelectionSnapshot? selection = await _championSelectService.GetSessionAsync(cancellationToken);
+            if (selection == null || selection.BenchChampionIds.Count == 0) return;
+            int current = selection.MyTeam.FirstOrDefault(member =>
+                member.CellId == selection.LocalPlayerCellId)?.ChampionId ?? 0;
+            if (current <= 0) return;
+            int? target = AramBenchPriorityResolver.Choose(current, selection.BenchChampionIds, priority);
+            if (AppCompositionRoot.Automation.IsPaused) return;
+            if (!target.HasValue) return;
+            string attemptKey = $"{current}:{target.Value}";
+            if (attemptKey == _lastAramBenchSwapKey &&
+                DateTimeOffset.UtcNow - _lastAramBenchSwapAttempt < TimeSpan.FromSeconds(3)) return;
+            _lastAramBenchSwapKey = attemptKey;
+            _lastAramBenchSwapAttempt = DateTimeOffset.UtcNow;
+            ClientFeatureResult result = await _clientFeatureService.SwapAramBenchAsync(target.Value, cancellationToken);
+            if (result.Succeeded) AddInfoMessage($"大乱斗优先英雄：已从 {current} 交换为 {target.Value}");
+            else RuntimeDiagnostics.Report("大乱斗自动交换", "失败", result.Message);
+        }
+
+        /// <summary>
+        /// 对局结束提醒（托盘气泡 + 日志）。
+        /// </summary>
+        private Task NotifyGameEndedAsync()
+        {
+            try
+            {
+                var config = _settingsStore.Load();
+                if (!config.NotifyOnGameEnd) return Task.CompletedTask;
+                if (_lastNotifiedEndPhase == gameFlowPhase) return Task.CompletedTask;
+                _lastNotifiedEndPhase = gameFlowPhase;
+
+                infoMsg.AddMsg("对局已结束，可查看战绩详情");
+                if (_trayIcon != null)
+                {
+                    // 气泡提示要求托盘图标可见；提示显示期间先保持图标，
+                    // 6 秒后再交回"窗口隐藏才显示图标"的规则，避免把最后的入口关掉。
+                    _trayIcon.Visible = true;
+                    _trayIcon.ShowBalloonTip(5000, "sc助手", UiLanguage.T("对局已结束，可查看战绩详情。"), ToolTipIcon.Info);
+                    _ = Task.Delay(6000).ContinueWith(_ => RunOnUiThread(UpdateTrayVisibility));
+                }
+            }
+            catch
+            {
+                // 通知失败不影响主流程
+            }
+            return Task.CompletedTask;
+        }
+
+        /// <summary>创建托盘图标和菜单，绑定恢复窗口与退出操作。</summary>
+        private void InitializeTray()
+        {
+            _trayIcon = new NotifyIcon
+            {
+                Text = UiLanguage.T("sc助手 运行中"),
+                Icon = AppIcon.Shared,
+                Visible = false
+            };
+
+            var menu = new ContextMenuStrip();
+            _trayMenu = menu;
+            menu.Items.Add(UiLanguage.T("显示窗口"), null, (_, _) => ShowWindow());
+            menu.Items.Add("-");
+            menu.Items.Add(UiLanguage.T("退出"), null, (_, _) => ExitApp());
+            _trayIcon.ContextMenuStrip = menu;
+            // 单击也要能唤回窗口：只挂双击时，习惯单击托盘图标的人会以为程序打不开了。
+            _trayIcon.MouseClick += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Left) ShowWindow();
+            };
+            _trayIcon.DoubleClick += (_, _) => ShowWindow();
+        }
+
+        /// <summary>
+        /// 托盘图标可见性 = 主窗口是否隐藏。
+        /// 不要把它和"关闭时最小化到托盘"配置绑在一起：一旦窗口被藏起来而图标又没显示，
+        /// 这个进程就再没有任何入口能被唤回（只能去任务管理器结束）。
+        /// </summary>
+        private void UpdateTrayVisibility()
+        {
+            if (_trayIcon != null) _trayIcon.Visible = !Visible;
+        }
+
+        /// <summary>首次显示时恢复正常窗口，避免启动过程被最小化到托盘。</summary>
+        protected override void SetVisibleCore(bool value)
+        {
+            if (!value || _startupCompleted || _restoringFromTray)
+            {
+                base.SetVisibleCore(value);
+                return;
+            }
+
+            // Windows/快捷方式可能以最小化状态启动。首次显示前不应隐藏到托盘。
+            _restoringFromTray = true;
+            try
+            {
+                ShowInTaskbar = true;
+                WindowState = FormWindowState.Normal;
+                base.SetVisibleCore(value);
+                _startupCompleted = Visible;
+            }
+            finally
+            {
+                _restoringFromTray = false;
+                if (!IsDisposed) UpdateTrayVisibility();
+            }
+        }
+
+        /// <summary>
+        /// 从托盘恢复窗口。
+        /// Show() 前后都恢复 Normal，并在恢复过程中屏蔽自动隐藏逻辑。
+        /// </summary>
+        private void ShowWindow()
+        {
+            if (IsDisposed) return;
+
+            _restoringFromTray = true;
+            try
+            {
+                ShowInTaskbar = true;
+                if (WindowState != FormWindowState.Normal)
+                    WindowState = FormWindowState.Normal;
+
+                Show();
+
+                if (WindowState == FormWindowState.Minimized)
+                    WindowState = FormWindowState.Normal;
+
+                Activate();
+                BringToFront();
+            }
+            finally
+            {
+                _restoringFromTray = false;
+            }
+
+            // 窗口确实显示出来了才收起托盘图标；恢复失败时保留图标，不丢掉最后的入口。
+            UpdateTrayVisibility();
+        }
+
+        /// <summary>
+        /// 真正退出应用
+        /// </summary>
+        private void ExitApp()
+        {
+            NotifyIcon? trayIcon = _trayIcon;
+            _trayIcon = null;
+            try
+            {
+                if (trayIcon != null)
+                {
+                    trayIcon.Visible = false;
+                    trayIcon.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeDiagnostics.WriteException(ex);
+            }
+            System.Windows.Forms.Application.Exit();
+        }
+
+        /// <summary>
+        /// 关闭窗口时最小化到托盘或退出
+        /// </summary>
+        private void GameMain_FormClosing(object? sender, FormClosingEventArgs e)
+        {
+            if (e.CloseReason == CloseReason.UserClosing && _settingsStore.Load().MinimizeToTray)
+            {
+                e.Cancel = true;
+                Hide();
+                UpdateTrayVisibility();
+                if (_trayIcon != null)
+                {
+                    _trayIcon.ShowBalloonTip(2000, "sc助手", "已最小化到系统托盘，单击或双击图标恢复窗口", ToolTipIcon.Info);
+                }
+            }
+            else
+            {
+                // 退出时仍要释放其余资源，不能让单个清理异常中断整个关闭流程。
+                static void Cleanup(Action action)
+                {
+                    try { action(); }
+                    catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
+                }
+
+                Cleanup(() => AppCompositionRoot.GameOverlay.Dispose());
+                Cleanup(() => _autoActionCts?.Cancel());
+                Cleanup(CancelAutoAccept);
+                Cleanup(StopOpggChampSelectMonitor);
+                Cleanup(() => _mayhemOverlay.Dispose());
+                Cleanup(() => _battleOverlay.Dispose());
+                Cleanup(() => _champSelectCompanion.Dispose());
+                Cleanup(StopPhaseDataLoad);
+                Cleanup(() => _connectionMonitor.Dispose());
+                Cleanup(() => _lounge.Dispose());
+                NotifyIcon? trayIcon = _trayIcon;
+                _trayIcon = null;
+                Cleanup(() => trayIcon?.Dispose());
+                Cleanup(() => _headerIconImage?.Dispose());
+                Cleanup(() => UiTheme.Changed -= UiThemeChanged);
+                Cleanup(() => UiLanguage.Changed -= UiLanguageChanged);
+                Cleanup(() =>
+                {
+                    _eventStream.EventReceived -= LeagueClientEventReceived;
+                    _eventStream.ErrorOccurred -= WebSocketError;
+                    _eventStream.ConnectionChanged -= WebSocketChange;
+                    _eventStream.Reconnecting -= WebSocketReconnecting;
+                });
+                Cleanup(() => _eventStream.Dispose());
+                Cleanup(() => _windowHoldController.Dispose());
+                Cleanup(() => _quickMessageController.Dispose());
+                Cleanup(() => _recommendationCoordinator.Dispose());
+                Cleanup(() => AppCompositionRoot.SkinCoreService.SetEnabled(false));
+            }
+        }
+
+        /// <summary>将当前设置同步到海克斯增幅浮窗的显示与跟踪状态。</summary>
+        public void RefreshMayhemOverlaySetting()
+        {
+            RefreshBattleOverlaySetting(_settingsStore.Load());
+            if (IsDisposed || _mayhemOverlay.IsDisposed) return;
+            if (gameFlowPhase == GameFlowPhase.InProgress && _settingsStore.Load().MayhemOverlayEnabled)
+                _mayhemOverlay.StartTracking();
+            else
+                _mayhemOverlay.StopTracking();
+        }
+
+        private void ShowBattleOverlay(Rectangle bounds)
+        {
+            string hotkey = _settingsStore.Load().BattleOverlayHotkey;
+            _battleOverlay.ShowForGame(bounds, WindowHoldController.TryParseGameHotkey(hotkey, out Keys key) && key == Keys.Oem3 ? "·" : hotkey);
+        }
+
+        private void RefreshBattleOverlaySetting(AssistantSettings config)
+        {
+            if (IsDisposed || _battleOverlay.IsDisposed) return;
+            if (gameFlowPhase == GameFlowPhase.InProgress && config.BattleOverlayEnabled)
+                _battleOverlay.StartTracking();
+            else
+                _battleOverlay.StopTracking();
+        }
+
+        /// <summary>将当前设置同步到选人伴随窗的显示与跟踪状态。</summary>
+        public void RefreshChampSelectCompanionSetting()
+        {
+            if (IsDisposed || _champSelectCompanion.IsDisposed) return;
+            if (gameFlowPhase == GameFlowPhase.ChampSelect && _settingsStore.Load().ChampSelectCompanionEnabled)
+                _champSelectCompanion.StartTracking();
+            else
+                _champSelectCompanion.StopTracking();
+        }
+
+        /// <summary>
+        /// 最小化时隐藏到托盘
+        /// </summary>
+        private void GameMain_Resize(object? sender, EventArgs e)
+        {
+            // 从托盘恢复时会先改 WindowState 再 Show()，这一瞬间不能把窗口又藏回去
+            if (!_startupCompleted || _restoringFromTray) return;
+
+            if (WindowState == FormWindowState.Minimized && _settingsStore.Load().MinimizeToTray)
+            {
+                Hide();
+                UpdateTrayVisibility();
+                if (_trayIcon != null)
+                {
+                    _trayIcon.ShowBalloonTip(2000, "sc助手", "已最小化到系统托盘", ToolTipIcon.Info);
+                }
+            }
+        }
+    }
+}

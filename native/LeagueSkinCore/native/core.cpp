@@ -70,7 +70,7 @@ static bool claim(Request* r,DWORD pid,uint64_t nonce) {
 }
 static void process(Request* r) { independentProcess(r); }
 static void finishRequest(Request* r) {
-    if(GetTickCount64()>r->deadline) fail(r,"request_expired");else process(r);
+    if(GetTickCount64()>r->deadline) fail(r,"request_expired","dispatch_deadline");else process(r);
     InterlockedExchange(&r->phase,2);
 }
 #ifndef BUILD_HOST
@@ -98,7 +98,18 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK StudioHookProc(int code,WPARAM
 BOOL WINAPI DllMain(HINSTANCE,DWORD,LPVOID) {return TRUE;}
 #else
 #include <tlhelp32.h>
-static int error(const char* stage,DWORD code) {printf("{\"ok\":false,\"error\":\"%s\",\"stage\":\"transport\",\"win32\":%lu}\n",stage,code);return 1;}
+static DWORD diagnosticPid=0,diagnosticThread=0;
+static uint64_t diagnosticNonce=0;
+static ULONGLONG diagnosticStart=GetTickCount64();
+static int error(const char* name,DWORD code,const char* stage="transport",LONG phase=-1) {
+#ifdef _WIN64
+    const char* architecture="x64";
+#else
+    const char* architecture="x86";
+#endif
+    printf("{\"ok\":false,\"error\":\"%s\",\"stage\":\"%s\",\"win32\":%lu,\"pid\":%lu,\"thread_id\":%lu,\"request_id\":\"%016llx\",\"phase\":%ld,\"host_architecture\":\"%s\",\"elapsed_ms\":%llu}\n",
+        name,stage,code,diagnosticPid,diagnosticThread,diagnosticNonce,phase,architecture,GetTickCount64()-diagnosticStart);return 1;
+}
 static bool integer(const char* text,int minimum,int maximum,int* result) {
     char* end=nullptr;long value=strtol(text,&end,10);
     if(end==text || *end || value<minimum || value>maximum) return false;*result=(int)value;return true;
@@ -164,6 +175,7 @@ int main(int argc,char** argv) {
     HWND window=FindWindowW(nullptr,L"League of Legends (TM) Client");if(!window) return error("game_window_not_found",ERROR_NOT_FOUND);
     DWORD pid=0;DWORD thread=GetWindowThreadProcessId(window,&pid);uint64_t nonce=0;
     if(BCryptGenRandom(nullptr,(PUCHAR)&nonce,sizeof(nonce),BCRYPT_USE_SYSTEM_PREFERRED_RNG)<0) return error("nonce_failed",ERROR_INVALID_DATA);
+    diagnosticPid=pid;diagnosticThread=thread;diagnosticNonce=nonce;
     wchar_t mapping[128],event[128];names(pid,nonce,mapping,event);
     HANDLE file=CreateFileMappingW(INVALID_HANDLE_VALUE,nullptr,PAGE_READWRITE,0,sizeof(Request),mapping);
     if(!file) return error("create_mapping_failed",GetLastError());
@@ -174,14 +186,26 @@ int main(int argc,char** argv) {
     r->index=index;r->gear=gear;strcpy_s(r->session,session);
     wchar_t path[32768];GetModuleFileNameW(nullptr,path,32768);wchar_t* slash=wcsrchr(path,L'\\');HMODULE dll=nullptr;HHOOK hook=nullptr;int result=1;bool completed=false;
     if(slash) {wcscpy_s(slash+1,32768-(slash+1-path),L"league-skin-core.dll");dll=LoadLibraryW(path);}
-    if(!dll) result=error("load_own_bridge_failed",GetLastError());
+    if(!dll) result=error("load_own_bridge_failed",GetLastError(),"bridge_load");
     else {
         auto callback=(HOOKPROC)GetProcAddress(dll,"StudioHookProc");hook=callback?SetWindowsHookExW(WH_GETMESSAGE,callback,dll,thread):nullptr;
-        if(!hook) result=error("standard_windows_hook_rejected",GetLastError());
+        if(!hook) result=error("standard_windows_hook_rejected",GetLastError(),"hook_install");
         else {
-            bool sent=PostThreadMessageW(thread,BridgeMessage,Magic,(LPARAM)nonce)!=FALSE;DWORD wait=sent?WaitForSingleObject(signal,5500):WAIT_FAILED;
-            if(wait==WAIT_OBJECT_0 && r->phase==2 && r->result[0]) {completed=true;result=0;}
-            else {LONG phase=InterlockedCompareExchange(&r->phase,3,0);result=error(phase==1?"request_outcome_unknown":"request_expired",ERROR_TIMEOUT);}
+            if(!PostThreadMessageW(thread,BridgeMessage,Magic,(LPARAM)nonce)) {
+                DWORD code=GetLastError();InterlockedCompareExchange(&r->phase,3,0);
+                result=error("message_post_failed",code,"message_post");
+            } else {
+                DWORD wait=WaitForSingleObject(signal,5500);
+                DWORD code=wait==WAIT_FAILED?GetLastError():ERROR_TIMEOUT;
+                if(wait==WAIT_OBJECT_0 && r->phase==2 && r->result[0]) {completed=true;result=0;}
+                else {
+                    LONG phase=InterlockedCompareExchange(&r->phase,3,0);
+                    // Completion may race the wait timeout. Preserve its result if already published.
+                    if(phase==2 && r->result[0]) {completed=true;result=0;}
+                    else result=error(phase==1?"request_outcome_unknown":wait==WAIT_FAILED?"response_wait_failed":"core_response_timeout",
+                        code,"response_wait",phase);
+                }
+            }
         }
     }
     bool released=!hook || UnhookWindowsHookEx(hook)!=FALSE;

@@ -285,7 +285,11 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                     await hub.StartAsync(connectTimeout.Token);
                 }
                 failures = 0;
-                await SyncAsync(hub, token, latest: true);
+                using (var syncTimeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    syncTimeout.CancelAfter(TimeSpan.FromSeconds(20));
+                    await SyncAsync(hub, syncTimeout.Token);
+                }
                 int ticks = 0;
                 while (hub.State == HubConnectionState.Connected && !token.IsCancellationRequested)
                 {
@@ -329,19 +333,23 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
         }
     }
 
-    private async Task SyncAsync(HubConnection hub, CancellationToken token, bool latest = false)
+    private Task SyncAsync(HubConnection hub, CancellationToken token) =>
+        SynchronizeAsync((after, ct) => hub.InvokeAsync<LoungeSnapshot>("Sync", after, ct), token);
+
+    internal async Task SynchronizeAsync(Func<long, CancellationToken, Task<LoungeSnapshot>> read, CancellationToken token)
     {
         // Cursor advances only through ordered replay, never through live out-of-order broadcasts.
-        long after = latest ? 0 : _initialSync ? _cursor : 0;
+        long after = _initialSync ? _cursor : 0;
         while (true)
         {
-            var snapshot = await hub.InvokeAsync<LoungeSnapshot>("Sync", after, token);
+            var snapshot = await read(after, token);
             _protocolVersion = snapshot.ProtocolVersion;
             foreach (long id in snapshot.DeletedIds ?? []) DeleteLocal(id);
             foreach (var message in snapshot.Messages) Receive(message, _initialSync);
             foreach (var state in snapshot.Recruitments ?? []) ReceiveRecruitment(state);
             UpdateMembers(snapshot.Members);
             if (snapshot.Messages.Length > 0) after = _cursor = snapshot.Messages[^1].Id;
+            else if (!_initialSync) _cursor = LoungeRules.BeforeFirstMessage;
             _initialSync = true;
             Notify();
             if (snapshot.Messages.Length < 200) break;

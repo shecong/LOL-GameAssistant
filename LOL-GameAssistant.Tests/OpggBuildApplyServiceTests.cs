@@ -255,6 +255,24 @@ public sealed class OpggBuildApplyServiceTests
     }
 
     [Fact]
+    public async Task PersonalPresetCanReplaceCurrentPageWhenAutomaticReplacementIsEnabled()
+    {
+        var lcu = new FakeLcuRequestSender(1, 1,
+            new JObject { ["id"] = 22, ["name"] = "原当前页", ["current"] = true, ["isEditable"] = true });
+        var service = new OpggBuildApplyService(lcu, new FakeChampionCatalog());
+        var preset = new LOL_GameAssistant.Domain.Builds.PersonalRunePreset
+        {
+            Name = "个人方案", ChampionId = 1, PrimaryStyleId = 8000, SubStyleId = 8200,
+            RunePerkIds = CreateOption().RunePerkIds.ToList(), SummonerSpellIds = [4, 14],
+            ItemBlocks = [new("核心", [3006, 3031, 3094])]
+        };
+        var result = await service.ApplyPersonalRunePresetAsync(preset, allowReplaceCurrentRunePage: true);
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(preset.RunePerkIds, Assert.Single(lcu.RunePages)["selectedPerkIds"]!.Values<int>());
+        Assert.Contains("/lol-item-sets/v1/item-sets/1/sets", lcu.PutEndpoints);
+    }
+
+    [Fact]
     public async Task ApplyBuild_WhenAuthorizedReplacementSwitchFails_RestoresOriginalRunes()
     {
         var original = new JObject

@@ -40,7 +40,7 @@ namespace LOL_GameAssistant
             if (singleInstance == null)
             {
                 MessageBox.Show("前一个实例未能在 15 秒内退出，请手动关闭后重试。",
-                    "LOL GameAssistant", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "sc助手", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (Volatile.Read(ref replaceRequested) != 0) return;

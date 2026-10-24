@@ -224,6 +224,37 @@ public sealed class SkinCoreServiceTests
         Assert.True(Assert.Throws<SkinCoreException>(() => NativeSkinCoreTransport.ParseReply("null", true)).OutcomeUnknown);
     }
     [Fact]
+    public void NativeFailurePreservesTransportEvidence()
+    {
+        var reply = NativeSkinCoreTransport.ParseReply("""
+            {"ok":false,"error":"message_post_failed","stage":"message_post","win32":5,
+             "pid":123,"thread_id":456,"request_id":"1234567890abcdef","phase":0,
+             "host_architecture":"x64","elapsed_ms":27}
+            """);
+        var error = NativeSkinCoreTransport.ReplyFailure(reply, 1);
+        Assert.Equal("message_post_failed", error.Code);
+        Assert.False(error.OutcomeUnknown);
+        Assert.Equal(5, error.Details!.Win32);
+        Assert.Equal("message_post", error.Details.Stage);
+        Assert.Equal(123, error.Details.Pid);
+        Assert.Equal(456u, error.Details.ThreadId);
+        Assert.Equal("1234567890abcdef", error.Details.RequestId);
+        Assert.Equal(0, error.Details.Phase);
+        Assert.Equal("x64", error.Details.HostArchitecture);
+        Assert.Equal(27L, error.Details.NativeElapsedMs);
+        Assert.Equal(1, error.Details.ExitCode);
+    }
+
+    [Theory]
+    [InlineData("request_outcome_unknown", false)]
+    [InlineData("request_expired", true)]
+    public void DiagnosedFailurePreservesUnknownWriteOutcome(string code, bool invoked)
+    {
+        var error = NativeSkinCoreTransport.ReplyFailure(new SkinCoreReply { Error = code, Invoked = invoked }, 1);
+        Assert.True(error.OutcomeUnknown);
+    }
+
+    [Fact]
     public async Task DisabledCoreNeverStartsHost()
     {
         var fake = new Fake((_, _) => Task.FromResult(Catalog())); var service = new NativeSkinCoreService(fake);

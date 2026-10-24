@@ -99,14 +99,16 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
 
     /// <summary>将保存的个人符文及技能方案写入客户端。</summary>
     public async Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(
-        PersonalRunePreset preset, CancellationToken cancellationToken = default)
+        PersonalRunePreset preset, CancellationToken cancellationToken = default,
+        bool allowReplaceCurrentRunePage = false)
     {
         if (!preset.IsValid) return OpggBuildApplyResult.Failure("个人方案缺少有效符文或召唤师技能。");
         try
         {
             var build = new OpggBuild(preset.PrimaryStyleId, preset.SubStyleId,
                 preset.RunePerkIds.ToList(), new(), new(), new());
-            await ApplyRunePageAsync(build, preset.Name, cancellationToken, PersonalRunePrefix).ConfigureAwait(false);
+            await ApplyRunePageAsync(build, preset.Name, cancellationToken, PersonalRunePrefix,
+                allowReplaceCurrentRunePage).ConfigureAwait(false);
             try { preset.LastAppliedAt = DateTimeOffset.Now; _recordAppliedRune?.Invoke(preset); }
             catch { /* 符文已写入，记录失败不会触发重复应用。 */ }
             string itemMessage = await ApplyPersonalItemsAsync(preset, cancellationToken).ConfigureAwait(false);

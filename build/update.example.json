@@ -5,5 +5,5 @@
   "package": "LOL-GameAssistant-win-x64.zip",
   "size": 12345678,
   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-  "entryExecutable": "LOL-GameGUI.exe"
+  "entryExecutable": "sc助手.exe"
 }

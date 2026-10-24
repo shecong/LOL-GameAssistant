@@ -1,0 +1,202 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="4e64d47c-66ff-40b9-825d-29b009604e04" name="Administrator@PITER 2026-10-25 01:33:04" runUser="PITER\Administrator" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-25T01:33:04.3385566+08:00" queuing="2026-10-25T01:33:04.3385567+08:00" start="2026-10-25T01:33:03.8657041+08:00" finish="2026-10-25T01:33:05.7391851+08:00" />
+  <TestSettings name="default" id="2a40d619-097b-4129-8c10-ece00ae8ade7">
+    <Deployment runDeploymentRoot="Administrator_PITER_2026-10-25_01_33_04" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="03ff065d-16ba-4a5d-af42-373bc5171eac" testId="cbfaab60-62e7-baf2-0d2e-9787089573e2" testName="LOL_GameApi.Tests.LoungeReliabilityTests.PruningRunsAtMostOncePerMinuteAndRetriesFailedCleanup" computerName="PITER" duration="00:00:00.0890056" startTime="2026-10-25T01:33:05.3783016+08:00" endTime="2026-10-25T01:33:05.4673004+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="03ff065d-16ba-4a5d-af42-373bc5171eac" />
+    <UnitTestResult executionId="d10c58c7-ffe2-4c71-8439-7c1488b98462" testId="6acee9c3-9efd-8207-cc4e-2e5bb8dad30e" testName="LOL_GameApi.Tests.LoungeTests.StructuredPostsValidateAndRemainReadableAfterPersistence" computerName="PITER" duration="00:00:00.0139694" startTime="2026-10-25T01:33:04.3635911+08:00" endTime="2026-10-25T01:33:04.3773270+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d10c58c7-ffe2-4c71-8439-7c1488b98462" />
+    <UnitTestResult executionId="e357238e-17a3-4221-b06e-77d2bd764655" testId="26cc92cc-3220-877a-88de-3c6560034f9c" testName="LOL_GameApi.Tests.DataDragonServiceTests.ColdReadinessFailsWhenNoUsableVersionExists" computerName="PITER" duration="00:00:00.0057820" startTime="2026-10-25T01:33:04.3184488+08:00" endTime="2026-10-25T01:33:04.3184730+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e357238e-17a3-4221-b06e-77d2bd764655" />
+    <UnitTestResult executionId="2bc0782e-04cb-454a-b336-3a49f6a29859" testId="0ae31b31-5e70-03d3-6248-2d0fcc41906c" testName="LOL_GameApi.Tests.DataDragonServiceTests.UnknownLengthOversizedPayloadIsRejectedDuringReading" computerName="PITER" duration="00:00:00.0011685" startTime="2026-10-25T01:33:04.5252351+08:00" endTime="2026-10-25T01:33:04.5265094+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2bc0782e-04cb-454a-b336-3a49f6a29859" />
+    <UnitTestResult executionId="408f9e1f-e9ae-4daf-a2c6-ef7d0f9dde89" testId="ee2b09df-a3bf-ff0b-36e5-5adf063c5a8a" testName="LOL_GameApi.Tests.DataDragonServiceTests.TimeoutAlsoCoversHangingResponseBody" computerName="PITER" duration="00:00:00.1079893" startTime="2026-10-25T01:33:04.4111382+08:00" endTime="2026-10-25T01:33:04.5192907+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="408f9e1f-e9ae-4daf-a2c6-ef7d0f9dde89" />
+    <UnitTestResult executionId="40a86b7e-72d2-4ba4-be19-76733ddb2cf9" testId="72d4ac2d-05f1-fe1e-2505-170536e145ad" testName="LOL_GameApi.Tests.DataDragonServiceTests.InvalidPayloadIsAFailureWithCooldown(payload: &quot;[\&quot;invalid\&quot;]&quot;)" computerName="PITER" duration="00:00:00.0004808" startTime="2026-10-25T01:33:04.3181102+08:00" endTime="2026-10-25T01:33:04.3181582+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="40a86b7e-72d2-4ba4-be19-76733ddb2cf9" />
+    <UnitTestResult executionId="c6948bad-3549-44cf-8c81-c5f0d880ddb0" testId="987b24d8-1ad6-5843-027b-adb177dbde46" testName="LOL_GameApi.Tests.LoungeTests.StickerAllowlistRejectsArbitraryImages(image: &quot;data:image/png;base64,abcd&quot;)" computerName="PITER" duration="00:00:00.0000076" startTime="2026-10-25T01:33:04.2766870+08:00" endTime="2026-10-25T01:33:04.2767102+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c6948bad-3549-44cf-8c81-c5f0d880ddb0" />
+    <UnitTestResult executionId="cd90e3ab-87e7-4b76-96b7-b0383b23b867" testId="cd962469-9127-8974-83af-15af6b41ef90" testName="LOL_GameApi.Tests.LoungeTests.PresencePrivacyAndVictoryFreshnessHaveExplicitBoundaries" computerName="PITER" duration="00:00:00.0009784" startTime="2026-10-25T01:33:05.6912188+08:00" endTime="2026-10-25T01:33:05.6920299+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cd90e3ab-87e7-4b76-96b7-b0383b23b867" />
+    <UnitTestResult executionId="d4513808-207f-4129-a538-d73ce6245ecd" testId="618cce27-6368-3ce8-04bf-db055fd111e2" testName="LOL_GameApi.Tests.LoungeTests.HistoryStartsWithLatestPageAndPagesBackwardWithExclusiveStableCursor" computerName="PITER" duration="00:00:00.2679601" startTime="2026-10-25T01:33:05.3758450+08:00" endTime="2026-10-25T01:33:05.6432709+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d4513808-207f-4129-a538-d73ce6245ecd" />
+    <UnitTestResult executionId="27b94669-5ece-4025-b43a-d10bec90240b" testId="b6cae0e3-1ffb-24a5-7802-bf2ed0b16e8e" testName="LOL_GameApi.Tests.LoungeTests.StickerAllowlistRejectsArbitraryImages(image: &quot;unknown&quot;)" computerName="PITER" duration="00:00:00.0000024" startTime="2026-10-25T01:33:04.2767500+08:00" endTime="2026-10-25T01:33:04.2767685+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="27b94669-5ece-4025-b43a-d10bec90240b" />
+    <UnitTestResult executionId="01ea1571-5ff4-4651-8549-bf1ff8640f6b" testId="3549a51b-8f46-d312-9ca0-fef14d137723" testName="LOL_GameApi.Tests.LoungeReliabilityTests.ExpiryAbortsOutsideLockAndKeepsQuotaUntilDisconnectEvenIfOneAbortFails" computerName="PITER" duration="00:00:00.0015360" startTime="2026-10-25T01:33:05.3767028+08:00" endTime="2026-10-25T01:33:05.3782079+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="01ea1571-5ff4-4651-8549-bf1ff8640f6b" />
+    <UnitTestResult executionId="d8927fb5-2531-41b8-9bb0-a587f0250933" testId="90ee07fa-cf85-9ff9-586a-b17c3915f769" testName="LOL_GameApi.Tests.LoungeTests.RecruitmentCapacityIsAtomicAndRetryLeaveCloseAndRestartPreserveState" computerName="PITER" duration="00:00:00.0883836" startTime="2026-10-25T01:33:05.2177815+08:00" endTime="2026-10-25T01:33:05.3060771+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d8927fb5-2531-41b8-9bb0-a587f0250933" />
+    <UnitTestResult executionId="7956be51-6019-48bc-946f-57a43370b347" testId="754bf990-227f-0c0f-3f90-3dfe04e64baa" testName="LOL_GameApi.Tests.WebSocketLifecycleTests.CloseCancelsPendingHandlerAndClientCanBeStartedAgain" computerName="PITER" duration="00:00:00.1874388" startTime="2026-10-25T01:33:04.2570451+08:00" endTime="2026-10-25T01:33:04.4496199+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7956be51-6019-48bc-946f-57a43370b347" />
+    <UnitTestResult executionId="c0c1c6e7-495c-4017-84db-ec36ab7856b0" testId="796d88b8-a5bc-2563-acf4-e939c64f99a2" testName="LOL_GameApi.Tests.LoungeTests.ExpiredRecruitmentCannotBeJoinedOrChanged" computerName="PITER" duration="00:00:00.0955001" startTime="2026-10-25T01:33:04.2774135+08:00" endTime="2026-10-25T01:33:04.3633252+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c0c1c6e7-495c-4017-84db-ec36ab7856b0" />
+    <UnitTestResult executionId="9572ffaa-c6b2-4cbf-960b-97f16a4e9557" testId="490f377b-6387-0c6c-0f2c-ede4a0e61119" testName="LOL_GameApi.Tests.LoungeTests.PublicHubBroadcastsRecruitmentMentionsAndOnlyPresetStickersAndDeduplicatesHighlights" computerName="PITER" duration="00:00:00.2409462" startTime="2026-10-25T01:33:04.3774266+08:00" endTime="2026-10-25T01:33:04.6186035+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9572ffaa-c6b2-4cbf-960b-97f16a4e9557" />
+    <UnitTestResult executionId="bc15553f-3e61-44be-a9d9-a3e366cbec9b" testId="5ec42d71-ef40-8820-787e-f3d9d0c38883" testName="LOL_GameApi.Tests.LoungeTests.PublicHubAuthenticatesBroadcastsMergesPresenceAndRejectsInvalidReports" computerName="PITER" duration="00:00:00.1446985" startTime="2026-10-25T01:33:04.6187279+08:00" endTime="2026-10-25T01:33:04.7636265+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bc15553f-3e61-44be-a9d9-a3e366cbec9b" />
+    <UnitTestResult executionId="a4d1e521-2bbb-4930-957f-124cfc0ca3a7" testId="f5e715f6-0d03-1263-ae25-25857358c1f2" testName="LOL_GameApi.Tests.DataDragonServiceTests.InvalidPayloadIsAFailureWithCooldown(payload: &quot;[]&quot;)" computerName="PITER" duration="00:00:00.0019960" startTime="2026-10-25T01:33:04.2941111+08:00" endTime="2026-10-25T01:33:04.2962991+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a4d1e521-2bbb-4930-957f-124cfc0ca3a7" />
+    <UnitTestResult executionId="be6c0eea-db6c-48c0-a842-a8a71303b571" testId="a429ddf8-80f0-e4b1-d508-7b8b3d404c3b" testName="LOL_GameApi.Tests.LoungeTests.HighlightDedupAndPresetMessagesSurviveStoreRestart" computerName="PITER" duration="00:00:00.0690781" startTime="2026-10-25T01:33:05.3062284+08:00" endTime="2026-10-25T01:33:05.3752184+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="be6c0eea-db6c-48c0-a842-a8a71303b571" />
+    <UnitTestResult executionId="6a7a71d3-d5d6-41f3-9584-b6a4c56212c1" testId="b0438d69-65c8-562c-eb28-d89aaa42cfd6" testName="LOL_GameApi.Tests.LoungeTests.OnlineNoticesAreNotStoredAndLegacyRowsDoNotConsumeHistoryPages" computerName="PITER" duration="00:00:00.4538610" startTime="2026-10-25T01:33:04.7637812+08:00" endTime="2026-10-25T01:33:05.2176141+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6a7a71d3-d5d6-41f3-9584-b6a4c56212c1" />
+    <UnitTestResult executionId="adad0d0f-3c9f-4f94-993b-4accbb7ed34f" testId="6f583b95-1b48-f597-5059-1562bb80bd87" testName="LOL_GameApi.Tests.WebSocketLifecycleTests.TransportReconnectsAndPreservesMessageOrderAcrossSessions" computerName="PITER" duration="00:00:01.0179429" startTime="2026-10-25T01:33:04.4509565+08:00" endTime="2026-10-25T01:33:05.4677461+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="adad0d0f-3c9f-4f94-993b-4accbb7ed34f" />
+    <UnitTestResult executionId="55247e00-d48c-40c5-9d75-a0c98b632b6e" testId="f232f98b-83d4-f394-e46c-8e6a1a3437ee" testName="LOL_GameApi.Tests.DataDragonServiceTests.InvalidPayloadIsAFailureWithCooldown(payload: &quot;not json&quot;)" computerName="PITER" duration="00:00:00.0300715" startTime="2026-10-25T01:33:04.2580095+08:00" endTime="2026-10-25T01:33:04.2937785+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="55247e00-d48c-40c5-9d75-a0c98b632b6e" />
+    <UnitTestResult executionId="fa15b2d8-e2cd-4a6d-9631-5d321deed8fe" testId="803a4f6f-9a38-5fe7-ae54-230928f0ba8a" testName="LOL_GameApi.Tests.LoungeTests.StickerAllowlistRejectsArbitraryImages(image: &quot;https://example.com/image.png&quot;)" computerName="PITER" duration="00:00:00.0001432" startTime="2026-10-25T01:33:04.2760739+08:00" endTime="2026-10-25T01:33:04.2761233+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="fa15b2d8-e2cd-4a6d-9631-5d321deed8fe" />
+    <UnitTestResult executionId="93ba639f-8e55-45c9-9d2d-c17ace9b7c33" testId="a4c47210-ff04-0a68-b56d-4f0cc892a0a8" testName="LOL_GameApi.Tests.DataDragonServiceTests.ExpiredCacheSurvivesUpstreamFailureAndReadinessReportsDegradation" computerName="PITER" duration="00:00:00.0056232" startTime="2026-10-25T01:33:04.5194558+08:00" endTime="2026-10-25T01:33:04.5251309+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="93ba639f-8e55-45c9-9d2d-c17ace9b7c33" />
+    <UnitTestResult executionId="e7a25e33-a62b-479b-95fd-9cad69ef9cd8" testId="d150353d-3bea-ad07-1916-117bc921dac5" testName="LOL_GameApi.Tests.LoungeTests.StickerAllowlistRejectsArbitraryImages(image: &quot;../local.png&quot;)" computerName="PITER" duration="00:00:00.0037991" startTime="2026-10-25T01:33:04.2579993+08:00" endTime="2026-10-25T01:33:04.2672967+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e7a25e33-a62b-479b-95fd-9cad69ef9cd8" />
+    <UnitTestResult executionId="dff988aa-8b42-444c-bafb-ab3bf5f31754" testId="3e202d06-265e-1ad7-eaf8-d6373833ae60" testName="LOL_GameApi.Tests.LoungeTests.StoreKeepsMessageOrderRetryIdsAndVictoryDedupAcrossRestart" computerName="PITER" duration="00:00:00.0476400" startTime="2026-10-25T01:33:05.6434193+08:00" endTime="2026-10-25T01:33:05.6910064+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="dff988aa-8b42-444c-bafb-ab3bf5f31754" />
+    <UnitTestResult executionId="143f1e01-b9a2-4594-bdf0-6c0a97029a6e" testId="24d2fa7a-f9c7-ce0b-4abb-0802cd3b3baf" testName="LOL_GameApi.Tests.DataDragonServiceTests.HangingUpstreamTimesOutAndEntersCooldown" computerName="PITER" duration="00:00:00.1032817" startTime="2026-10-25T01:33:04.3186014+08:00" endTime="2026-10-25T01:33:04.4110065+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="143f1e01-b9a2-4594-bdf0-6c0a97029a6e" />
+    <UnitTestResult executionId="ca4f24d5-9b6c-4aa0-b03c-2767d2830b86" testId="9fc9cd36-44cc-a750-f5da-9d6135365207" testName="LOL_GameApi.Tests.DataDragonServiceTests.FailuresUseCappedExponentialCooldownAndRecover" computerName="PITER" duration="00:00:00.0035691" startTime="2026-10-25T01:33:04.3185292+08:00" endTime="2026-10-25T01:33:04.3185529+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ca4f24d5-9b6c-4aa0-b03c-2767d2830b86" />
+    <UnitTestResult executionId="e12bed39-6b1c-4169-8b36-ffaa1fe8dbaa" testId="5ff0a231-754f-629a-665c-52366a64d643" testName="LOL_GameApi.Tests.LoungeReliabilityTests.StaleSignalRTransportActuallyClosesAndReplacementCanReplayEmptyChannel" computerName="PITER" duration="00:00:01.1143899" startTime="2026-10-25T01:33:04.2579734+08:00" endTime="2026-10-25T01:33:05.3765891+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e12bed39-6b1c-4169-8b36-ffaa1fe8dbaa" />
+    <UnitTestResult executionId="f599fcbb-687a-4e55-84d3-824a6a6137a0" testId="4c3a8963-ea52-fb05-0cf2-ab4a3167295e" testName="LOL_GameApi.Tests.DataDragonServiceTests.ConcurrentCallersShareOneRefreshAndCancellationDoesNotCancelOthers" computerName="PITER" duration="00:00:00.0039674" startTime="2026-10-25T01:33:04.5266121+08:00" endTime="2026-10-25T01:33:04.5307451+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f599fcbb-687a-4e55-84d3-824a6a6137a0" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LOL_GameApi.Tests.WebSocketLifecycleTests.CloseCancelsPendingHandlerAndClientCanBeStartedAgain" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="754bf990-227f-0c0f-3f90-3dfe04e64baa">
+      <Execution id="7956be51-6019-48bc-946f-57a43370b347" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.WebSocketLifecycleTests" name="CloseCancelsPendingHandlerAndClientCanBeStartedAgain" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.RecruitmentCapacityIsAtomicAndRetryLeaveCloseAndRestartPreserveState" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="90ee07fa-cf85-9ff9-586a-b17c3915f769">
+      <Execution id="d8927fb5-2531-41b8-9bb0-a587f0250933" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="RecruitmentCapacityIsAtomicAndRetryLeaveCloseAndRestartPreserveState" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.ConcurrentCallersShareOneRefreshAndCancellationDoesNotCancelOthers" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="4c3a8963-ea52-fb05-0cf2-ab4a3167295e">
+      <Execution id="f599fcbb-687a-4e55-84d3-824a6a6137a0" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="ConcurrentCallersShareOneRefreshAndCancellationDoesNotCancelOthers" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.HistoryStartsWithLatestPageAndPagesBackwardWithExclusiveStableCursor" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="618cce27-6368-3ce8-04bf-db055fd111e2">
+      <Execution id="d4513808-207f-4129-a538-d73ce6245ecd" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="HistoryStartsWithLatestPageAndPagesBackwardWithExclusiveStableCursor" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.InvalidPayloadIsAFailureWithCooldown(payload: &quot;[\&quot;invalid\&quot;]&quot;)" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="72d4ac2d-05f1-fe1e-2505-170536e145ad">
+      <Execution id="40a86b7e-72d2-4ba4-be19-76733ddb2cf9" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="InvalidPayloadIsAFailureWithCooldown" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeReliabilityTests.PruningRunsAtMostOncePerMinuteAndRetriesFailedCleanup" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="cbfaab60-62e7-baf2-0d2e-9787089573e2">
+      <Execution id="03ff065d-16ba-4a5d-af42-373bc5171eac" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeReliabilityTests" name="PruningRunsAtMostOncePerMinuteAndRetriesFailedCleanup" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.StickerAllowlistRejectsArbitraryImages(image: &quot;unknown&quot;)" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="b6cae0e3-1ffb-24a5-7802-bf2ed0b16e8e">
+      <Execution id="27b94669-5ece-4025-b43a-d10bec90240b" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="StickerAllowlistRejectsArbitraryImages" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.OnlineNoticesAreNotStoredAndLegacyRowsDoNotConsumeHistoryPages" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="b0438d69-65c8-562c-eb28-d89aaa42cfd6">
+      <Execution id="6a7a71d3-d5d6-41f3-9584-b6a4c56212c1" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="OnlineNoticesAreNotStoredAndLegacyRowsDoNotConsumeHistoryPages" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.TimeoutAlsoCoversHangingResponseBody" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="ee2b09df-a3bf-ff0b-36e5-5adf063c5a8a">
+      <Execution id="408f9e1f-e9ae-4daf-a2c6-ef7d0f9dde89" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="TimeoutAlsoCoversHangingResponseBody" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.StickerAllowlistRejectsArbitraryImages(image: &quot;data:image/png;base64,abcd&quot;)" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="987b24d8-1ad6-5843-027b-adb177dbde46">
+      <Execution id="c6948bad-3549-44cf-8c81-c5f0d880ddb0" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="StickerAllowlistRejectsArbitraryImages" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.FailuresUseCappedExponentialCooldownAndRecover" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="9fc9cd36-44cc-a750-f5da-9d6135365207">
+      <Execution id="ca4f24d5-9b6c-4aa0-b03c-2767d2830b86" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="FailuresUseCappedExponentialCooldownAndRecover" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.ColdReadinessFailsWhenNoUsableVersionExists" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="26cc92cc-3220-877a-88de-3c6560034f9c">
+      <Execution id="e357238e-17a3-4221-b06e-77d2bd764655" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="ColdReadinessFailsWhenNoUsableVersionExists" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.StoreKeepsMessageOrderRetryIdsAndVictoryDedupAcrossRestart" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="3e202d06-265e-1ad7-eaf8-d6373833ae60">
+      <Execution id="dff988aa-8b42-444c-bafb-ab3bf5f31754" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="StoreKeepsMessageOrderRetryIdsAndVictoryDedupAcrossRestart" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.PublicHubAuthenticatesBroadcastsMergesPresenceAndRejectsInvalidReports" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="5ec42d71-ef40-8820-787e-f3d9d0c38883">
+      <Execution id="bc15553f-3e61-44be-a9d9-a3e366cbec9b" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="PublicHubAuthenticatesBroadcastsMergesPresenceAndRejectsInvalidReports" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeReliabilityTests.ExpiryAbortsOutsideLockAndKeepsQuotaUntilDisconnectEvenIfOneAbortFails" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="3549a51b-8f46-d312-9ca0-fef14d137723">
+      <Execution id="01ea1571-5ff4-4651-8549-bf1ff8640f6b" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeReliabilityTests" name="ExpiryAbortsOutsideLockAndKeepsQuotaUntilDisconnectEvenIfOneAbortFails" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeReliabilityTests.StaleSignalRTransportActuallyClosesAndReplacementCanReplayEmptyChannel" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="5ff0a231-754f-629a-665c-52366a64d643">
+      <Execution id="e12bed39-6b1c-4169-8b36-ffaa1fe8dbaa" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeReliabilityTests" name="StaleSignalRTransportActuallyClosesAndReplacementCanReplayEmptyChannel" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.WebSocketLifecycleTests.TransportReconnectsAndPreservesMessageOrderAcrossSessions" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="6f583b95-1b48-f597-5059-1562bb80bd87">
+      <Execution id="adad0d0f-3c9f-4f94-993b-4accbb7ed34f" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.WebSocketLifecycleTests" name="TransportReconnectsAndPreservesMessageOrderAcrossSessions" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.HighlightDedupAndPresetMessagesSurviveStoreRestart" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="a429ddf8-80f0-e4b1-d508-7b8b3d404c3b">
+      <Execution id="be6c0eea-db6c-48c0-a842-a8a71303b571" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="HighlightDedupAndPresetMessagesSurviveStoreRestart" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.ExpiredCacheSurvivesUpstreamFailureAndReadinessReportsDegradation" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="a4c47210-ff04-0a68-b56d-4f0cc892a0a8">
+      <Execution id="93ba639f-8e55-45c9-9d2d-c17ace9b7c33" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="ExpiredCacheSurvivesUpstreamFailureAndReadinessReportsDegradation" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.InvalidPayloadIsAFailureWithCooldown(payload: &quot;not json&quot;)" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="f232f98b-83d4-f394-e46c-8e6a1a3437ee">
+      <Execution id="55247e00-d48c-40c5-9d75-a0c98b632b6e" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="InvalidPayloadIsAFailureWithCooldown" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.UnknownLengthOversizedPayloadIsRejectedDuringReading" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="0ae31b31-5e70-03d3-6248-2d0fcc41906c">
+      <Execution id="2bc0782e-04cb-454a-b336-3a49f6a29859" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="UnknownLengthOversizedPayloadIsRejectedDuringReading" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.PresencePrivacyAndVictoryFreshnessHaveExplicitBoundaries" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="cd962469-9127-8974-83af-15af6b41ef90">
+      <Execution id="cd90e3ab-87e7-4b76-96b7-b0383b23b867" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="PresencePrivacyAndVictoryFreshnessHaveExplicitBoundaries" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.HangingUpstreamTimesOutAndEntersCooldown" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="24d2fa7a-f9c7-ce0b-4abb-0802cd3b3baf">
+      <Execution id="143f1e01-b9a2-4594-bdf0-6c0a97029a6e" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="HangingUpstreamTimesOutAndEntersCooldown" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.PublicHubBroadcastsRecruitmentMentionsAndOnlyPresetStickersAndDeduplicatesHighlights" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="490f377b-6387-0c6c-0f2c-ede4a0e61119">
+      <Execution id="9572ffaa-c6b2-4cbf-960b-97f16a4e9557" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="PublicHubBroadcastsRecruitmentMentionsAndOnlyPresetStickersAndDeduplicatesHighlights" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.StickerAllowlistRejectsArbitraryImages(image: &quot;../local.png&quot;)" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="d150353d-3bea-ad07-1916-117bc921dac5">
+      <Execution id="e7a25e33-a62b-479b-95fd-9cad69ef9cd8" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="StickerAllowlistRejectsArbitraryImages" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.ExpiredRecruitmentCannotBeJoinedOrChanged" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="796d88b8-a5bc-2563-acf4-e939c64f99a2">
+      <Execution id="c0c1c6e7-495c-4017-84db-ec36ab7856b0" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="ExpiredRecruitmentCannotBeJoinedOrChanged" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.DataDragonServiceTests.InvalidPayloadIsAFailureWithCooldown(payload: &quot;[]&quot;)" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="f5e715f6-0d03-1263-ae25-25857358c1f2">
+      <Execution id="a4d1e521-2bbb-4930-957f-124cfc0ca3a7" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.DataDragonServiceTests" name="InvalidPayloadIsAFailureWithCooldown" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.StickerAllowlistRejectsArbitraryImages(image: &quot;https://example.com/image.png&quot;)" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="803a4f6f-9a38-5fe7-ae54-230928f0ba8a">
+      <Execution id="fa15b2d8-e2cd-4a6d-9631-5d321deed8fe" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="StickerAllowlistRejectsArbitraryImages" />
+    </UnitTest>
+    <UnitTest name="LOL_GameApi.Tests.LoungeTests.StructuredPostsValidateAndRemainReadableAfterPersistence" storage="e:\code\weather-app\lol-gameapi.tests\bin\debug\net10.0\lol-gameapi.tests.dll" id="6acee9c3-9efd-8207-cc4e-2e5bb8dad30e">
+      <Execution id="d10c58c7-ffe2-4c71-8439-7c1488b98462" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameApi.Tests\bin\Debug\net10.0\LOL-GameApi.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameApi.Tests.LoungeTests" name="StructuredPostsValidateAndRemainReadableAfterPersistence" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="cbfaab60-62e7-baf2-0d2e-9787089573e2" executionId="03ff065d-16ba-4a5d-af42-373bc5171eac" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6acee9c3-9efd-8207-cc4e-2e5bb8dad30e" executionId="d10c58c7-ffe2-4c71-8439-7c1488b98462" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="26cc92cc-3220-877a-88de-3c6560034f9c" executionId="e357238e-17a3-4221-b06e-77d2bd764655" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0ae31b31-5e70-03d3-6248-2d0fcc41906c" executionId="2bc0782e-04cb-454a-b336-3a49f6a29859" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ee2b09df-a3bf-ff0b-36e5-5adf063c5a8a" executionId="408f9e1f-e9ae-4daf-a2c6-ef7d0f9dde89" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="72d4ac2d-05f1-fe1e-2505-170536e145ad" executionId="40a86b7e-72d2-4ba4-be19-76733ddb2cf9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="987b24d8-1ad6-5843-027b-adb177dbde46" executionId="c6948bad-3549-44cf-8c81-c5f0d880ddb0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="cd962469-9127-8974-83af-15af6b41ef90" executionId="cd90e3ab-87e7-4b76-96b7-b0383b23b867" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="618cce27-6368-3ce8-04bf-db055fd111e2" executionId="d4513808-207f-4129-a538-d73ce6245ecd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b6cae0e3-1ffb-24a5-7802-bf2ed0b16e8e" executionId="27b94669-5ece-4025-b43a-d10bec90240b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3549a51b-8f46-d312-9ca0-fef14d137723" executionId="01ea1571-5ff4-4651-8549-bf1ff8640f6b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="90ee07fa-cf85-9ff9-586a-b17c3915f769" executionId="d8927fb5-2531-41b8-9bb0-a587f0250933" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="754bf990-227f-0c0f-3f90-3dfe04e64baa" executionId="7956be51-6019-48bc-946f-57a43370b347" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="796d88b8-a5bc-2563-acf4-e939c64f99a2" executionId="c0c1c6e7-495c-4017-84db-ec36ab7856b0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="490f377b-6387-0c6c-0f2c-ede4a0e61119" executionId="9572ffaa-c6b2-4cbf-960b-97f16a4e9557" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5ec42d71-ef40-8820-787e-f3d9d0c38883" executionId="bc15553f-3e61-44be-a9d9-a3e366cbec9b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f5e715f6-0d03-1263-ae25-25857358c1f2" executionId="a4d1e521-2bbb-4930-957f-124cfc0ca3a7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a429ddf8-80f0-e4b1-d508-7b8b3d404c3b" executionId="be6c0eea-db6c-48c0-a842-a8a71303b571" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b0438d69-65c8-562c-eb28-d89aaa42cfd6" executionId="6a7a71d3-d5d6-41f3-9584-b6a4c56212c1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6f583b95-1b48-f597-5059-1562bb80bd87" executionId="adad0d0f-3c9f-4f94-993b-4accbb7ed34f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f232f98b-83d4-f394-e46c-8e6a1a3437ee" executionId="55247e00-d48c-40c5-9d75-a0c98b632b6e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="803a4f6f-9a38-5fe7-ae54-230928f0ba8a" executionId="fa15b2d8-e2cd-4a6d-9631-5d321deed8fe" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a4c47210-ff04-0a68-b56d-4f0cc892a0a8" executionId="93ba639f-8e55-45c9-9d2d-c17ace9b7c33" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d150353d-3bea-ad07-1916-117bc921dac5" executionId="e7a25e33-a62b-479b-95fd-9cad69ef9cd8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3e202d06-265e-1ad7-eaf8-d6373833ae60" executionId="dff988aa-8b42-444c-bafb-ab3bf5f31754" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="24d2fa7a-f9c7-ce0b-4abb-0802cd3b3baf" executionId="143f1e01-b9a2-4594-bdf0-6c0a97029a6e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9fc9cd36-44cc-a750-f5da-9d6135365207" executionId="ca4f24d5-9b6c-4aa0-b03c-2767d2830b86" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5ff0a231-754f-629a-665c-52366a64d643" executionId="e12bed39-6b1c-4169-8b36-ffaa1fe8dbaa" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4c3a8963-ea52-fb05-0cf2-ab4a3167295e" executionId="f599fcbb-687a-4e55-84d3-824a6a6137a0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="列表中未列出的结果" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="所有已加载的结果" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="29" executed="29" passed="29" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET 10.0.13)&#xD;
+[xUnit.net 00:00:00.05]   Discovering: LOL-GameApi.Tests&#xD;
+[xUnit.net 00:00:00.08]   Discovered:  LOL-GameApi.Tests&#xD;
+[xUnit.net 00:00:00.10]   Starting:    LOL-GameApi.Tests&#xD;
+[xUnit.net 00:00:01.55]   Finished:    LOL-GameApi.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

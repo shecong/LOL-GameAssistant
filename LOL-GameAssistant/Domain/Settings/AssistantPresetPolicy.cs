@@ -11,7 +11,7 @@ public static class AssistantPresetPolicy
         settings.AutoAccept = enabled;
         settings.AutoSwapAramBench = preset == AssistantPreset.Aram && settings.AramBenchPriorityChampions.Count > 0;
         settings.OpggBuildAssistantEnabled = enabled;
-        settings.AutoApplyRuneBuild = false;
+        settings.AutoApplyRuneBuild = enabled;
         settings.ChampSelectCompanionEnabled = settings.BattleOverlayEnabled = enabled;
         settings.MayhemOverlayEnabled = preset == AssistantPreset.Aram;
         settings.ChampSelectKdaAnnouncementEnabled = settings.GameKdaAnnouncementEnabled = false;

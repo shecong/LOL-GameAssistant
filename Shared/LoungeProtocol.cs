@@ -27,7 +27,9 @@ public sealed record LoungeVictory(long GameId, string Platform, string Puuid, i
 
 public static class LoungeRules
 {
-    public const int ProtocolVersion = 4;
+    public const int ProtocolVersion = 5;
+    // Sync(0) requests the latest page; Sync(-1) replays an initially empty channel.
+    public const long BeforeFirstMessage = -1;
     public const int HistoryPageSize = 40;
     public const int MaxTextLength = 500;
     public static readonly IReadOnlyDictionary<int, string> Modes = new Dictionary<int, string>

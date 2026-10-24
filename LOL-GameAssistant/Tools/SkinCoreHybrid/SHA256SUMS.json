@@ -1,30 +1,30 @@
-﻿[
-    {
-        "file":  "league-skin-core.dll",
-        "Hash":  "79A45B6013F3EAAF6088A8FDD89C22A4FC0F7425A6638CDA2DDA9C47F4B94BCF"
-    },
-    {
-        "file":  "league-skin-hybrid-host.exe",
-        "Hash":  "B0C9923E4A6C31EEE94294C249520DC1135F25C17146217C0CAF4F830414E2FC"
-    },
-    {
-        "file":  "Driver\\manage.ps1",
-        "Hash":  "FCA8427BC263024893184338FC1747844F78096141393A86D4E1922C6530831B"
-    },
-    {
-        "file":  "Driver\\README.md",
-        "Hash":  "64E595E5C3315DF7FBEA00A4853E130CC8C7B06F60DDEC082AE78F49533239AA"
-    },
-    {
-        "file":  "Driver\\SkinCoreRelay.sys",
-        "Hash":  "B4D39715B3DECD340C085CC6188923D1CE40A7A33672994D5DC79C89296CD6EC"
-    },
-    {
-        "file":  "licenses\\LICENSE",
-        "Hash":  "312A433770AE752A8EF520770405C58BBC9D38E37DF2345AE3FDC6F0901B6A27"
-    },
-    {
-        "file":  "licenses\\R3nzSkin-MIT.txt",
-        "Hash":  "289983DE73E420CEF0AC89F2531F3CC7119BC93130199AAE207A971BFB3C76E8"
-    }
+[
+  {
+    "file": "league-skin-core.dll",
+    "Hash": "F916F61D8AA400DA303D7ADEB8B6706B08295EF9060D9873EF0FB8836A8684F5"
+  },
+  {
+    "file": "league-skin-hybrid-host.exe",
+    "Hash": "869CB95FBF378E1209FD63A1C39019E26C9EB8F1EEA13A78DDB6A0A7A2B5A16B"
+  },
+  {
+    "file": "Driver\\manage.ps1",
+    "Hash": "FCA8427BC263024893184338FC1747844F78096141393A86D4E1922C6530831B"
+  },
+  {
+    "file": "Driver\\README.md",
+    "Hash": "64E595E5C3315DF7FBEA00A4853E130CC8C7B06F60DDEC082AE78F49533239AA"
+  },
+  {
+    "file": "Driver\\SkinCoreRelay.sys",
+    "Hash": "B4D39715B3DECD340C085CC6188923D1CE40A7A33672994D5DC79C89296CD6EC"
+  },
+  {
+    "file": "licenses\\LICENSE",
+    "Hash": "312A433770AE752A8EF520770405C58BBC9D38E37DF2345AE3FDC6F0901B6A27"
+  },
+  {
+    "file": "licenses\\R3nzSkin-MIT.txt",
+    "Hash": "289983DE73E420CEF0AC89F2531F3CC7119BC93130199AAE207A971BFB3C76E8"
+  }
 ]

@@ -139,6 +139,11 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         _adjustingSplit = true;
         try
         {
+            // Orientation revalidates SplitterDistance immediately. During docking,
+            // hiding or resizing either axis can briefly be smaller than the splitter.
+            // Wait for the next SizeChanged instead of changing orientation in that state.
+            if (Math.Min(_matchWorkspace.ClientSize.Width, _matchWorkspace.ClientSize.Height) <=
+                _matchWorkspace.SplitterWidth + 2) return;
             int S(int n) => n * DeviceDpi / 96;
             bool narrow = _matchWorkspace.Width < S(1000);
             _matchWorkspace.Panel1MinSize = _matchWorkspace.Panel2MinSize = 0;
@@ -146,7 +151,6 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
             bool change = _matchWorkspace.Orientation != orientation;
             _matchWorkspace.Orientation = orientation;
             int dimension = narrow ? _matchWorkspace.Height : _matchWorkspace.Width;
-            if (dimension <= _matchWorkspace.SplitterWidth + 2) return;
             int preferred = narrow ? dimension / 2 : dimension - Math.Clamp((int)(dimension * .40), S(430), S(670));
             if (reset || change || _matchWorkspace.SplitterDistance < S(180) || dimension - _matchWorkspace.SplitterDistance < S(160))
                 _matchWorkspace.SplitterDistance = Math.Clamp(preferred, 1, dimension - _matchWorkspace.SplitterWidth - 1);

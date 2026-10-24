@@ -48,8 +48,9 @@ internal sealed class CachedOpggBuildApplyService : IOpggBuildApplyService
     public Task<PersonalRunePreset?> CaptureCurrentRunePresetAsync(int id, string mode, string position, CancellationToken token = default) =>
         _inner.CaptureCurrentRunePresetAsync(id, mode, position, token);
     /// <summary>将保存的个人符文及技能方案写入客户端。</summary>
-    public Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(PersonalRunePreset preset, CancellationToken token = default) =>
-        _inner.ApplyPersonalRunePresetAsync(preset, token);
+    public Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(PersonalRunePreset preset, CancellationToken token = default,
+        bool allowReplaceCurrentRunePage = false) =>
+        _inner.ApplyPersonalRunePresetAsync(preset, token, allowReplaceCurrentRunePage);
     /// <summary>应用用户选择的符文、召唤师技能和装备方案。</summary>
     public Task<OpggBuildApplyResult> ApplyBuildAsync(int id, string? position, OpggBuildOption option,
         CancellationToken token = default, bool allowReplaceCurrentRunePage = false, bool applySummonerSpells = true,

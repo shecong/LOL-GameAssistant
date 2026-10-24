@@ -18,7 +18,8 @@ public interface IOpggBuildApplyService
 
     /// <summary>将保存的个人符文及技能方案写入客户端。</summary>
     Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(
-        PersonalRunePreset preset, CancellationToken cancellationToken = default);
+        PersonalRunePreset preset, CancellationToken cancellationToken = default,
+        bool allowReplaceCurrentRunePage = false);
     /// <summary>读取当前英雄、分路下可供用户选择的 OP.GG 出装路线，不会写入客户端。</summary>
     Task<OpggBuildChoices> GetBuildChoicesAsync(
         int championId,

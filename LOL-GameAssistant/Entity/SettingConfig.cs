@@ -187,7 +187,7 @@ namespace LOL_GameAssistant.Entity
         public List<LOL_GameAssistant.Domain.Builds.PersonalRunePreset> PersonalRunePresets { get; set; } = new();
 
         [JsonProperty("autoApplyRuneBuild")]
-        public bool AutoApplyRuneBuild { get; set; }
+        public bool AutoApplyRuneBuild { get; set; } = true;
 
         [JsonProperty("mayhemOverlayEnabled")]
         public bool MayhemOverlayEnabled { get; set; } = true;

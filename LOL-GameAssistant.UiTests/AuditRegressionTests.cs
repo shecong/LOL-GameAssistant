@@ -8,6 +8,7 @@ using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.Coaching;
+using LOL_GameAssistant.Domain.ChampionSelect;
 using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Domain.LiveGame;
 using LOL_GameAssistant.Domain.Players;
@@ -22,6 +23,39 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class AuditRegressionTests
 {
+    [Theory]
+    [InlineData(0, 1, 0, false, 1)] // 只有预选意图。
+    [InlineData(0, 2, 0, false, 2)] // 更换预选英雄。
+    [InlineData(1, 2, 3, false, 3)] // 当前选人动作优先于滞后的队伍数据。
+    [InlineData(2, 1, 1, true, 2)] // 交换英雄后不能沿用旧的已完成动作。
+    [InlineData(0, 1, 2, true, 2)] // 锁定动作先于队伍信息更新。
+    [InlineData(2, 1, 0, false, 2)] // 已选英雄优先于旧预选。
+    [InlineData(0, 0, 0, false, 0)] // 不能读取队友预选或自己的禁用动作。
+    public async Task ChampSelectContextTracksHoverPickAndSwap(int selected, int intent, int action, bool completed, int expected)
+    {
+        var session = new ChampionSelectionSnapshot
+        {
+            LocalPlayerCellId = 4,
+            MyTeam = [new() { CellId = 4, ChampionId = selected, ChampionPickIntent = intent, AssignedPosition = "TOP" },
+                new() { CellId = 5, ChampionId = 99, ChampionPickIntent = 99 }],
+            Actions = [[new() { ActorCellId = 4, Type = "ban", ChampionId = 99, IsInProgress = true },
+                new() { ActorCellId = 4, Type = "pick", ChampionId = action, IsInProgress = !completed, Completed = completed }]]
+        };
+        var service = new AiGameContextService(
+            Service<ILobbyService>((method, _) => method.Name switch
+            {
+                "GetGameFlowPhaseAsync" => Task.FromResult<string?>("ChampSelect"),
+                "GetLobbyAsync" => Task.FromResult<LobbySnapshot?>(null),
+                _ => Task.FromResult<ActiveGameSnapshot?>(new() { GameMode = "CLASSIC", QueueId = 420 })
+            }),
+            Service<IPlayerProfileService>((_, _) => Task.FromResult<PlayerProfile?>(null)),
+            Service<IChampionSelectService>((_, _) => Task.FromResult<ChampionSelectionSnapshot?>(session)),
+            Service<ILiveClientGameStateService>((_, _) => throw new InvalidOperationException()),
+            Service<ILaneKnowledgeService>((_, _) => ""),
+            Service<IChampionCatalog>((_, args) => args[0]!.ToString()));
+        Assert.Equal(expected, (await service.CollectAsync()).MyChampionId);
+    }
+
     [Fact]
     public async Task ConnectionMonitorRetriesDiscoveryAfterFailureAndDisconnect()
     {

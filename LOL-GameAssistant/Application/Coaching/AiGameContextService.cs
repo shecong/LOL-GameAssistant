@@ -99,9 +99,14 @@ public sealed class AiGameContextService : IAiGameContextService
         ChampionSelectionMember? me = session.MyTeam.FirstOrDefault(member => member.CellId == session.LocalPlayerCellId) ??
                                      session.MyTeam.FirstOrDefault(member => member.Puuid == myPuuid);
         // 选人动作会比 myTeam.championId 更早更新；优先读取本人的 pick 动作，
-        // 才能在用户刚选定英雄时及时展示 OP.GG 方案，而不是等到锁定之后。
+        // 已完成动作可能是交换前的旧英雄，此时以队伍信息为准；尚未选择时读取预选意图。
         int selectedPickId = GetCurrentMyActionChampion(session);
-        int championId = selectedPickId > 0 ? selectedPickId : me?.ChampionId ?? 0;
+        int championId = selectedPickId > 0 ? selectedPickId
+            : me?.ChampionId > 0 ? me.ChampionId
+            : session.Actions.SelectMany(group => group).FirstOrDefault(action =>
+                action.ActorCellId == session.LocalPlayerCellId && action.Completed &&
+                string.Equals(action.Type, "pick", StringComparison.OrdinalIgnoreCase) && action.ChampionId > 0)?.ChampionId
+                ?? me?.ChampionPickIntent ?? 0;
         string champion = _championCatalog.GetDisplayName(championId);
         string role = NormalizeRole(me?.AssignedPosition);
         var enemies = session.TheirTeam.Select(member => _championCatalog.GetDisplayName(member.ChampionId)).Where(IsKnownChampion).ToList();
@@ -195,6 +200,7 @@ public sealed class AiGameContextService : IAiGameContextService
             .FirstOrDefault(action =>
                 action.ActorCellId == session.LocalPlayerCellId &&
                 string.Equals(action.Type, "pick", StringComparison.OrdinalIgnoreCase) &&
+                action.IsInProgress && !action.Completed &&
                 action.ChampionId > 0)?.ChampionId ?? 0;
 
     /// <summary>

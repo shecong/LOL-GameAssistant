@@ -23,7 +23,7 @@ public sealed class TaskbarWindowRegistrationTests
             Assert.True(icon.Width > 0);
             Assert.Contains("LOL-GameAssistant", path);
             Assert.False(string.IsNullOrWhiteSpace(TaskbarApplicationIdentity.ReadWindowProperty(form.Handle, 2)));
-            Assert.Equal("SC · LOL GameAssistant", TaskbarApplicationIdentity.ReadWindowProperty(form.Handle, 4));
+            Assert.Equal("sc助手", TaskbarApplicationIdentity.ReadWindowProperty(form.Handle, 4));
             form.RebuildHandle();
         }
         nint handle = form.Handle;

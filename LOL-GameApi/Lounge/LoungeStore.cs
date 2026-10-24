@@ -10,13 +10,16 @@ public sealed class LoungeStore : IDisposable
     private readonly SqliteConnection _db;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly int _retentionDays;
+    private readonly TimeProvider _clock;
+    private DateTimeOffset _nextPrune;
 
     public LoungeStore(IOptions<LoungeOptions> settings, IWebHostEnvironment environment)
         : this(Path.GetFullPath(settings.Value.DatabasePath, environment.ContentRootPath), settings.Value.RetentionDays) { }
 
-    public LoungeStore(string path, int retentionDays = 7)
+    public LoungeStore(string path, int retentionDays = 7, TimeProvider? clock = null)
     {
         _retentionDays = retentionDays;
+        _clock = clock ?? TimeProvider.System;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         _db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path }.ToString());
         _db.Open();
@@ -43,10 +46,10 @@ public sealed class LoungeStore : IDisposable
         {
             await PruneAsync(token);
             using var command = _db.CreateCommand();
-            command.CommandText = after <= 0
+            command.CommandText = after == 0
                 ? "SELECT * FROM (SELECT * FROM messages WHERE kind <> 'online' ORDER BY id DESC LIMIT 40) ORDER BY id"
                 : "SELECT * FROM messages WHERE id > $after AND kind <> 'online' ORDER BY id LIMIT 200";
-            command.Parameters.AddWithValue("$after", after);
+            command.Parameters.AddWithValue("$after", Math.Max(0, after));
             using var reader = await command.ExecuteReaderAsync(token);
             var result = new List<LoungeMessage>();
             while (await reader.ReadAsync(token)) result.Add(Read(reader));
@@ -235,11 +238,15 @@ public sealed class LoungeStore : IDisposable
 
     private async Task PruneAsync(CancellationToken token)
     {
+        var now = _clock.GetUtcNow();
+        if (now < _nextPrune) return;
         using var command = _db.CreateCommand();
         command.CommandText = "DELETE FROM messages WHERE sentAt < $cutoff; DELETE FROM victories WHERE createdAt < $wins; DELETE FROM recruitments WHERE messageId NOT IN (SELECT id FROM messages)";
-        command.Parameters.AddWithValue("$cutoff", DateTimeOffset.UtcNow.AddDays(-_retentionDays).ToString("O"));
-        command.Parameters.AddWithValue("$wins", DateTimeOffset.UtcNow.AddDays(-30).ToString("O"));
+        command.Parameters.AddWithValue("$cutoff", now.AddDays(-_retentionDays).ToString("O"));
+        command.Parameters.AddWithValue("$wins", now.AddDays(-30).ToString("O"));
         await command.ExecuteNonQueryAsync(token);
+        // All callers hold _gate. Failed/cancelled cleanup must remain eligible for retry.
+        _nextPrune = _clock.GetUtcNow().AddMinutes(1);
     }
 
     private static LoungeMessage Read(SqliteDataReader reader) => new(reader.GetInt64(0), reader.GetString(2),

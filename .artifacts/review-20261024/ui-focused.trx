@@ -1,0 +1,627 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="b370e595-2b09-4aee-9e74-281f66d89789" name="Administrator@PITER 2026-10-24 15:21:06" runUser="PITER\Administrator" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-24T15:21:06.6935319+08:00" queuing="2026-10-24T15:21:06.6935320+08:00" start="2026-10-24T15:21:03.4253875+08:00" finish="2026-10-24T15:21:10.4101402+08:00" />
+  <TestSettings name="default" id="be4f4bcb-f5b5-47a5-b766-c9ef38b2336c">
+    <Deployment runDeploymentRoot="Administrator_PITER_2026-10-24_15_21_06" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="a9247435-d20f-4c89-b934-c16e895fd1bf" testId="d14094f2-3982-a638-ca25-eb25d7065e9c" testName="LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.AiCardsFitTheirRowsOnFirstDisplayAndAfterSwitching" computerName="PITER" duration="00:00:04.0558205" startTime="2026-10-24T15:21:06.2233088+08:00" endTime="2026-10-24T15:21:10.2712251+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a9247435-d20f-4c89-b934-c16e895fd1bf" />
+    <UnitTestResult executionId="85363c41-53b0-49a5-bca7-060f60747385" testId="1a5e658d-9f41-e9db-9978-45b81e4c26f7" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CacheDoesNotReuseAnotherVersionOrStartedInstallationAndHonorsCancellation" computerName="PITER" duration="00:00:00.0053876" startTime="2026-10-24T15:21:10.3140057+08:00" endTime="2026-10-24T15:21:10.3176359+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="85363c41-53b0-49a5-bca7-060f60747385">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CacheDoesNotReuseAnotherVersionOrStartedInstallationAndHonorsCancellation() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 51&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="af513db2-b20d-4bc5-968c-bea87cb8a457" testId="0bb9e575-0a08-9e61-2966-db5a45cff454" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: &quot;stage/sc助手.exe&quot;)" computerName="PITER" duration="00:00:00.0044885" startTime="2026-10-24T15:21:10.3062561+08:00" endTime="2026-10-24T15:21:10.3105307+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="af513db2-b20d-4bc5-968c-bea87cb8a457">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(String damagedFile) in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 39&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="d943416c-6555-4d3a-a69d-b5347fa6a43e" testId="fb931aa0-426f-d2fc-746f-170017876098" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;/absolute.exe&quot;)" computerName="PITER" duration="00:00:00.0000022" startTime="2026-10-24T15:21:10.3137871+08:00" endTime="2026-10-24T15:21:10.3138253+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d943416c-6555-4d3a-a69d-b5347fa6a43e" />
+    <UnitTestResult executionId="52cd5160-6621-4468-8c90-73ff2608c693" testId="8731f6cb-1c79-4235-ced2-d5a6a7f41abc" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DownloadsVerifiesAndPreparesTaskWithoutChangingInstalledFiles" computerName="PITER" duration="00:00:00.0048782" startTime="2026-10-24T15:21:10.3549694+08:00" endTime="2026-10-24T15:21:10.3595361+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="52cd5160-6621-4468-8c90-73ff2608c693">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DownloadsVerifiesAndPreparesTaskWithoutChangingInstalledFiles() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 110&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="6ab302f6-5907-4488-96b3-fcdbd6b43669" testId="7214f956-570a-8e7a-5e8a-25d0e1d1c0b7" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;a/CON.txt&quot;)" computerName="PITER" duration="00:00:00.0000029" startTime="2026-10-24T15:21:10.3134767+08:00" endTime="2026-10-24T15:21:10.3135145+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6ab302f6-5907-4488-96b3-fcdbd6b43669" />
+    <UnitTestResult executionId="cd2284cb-920e-4187-b909-4549515591a5" testId="d813e5bd-e3f6-f1da-d7d8-fc5ae5c00414" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CancellationRemovesPreparedFilesWithoutChangingCurrentVersion" computerName="PITER" duration="00:00:00.0048096" startTime="2026-10-24T15:21:10.3409247+08:00" endTime="2026-10-24T15:21:10.3454531+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cd2284cb-920e-4187-b909-4549515591a5">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CancellationRemovesPreparedFilesWithoutChangingCurrentVersion() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 190&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="50e23b66-cb7b-44f5-a89a-40614ec10718" testId="5209888f-178c-f618-a37c-a1f6bc5cdcd9" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;settings.json&quot;)" computerName="PITER" duration="00:00:00.0000032" startTime="2026-10-24T15:21:10.3133830+08:00" endTime="2026-10-24T15:21:10.3134184+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="50e23b66-cb7b-44f5-a89a-40614ec10718" />
+    <UnitTestResult executionId="fc927f0b-9ff0-4c8a-aca3-5ac7c842e4eb" testId="7b1c65e8-ae36-6d57-cc91-78e8060efef3" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: &quot;../escape.exe&quot;)" computerName="PITER" duration="00:00:00.0082629" startTime="2026-10-24T15:21:10.2738274+08:00" endTime="2026-10-24T15:21:10.2819057+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="fc927f0b-9ff0-4c8a-aca3-5ac7c842e4eb">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(String name) in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 227&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="667b961d-dbba-49f9-ba74-09efd436d245" testId="645e81b7-f8df-7c1b-4b10-7e5ac0101a85" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: &quot;package.zip&quot;)" computerName="PITER" duration="00:00:00.0050924" startTime="2026-10-24T15:21:10.2962848+08:00" endTime="2026-10-24T15:21:10.3010576+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="667b961d-dbba-49f9-ba74-09efd436d245">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(String damagedFile) in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 39&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="9588dbb5-2898-4d1a-b36b-a915e86206d4" testId="c0ca4596-e2f5-7e21-05f4-69f7c32d60d5" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;a.exe:ads&quot;)" computerName="PITER" duration="00:00:00.0000023" startTime="2026-10-24T15:21:10.3136890+08:00" endTime="2026-10-24T15:21:10.3137281+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9588dbb5-2898-4d1a-b36b-a915e86206d4" />
+    <UnitTestResult executionId="368d9a6e-4da8-467c-afc2-e216b3508537" testId="85a468d7-651e-6a15-b60d-92e96cd79c2a" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.X64GithubCanStillUseLegacyManifestAttachment" computerName="PITER" duration="00:00:00.0048848" startTime="2026-10-24T15:21:10.3229724+08:00" endTime="2026-10-24T15:21:10.3275640+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="368d9a6e-4da8-467c-afc2-e216b3508537">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.X64GithubCanStillUseLegacyManifestAttachment() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 137&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="88bb0904-6432-45a1-83ab-ae30d76dc628" testId="5ce6f25f-8450-7c68-de11-1c020b640e8f" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.MissingReleaseConfigurationFailsBeforeCreatingTransaction" computerName="PITER" duration="00:00:00.0052891" startTime="2026-10-24T15:21:10.3605607+08:00" endTime="2026-10-24T15:21:10.3649642+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="88bb0904-6432-45a1-83ab-ae30d76dc628">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.MissingReleaseConfigurationFailsBeforeCreatingTransaction() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 201&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="bded3174-7c30-4f4f-ab18-eb36b8afc083" testId="5d91a49c-4ca6-c14f-9407-4055d808371e" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CompletedDownloadIsRestoredByNewServiceWithoutAnyNetworkRequests" computerName="PITER" duration="00:00:00.0046313" startTime="2026-10-24T15:21:10.3321234+08:00" endTime="2026-10-24T15:21:10.3364026+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bded3174-7c30-4f4f-ab18-eb36b8afc083">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CompletedDownloadIsRestoredByNewServiceWithoutAnyNetworkRequests() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 20&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="f83b2b88-2df0-4e81-820b-773e4ddea56b" testId="1cb0c03f-2f04-326c-bc01-5f84614c2a62" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: &quot;settings.json&quot;)" computerName="PITER" duration="00:00:00.0042954" startTime="2026-10-24T15:21:10.2867840+08:00" endTime="2026-10-24T15:21:10.2906317+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f83b2b88-2df0-4e81-820b-773e4ddea56b">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(String name) in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 227&#xD;
+   at InvokeStub_UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(Object, Span`1)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="48847ce7-bfac-4f87-9882-7e85ac1e12ed" testId="e533996a-7371-a68e-fc1c-5690178ad831" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.TamperedOrUnlistedZipFileIsRejected" computerName="PITER" duration="00:00:00.0041113" startTime="2026-10-24T15:21:10.3507932+08:00" endTime="2026-10-24T15:21:10.3545150+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="48847ce7-bfac-4f87-9882-7e85ac1e12ed">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.TamperedOrUnlistedZipFileIsRejected() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 238&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="e570c883-81af-4923-9eda-e323587f04eb" testId="8be7c2c9-e262-d47a-e02d-855ab8a7e4c6" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;a/../b.exe&quot;)" computerName="PITER" duration="00:00:00.0000023" startTime="2026-10-24T15:21:10.3138836+08:00" endTime="2026-10-24T15:21:10.3139217+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e570c883-81af-4923-9eda-e323587f04eb" />
+    <UnitTestResult executionId="cbe9cba4-0a49-41da-af8b-1406d95b0bd2" testId="f245d4f3-ec5b-aa68-c02c-a836d2b0b57f" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ReopenedPromptOffersInstallForCompletedDownload" computerName="PITER" duration="00:00:00.0047418" startTime="2026-10-24T15:21:10.3185384+08:00" endTime="2026-10-24T15:21:10.3225294+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cbe9cba4-0a49-41da-af8b-1406d95b0bd2">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ReopenedPromptOffersInstallForCompletedDownload() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 68&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="9c01a7f1-7f5f-4d93-abac-90f4549cf3a4" testId="d550388e-7d71-525d-d3af-19cdc4714969" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;.update/job.ini&quot;)" computerName="PITER" duration="00:00:00.0000045" startTime="2026-10-24T15:21:10.3132882+08:00" endTime="2026-10-24T15:21:10.3133240+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9c01a7f1-7f5f-4d93-abac-90f4549cf3a4" />
+    <UnitTestResult executionId="46ad6acd-f10f-4c45-9be3-3242142314d4" testId="c6eb7bac-995f-173d-ffbf-b8a0c8864d21" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: &quot;manifest.json&quot;)" computerName="PITER" duration="00:00:00.0047198" startTime="2026-10-24T15:21:10.3014591+08:00" endTime="2026-10-24T15:21:10.3059008+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="46ad6acd-f10f-4c45-9be3-3242142314d4">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(String damagedFile) in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 39&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="2f395da5-ae78-4763-8609-8056de325bd5" testId="4ce97f5b-0a6b-9be6-a81b-fda61781989f" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.WrongPackageHashLeavesInstalledApplicationUntouchedAndRemovesPartialDownload" computerName="PITER" duration="00:00:00.0039035" startTime="2026-10-24T15:21:10.3279844+08:00" endTime="2026-10-24T15:21:10.3316372+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2f395da5-ae78-4763-8609-8056de325bd5">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.WrongPackageHashLeavesInstalledApplicationUntouchedAndRemovesPartialDownload() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 180&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="a623f184-b343-4202-92e9-a553ca5d6510" testId="3848da31-2d7f-c2e5-acd6-d581d6b9ce8f" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;logs/file.log&quot;)" computerName="PITER" duration="00:00:00.0001603" startTime="2026-10-24T15:21:10.3119805+08:00" endTime="2026-10-24T15:21:10.3120243+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a623f184-b343-4202-92e9-a553ca5d6510" />
+    <UnitTestResult executionId="387256d7-6c19-4cd9-8147-a12d7a7740c1" testId="7c72385e-5127-e8a1-f80a-a647a845b278" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceDownloadsVersionedManifestAndPackageAndVerifiesThem" computerName="PITER" duration="00:00:00.0039631" startTime="2026-10-24T15:21:10.3368492+08:00" endTime="2026-10-24T15:21:10.3404936+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="387256d7-6c19-4cd9-8147-a12d7a7740c1">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceDownloadsVersionedManifestAndPackageAndVerifiesThem() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 149&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="cbc34bf7-5a31-4253-9e1e-53c696c1cb61" testId="f2aff469-92c5-9469-5997-67b1afe958cd" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;a\\b.exe&quot;)" computerName="PITER" duration="00:00:00.0000051" startTime="2026-10-24T15:21:10.3131641+08:00" endTime="2026-10-24T15:21:10.3132095+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cbc34bf7-5a31-4253-9e1e-53c696c1cb61" />
+    <UnitTestResult executionId="4b35550b-38ad-4071-a677-0e69df23645d" testId="9a54e6c0-a3e8-57db-1494-e006fcdf9025" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;C:/outside.exe&quot;)" computerName="PITER" duration="00:00:00.0012593" startTime="2026-10-24T15:21:10.3109621+08:00" endTime="2026-10-24T15:21:10.3118553+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4b35550b-38ad-4071-a677-0e69df23645d" />
+    <UnitTestResult executionId="b63802b6-d17c-4542-a423-fc25ef54e757" testId="d3ed5c31-317b-9cf0-8c62-4a82ff318775" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsWrongVersionPlatformAndExecutable" computerName="PITER" duration="00:00:00.0047647" startTime="2026-10-24T15:21:10.3458950+08:00" endTime="2026-10-24T15:21:10.3503151+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b63802b6-d17c-4542-a423-fc25ef54e757">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsWrongVersionPlatformAndExecutable() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 210&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="5010e12f-0401-412b-8ba3-00e4e008c740" testId="8173f6ff-2e8e-f694-d2ff-e0f9ac1e00ab" testName="LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.AiDescriptionsUseAvailableWidthAndRewrapAfterResizing" computerName="PITER" duration="00:00:02.3298252" startTime="2026-10-24T15:21:03.8765799+08:00" endTime="2026-10-24T15:21:06.2151289+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5010e12f-0401-412b-8ba3-00e4e008c740">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Sequence contains no matching element</Message>
+          <StackTrace>   at System.Linq.ThrowHelper.ThrowNoMatchException()&#xD;
+   at System.Linq.Enumerable.Single[TSource](IEnumerable`1 source, Func`2 predicate)&#xD;
+   at LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.&lt;&gt;c.&lt;AiDescriptionsUseAvailableWidthAndRewrapAfterResizing&gt;b__1_0() in E:\code\weather-app\LOL-GameAssistant.UiTests\SettingsDescriptionLayoutTests.cs:line 71&#xD;
+   at LOL_GameAssistant.UiTests.MatchListScrollingTests.&lt;&gt;c__DisplayClass6_0.&lt;OnUiThread&gt;b__0() in E:\code\weather-app\LOL-GameAssistant.UiTests\MatchListScrollingTests.cs:line 110&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at LOL_GameAssistant.UiTests.MatchListScrollingTests.OnUiThread(Action action) in E:\code\weather-app\LOL-GameAssistant.UiTests\MatchListScrollingTests.cs:line 114&#xD;
+   at LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.AiDescriptionsUseAvailableWidthAndRewrapAfterResizing() in E:\code\weather-app\LOL-GameAssistant.UiTests\SettingsDescriptionLayoutTests.cs:line 54&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="3bb00c48-e301-4f28-85dd-17caf0487bb3" testId="20c7cdf6-6ee0-f73b-f5e5-d4b3a896cadb" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceRejectsTamperedPackageAndAllowsRetryUsingGithub" computerName="PITER" duration="00:00:00.0046518" startTime="2026-10-24T15:21:10.2910479+08:00" endTime="2026-10-24T15:21:10.2958226+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3bb00c48-e301-4f28-85dd-17caf0487bb3">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceRejectsTamperedPackageAndAllowsRetryUsingGithub() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 165&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="27a5156d-5a99-42a9-96a0-ffe0a61333c5" testId="8ae3f6d6-5239-df34-13ff-e7d9cef53223" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;../outside.exe&quot;)" computerName="PITER" duration="00:00:00.0000020" startTime="2026-10-24T15:21:10.3135759+08:00" endTime="2026-10-24T15:21:10.3136224+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="27a5156d-5a99-42a9-96a0-ffe0a61333c5" />
+    <UnitTestResult executionId="29f99c24-1284-4f24-90b8-f5ebb6f5adaa" testId="773232c6-bf0a-1175-f6c0-9700a6b04553" testName="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: &quot;.update/job.ini&quot;)" computerName="PITER" duration="00:00:00.0041785" startTime="2026-10-24T15:21:10.2827015+08:00" endTime="2026-10-24T15:21:10.2862451+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="29f99c24-1284-4f24-90b8-f5ebb6f5adaa">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.True() Failure&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor() in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 276&#xD;
+   at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(String name) in E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs:line 227&#xD;
+   at InvokeStub_UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(Object, Span`1)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceDownloadsVersionedManifestAndPackageAndVerifiesThem" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="7c72385e-5127-e8a1-f80a-a647a845b278">
+      <Execution id="387256d7-6c19-4cd9-8147-a12d7a7740c1" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="ServerSourceDownloadsVersionedManifestAndPackageAndVerifiesThem" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsWrongVersionPlatformAndExecutable" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="d3ed5c31-317b-9cf0-8c62-4a82ff318775">
+      <Execution id="b63802b6-d17c-4542-a423-fc25ef54e757" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsWrongVersionPlatformAndExecutable" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;a/../b.exe&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="8be7c2c9-e262-d47a-e02d-855ab8a7e4c6">
+      <Execution id="e570c883-81af-4923-9eda-e323587f04eb" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: &quot;../escape.exe&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="7b1c65e8-ae36-6d57-cc91-78e8060efef3">
+      <Execution id="fc927f0b-9ff0-4c8a-aca3-5ac7c842e4eb" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="UnsafeZipEntryIsRejectedBeforeWritingOutsideStage" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CompletedDownloadIsRestoredByNewServiceWithoutAnyNetworkRequests" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="5d91a49c-4ca6-c14f-9407-4055d808371e">
+      <Execution id="bded3174-7c30-4f4f-ab18-eb36b8afc083" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="CompletedDownloadIsRestoredByNewServiceWithoutAnyNetworkRequests" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;logs/file.log&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="3848da31-2d7f-c2e5-acd6-d581d6b9ce8f">
+      <Execution id="a623f184-b343-4202-92e9-a553ca5d6510" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;a/CON.txt&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="7214f956-570a-8e7a-5e8a-25d0e1d1c0b7">
+      <Execution id="6ab302f6-5907-4488-96b3-fcdbd6b43669" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DownloadsVerifiesAndPreparesTaskWithoutChangingInstalledFiles" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="8731f6cb-1c79-4235-ced2-d5a6a7f41abc">
+      <Execution id="52cd5160-6621-4468-8c90-73ff2608c693" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="DownloadsVerifiesAndPreparesTaskWithoutChangingInstalledFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.X64GithubCanStillUseLegacyManifestAttachment" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="85a468d7-651e-6a15-b60d-92e96cd79c2a">
+      <Execution id="368d9a6e-4da8-467c-afc2-e216b3508537" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="X64GithubCanStillUseLegacyManifestAttachment" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.AiDescriptionsUseAvailableWidthAndRewrapAfterResizing" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="8173f6ff-2e8e-f694-d2ff-e0f9ac1e00ab">
+      <Execution id="5010e12f-0401-412b-8ba3-00e4e008c740" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests" name="AiDescriptionsUseAvailableWidthAndRewrapAfterResizing" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: &quot;stage/sc助手.exe&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="0bb9e575-0a08-9e61-2966-db5a45cff454">
+      <Execution id="af513db2-b20d-4bc5-968c-bea87cb8a457" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="DamagedCacheIsRejectedAndCanBeDownloadedAgain" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: &quot;manifest.json&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="c6eb7bac-995f-173d-ffbf-b8a0c8864d21">
+      <Execution id="46ad6acd-f10f-4c45-9be3-3242142314d4" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="DamagedCacheIsRejectedAndCanBeDownloadedAgain" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: &quot;settings.json&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="1cb0c03f-2f04-326c-bc01-5f84614c2a62">
+      <Execution id="f83b2b88-2df0-4e81-820b-773e4ddea56b" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="UnsafeZipEntryIsRejectedBeforeWritingOutsideStage" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: &quot;package.zip&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="645e81b7-f8df-7c1b-4b10-7e5ac0101a85">
+      <Execution id="667b961d-dbba-49f9-ba74-09efd436d245" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="DamagedCacheIsRejectedAndCanBeDownloadedAgain" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: &quot;.update/job.ini&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="773232c6-bf0a-1175-f6c0-9700a6b04553">
+      <Execution id="29f99c24-1284-4f24-90b8-f5ebb6f5adaa" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="UnsafeZipEntryIsRejectedBeforeWritingOutsideStage" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;.update/job.ini&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="d550388e-7d71-525d-d3af-19cdc4714969">
+      <Execution id="9c01a7f1-7f5f-4d93-abac-90f4549cf3a4" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CacheDoesNotReuseAnotherVersionOrStartedInstallationAndHonorsCancellation" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="1a5e658d-9f41-e9db-9978-45b81e4c26f7">
+      <Execution id="85363c41-53b0-49a5-bca7-060f60747385" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="CacheDoesNotReuseAnotherVersionOrStartedInstallationAndHonorsCancellation" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;a.exe:ads&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="c0ca4596-e2f5-7e21-05f4-69f7c32d60d5">
+      <Execution id="9588dbb5-2898-4d1a-b36b-a915e86206d4" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;../outside.exe&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="8ae3f6d6-5239-df34-13ff-e7d9cef53223">
+      <Execution id="27a5156d-5a99-42a9-96a0-ffe0a61333c5" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.AiCardsFitTheirRowsOnFirstDisplayAndAfterSwitching" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="d14094f2-3982-a638-ca25-eb25d7065e9c">
+      <Execution id="a9247435-d20f-4c89-b934-c16e895fd1bf" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests" name="AiCardsFitTheirRowsOnFirstDisplayAndAfterSwitching" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;a\\b.exe&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="f2aff469-92c5-9469-5997-67b1afe958cd">
+      <Execution id="cbc34bf7-5a31-4253-9e1e-53c696c1cb61" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;/absolute.exe&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="fb931aa0-426f-d2fc-746f-170017876098">
+      <Execution id="d943416c-6555-4d3a-a69d-b5347fa6a43e" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;settings.json&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="5209888f-178c-f618-a37c-a1f6bc5cdcd9">
+      <Execution id="50e23b66-cb7b-44f5-a89a-40614ec10718" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsPathsOutsideManagedProgramFiles(path: &quot;C:/outside.exe&quot;)" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="9a54e6c0-a3e8-57db-1494-e006fcdf9025">
+      <Execution id="4b35550b-38ad-4071-a677-0e69df23645d" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="RejectsPathsOutsideManagedProgramFiles" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ReopenedPromptOffersInstallForCompletedDownload" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="f245d4f3-ec5b-aa68-c02c-a836d2b0b57f">
+      <Execution id="cbe9cba4-0a49-41da-af8b-1406d95b0bd2" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="ReopenedPromptOffersInstallForCompletedDownload" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.TamperedOrUnlistedZipFileIsRejected" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="e533996a-7371-a68e-fc1c-5690178ad831">
+      <Execution id="48847ce7-bfac-4f87-9882-7e85ac1e12ed" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="TamperedOrUnlistedZipFileIsRejected" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.WrongPackageHashLeavesInstalledApplicationUntouchedAndRemovesPartialDownload" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="4ce97f5b-0a6b-9be6-a81b-fda61781989f">
+      <Execution id="2f395da5-ae78-4763-8609-8056de325bd5" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="WrongPackageHashLeavesInstalledApplicationUntouchedAndRemovesPartialDownload" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CancellationRemovesPreparedFilesWithoutChangingCurrentVersion" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="d813e5bd-e3f6-f1da-d7d8-fc5ae5c00414">
+      <Execution id="cd2284cb-920e-4187-b909-4549515591a5" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="CancellationRemovesPreparedFilesWithoutChangingCurrentVersion" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.MissingReleaseConfigurationFailsBeforeCreatingTransaction" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="5ce6f25f-8450-7c68-de11-1c020b640e8f">
+      <Execution id="88bb0904-6432-45a1-83ab-ae30d76dc628" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="MissingReleaseConfigurationFailsBeforeCreatingTransaction" />
+    </UnitTest>
+    <UnitTest name="LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceRejectsTamperedPackageAndAllowsRetryUsingGithub" storage="e:\code\weather-app\lol-gameassistant.uitests\bin\debug\net10.0-windows10.0.19041.0\lol-gameassistant.uitests.dll" id="20c7cdf6-6ee0-f73b-f5e5-d4b3a896cadb">
+      <Execution id="3bb00c48-e301-4f28-85dd-17caf0487bb3" />
+      <TestMethod codeBase="E:\code\weather-app\LOL-GameAssistant.UiTests\bin\Debug\net10.0-windows10.0.19041.0\LOL-GameAssistant.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LOL_GameAssistant.UiTests.UpdatePackageServiceTests" name="ServerSourceRejectsTamperedPackageAndAllowsRetryUsingGithub" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="d14094f2-3982-a638-ca25-eb25d7065e9c" executionId="a9247435-d20f-4c89-b934-c16e895fd1bf" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1a5e658d-9f41-e9db-9978-45b81e4c26f7" executionId="85363c41-53b0-49a5-bca7-060f60747385" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0bb9e575-0a08-9e61-2966-db5a45cff454" executionId="af513db2-b20d-4bc5-968c-bea87cb8a457" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fb931aa0-426f-d2fc-746f-170017876098" executionId="d943416c-6555-4d3a-a69d-b5347fa6a43e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8731f6cb-1c79-4235-ced2-d5a6a7f41abc" executionId="52cd5160-6621-4468-8c90-73ff2608c693" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7214f956-570a-8e7a-5e8a-25d0e1d1c0b7" executionId="6ab302f6-5907-4488-96b3-fcdbd6b43669" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d813e5bd-e3f6-f1da-d7d8-fc5ae5c00414" executionId="cd2284cb-920e-4187-b909-4549515591a5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5209888f-178c-f618-a37c-a1f6bc5cdcd9" executionId="50e23b66-cb7b-44f5-a89a-40614ec10718" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7b1c65e8-ae36-6d57-cc91-78e8060efef3" executionId="fc927f0b-9ff0-4c8a-aca3-5ac7c842e4eb" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="645e81b7-f8df-7c1b-4b10-7e5ac0101a85" executionId="667b961d-dbba-49f9-ba74-09efd436d245" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c0ca4596-e2f5-7e21-05f4-69f7c32d60d5" executionId="9588dbb5-2898-4d1a-b36b-a915e86206d4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="85a468d7-651e-6a15-b60d-92e96cd79c2a" executionId="368d9a6e-4da8-467c-afc2-e216b3508537" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5ce6f25f-8450-7c68-de11-1c020b640e8f" executionId="88bb0904-6432-45a1-83ab-ae30d76dc628" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5d91a49c-4ca6-c14f-9407-4055d808371e" executionId="bded3174-7c30-4f4f-ab18-eb36b8afc083" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1cb0c03f-2f04-326c-bc01-5f84614c2a62" executionId="f83b2b88-2df0-4e81-820b-773e4ddea56b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e533996a-7371-a68e-fc1c-5690178ad831" executionId="48847ce7-bfac-4f87-9882-7e85ac1e12ed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8be7c2c9-e262-d47a-e02d-855ab8a7e4c6" executionId="e570c883-81af-4923-9eda-e323587f04eb" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f245d4f3-ec5b-aa68-c02c-a836d2b0b57f" executionId="cbe9cba4-0a49-41da-af8b-1406d95b0bd2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d550388e-7d71-525d-d3af-19cdc4714969" executionId="9c01a7f1-7f5f-4d93-abac-90f4549cf3a4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c6eb7bac-995f-173d-ffbf-b8a0c8864d21" executionId="46ad6acd-f10f-4c45-9be3-3242142314d4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4ce97f5b-0a6b-9be6-a81b-fda61781989f" executionId="2f395da5-ae78-4763-8609-8056de325bd5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3848da31-2d7f-c2e5-acd6-d581d6b9ce8f" executionId="a623f184-b343-4202-92e9-a553ca5d6510" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7c72385e-5127-e8a1-f80a-a647a845b278" executionId="387256d7-6c19-4cd9-8147-a12d7a7740c1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f2aff469-92c5-9469-5997-67b1afe958cd" executionId="cbc34bf7-5a31-4253-9e1e-53c696c1cb61" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9a54e6c0-a3e8-57db-1494-e006fcdf9025" executionId="4b35550b-38ad-4071-a677-0e69df23645d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d3ed5c31-317b-9cf0-8c62-4a82ff318775" executionId="b63802b6-d17c-4542-a423-fc25ef54e757" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8173f6ff-2e8e-f694-d2ff-e0f9ac1e00ab" executionId="5010e12f-0401-412b-8ba3-00e4e008c740" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="20c7cdf6-6ee0-f73b-f5e5-d4b3a896cadb" executionId="3bb00c48-e301-4f28-85dd-17caf0487bb3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8ae3f6d6-5239-df34-13ff-e7d9cef53223" executionId="27a5156d-5a99-42a9-96a0-ffe0a61333c5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="773232c6-bf0a-1175-f6c0-9700a6b04553" executionId="29f99c24-1284-4f24-90b8-f5ebb6f5adaa" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="列表中未列出的结果" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="所有已加载的结果" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="30" executed="30" passed="11" failed="19" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET 10.0.13)&#xD;
+[xUnit.net 00:00:00.08]   Discovering: LOL-GameAssistant.UiTests&#xD;
+[xUnit.net 00:00:00.14]   Discovered:  LOL-GameAssistant.UiTests&#xD;
+[xUnit.net 00:00:00.16]   Starting:    LOL-GameAssistant.UiTests&#xD;
+[xUnit.net 00:00:02.52]       System.InvalidOperationException : Sequence contains no matching element&#xD;
+[xUnit.net 00:00:02.52]       Stack Trace:&#xD;
+[xUnit.net 00:00:02.52]            at System.Linq.ThrowHelper.ThrowNoMatchException()&#xD;
+[xUnit.net 00:00:02.52]            at System.Linq.Enumerable.Single[TSource](IEnumerable`1 source, Func`2 predicate)&#xD;
+[xUnit.net 00:00:02.52]         E:\code\weather-app\LOL-GameAssistant.UiTests\SettingsDescriptionLayoutTests.cs(71,0): at LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.&lt;&gt;c.&lt;AiDescriptionsUseAvailableWidthAndRewrapAfterResizing&gt;b__1_0()&#xD;
+[xUnit.net 00:00:02.52]         E:\code\weather-app\LOL-GameAssistant.UiTests\MatchListScrollingTests.cs(110,0): at LOL_GameAssistant.UiTests.MatchListScrollingTests.&lt;&gt;c__DisplayClass6_0.&lt;OnUiThread&gt;b__0()&#xD;
+[xUnit.net 00:00:02.52]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:02.52]         E:\code\weather-app\LOL-GameAssistant.UiTests\MatchListScrollingTests.cs(114,0): at LOL_GameAssistant.UiTests.MatchListScrollingTests.OnUiThread(Action action)&#xD;
+[xUnit.net 00:00:02.52]         E:\code\weather-app\LOL-GameAssistant.UiTests\SettingsDescriptionLayoutTests.cs(54,0): at LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.AiDescriptionsUseAvailableWidthAndRewrapAfterResizing()&#xD;
+[xUnit.net 00:00:02.52]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:02.52]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:06.58]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.58]       Expected: True&#xD;
+[xUnit.net 00:00:06.58]       Actual:   False&#xD;
+[xUnit.net 00:00:06.58]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.58]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.58]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(227,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(String name)&#xD;
+[xUnit.net 00:00:06.58]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:06.58]            at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:06.59]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.59]       Expected: True&#xD;
+[xUnit.net 00:00:06.59]       Actual:   False&#xD;
+[xUnit.net 00:00:06.59]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.59]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.59]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(227,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(String name)&#xD;
+[xUnit.net 00:00:06.59]            at InvokeStub_UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(Object, Span`1)&#xD;
+[xUnit.net 00:00:06.59]            at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+[xUnit.net 00:00:06.59]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.59]       Expected: True&#xD;
+[xUnit.net 00:00:06.59]       Actual:   False&#xD;
+[xUnit.net 00:00:06.59]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.59]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.59]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(227,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(String name)&#xD;
+[xUnit.net 00:00:06.59]            at InvokeStub_UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(Object, Span`1)&#xD;
+[xUnit.net 00:00:06.59]            at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+[xUnit.net 00:00:06.60]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.60]       Expected: True&#xD;
+[xUnit.net 00:00:06.60]       Actual:   False&#xD;
+[xUnit.net 00:00:06.60]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.60]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.60]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(165,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceRejectsTamperedPackageAndAllowsRetryUsingGithub()&#xD;
+[xUnit.net 00:00:06.60]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.60]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.60]       Expected: True&#xD;
+[xUnit.net 00:00:06.60]       Actual:   False&#xD;
+[xUnit.net 00:00:06.60]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.60]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.60]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(39,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(String damagedFile)&#xD;
+[xUnit.net 00:00:06.60]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.61]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.61]       Expected: True&#xD;
+[xUnit.net 00:00:06.61]       Actual:   False&#xD;
+[xUnit.net 00:00:06.61]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.61]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.61]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(39,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(String damagedFile)&#xD;
+[xUnit.net 00:00:06.61]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.61]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.61]       Expected: True&#xD;
+[xUnit.net 00:00:06.61]       Actual:   False&#xD;
+[xUnit.net 00:00:06.61]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.61]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.61]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(39,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(String damagedFile)&#xD;
+[xUnit.net 00:00:06.61]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.62]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.62]       Expected: True&#xD;
+[xUnit.net 00:00:06.62]       Actual:   False&#xD;
+[xUnit.net 00:00:06.62]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.62]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.62]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(51,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CacheDoesNotReuseAnotherVersionOrStartedInstallationAndHonorsCancellation()&#xD;
+[xUnit.net 00:00:06.62]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.62]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.62]       Expected: True&#xD;
+[xUnit.net 00:00:06.62]       Actual:   False&#xD;
+[xUnit.net 00:00:06.62]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.62]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.62]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(68,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ReopenedPromptOffersInstallForCompletedDownload()&#xD;
+[xUnit.net 00:00:06.62]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.63]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.63]       Expected: True&#xD;
+[xUnit.net 00:00:06.63]       Actual:   False&#xD;
+[xUnit.net 00:00:06.63]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.63]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.63]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(137,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.X64GithubCanStillUseLegacyManifestAttachment()&#xD;
+[xUnit.net 00:00:06.63]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.63]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.63]       Expected: True&#xD;
+[xUnit.net 00:00:06.63]       Actual:   False&#xD;
+[xUnit.net 00:00:06.63]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.63]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.63]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(180,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.WrongPackageHashLeavesInstalledApplicationUntouchedAndRemovesPartialDownload()&#xD;
+[xUnit.net 00:00:06.63]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.64]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.64]       Expected: True&#xD;
+[xUnit.net 00:00:06.64]       Actual:   False&#xD;
+[xUnit.net 00:00:06.64]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.64]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.64]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(20,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CompletedDownloadIsRestoredByNewServiceWithoutAnyNetworkRequests()&#xD;
+[xUnit.net 00:00:06.64]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.64]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.64]       Expected: True&#xD;
+[xUnit.net 00:00:06.64]       Actual:   False&#xD;
+[xUnit.net 00:00:06.64]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.64]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.64]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(149,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceDownloadsVersionedManifestAndPackageAndVerifiesThem()&#xD;
+[xUnit.net 00:00:06.64]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.65]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.65]       Expected: True&#xD;
+[xUnit.net 00:00:06.65]       Actual:   False&#xD;
+[xUnit.net 00:00:06.65]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.65]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.65]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(190,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CancellationRemovesPreparedFilesWithoutChangingCurrentVersion()&#xD;
+[xUnit.net 00:00:06.65]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.65]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.65]       Expected: True&#xD;
+[xUnit.net 00:00:06.65]       Actual:   False&#xD;
+[xUnit.net 00:00:06.65]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.65]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.65]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(210,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsWrongVersionPlatformAndExecutable()&#xD;
+[xUnit.net 00:00:06.65]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:06.65]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:06.66]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.66]       Expected: True&#xD;
+[xUnit.net 00:00:06.66]       Actual:   False&#xD;
+[xUnit.net 00:00:06.66]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.66]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.66]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(238,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.TamperedOrUnlistedZipFileIsRejected()&#xD;
+[xUnit.net 00:00:06.66]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:06.66]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:06.66]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.66]       Expected: True&#xD;
+[xUnit.net 00:00:06.66]       Actual:   False&#xD;
+[xUnit.net 00:00:06.66]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.66]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.66]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(110,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DownloadsVerifiesAndPreparesTaskWithoutChangingInstalledFiles()&#xD;
+[xUnit.net 00:00:06.66]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.67]       Assert.True() Failure&#xD;
+[xUnit.net 00:00:06.67]       Expected: True&#xD;
+[xUnit.net 00:00:06.67]       Actual:   False&#xD;
+[xUnit.net 00:00:06.67]       Stack Trace:&#xD;
+[xUnit.net 00:00:06.67]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(276,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.PackageFixture..ctor()&#xD;
+[xUnit.net 00:00:06.67]         E:\code\weather-app\LOL-GameAssistant.UiTests\UpdatePackageServiceTests.cs(201,0): at LOL_GameAssistant.UiTests.UpdatePackageServiceTests.MissingReleaseConfigurationFailsBeforeCreatingTransaction()&#xD;
+[xUnit.net 00:00:06.67]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:06.67]   Finished:    LOL-GameAssistant.UiTests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:06.2169205+08:00">
+        <Text>[xUnit.net 00:00:02.52]     LOL_GameAssistant.UiTests.SettingsDescriptionLayoutTests.AiDescriptionsUseAvailableWidthAndRewrapAfterResizing [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.2821249+08:00">
+        <Text>[xUnit.net 00:00:06.58]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: "../escape.exe") [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.2863692+08:00">
+        <Text>[xUnit.net 00:00:06.59]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: ".update/job.ini") [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.2907843+08:00">
+        <Text>[xUnit.net 00:00:06.59]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.UnsafeZipEntryIsRejectedBeforeWritingOutsideStage(name: "settings.json") [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.2959671+08:00">
+        <Text>[xUnit.net 00:00:06.60]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceRejectsTamperedPackageAndAllowsRetryUsingGithub [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3012066+08:00">
+        <Text>[xUnit.net 00:00:06.60]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: "package.zip") [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3060334+08:00">
+        <Text>[xUnit.net 00:00:06.61]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: "manifest.json") [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3106731+08:00">
+        <Text>[xUnit.net 00:00:06.61]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DamagedCacheIsRejectedAndCanBeDownloadedAgain(damagedFile: "stage/sc助手.exe") [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3177683+08:00">
+        <Text>[xUnit.net 00:00:06.62]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CacheDoesNotReuseAnotherVersionOrStartedInstallationAndHonorsCancellation [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3226729+08:00">
+        <Text>[xUnit.net 00:00:06.62]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ReopenedPromptOffersInstallForCompletedDownload [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3276995+08:00">
+        <Text>[xUnit.net 00:00:06.63]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.X64GithubCanStillUseLegacyManifestAttachment [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3317730+08:00">
+        <Text>[xUnit.net 00:00:06.63]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.WrongPackageHashLeavesInstalledApplicationUntouchedAndRemovesPartialDownload [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3365418+08:00">
+        <Text>[xUnit.net 00:00:06.64]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CompletedDownloadIsRestoredByNewServiceWithoutAnyNetworkRequests [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3406341+08:00">
+        <Text>[xUnit.net 00:00:06.64]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.ServerSourceDownloadsVersionedManifestAndPackageAndVerifiesThem [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3455835+08:00">
+        <Text>[xUnit.net 00:00:06.65]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.CancellationRemovesPreparedFilesWithoutChangingCurrentVersion [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3504379+08:00">
+        <Text>[xUnit.net 00:00:06.65]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.RejectsWrongVersionPlatformAndExecutable [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3546528+08:00">
+        <Text>[xUnit.net 00:00:06.66]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.TamperedOrUnlistedZipFileIsRejected [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3596782+08:00">
+        <Text>[xUnit.net 00:00:06.66]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.DownloadsVerifiesAndPreparesTaskWithoutChangingInstalledFiles [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="PITER" outcome="Error" timestamp="2026-10-24T15:21:10.3651021+08:00">
+        <Text>[xUnit.net 00:00:06.67]     LOL_GameAssistant.UiTests.UpdatePackageServiceTests.MissingReleaseConfigurationFailsBeforeCreatingTransaction [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

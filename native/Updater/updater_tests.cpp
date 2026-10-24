@@ -31,7 +31,7 @@ struct Fixture {
         job.stage = job.root / L"stage";
         job.backup = job.root / L"backup";
         job.path = job.root / L"job.ini";
-        job.entry = L"LOL-GameGUI.exe";
+        job.entry = L"sc助手.exe";
         fs::create_directories(job.stage);
         fs::copy_file(Self(), job.install / job.entry);
         fs::copy_file(Self(), job.stage / job.entry);
@@ -41,8 +41,8 @@ struct Fixture {
         DurableWrite(job.stage / L"new.dll", "new library");
         DurableWrite(job.stage / L"Updater.exe", "new updater placeholder");
         auto line = [](const fs::path& base, const wchar_t* relative) { return Utf8(Hash(base / relative)) + "\t" + Utf8(relative) + "\n"; };
-        DurableWrite(job.install / L"update-files.txt", line(job.install, L"LOL-GameGUI.exe") + line(job.install, L"obsolete.dll"));
-        DurableWrite(job.stage / L"update-files.txt", line(job.stage, L"LOL-GameGUI.exe") + line(job.stage, L"new.dll") + line(job.stage, L"Updater.exe"));
+        DurableWrite(job.install / L"update-files.txt", line(job.install, L"sc助手.exe") + line(job.install, L"obsolete.dll"));
+        DurableWrite(job.stage / L"update-files.txt", line(job.stage, L"sc助手.exe") + line(job.stage, L"new.dll") + line(job.stage, L"Updater.exe"));
         job.manifestHash = Hash(job.stage / L"update-files.txt");
         std::wstring command = L"\"" + Self() + L"\" --parent";
         STARTUPINFOW startup{sizeof(startup)};
@@ -87,7 +87,7 @@ int wmain(int count, wchar_t** args) {
         if (!confirm.value) return 43;
         SetEvent(confirm.value); Sleep(2500); return 0;
     }
-    if (fs::path(Self()).filename() == L"LOL-GameGUI.exe") return 0; // 回滚后旧版占位程序。
+    if (fs::path(Self()).filename() == L"sc助手.exe") return 0; // 回滚后旧版占位程序。
     try {
         for (const wchar_t* path : { L"../escape", L"C:/escape", L"a/../b", L"a:ads", L"a\\b", L"a/CON.txt", L".update/job.ini", L"settings.json", L"logs/log.txt" })
             Throws([&] { Relative(path); });

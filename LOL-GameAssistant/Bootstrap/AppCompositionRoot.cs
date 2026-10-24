@@ -51,8 +51,10 @@ public static class AppCompositionRoot
     public static LOL_GameAssistant.Application.Skins.ISkinCoreService SkinCoreService { get; } =
         new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreService(
             new LOL_GameAssistant.Infrastructure.Skins.SelectableSkinCoreTransport(
-                new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore")),
-                new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCoreHybrid"), kernelRelay: true),
+                new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore"),
+                    diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure),
+                new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCoreHybrid"), kernelRelay: true,
+                    diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure),
                 new LegacyApplicationSettingsStore().Load().SkinCoreMode),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();

@@ -124,7 +124,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private QuickShoutForm? _quickShoutForm;
         private readonly AntdUI.Checkbox _recommendationEnabled = new() { Text = "启用 AI 时间线建议", AutoSize = true };
         private readonly AntdUI.Checkbox _opggBuildAssistantEnabled = new() { Text = "启用 OP.GG 选人出装与符文推荐", AutoSize = true };
-        private readonly AntdUI.Checkbox _autoApplyRuneBuild = new() { Text = "选人自动应用个人符文；无匹配时使用 OP.GG", AutoSize = true };
+        private readonly AntdUI.Checkbox _autoApplyRuneBuild = new() { Text = "预选或选择英雄时自动替换符文和装备", AutoSize = true };
         private readonly AntdUI.Checkbox _mayhemOverlayEnabled = new() { Text = "海克斯大乱斗显示局内增幅侧边栏", AutoSize = true };
         private readonly AntdUI.Checkbox _champSelectCompanionEnabled = new() { Text = "选人时在客户端侧边显示队友伴随窗", AutoSize = true };
         private readonly AntdUI.Checkbox _autoSwapAramBench = new() { Text = "按优先级自动交换备战席英雄", AutoSize = true };
@@ -665,7 +665,7 @@ namespace LOL_GameAssistant.BaseViewForm
             overlayOffsetPanel.Controls.Add(_overlayDuration);
             var overlayNote = CreateAiNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
             var privacyNote = CreateAiNote("数据说明：启用并配置服务后，英雄、阶段、阵容、时间、金币、本人生命/法力/技能等级、匿名记分板装备与战绩、近期公开事件、确认的对线与增幅候选会用于 AI 分析。最近三条建议及其反馈随请求发送，用于避免重复；本局完整记录仅保留在内存。不发送玩家名称、账号标识、认证信息、聊天或截图。未配置模型或密钥时只提供本机状态提醒。");
-            var opggNote = CreateAiNote("开启后，助手会在选人阶段后台加载推荐，不自动弹出方案窗。点击“一键配置”后查看并应用方案；符文页已满时可选择是否覆盖当前自定义页。另行开启符文自动配置时，按该设置自动应用。");
+            var opggNote = CreateAiNote("自动配置默认开启：预选或选择英雄后应用对应符文和装备，切换英雄后自动更新。优先复用助手符文页，页面已满时替换当前可编辑页。点击“一键选择符文装备”可手动调整方案；关闭自动配置后仅后台加载推荐。");
             var kdaAnnouncementNote = CreateAiNote("选人发送只汇总我方，通过客户端群聊发送一次；对局发送默认蓝方、红方各一条。勾选“单人一行”后，每名玩家各发送一条，标准 5v5 共 10 条，消息会更紧凑。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者使用已获取最多 500 条摘要中最近 50 场同模式有效对局；KDA 和胜率分别排除缺失字段。默认满 10 场按累计 KDA 分档，样本下限可在下方调整；不足时标“数据不足”。同模式无有效KDA样本时自动使用全模式参考，并排除自定义对局。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
 
             var ratingPolicyPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
@@ -673,8 +673,8 @@ namespace LOL_GameAssistant.BaseViewForm
             var selection = CreateAiSettingsCard(content, "aiSelectionCard", "选人辅助与符文");
             AddSegmentRow(selection, 1, "OP.GG 推荐：", _opggBuildAssistantEnabled,
                 "选人阶段检测到已选英雄后后台加载 OP.GG 推荐；点击“一键配置”查看方案，不自动弹窗。");
-            AddSegmentRow(selection, 2, "符文自动配置：", _autoApplyRuneBuild,
-                "按英雄、模式和分路优先选择已启用的个人方案；没有匹配方案时自动应用 OP.GG 推荐。仅选人阶段执行一次，手动选择方案不受影响。");
+            AddSegmentRow(selection, 2, "符文装备自动配置：", _autoApplyRuneBuild,
+                "预选、选择或更换英雄时，按英雄、模式和分路自动应用个人方案或 OP.GG 推荐；个人方案未保存装备时补充推荐出装。同一英雄不重复写入，手动调整方案后保留选择。");
             AddSegmentRow(selection, 3, "选人伴随窗：", _champSelectCompanionEnabled,
                 "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
             AddSegmentRow(selection, 4, "OP.GG 说明：", opggNote);

@@ -10,6 +10,22 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class PoroShopTests
 {
     [Fact]
+    public async Task BackgroundAllQuantitiesCanContinueAcrossTheServicesBatchLimit()
+    {
+        using var fixture = new Fixture();
+        fixture.Handler.DailyLeft = 150; fixture.Handler.TotalLeft = 200; fixture.Handler.Silver = 2000;
+        var preview = await fixture.Service.GetPoroShopAsync();
+        var coordinator = new PoroShopExchangeCoordinator(fixture.Service);
+        Assert.True(coordinator.TryStart(preview, [new("1", 150)]));
+        await coordinator.Completion;
+        Assert.Equal(150, fixture.Handler.Exchanges);
+        Assert.Equal(500, fixture.Handler.Silver);
+        var result = Assert.Single(coordinator.Current!.Result!.Items);
+        Assert.Equal(150, result.Succeeded);
+        Assert.Equal(PoroShopExchangeState.Succeeded, result.State);
+    }
+
+    [Fact]
     public async Task CatalogUsesTightestLimitAndDoesNotIncludeDraws()
     {
         using var fixture = new Fixture(); fixture.Handler.DailyLeft = 0;
@@ -138,7 +154,7 @@ public sealed class PoroShopTests
     private sealed class ShopHttp : HttpMessageHandler
     {
         public long Silver = 100, Gold = 50, Price = 10;
-        public int DailyLeft = 3, GoldLeft = 2, Exchanges, RejectAt = -1;
+        public int DailyLeft = 3, GoldLeft = 2, TotalLeft = 20, Exchanges, RejectAt = -1;
         public string Outcome = "";
         public List<string> Purchased = [];
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -173,12 +189,12 @@ public sealed class PoroShopTests
             }
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body.ToString()) });
         }
-        private static JObject Item(string id, string type, long price, int left) => new()
+        private JObject Item(string id, string type, long price, int left) => new()
         {
             ["iGoodsId"] = id, ["sGoodsName"] = "商品" + id, ["sGoodsDesc"] = "兑换物品", ["iType"] = type,
             ["iPlugId"] = "9805", ["sAppIds"] = "1003", ["iPrice"] = price,
             ["dtBeginTime"] = "2020-01-01 00:00:00", ["dtEndTime"] = "2099-01-01 00:00:00",
-            ["limit"] = new JArray(new JObject { ["left"] = left, ["type"] = "2" }, new JObject { ["left"] = 20, ["type"] = "4" })
+            ["limit"] = new JArray(new JObject { ["left"] = left, ["type"] = "2" }, new JObject { ["left"] = TotalLeft, ["type"] = "4" })
         };
     }
 }

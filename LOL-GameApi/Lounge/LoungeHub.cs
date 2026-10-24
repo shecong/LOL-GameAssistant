@@ -12,7 +12,7 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
     public override async Task OnConnectedAsync()
     {
         room.Check(Session, "connect", 15, TimeSpan.FromMinutes(1));
-        room.Connect(Context.ConnectionId, Session, Context.GetHttpContext()?.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+        room.Connect(Context.ConnectionId, Session, Context.GetHttpContext()?.Connection.RemoteIpAddress?.ToString() ?? "unknown", Context.Abort);
         logger.LogInformation("Lounge connected session {Session}", Session);
         await Clients.All.SendAsync("Members", room.Members());
         await base.OnConnectedAsync();
@@ -43,7 +43,7 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
     public async Task<LoungeSnapshot> Sync(long after)
     {
         room.Check(Session, "sync", 30, TimeSpan.FromMinutes(1));
-        return new(await store.ReadAsync(Math.Max(0, after), Context.ConnectionAborted), room.Members(),
+        return new(await store.ReadAsync(Math.Max(LoungeRules.BeforeFirstMessage, after), Context.ConnectionAborted), room.Members(),
             await store.ReadDeletedIdsAsync(Context.ConnectionAborted), LoungeRules.ProtocolVersion,
             await store.ReadRecruitmentsAsync(Context.ConnectionAborted));
     }

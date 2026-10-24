@@ -11,15 +11,17 @@ internal sealed class ServerUpdateReleaseService : IUpdateReleaseService
     private readonly HttpClient _client;
     private readonly IUpdateReleaseService _github;
     private readonly string _configPath;
+    private readonly TimeSpan _serverTimeout;
 
     public ServerUpdateReleaseService() : this(SharedClient, new GitHubUpdateReleaseService(),
         Path.Combine(AppContext.BaseDirectory, "update-source.json")) { }
 
-    internal ServerUpdateReleaseService(HttpClient client, IUpdateReleaseService github, string configPath)
+    internal ServerUpdateReleaseService(HttpClient client, IUpdateReleaseService github, string configPath, TimeSpan? serverTimeout = null)
     {
         _client = client;
         _github = github;
         _configPath = configPath;
+        _serverTimeout = serverTimeout ?? TimeSpan.FromSeconds(10);
     }
 
     public async Task<UpdateRelease?> GetLatestAsync(CancellationToken cancellationToken = default)
@@ -43,10 +45,12 @@ internal sealed class ServerUpdateReleaseService : IUpdateReleaseService
             }
             if (server != null)
             {
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(_serverTimeout);
                 using var response = await _client.GetAsync(new Uri(server, "update.json"),
-                    HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                byte[] bytes = await UpdatePackageService.ReadLimitedAsync(response.Content, 64 * 1024, cancellationToken).ConfigureAwait(false);
+                byte[] bytes = await UpdatePackageService.ReadLimitedAsync(response.Content, 64 * 1024, deadline.Token).ConfigureAwait(false);
                 var config = JsonSerializer.Deserialize<UpdateIndex>(bytes, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                     ?? throw new InvalidDataException("服务器更新配置为空。");
                 if (config.SchemaVersion != 1 || !Version.TryParse(config.Version, out var version) || version.Build < 0 || version.Revision > 0)

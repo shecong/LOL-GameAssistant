@@ -52,6 +52,7 @@ int main(int argc, char** argv) {
     HWND window=FindWindowW(nullptr,L"League of Legends (TM) Client");if(!window) return error("game_window_not_found",ERROR_NOT_FOUND);
     DWORD pid=0;DWORD thread=GetWindowThreadProcessId(window,&pid);uint64_t nonce=0;
     if(BCryptGenRandom(nullptr,(PUCHAR)&nonce,sizeof(nonce),BCRYPT_USE_SYSTEM_PREFERRED_RNG)<0) return error("nonce_failed",ERROR_INVALID_DATA);
+    diagnosticPid=pid;diagnosticThread=thread;diagnosticNonce=nonce;
     SKIN_RELAY_COMMAND request{};
     request.Size = sizeof(request); request.Version = SKIN_RELAY_VERSION; request.Command = command; request.ProcessId = pid;
     request.Nonce = nonce; request.Deadline = GetTickCount64() + 5000; request.Index = index; request.Gear = gear;

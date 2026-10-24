@@ -58,6 +58,11 @@ public sealed record SkinCoreReply
     public bool? ObjectRestoreVerified { get; init; }
     public string Error { get; init; } = "";
     public string Stage { get; init; } = "";
+    public int? Win32 { get; init; }
+    public int? Phase { get; init; }
+    public uint ThreadId { get; init; }
+    public string HostArchitecture { get; init; } = "";
+    public long? ElapsedMs { get; init; }
     public string Session { get; init; } = "";
     public string RequestId { get; init; } = "";
     public string ReferenceSha256 { get; init; } = "";
@@ -69,8 +74,30 @@ public sealed record SkinCoreReply
     public IReadOnlyList<SkinEntry> Entries { get; init; } = [];
 }
 
-public sealed class SkinCoreException(string code, bool outcomeUnknown = false) : Exception(code)
+public sealed record SkinCoreFailureDetails
+{
+    public string Stage { get; init; } = "";
+    public int? Win32 { get; init; }
+    public string RequestId { get; init; } = "";
+    public int? Phase { get; init; }
+    public int Pid { get; init; }
+    public uint ThreadId { get; init; }
+    public string HostArchitecture { get; init; } = "";
+    public long? NativeElapsedMs { get; init; }
+    public long ElapsedMs { get; init; }
+    public string Command { get; init; } = "";
+    public string Backend { get; init; } = "";
+    public string HostPath { get; init; } = "";
+    public int? ExitCode { get; init; }
+    public string ProcessArchitecture { get; init; } = "";
+    public string OsArchitecture { get; init; } = "";
+    public string OsDescription { get; init; } = "";
+}
+
+public sealed class SkinCoreException(string code, bool outcomeUnknown = false,
+    SkinCoreFailureDetails? details = null) : Exception(code)
 {
     public string Code { get; } = code;
     public bool OutcomeUnknown { get; } = outcomeUnknown;
+    public SkinCoreFailureDetails? Details { get; internal set; } = details;
 }

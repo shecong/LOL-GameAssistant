@@ -337,10 +337,27 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             "independent_skin_layer_not_verified" => "当前皮肤层或模型不兼容，已停止换肤。请恢复正常形态后重新读取。",
             "request_outcome_unknown" => "请求结果未确认，动作可能已执行。请读取状态，勿自动重试。",
             "standard_windows_hook_rejected" => "Windows 拒绝核心连接，未继续加载。",
+            "message_post_failed" when core.Details?.Win32 == 5 => "核心消息被拒绝访问。请检查助手与游戏的权限级别，以及网吧管控策略。",
+            "message_post_failed" => "向游戏线程发送消息失败，请查看诊断日志中的 Win32 错误码。",
+            "core_response_timeout" => "游戏端未在期限内返回响应，请待对局加载稳定后读取；若持续出现，请检查诊断日志。",
+            "host_response_timeout" => "核心宿主超过 9 秒未完成，请检查机器负载与核心运行情况。",
+            "response_wait_failed" => "等待核心响应失败，请查看诊断日志。",
+            "request_expired" => "核心请求已过期，请待游戏加载稳定后重新读取。",
+            "host_start_failed" when core.Details?.Win32 is 193 or 216 => "核心宿主无法启动，文件格式或系统架构不兼容，请检查完整运行包与 Windows 位数。",
+            "host_start_failed" => "核心宿主启动失败，请检查运行包和诊断日志。",
+            "load_own_bridge_failed" => "核心 DLL 加载失败，请检查运行包完整性、文件位数与访问权限。",
             "stale_session" => "对局已变化，请重新读取当前英雄。",
             "hero_baseline_unavailable" => "没有可恢复的本局原始皮肤记录；功能已停用，请退出对局释放核心。",
             _ => $"核心连接失败：{core.Code}"
         } : $"操作失败：{error.Message}";
+        if (error is SkinCoreException { Details: { } details } diagnosed)
+        {
+            message += $"\n诊断：{diagnosed.Code}";
+            if (!string.IsNullOrEmpty(details.Stage)) message += $" · {details.Stage}";
+            if (details.Win32 is int win32) message += $" · Win32={win32}";
+            message += $" · {details.ElapsedMs}ms";
+            message += "\n详情已记录，请打开软件「日志 → 运行日志」，点击「复制日志」反馈。";
+        }
         _status.Text = UiLanguage.T(message);
     }
     public void ApplyTheme(ThemePalette palette)

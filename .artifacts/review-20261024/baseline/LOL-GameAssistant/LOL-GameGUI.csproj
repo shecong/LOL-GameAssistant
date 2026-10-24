@@ -1,0 +1,121 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../build/OcrDependencies.props" />
+  <Import Project="../build/Version.props" />
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>LOL_GameAssistant</RootNamespace>
+    <AssemblyName>sc助手</AssemblyName>
+    <AssemblyTitle>sc助手</AssemblyTitle>
+    <Product>sc助手</Product>
+    <Description>sc助手</Description>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>AnyCPU;x64;x86;ARM64</Platforms>
+    <UpdaterRuntime Condition="'$(RuntimeIdentifier)' == ''">win-x64</UpdaterRuntime>
+    <UpdaterRuntime Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</UpdaterRuntime>
+    <ApplicationIcon>Resources\Brand\sc-icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Tools\SkinCoreHybrid\**\*" Condition="Exists('Tools\SkinCoreHybrid\league-skin-hybrid-host.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="Tools\GameOverlay\sc-game-overlay.dll;Tools\GameOverlay\sc-game-overlay-host.exe;Tools\GameOverlay\ImGui-LICENSE.txt;Tools\GameOverlay\MinHook-LICENSE.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="update-source.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="Tools\Updater\$(UpdaterRuntime)\Updater.exe" Condition="Exists('Tools\Updater\$(UpdaterRuntime)\Updater.exe')">
+      <Link>Updater.exe</Link>
+      <TargetPath>Updater.exe</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="Tools\SkinCore\league-skin-core-host.exe;Tools\SkinCore\league-skin-core.dll;Tools\SkinCore\SHA256SUMS.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="BuildNativeGameOverlay" BeforeTargets="PrepareForBuild" Condition="'$(BuildGameOverlay)' == 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\native\GameOverlay\build.ps1&quot;" />
+  </Target>
+  <Target Name="RequireNativeGameOverlayForPublish" BeforeTargets="PrepareForPublish">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\Tools\GameOverlay\sc-game-overlay.dll') Or !Exists('$(MSBuildProjectDirectory)\Tools\GameOverlay\sc-game-overlay-host.exe')" Text="Game overlay binaries are missing. Run native/GameOverlay/build.ps1 or publish with -p:BuildGameOverlay=true." />
+  </Target>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LOL-GameAssistant.UiTests" />
+    <Compile Include="../Shared/LoungeProtocol.cs" Link="Lounge/LoungeProtocol.cs" />
+    <Compile Include="../Shared/LoungeContent.cs" Link="Lounge/LoungeContent.cs" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
+    <PackageReference Include="AntdUI" Version="2.4.12" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="System.Management" Version="10.0.12" />
+    <PackageReference Include="Sdcb.SimdPaddleOCR" Version="$(SimdPaddleOcrVersion)" />
+    <PackageReference Include="Sdcb.SimdPaddleOCR.Models.ChineseV6Small" Version="$(SimdPaddleOcrModelsVersion)" />
+    <PackageReference Include="WindowsInput" Version="6.4.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\augment-names.json" LogicalName="LOL_GameAssistant.Resources.AugmentNames.json" />
+    <EmbeddedResource Include="Resources\augment-descriptions.json" LogicalName="LOL_GameAssistant.Resources.AugmentDescriptions.json" />
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Data\lane-knowledge.zh-CN.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\locale-en.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <EmbeddedResource Include="Resources\Brand\sc-icon.ico" LogicalName="LOL_GameAssistant.AppIcon.ico" />
+  </ItemGroup>
+
+</Project>

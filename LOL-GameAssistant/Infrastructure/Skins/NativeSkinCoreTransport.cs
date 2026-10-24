@@ -1,17 +1,56 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.Domain.Skins;
 
 namespace LOL_GameAssistant.Infrastructure.Skins;
 
-public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay = false) : ISkinCoreTransport
+public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay = false,
+    Action<SkinCoreException>? diagnostic = null) : ISkinCoreTransport
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
     internal static SkinCoreReply ParseReply(string json, bool outcomeUnknown = false) => JsonSerializer.Deserialize<SkinCoreReply>(json, JsonOptions)
-        ?? throw new SkinCoreException("invalid_bridge_reply", outcomeUnknown);
+        ?? throw new SkinCoreException("invalid_bridge_reply", outcomeUnknown,
+            new SkinCoreFailureDetails { Stage = "reply_parse" });
+    internal static SkinCoreException ReplyFailure(SkinCoreReply reply, int exitCode) => new(
+        string.IsNullOrEmpty(reply.Error) ? "core_failed" : reply.Error,
+        reply.Error == "request_outcome_unknown" || reply.Invoked,
+        new SkinCoreFailureDetails { Stage = reply.Stage, Win32 = reply.Win32, RequestId = reply.RequestId,
+            Phase = reply.Phase, Pid = reply.Pid, ThreadId = reply.ThreadId, HostArchitecture = reply.HostArchitecture,
+            NativeElapsedMs = reply.ElapsedMs, ExitCode = exitCode });
     public async Task<SkinCoreReply> InvokeAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    {
+        var clock = Stopwatch.StartNew();
+        try { return await InvokeCoreAsync(arguments, cancellationToken).ConfigureAwait(false); }
+        catch (System.ComponentModel.Win32Exception error)
+        {
+            var failure = new SkinCoreException("host_start_failed", details: new SkinCoreFailureDetails
+                { Stage = "host_start", Win32 = error.NativeErrorCode });
+            RecordFailure(failure, arguments, clock.ElapsedMilliseconds);
+            throw failure;
+        }
+        catch (SkinCoreException error)
+        {
+            RecordFailure(error, arguments, clock.ElapsedMilliseconds);
+            throw;
+        }
+    }
+
+    private void RecordFailure(SkinCoreException error, IReadOnlyList<string> arguments, long elapsedMs)
+    {
+        error.Details = (error.Details ?? new SkinCoreFailureDetails()) with {
+            Command = arguments.Count > 0 ? arguments[0] : "", Backend = kernelRelay ? "kernel_relay" : "classic",
+            HostPath = Path.Combine(directory, kernelRelay ? "league-skin-hybrid-host.exe" : "league-skin-core-host.exe"),
+            ElapsedMs = elapsedMs, ProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            OsArchitecture = RuntimeInformation.OSArchitecture.ToString(), OsDescription = RuntimeInformation.OSDescription };
+        // Reporting must never replace the original transport failure.
+        try { diagnostic?.Invoke(error); }
+        catch { }
+    }
+
+    private async Task<SkinCoreReply> InvokeCoreAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         string host = Path.Combine(directory, kernelRelay ? "league-skin-hybrid-host.exe" : "league-skin-core-host.exe");
         if (!File.Exists(host) || !File.Exists(Path.Combine(directory, "league-skin-core.dll")))
@@ -34,8 +73,7 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
             Task<string> errors = ReadBoundedAsync(process.StandardError, timeout.Token);
             await Task.WhenAll(output, errors, process.WaitForExitAsync(timeout.Token)).ConfigureAwait(false);
             var reply = ParseReply(await output.ConfigureAwait(false), write);
-            if (!reply.Ok) throw new SkinCoreException(string.IsNullOrEmpty(reply.Error) ? "core_failed" : reply.Error,
-                reply.Error == "request_outcome_unknown" || reply.Invoked);
+            if (!reply.Ok) throw ReplyFailure(reply, process.ExitCode);
             if (process.ExitCode != 0 || !reply.Independent || reply.OriginalRequired)
                 throw new SkinCoreException("invalid_independent_reply", write);
             if (kernelRelay && arguments[0] != "module-state" && reply.Backend != "kernel_relay")
@@ -45,11 +83,13 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
         catch (OperationCanceledException)
         {
             TryKill(process);
-            if (write) throw new SkinCoreException("request_outcome_unknown", true);
+            if (write) throw new SkinCoreException("request_outcome_unknown", true,
+                new SkinCoreFailureDetails { Stage = "host_wait" });
             if (cancellationToken.IsCancellationRequested) throw;
-            throw new SkinCoreException("request_expired");
+            throw new SkinCoreException("host_response_timeout", details: new SkinCoreFailureDetails { Stage = "host_wait" });
         }
-        catch (JsonException) { throw new SkinCoreException("invalid_bridge_reply", write); }
+        catch (JsonException) { throw new SkinCoreException("invalid_bridge_reply", write,
+            new SkinCoreFailureDetails { Stage = "reply_parse", ExitCode = process.HasExited ? process.ExitCode : null }); }
         finally { TryKill(process); }
     }
 

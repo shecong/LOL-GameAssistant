@@ -27,12 +27,12 @@ public sealed class UpdatePackageServiceTests
         var reused = await fixture.CreateService().PrepareAsync(fixture.Release, null, default, useServer: true);
         Assert.Equal(first, reused);
         Assert.Equal(2, fixture.Requests.Count);
-        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "LOL-GameGUI.exe")));
+        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "sc助手.exe")));
     }
 
     [Theory]
     [InlineData("package.zip")]
-    [InlineData("stage/LOL-GameGUI.exe")]
+    [InlineData("stage/sc助手.exe")]
     [InlineData("manifest.json")]
     public async Task DamagedCacheIsRejectedAndCanBeDownloadedAgain(string damagedFile)
     {
@@ -111,11 +111,11 @@ public sealed class UpdatePackageServiceTests
         var progress = new List<UpdateDownloadProgress>();
         var result = await fixture.Service.PrepareAsync(fixture.Release, new InlineProgress(progress.Add), default);
         Assert.True(File.Exists(result.JobPath));
-        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "LOL-GameGUI.exe")));
+        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "sc助手.exe")));
         Assert.Equal("user settings", File.ReadAllText(Path.Combine(fixture.Install, "settings.json")));
         Assert.Equal(fixture.Config.Version, result.Version);
         Assert.Equal("native updater placeholder", File.ReadAllText(Path.Combine(result.Directory, "runner", "Updater.exe")));
-        Assert.True(File.Exists(Path.Combine(result.Directory, "stage", "LOL-GameGUI.exe")));
+        Assert.True(File.Exists(Path.Combine(result.Directory, "stage", "sc助手.exe")));
         Assert.False(File.Exists(Path.Combine(fixture.Install, ".update", "active-job.txt")));
         Assert.Equal(2, fixture.Requests.Count);
         Assert.All(fixture.Requests, uri =>
@@ -156,7 +156,7 @@ public sealed class UpdatePackageServiceTests
             Assert.Equal("updates.example.com", uri.Host);
             Assert.StartsWith("/app/v" + fixture.Release.Version + "/" + UpdatePlatform.Current + "/", uri.AbsolutePath);
         });
-        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "LOL-GameGUI.exe")));
+        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "sc助手.exe")));
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class UpdatePackageServiceTests
         using var fixture = new PackageFixture();
         fixture.Config = fixture.Config with { Sha256 = new string('0', 64) };
         await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Service.PrepareAsync(fixture.Release, null, default));
-        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "LOL-GameGUI.exe")));
+        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "sc助手.exe")));
         Assert.Empty(Directory.GetDirectories(Path.Combine(fixture.Install, ".update")));
     }
 
@@ -191,7 +191,7 @@ public sealed class UpdatePackageServiceTests
         using var cancellation = new CancellationTokenSource();
         fixture.OnPackageRequest = cancellation.Cancel;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Service.PrepareAsync(fixture.Release, null, cancellation.Token));
-        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "LOL-GameGUI.exe")));
+        Assert.Equal("existing app", File.ReadAllText(Path.Combine(fixture.Install, "sc助手.exe")));
         Assert.Empty(Directory.GetDirectories(Path.Combine(fixture.Install, ".update")));
     }
 
@@ -266,7 +266,7 @@ public sealed class UpdatePackageServiceTests
         public PackageFixture()
         {
             Directory.CreateDirectory(Install);
-            File.WriteAllText(Path.Combine(Install, "LOL-GameGUI.exe"), "existing app");
+            File.WriteAllText(Path.Combine(Install, "sc助手.exe"), "existing app");
             File.WriteAllText(Path.Combine(Install, "Updater.exe"), "native updater placeholder");
             File.WriteAllText(Path.Combine(Install, "settings.json"), "user settings");
             // 使用测试宿主的真实 PE 版本资源验证准备阶段，不启动这个占位应用。
@@ -278,16 +278,16 @@ public sealed class UpdatePackageServiceTests
             using var memory = new MemoryStream();
             using (var zip = new ZipArchive(memory, ZipArchiveMode.Create, true))
             {
-                Add(zip, "LOL-GameGUI.exe", executable);
+                Add(zip, "sc助手.exe", executable);
                 byte[] updater = Encoding.UTF8.GetBytes("new updater");
                 Add(zip, "Updater.exe", updater);
-                string list = Convert.ToHexString(SHA256.HashData(executable)) + "\tLOL-GameGUI.exe\n"
+                string list = Convert.ToHexString(SHA256.HashData(executable)) + "\tsc助手.exe\n"
                     + Convert.ToHexString(SHA256.HashData(updater)) + "\tUpdater.exe\n";
                 Add(zip, "update-files.txt", Encoding.UTF8.GetBytes(list));
             }
             Package = memory.ToArray();
             Config = new(1, version.ToString(), "win-x64", "LOL-GameAssistant-win-x64.zip", Package.Length,
-                Convert.ToHexString(SHA256.HashData(Package)), "LOL-GameGUI.exe");
+                Convert.ToHexString(SHA256.HashData(Package)), "sc助手.exe");
             _client = new HttpClient(new StubHandler(request =>
             {
                 Requests.Add(request.RequestUri!);

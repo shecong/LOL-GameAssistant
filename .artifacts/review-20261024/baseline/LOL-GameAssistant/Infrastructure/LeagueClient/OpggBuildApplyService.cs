@@ -1,0 +1,902 @@
+﻿using LOL_GameAssistant.Application.Builds;
+using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.LeagueClient;
+using LOL_GameAssistant.Domain.Builds;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
+
+namespace LOL_GameAssistant.Infrastructure.LeagueClient;
+
+/// <summary>
+/// OP.GG → LCU 的一键配置实现。
+/// 数据来自 OP.GG 的公开英雄接口；写入仅使用本机 LCU 的符文页与自定义物品集端点。
+/// 不读取游戏内存、不注入游戏进程。只替换本助手创建的符文页；用户页面保持原样。
+/// </summary>
+public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
+{
+    private const string ManagedRunePrefix = "LOL助手 OP.GG · ";
+    private const string PersonalRunePrefix = "LOL助手 个人 · ";
+    private const string ManagedItemPrefix = "LOL助手 OP.GG · ";
+    private static readonly HttpClient OpggHttp = CreateHttpClient();
+
+    private readonly Action<PersonalRunePreset>? _recordAppliedRune;
+    private readonly ILcuRequestSender _lcu;
+    private readonly IChampionCatalog _championCatalog;
+
+    /// <summary>初始化 OpggBuildApplyService 的实例状态，并保存传入的依赖或数据。</summary>
+    public OpggBuildApplyService(ILcuRequestSender lcu, IChampionCatalog championCatalog,
+        Action<PersonalRunePreset>? recordAppliedRune = null)
+    {
+        _recordAppliedRune = recordAppliedRune;
+        _lcu = lcu;
+        _championCatalog = championCatalog;
+    }
+
+    public async Task<IReadOnlyList<PersonalRunePreset>> GetLocalRunePagesAsync(CancellationToken cancellationToken = default)
+    {
+        var pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
+        return pages.OfType<JObject>().Where(page => page["selectedPerkIds"] is JArray { Count: >= 6 })
+            .Select(page => new PersonalRunePreset
+            {
+                Name = page.Value<string>("name") ?? "客户端符文页", Source = "客户端符文页",
+                PrimaryStyleId = page.Value<int?>("primaryStyleId") ?? 0,
+                SubStyleId = page.Value<int?>("subStyleId") ?? 0,
+                RunePerkIds = page["selectedPerkIds"]!.Values<int>().ToList()
+            }).ToArray();
+    }
+
+    /// <summary>读取当前符文页和召唤师技能，生成可保存的个人方案。</summary>
+    public async Task<PersonalRunePreset?> CaptureCurrentRunePresetAsync(
+        int championId, string mode, string position, CancellationToken cancellationToken = default)
+    {
+        if (championId <= 0) return null;
+        JObject? page = await ReadObjectAsync("/lol-perks/v1/currentpage", cancellationToken).ConfigureAwait(false);
+        JObject? selection = await ReadObjectAsync("/lol-champ-select/v1/session/my-selection", cancellationToken).ConfigureAwait(false);
+        if (page == null) return null;
+        if ((selection?.Value<int?>("spell1Id") ?? 0) <= 0 ||
+            (selection?.Value<int?>("spell2Id") ?? 0) <= 0)
+        {
+            JObject? session = await ReadObjectAsync("/lol-champ-select/v1/session", cancellationToken).ConfigureAwait(false);
+            int cellId = session?.Value<int?>("localPlayerCellId") ?? -1;
+            selection = (session?["myTeam"] as JArray)?.OfType<JObject>()
+                .FirstOrDefault(member => member.Value<int?>("cellId") == cellId);
+        }
+        if (selection == null) return null;
+        var preset = new PersonalRunePreset
+        {
+            Name = page.Value<string>("name") ?? "我的符文",
+            ChampionId = championId,
+            Mode = mode,
+            Position = PersonalRunePresetResolver.NormalizePosition(position),
+            PrimaryStyleId = page.Value<int?>("primaryStyleId") ?? 0,
+            SubStyleId = page.Value<int?>("subStyleId") ?? 0,
+            RunePerkIds = page["selectedPerkIds"]?.Values<int>().ToList() ?? new List<int>(),
+            SummonerSpellIds = new List<int>
+            {
+                selection.Value<int?>("spell1Id") ?? 0,
+                selection.Value<int?>("spell2Id") ?? 0
+            }
+        };
+        try
+        {
+            var self = await ReadObjectAsync("/lol-summoner/v1/current-summoner", cancellationToken).ConfigureAwait(false);
+            if (self?.Value<long?>("summonerId") is > 0)
+            {
+                var itemSets = await ReadObjectAsync($"/lol-item-sets/v1/item-sets/{self.Value<long>("summonerId")}/sets", cancellationToken).ConfigureAwait(false);
+                var candidates = (itemSets?["itemSets"] as JArray ?? []).OfType<JObject>().Where(x => x["associatedChampions"]?.Values<int>().Contains(championId) == true).ToArray();
+                // 多份物品集时不猜用户想要哪份，仍允许在方案编辑器中手动填写装备块。
+                if (candidates.Length == 1)
+                    preset.ItemBlocks = (candidates[0]["blocks"] as JArray ?? []).OfType<JObject>().Select(b => new PersonalItemBlock(b.Value<string>("type") ?? "装备",
+                        (b["items"] as JArray ?? []).OfType<JObject>().SelectMany(i => Enumerable.Repeat(int.TryParse(i.Value<string>("id"), out int itemId) ? itemId : 0, Math.Clamp(i.Value<int?>("count") ?? 1, 1, 10))).Where(id => id > 0).ToList())).ToList();
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { }
+        return preset.IsValid ? preset : null;
+    }
+
+    /// <summary>将保存的个人符文及技能方案写入客户端。</summary>
+    public async Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(
+        PersonalRunePreset preset, CancellationToken cancellationToken = default,
+        bool allowReplaceCurrentRunePage = false)
+    {
+        if (!preset.IsValid) return OpggBuildApplyResult.Failure("个人方案缺少有效符文或召唤师技能。");
+        try
+        {
+            var build = new OpggBuild(preset.PrimaryStyleId, preset.SubStyleId,
+                preset.RunePerkIds.ToList(), new(), new(), new());
+            await ApplyRunePageAsync(build, preset.Name, cancellationToken, PersonalRunePrefix,
+                allowReplaceCurrentRunePage).ConfigureAwait(false);
+            try { preset.LastAppliedAt = DateTimeOffset.Now; _recordAppliedRune?.Invoke(preset); }
+            catch { /* 符文已写入，记录失败不会触发重复应用。 */ }
+            string itemMessage = await ApplyPersonalItemsAsync(preset, cancellationToken).ConfigureAwait(false);
+            string spells = await ApplySummonerSpellsAsync(preset.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
+            return spells.StartsWith("客户端未写入", StringComparison.Ordinal)
+                ? OpggBuildApplyResult.Failure($"符文已应用，但{spells}。请检查选人界面。")
+                : OpggBuildApplyResult.Success($"已应用个人方案“{preset.Name}”：符文和召唤师技能已配置；{itemMessage}。");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex) { return OpggBuildApplyResult.Failure($"个人方案应用失败：{ex.Message}"); }
+    }
+
+    private void RecordAppliedRune(int championId, string role, OpggBuildOption option, string label)
+    {
+        if (_recordAppliedRune == null) return;
+        var preset = new PersonalRunePreset { Name = label, ChampionId = championId, Mode = option.Mode,
+            Position = PersonalRunePresetResolver.NormalizePosition(role), PrimaryStyleId = option.PrimaryStyleId,
+            SubStyleId = option.SubStyleId, RunePerkIds = option.RunePerkIds.ToList(),
+            SummonerSpellIds = option.SummonerSpellIds?.ToList() ?? [], Source = "应用记录", AutoApply = false,
+            LastAppliedAt = DateTimeOffset.Now,
+            ItemBlocks = new List<PersonalItemBlock> { new("出门装", option.StarterItemIds.ToList()), new("核心装", option.CoreItemIds.ToList()), new("可选装备", option.SituationalItemIds.ToList()) } };
+        if (!preset.IsValid) return;
+        try { _recordAppliedRune(preset); }
+        catch { /* 本地记录失败不改变客户端已经成功写入的结果。 */ }
+    }
+
+    /// <summary>读取指定英雄和场景的推荐方案集合。</summary>
+    public async Task<OpggBuildChoices> GetBuildChoicesAsync(
+        int championId,
+        string? position,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetBuildChoicesAsync(
+            championId,
+            position,
+            new OpggBuildRequest("CLASSIC"),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>读取指定英雄和场景的推荐方案集合。</summary>
+    public async Task<OpggBuildChoices> GetBuildChoicesAsync(
+        int championId,
+        string? position,
+        OpggBuildRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (championId <= 0)
+            return OpggBuildChoices.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
+
+        try
+        {
+            string role = NormalizePosition(position);
+            string mode = NormalizeMode(request.GameMode, request.QueueId);
+            if (mode == "unknown")
+                return OpggBuildChoices.Failure("尚未识别当前对局模式，无法确认 OP.GG 方案适用性。请在选人界面稍后重试。");
+            OpggBuildPayload payload = mode == "aram_mayhem"
+                ? await FetchMayhemBuildPayloadAsync(championId, cancellationToken).ConfigureAwait(false)
+                : await FetchBuildPayloadAsync(championId, role, mode, cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<OpggBuildOption> options = payload.Options
+                .DistinctBy(option => $"{option.PrimaryStyleId}/{option.SubStyleId}:{string.Join(',', option.RunePerkIds)}:{string.Join(',', option.CoreItemIds.Order())}")
+                .Skip(Math.Max(0, request.Offset)).Take(Math.Clamp(request.Limit, 1, 15)).ToArray();
+            if (options.Count == 0)
+                return OpggBuildChoices.Failure(request.Offset > 0 ? "已显示全部可用搭配。" : "OP.GG 没有返回可用的核心出装方案。");
+
+            string championName = _championCatalog.GetDisplayName(championId);
+            if (string.IsNullOrWhiteSpace(championName)) championName = $"英雄{championId}";
+            string positionName = mode == "ranked" ? GetPositionName(role) : GetModeName(mode);
+            return new OpggBuildChoices(
+                true,
+                mode == "aram_mayhem"
+                    ? "海克斯大乱斗使用专属出装与增幅数据；本模式没有常规符文页，应用时只写入出装和召唤师技能。"
+                    : "请选择要应用的出装路线。召唤师技能会随方案写入；海克斯与对位仅供展示参考。",
+                championName,
+                positionName,
+                options,
+                mode,
+                payload.Augments,
+                payload.Matchups,
+                championId);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            return OpggBuildChoices.Failure("无法连接 OP.GG 推荐数据，请检查网络后重试。");
+        }
+        catch (JsonException)
+        {
+            return OpggBuildChoices.Failure("OP.GG 返回的数据格式已变化，本次未写入客户端。");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return OpggBuildChoices.Failure(ex.Message);
+        }
+        catch
+        {
+            return OpggBuildChoices.Failure("获取 OP.GG 出装失败，请稍后重试。");
+        }
+    }
+
+    /// <summary>应用用户选择的符文、召唤师技能和装备方案。</summary>
+    public async Task<OpggBuildApplyResult> ApplyBuildAsync(
+        int championId,
+        string? position,
+        OpggBuildOption option,
+        CancellationToken cancellationToken = default,
+        bool allowReplaceCurrentRunePage = false,
+        bool applySummonerSpells = true,
+        bool applyItemSet = true)
+    {
+        if (championId <= 0)
+            return OpggBuildApplyResult.Failure("未识别到当前英雄。请在选择英雄并锁定后再试。");
+        if (option.CoreItemIds.Count < 3)
+            return OpggBuildApplyResult.Failure("所选方案没有至少三件核心装备，本次未写入客户端。");
+
+        var completed = new List<string>();
+        var failed = new List<string>();
+        try
+        {
+            string role = NormalizePosition(position);
+            string championName = _championCatalog.GetDisplayName(championId);
+            if (string.IsNullOrWhiteSpace(championName)) championName = $"英雄{championId}";
+            string contextName = option.Mode == "ranked"
+                ? GetPositionName(role) : GetModeName(option.Mode);
+            string label = $"{championName} {contextName} · 方案 {option.Order}";
+            var build = new OpggBuild(
+                option.PrimaryStyleId,
+                option.SubStyleId,
+                option.RunePerkIds.ToList(),
+                option.StarterItemIds.ToList(),
+                option.CoreItemIds.ToList(),
+                option.SituationalItemIds.ToList());
+
+            string runeResult = "该模式未提供可写入的符文数据，已保留客户端当前符文";
+            if (option.RunePerkIds.Count >= 6)
+            {
+                try
+                {
+                    runeResult = await ApplyRunePageAsync(build, label, cancellationToken,
+                        allowReplaceCurrentRunePage: allowReplaceCurrentRunePage).ConfigureAwait(false);
+                    completed.Add("符文页");
+                    RecordAppliedRune(championId, role, option, label);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex) { failed.Add($"符文页：{ex.Message}"); }
+            }
+            string itemResult = "本次保留当前物品集";
+            if (applyItemSet)
+            {
+                try
+                {
+                    itemResult = await ApplyItemSetAsync(build, championId, label, cancellationToken).ConfigureAwait(false);
+                    completed.Add("物品集");
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex) { failed.Add($"物品集：{ex.Message}"); }
+            }
+            string spellResult = "当前未处于选人阶段，召唤师技能需在选人时应用";
+            if (applySummonerSpells)
+            {
+                try
+                {
+                    spellResult = await ApplySummonerSpellsAsync(option.SummonerSpellIds, cancellationToken).ConfigureAwait(false);
+                    if (spellResult.StartsWith("客户端未写入", StringComparison.Ordinal))
+                        failed.Add("召唤师技能：客户端拒绝写入");
+                    else if (option.SummonerSpellIds?.Count >= 2) completed.Add("召唤师技能");
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex) { failed.Add($"召唤师技能：{ex.Message}"); }
+            }
+            if (failed.Count > 0)
+                return OpggBuildApplyResult.Failure($"已写入：{(completed.Count == 0 ? "无" : string.Join("、", completed))}；未写入：{string.Join("；", failed)}。请在客户端核对。");
+            string source = option.Mode == "aram_mayhem" ? "海克斯大乱斗专属" : "OP.GG";
+            return OpggBuildApplyResult.Success($"已应用 {source} {label}：{runeResult}；{itemResult}；{spellResult}。游戏内请在商店的“自定义物品集”查看出装。");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (InvalidOperationException ex)
+        {
+            return OpggBuildApplyResult.Failure(completed.Count == 0 ? ex.Message
+                : $"部分已写入（{string.Join("、", completed)}），后续失败：{ex.Message}。请在客户端核对。");
+        }
+        catch
+        {
+            string reason = "一键配置失败。请确认 LOL 客户端已登录且正处于可编辑符文的选人阶段。";
+            return OpggBuildApplyResult.Failure(completed.Count == 0 ? reason
+                : $"部分已写入（{string.Join("、", completed)}）。{reason}");
+        }
+    }
+
+    /// <summary>读取指定英雄的推荐方案并执行应用流程。</summary>
+    public async Task<OpggBuildApplyResult> ApplyForChampionAsync(
+        int championId,
+        string? position,
+        CancellationToken cancellationToken = default)
+    {
+        OpggBuildChoices choices = await GetBuildChoicesAsync(championId, position, cancellationToken).ConfigureAwait(false);
+        if (!choices.Succeeded) return OpggBuildApplyResult.Failure(choices.Message);
+        OpggBuildOption? first = choices.Options.FirstOrDefault();
+        return first == null
+            ? OpggBuildApplyResult.Failure("OP.GG 没有可应用的出装路线。")
+            : await ApplyBuildAsync(championId, position, first, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>创建外部数据服务使用的 HTTP 客户端。</summary>
+    private static HttpClient CreateHttpClient()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+        http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("LOLGameAssistant", "1.0"));
+        return http;
+    }
+
+    /// <summary>海克斯大乱斗独立数据源；不会把普通 ARAM 推荐伪装为本模式数据。</summary>
+    private static async Task<OpggBuildPayload> FetchMayhemBuildPayloadAsync(
+        int championId, CancellationToken cancellationToken)
+    {
+        string html = await OpggHttp.GetStringAsync(
+            $"https://aramgg.com/en/champion-stats/{championId}", cancellationToken).ConfigureAwait(false);
+        var options = ParseMayhemBuildOptions(html);
+
+        var augments = new List<OpggAugmentRecommendation>();
+        try
+        {
+            JObject versions = JObject.Parse(await OpggHttp.GetStringAsync(
+                "https://data.aramkit.com/data/versions.json", cancellationToken).ConfigureAwait(false));
+            string? latest = versions.Value<string>("latest");
+            string? path = versions["versions"]?.OfType<JObject>()
+                .FirstOrDefault(item => item.Value<string>("version") == latest)?.Value<string>("dataPath");
+            if (!string.IsNullOrWhiteSpace(path) && !path.Contains("..", StringComparison.Ordinal))
+            {
+                JObject detail = JObject.Parse(await OpggHttp.GetStringAsync(
+                    $"https://data.aramkit.com/{path.Trim('/')}/stats/all/champion-details/{championId}.json",
+                    cancellationToken).ConfigureAwait(false));
+                augments.AddRange((detail.SelectToken("augments.all") as JArray ?? new JArray())
+                    .OfType<JObject>()
+                    .Select(item => new OpggAugmentRecommendation(
+                        item.Value<int?>("id") ?? 0, -1,
+                        item.Value<int?>("sampleCount") ?? 0,
+                        (int)Math.Round((item.Value<double?>("winRate") ?? 0) *
+                            (item.Value<int?>("sampleCount") ?? 0))))
+                    .Where(item => item.Id > 0 && item.Matches >= 100)
+                    .OrderByDescending(item => item.WinRate).ThenByDescending(item => item.Matches));
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { /* 出装数据可用时，增幅网络暂不可用不阻止应用。 */ }
+        return new OpggBuildPayload(options, augments, new List<OpggMatchup>());
+    }
+
+    /// <summary>将海克斯大乱斗装备数据解析为可选择的方案。</summary>
+    internal static IReadOnlyList<OpggBuildOption> ParseMayhemBuildOptions(string html)
+    {
+        if (!html.Contains("Core Items", StringComparison.Ordinal))
+            throw new InvalidOperationException("海克斯大乱斗专属出装暂不可用，未使用普通大乱斗方案代替。");
+
+        int spellsAt = html.IndexOf("Summoner Spells", StringComparison.Ordinal);
+        int[] spells = spellsAt < 0 ? Array.Empty<int>() :
+            Regex.Matches(html.Substring(spellsAt, Math.Min(4500, html.Length - spellsAt)),
+                @"summoner-spell-icons/(\d+)\.png", RegexOptions.IgnoreCase)
+                .Select(match => int.Parse(match.Groups[1].Value))
+                .Distinct().Take(2).ToArray();
+
+        MatchCollection panels = Regex.Matches(html, "data-build-panel=\"[0-9]+\"");
+        var options = new List<OpggBuildOption>();
+        int panelCount = panels.Count == 0 ? 1 : Math.Min(panels.Count, 5);
+        for (int panelIndex = 0; panelIndex < panelCount; panelIndex++)
+        {
+            int start = panels.Count == 0 ? 0 : panels[panelIndex].Index;
+            int end = panels.Count == 0 ? html.Length :
+                panelIndex + 1 < panels.Count ? panels[panelIndex + 1].Index : Math.Min(html.Length, start + 25000);
+            string panel = html[start..end];
+            // 提取指定推荐阶段中的装备标识。
+            static List<int> ItemsInSection(string source, string heading, params string[] following)
+            {
+                int from = source.IndexOf(heading, StringComparison.Ordinal);
+                if (from < 0) return new List<int>();
+                int to = source.Length;
+                foreach (string next in following)
+                {
+                    int nextAt = source.IndexOf(next, from + heading.Length, StringComparison.Ordinal);
+                    if (nextAt >= 0) to = Math.Min(to, nextAt);
+                }
+                return Regex.Matches(source[from..to], @"item-icons/(\d+)\.png")
+                    .Select(match => int.Parse(match.Groups[1].Value)).ToList();
+            }
+
+            List<int> starter = ItemsInSection(panel, "Starting Items", "Core Items", "Situational Items");
+            List<int> situational = ItemsInSection(panel, "Situational Items", "Starting Items");
+            int coreAt = panel.IndexOf("Core Items", StringComparison.Ordinal);
+            int nextAt = coreAt < 0 ? -1 : panel.IndexOf("Situational Items", coreAt, StringComparison.Ordinal);
+            string coreSection = coreAt < 0 ? "" : panel[coreAt..(nextAt < 0 ? panel.Length : nextAt)];
+            MatchCollection routes = Regex.Matches(coreSection,
+                @"#\d+\s*</span>(?<items>.*?)Win Rate:\s*<span[^>]*>(?<win>[\d.]+)%</span>.*?Pick Rate:\s*<span[^>]*>(?<pick>[\d.]+)%</span>",
+                RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            foreach (Match route in routes.Cast<Match>().Take(3))
+            {
+                int[] core = Regex.Matches(route.Groups["items"].Value, @"item-icons/(\d+)\.png")
+                    .Select(match => int.Parse(match.Groups[1].Value)).Take(3).ToArray();
+                if (core.Length != 3 ||
+                    !double.TryParse(route.Groups["win"].Value, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out double winRate) ||
+                    !double.TryParse(route.Groups["pick"].Value, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out double pickRate)) continue;
+                options.Add(new OpggBuildOption(options.Count + 1, starter.Take(5).ToArray(),
+                    core, situational.Distinct().Take(6).ToArray(),
+                    0, 0, Array.Empty<int>(), 0, 0, spells, "aram_mayhem", winRate, pickRate));
+            }
+        }
+        if (options.Count == 0)
+            throw new InvalidOperationException("海克斯大乱斗出装页面结构已变化，未找到可应用的三件核心装备。");
+        return options;
+    }
+
+    /// <summary>
+    /// OP.GG 使用数值英雄 ID，且不同模式仅路径结构不同：ARAM/URF/闪击使用 none 位置，
+    /// 斗魂竞技场没有位置段。接口内的召唤师技能、海克斯与对位数据一起规整为可展示模型。
+    /// </summary>
+    private static async Task<OpggBuildPayload> FetchBuildPayloadAsync(
+        int championId,
+        string role,
+        string mode,
+        CancellationToken cancellationToken)
+    {
+        string path = mode == "arena"
+            ? $"/api/global/champions/{mode}/{championId}"
+            : $"/api/global/champions/{mode}/{championId}/{(mode == "ranked" ? role : "none")}";
+        string tier = mode == "arena" ? "all" : "gold_plus";
+        string url = "https://lol-api-champion.op.gg" + path + "?tier=" + tier;
+        using HttpResponseMessage response = await OpggHttp.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException("OP.GG 暂无该英雄/模式的推荐数据，请确认当前模式后重试。");
+
+        string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        JObject data = JObject.Parse(json)["data"] as JObject
+            ?? throw new JsonException("missing data");
+        return ParseBuildPayload(data, mode);
+    }
+
+    internal static OpggBuildPayload ParseBuildPayload(JObject data, string mode)
+    {
+        var runeVariants = data["runes"]?.OfType<JObject>()
+            .OrderByDescending(item => item.Value<int?>("play") ?? 0)
+            .DistinctBy(item => $"{item["primary_page_id"]}/{item["secondary_page_id"]}:{item["primary_rune_ids"]}:{item["secondary_rune_ids"]}:{item["stat_mod_ids"]}")
+            .Take(5).ToList() ?? [];
+        JObject? rune = runeVariants.FirstOrDefault();
+        JObject? firstStarter = data["starter_items"]?.OfType<JObject>()
+            .OrderByDescending(item => item.Value<int?>("play") ?? 0)
+            .FirstOrDefault();
+        JObject? firstBoots = data["boots"]?.OfType<JObject>()
+            .OrderByDescending(item => item.Value<int?>("play") ?? 0)
+            .FirstOrDefault();
+
+        int boot = ReadIds(firstBoots?["ids"]).FirstOrDefault();
+        List<int> runePerks = ReadIds(rune?["primary_rune_ids"])
+            .Concat(ReadIds(rune?["secondary_rune_ids"]))
+            .Concat(ReadIds(rune?["stat_mod_ids"]))
+            .ToList();
+        IReadOnlyList<int> summonerSpells = ReadIds(data["summoner_spells"]?.OfType<JObject>()
+            .OrderByDescending(item => item.Value<int?>("play") ?? 0)
+            .FirstOrDefault()?["ids"]);
+
+        var allCore = data["core_items"]?.OfType<JObject>()
+            .OrderByDescending(item => item.Value<int?>("play") ?? 0)
+            .ToList() ?? new List<JObject>();
+        var options = new List<OpggBuildOption>();
+        var coreVariants = allCore.Where(item => ReadIds(item["ids"]).Count >= 3)
+            .DistinctBy(item => string.Join(',', ReadIds(item["ids"]).Order())).Take(8).ToList();
+        // 先轮换数据源实际提供的符文与出装，再补充其余组合；不伪造联合样本胜率。
+        for (int round = 0; round < Math.Max(1, runeVariants.Count); round++)
+        foreach (JObject coreVariant in coreVariants)
+        {
+            rune = runeVariants.Count == 0 ? null : runeVariants[(coreVariants.IndexOf(coreVariant) + round) % runeVariants.Count];
+            runePerks = ReadIds(rune?["primary_rune_ids"]).Concat(ReadIds(rune?["secondary_rune_ids"]))
+                .Concat(ReadIds(rune?["stat_mod_ids"])).ToList();
+            var core = ReadIds(coreVariant["ids"]);
+            if (boot > 0 && !core.Contains(boot)) core.Insert(Math.Min(1, core.Count), boot);
+            var alternateFrequency = new Dictionary<int, int>();
+            foreach (JObject alternate in allCore.Where(item => !ReferenceEquals(item, coreVariant)).Take(8))
+            {
+                int weight = Math.Max(1, alternate.Value<int?>("play") ?? 1);
+                foreach (int id in ReadIds(alternate["ids"]).Where(id => !core.Contains(id)))
+                    alternateFrequency[id] = alternateFrequency.GetValueOrDefault(id) + weight;
+            }
+
+            int matches = coreVariant.Value<int?>("play") ?? 0;
+            options.Add(new OpggBuildOption(
+                options.Count + 1,
+                ReadIds(firstStarter?["ids"]),
+                core,
+                alternateFrequency.OrderByDescending(item => item.Value).Select(item => item.Key).Take(6).ToList(),
+                rune?.Value<int?>("primary_page_id") ?? 0,
+                rune?.Value<int?>("secondary_page_id") ?? 0,
+                runePerks,
+                matches,
+                coreVariant.Value<int?>("win") ?? 0,
+                summonerSpells,
+                mode));
+        }
+        var augments = data["augment_group"]?.OfType<JObject>()
+            .SelectMany(group => group["augments"]?.OfType<JObject>()
+                .Select(augment => new OpggAugmentRecommendation(
+                    augment.Value<int?>("id") ?? 0,
+                    group.Value<int?>("rarity") ?? 0,
+                    augment.Value<int?>("play") ?? 0,
+                    augment.Value<int?>("win") ?? 0)) ?? Enumerable.Empty<OpggAugmentRecommendation>())
+            .Where(augment => augment.Id > 0)
+            .OrderByDescending(augment => augment.Matches)
+            .Take(15)
+            .ToList() ?? new List<OpggAugmentRecommendation>();
+        var matchups = data["counters"]?.OfType<JObject>()
+            .Select(counter => new OpggMatchup(
+                counter.Value<int?>("champion_id") ?? 0,
+                counter.Value<int?>("play") ?? 0,
+                counter.Value<int?>("win") ?? 0))
+            .Where(matchup => matchup.ChampionId > 0 && matchup.Matches > 0)
+            .OrderByDescending(matchup => matchup.Matches)
+            .Take(12)
+            .ToList() ?? new List<OpggMatchup>();
+        return new OpggBuildPayload(options, augments, matchups);
+    }
+
+    /// <summary>写入推荐的召唤师技能，并返回客户端接受状态。</summary>
+    private async Task<string> ApplySummonerSpellsAsync(
+        IReadOnlyList<int>? spellIds,
+        CancellationToken cancellationToken)
+    {
+        int[] spells = spellIds?.Where(id => id > 0).Distinct().Take(2).ToArray() ?? Array.Empty<int>();
+        if (spells.Length < 2) return "该模式未提供可写入的召唤师技能，已保留当前技能";
+
+        bool updated = await _lcu.PatchAsync(
+            "/lol-champ-select/v1/session/my-selection",
+            JsonConvert.SerializeObject(new { spell1Id = spells[0], spell2Id = spells[1] }),
+            cancellationToken).ConfigureAwait(false);
+        return updated ? "召唤师技能已写入" : "客户端未写入召唤师技能，已保留当前技能";
+    }
+
+    /// <summary>写入推荐符文页并切换为当前页；失败时尝试恢复原页面。</summary>
+    private async Task<string> ApplyRunePageAsync(OpggBuild build, string label, CancellationToken cancellationToken,
+        string prefix = ManagedRunePrefix, bool allowReplaceCurrentRunePage = false)
+    {
+        if (build.PrimaryStyleId <= 0 || build.SubStyleId <= 0)
+            throw new InvalidOperationException("OP.GG 符文缺少主系或副系，本次未写入客户端。");
+
+        JArray pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
+        string pageName = prefix + label;
+        string body = JsonConvert.SerializeObject(new
+        {
+            name = pageName,
+            primaryStyleId = build.PrimaryStyleId,
+            subStyleId = build.SubStyleId,
+            selectedPerkIds = build.RunePerks,
+            current = true,
+            order = 0
+        });
+
+        JObject? oldCurrent = pages.OfType<JObject>().FirstOrDefault(IsCurrentRunePage);
+        long? oldCurrentId = oldCurrent?.Value<long?>("id");
+        var knownIds = pages.OfType<JObject>().Select(page => page.Value<long?>("id"))
+            .Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
+        JObject? managedPage = pages.OfType<JObject>()
+            .Where(page => IsManagedRunePage(page.Value<string>("name")))
+            .Where(page => page.Value<bool?>("isEditable") != false && page.Value<bool?>("isTemporary") != true && page.Value<long?>("id") is > 0)
+            .OrderByDescending(IsCurrentRunePage).FirstOrDefault();
+        if (managedPage != null)
+        {
+            long id = managedPage.Value<long>("id");
+            // 写入前保存原页面内容，切换当前页失败时使用这份数据进行回滚。
+            string originalBody = BuildRunePageBody(managedPage);
+            try
+            {
+                if (!await _lcu.PutAsync($"/lol-perks/v1/pages/{id}", body, cancellationToken).ConfigureAwait(false))
+                    throw new InvalidOperationException("客户端拒绝替换符文页。");
+                await SetCurrentRunePageAsync(id, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                bool restored = await TryRestoreRunePageAsync(id, originalBody, oldCurrentId).ConfigureAwait(false);
+                if (!restored)
+                    throw new InvalidOperationException("符文页替换失败，自动恢复也未成功；请在客户端检查符文页。", null);
+                throw;
+            }
+            return "符文页已设为当前（已替换助手创建的旧页）" +
+                await RemoveOldManagedRunePagesAsync(pages, id, cancellationToken).ConfigureAwait(false);
+        }
+
+        // 库存字段在不同客户端版本中含义不一致。直接让 LCU 决定能否创建。
+        if (await _lcu.PostAsync("/lol-perks/v1/pages", body, cancellationToken).ConfigureAwait(false))
+        {
+            // 少数客户端版本会忽略 POST 的 current 标志，补一次显式切换。
+            pages = await ReadArrayAsync("/lol-perks/v1/pages", cancellationToken).ConfigureAwait(false);
+            long? createdId = pages.OfType<JObject>()
+                .FirstOrDefault(page => !knownIds.Contains(page.Value<long?>("id") ?? 0) &&
+                    string.Equals(page.Value<string>("name"), pageName, StringComparison.Ordinal))?
+                .Value<long?>("id");
+            if (!createdId.HasValue)
+                throw new InvalidOperationException("已创建符文页，但客户端未返回页面 ID；请在客户端检查当前符文页。");
+            try
+            {
+                await SetCurrentRunePageAsync(createdId.Value, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                if (!await TryRemoveCreatedRunePageAsync(createdId.Value, oldCurrentId).ConfigureAwait(false))
+                    throw new InvalidOperationException("新符文页未能切换为当前页，自动恢复未完全成功；请在客户端检查符文页。");
+                throw;
+            }
+            return "符文页已设为当前";
+        }
+
+        // 只有创建被客户端拒绝，才考虑用户明确授权的覆盖操作。
+        if (allowReplaceCurrentRunePage && oldCurrentId.HasValue &&
+            oldCurrent?.Value<bool?>("isEditable") != false &&
+            oldCurrent?.Value<bool?>("isTemporary") != true)
+        {
+            long id = oldCurrentId.Value;
+            string originalBody = BuildRunePageBody(oldCurrent!);
+            try
+            {
+                if (!await _lcu.PutAsync($"/lol-perks/v1/pages/{id}", body, cancellationToken).ConfigureAwait(false))
+                    throw new InvalidOperationException("客户端拒绝覆盖当前符文页。");
+                await SetCurrentRunePageAsync(id, cancellationToken).ConfigureAwait(false);
+                return "符文页已设为当前（已按授权覆盖原当前页）";
+            }
+            catch
+            {
+                if (!await TryRestoreRunePageAsync(id, originalBody, oldCurrentId).ConfigureAwait(false))
+                    throw new InvalidOperationException("覆盖当前符文页失败，自动恢复也未成功；请在客户端检查符文页。");
+                throw;
+            }
+        }
+        throw new InvalidOperationException("客户端拒绝创建符文页，且没有可替换的助手符文页；如需覆盖当前自定义页，请勾选允许覆盖并确认当前页不是临时页。");
+    }
+
+    private async Task<string> RemoveOldManagedRunePagesAsync(JArray pages, long keepId, CancellationToken token)
+    {
+        int removed = 0, failed = 0;
+        foreach (var page in pages.OfType<JObject>().Where(p => IsManagedRunePage(p.Value<string>("name")) &&
+            p.Value<bool?>("isEditable") != false && p.Value<bool?>("isTemporary") != true &&
+            p.Value<long?>("id") is > 0 && p.Value<long>("id") != keepId))
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                if (await _lcu.DeleteAsync($"/lol-perks/v1/pages/{page.Value<long>("id")}", token).ConfigureAwait(false)) removed++;
+                else failed++;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch { failed++; }
+        }
+        return (removed > 0 ? $"，已清理 {removed} 个旧助手符文页" : "") +
+            (failed > 0 ? $"；{failed} 个旧助手符文页未清理成功，可再次应用重试" : "");
+    }
+
+    /// <summary>显式设置当前符文页，避免客户端忽略创建请求中的 current 标志。</summary>
+    private async Task SetCurrentRunePageAsync(long id, CancellationToken cancellationToken)
+    {
+        if (!await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(id), cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException("符文页已写入，但客户端拒绝将其设为当前页。");
+    }
+
+    /// <summary>在独立超时范围内恢复被修改的符文页和原当前页。</summary>
+    private async Task<bool> TryRestoreRunePageAsync(long id, string originalBody, long? oldCurrentId)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            bool pageRestored = await _lcu.PutAsync($"/lol-perks/v1/pages/{id}", originalBody, timeout.Token).ConfigureAwait(false);
+            bool currentRestored = !oldCurrentId.HasValue ||
+                await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(oldCurrentId.Value), timeout.Token).ConfigureAwait(false);
+            return pageRestored && currentRestored;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>新符文页切换失败时删除该页面，并恢复原当前页。</summary>
+    private async Task<bool> TryRemoveCreatedRunePageAsync(long id, long? oldCurrentId)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            bool removed = await _lcu.DeleteAsync($"/lol-perks/v1/pages/{id}", timeout.Token).ConfigureAwait(false);
+            bool currentRestored = !oldCurrentId.HasValue ||
+                await _lcu.PutAsync("/lol-perks/v1/currentpage", JsonConvert.SerializeObject(oldCurrentId.Value), timeout.Token).ConfigureAwait(false);
+            return removed && currentRestored;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>保留符文页的关键字段，构建可用于恢复的请求内容。</summary>
+    private static string BuildRunePageBody(JObject page) => JsonConvert.SerializeObject(new
+    {
+        name = page.Value<string>("name"),
+        primaryStyleId = page.Value<int?>("primaryStyleId"),
+        subStyleId = page.Value<int?>("subStyleId"),
+        selectedPerkIds = page["selectedPerkIds"]?.Values<int>().ToArray() ?? Array.Empty<int>(),
+        current = IsCurrentRunePage(page),
+        order = page.Value<int?>("order") ?? 0
+    });
+
+    /// <summary>兼容客户端 current 和 isActive 字段来判断当前页。</summary>
+    private static bool IsCurrentRunePage(JObject page) =>
+        page.Value<bool?>("current") == true || page.Value<bool?>("isActive") == true;
+
+    /// <summary>根据助手命名前缀识别可由助手替换的符文页。</summary>
+    private static bool IsManagedRunePage(string? name) =>
+        (name ?? "").StartsWith(ManagedRunePrefix, StringComparison.Ordinal) ||
+        (name ?? "").StartsWith(PersonalRunePrefix, StringComparison.Ordinal);
+
+    /// <summary>写入当前英雄的推荐物品集，并保留其他用户物品集。</summary>
+    private async Task<string> ApplyItemSetAsync(
+        OpggBuild build,
+        int championId,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        JObject? currentSummoner = await ReadObjectAsync("/lol-summoner/v1/current-summoner", cancellationToken).ConfigureAwait(false);
+        long? summonerId = currentSummoner?.Value<long?>("summonerId");
+        if (!summonerId.HasValue || summonerId <= 0)
+            throw new InvalidOperationException("未读取到当前召唤师，无法写入自定义物品集。");
+
+        string endpoint = $"/lol-item-sets/v1/item-sets/{summonerId.Value}/sets";
+        JObject? wrapper = await ReadObjectAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        if (wrapper?["itemSets"] is not JArray)
+            throw new InvalidOperationException("无法读取现有物品集，已停止写入以避免覆盖客户端原有配置。");
+        var existingSets = (JArray)wrapper["itemSets"]!;
+        var preservedSets = existingSets.Where(itemSet => !IsManagedItemSet(itemSet)).Select(s => s.DeepClone()).ToList();
+
+        var newSet = new JObject
+        {
+            ["uid"] = ManagedItemSetUid(existingSets, championId),
+            ["title"] = ManagedItemPrefix + label,
+            ["type"] = "custom",
+            ["mode"] = "any",
+            ["map"] = "any",
+            ["associatedChampions"] = new JArray(championId),
+            ["associatedMaps"] = new JArray(11, 12),
+            ["blocks"] = BuildItemBlocks(build),
+            ["preferredItemSlots"] = new JArray(),
+            ["sortrank"] = 0,
+            ["startedFrom"] = "blank"
+        };
+        preservedSets.Add(newSet);
+        string body = new JObject
+        {
+            ["accountId"] = wrapper?.Value<long?>("accountId") ?? currentSummoner?.Value<long?>("accountId") ?? 0,
+            ["itemSets"] = new JArray(preservedSets),
+            ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        }.ToString(Formatting.None);
+        if (!await _lcu.PutAsync(endpoint, body, cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException("客户端拒绝写入自定义物品集。");
+        return "出装已更新到助手物品集（旧助手方案已替换）";
+    }
+
+    private static bool IsManagedItemSet(JToken itemSet) =>
+        (itemSet.Value<string>("title") ?? "").StartsWith(ManagedItemPrefix, StringComparison.Ordinal) ||
+        (itemSet.Value<string>("title") ?? "").StartsWith(PersonalRunePrefix, StringComparison.Ordinal);
+
+    private static string ManagedItemSetUid(JArray sets, int championId) =>
+        sets.OfType<JObject>().Where(IsManagedItemSet)
+            .OrderByDescending(s => s["associatedChampions"]?.Values<int>().Contains(championId) == true)
+            .Select(s => s.Value<string>("uid")).FirstOrDefault(uid => !string.IsNullOrWhiteSpace(uid)) ?? Guid.NewGuid().ToString();
+
+    /// <summary>按推荐阶段组织自定义物品集分组。</summary>
+    private static JArray BuildItemBlocks(OpggBuild build)
+    {
+        var blocks = new JArray();
+        if (build.StarterItems.Count > 0)
+            blocks.Add(BuildBlock("1. 出门装", build.StarterItems));
+        for (int index = 0; index < build.CoreItems.Count; index++)
+        {
+            string name = index == 1 && IsLikelyBoot(build.CoreItems[index])
+                ? "鞋子"
+                : $"核心第 {index + 1} 件";
+            blocks.Add(BuildBlock($"{index + 2}. {name}", new[] { build.CoreItems[index] }));
+        }
+        if (build.SituationalItems.Count > 0)
+            blocks.Add(BuildBlock("可选 / 反制装备", build.SituationalItems));
+        return blocks;
+    }
+
+    /// <summary>根据装备标识创建一组客户端物品集内容。</summary>
+    private static JObject BuildBlock(string title, IEnumerable<int> itemIds) => new()
+    {
+        ["type"] = title,
+        ["items"] = new JArray(itemIds.Where(item => item > 0)
+            .GroupBy(item => item)
+            .Select(group => new JObject { ["id"] = group.Key.ToString(), ["count"] = group.Count() }))
+    };
+
+    /// <summary>读取接口 JSON 对象，并处理空响应。</summary>
+    private async Task<JObject?> ReadObjectAsync(string endpoint, CancellationToken cancellationToken)
+    {
+        string? content = await _lcu.GetStringAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        return string.IsNullOrWhiteSpace(content) ? null : JObject.Parse(content);
+    }
+
+    /// <summary>读取接口 JSON 数组，并处理空响应。</summary>
+    private async Task<JArray> ReadArrayAsync(string endpoint, CancellationToken cancellationToken)
+    {
+        string? content = await _lcu.GetStringAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(content))
+            throw new InvalidOperationException($"客户端未返回 {endpoint} 数据，请确认 LOL 客户端仍已连接。");
+        return JArray.Parse(content);
+    }
+
+    /// <summary>从 JSON 数组中提取有效资源标识。</summary>
+    private static List<int> ReadIds(JToken? token) => token?.Values<int>()
+        .Where(id => id > 0)
+        .ToList() ?? new List<int>();
+
+    /// <summary>判断装备条目是否属于推荐中的鞋子分组。</summary>
+    private static bool IsLikelyBoot(int itemId) => itemId is 3005 or 3006 or 3009 or 3010 or 3020 or 3047 or 3111 or 3117 or 3158;
+
+    /// <summary>将分路别名归一化，供方案选择和推荐匹配使用。</summary>
+    private static string NormalizePosition(string? position) => position?.Trim().ToUpperInvariant() switch
+    {
+        "TOP" => "top",
+        "JUNGLE" or "JNG" => "jungle",
+        "MIDDLE" or "MID" => "mid",
+        "BOTTOM" or "BOT" or "ADC" => "adc",
+        "UTILITY" or "SUPPORT" or "SUP" => "support",
+        _ => "mid"
+    };
+
+    /// <summary>将分路标识转换为展示名称。</summary>
+    private static string GetPositionName(string position) => position switch
+    {
+        "top" => "上路",
+        "jungle" => "打野",
+        "mid" => "中路",
+        "adc" => "下路",
+        "support" => "辅助",
+        _ => position
+    };
+
+    /// <summary>将队列和玩法别名转换为推荐服务使用的模式键。</summary>
+    internal static string NormalizeMode(string? gameMode, int queueId)
+    {
+        string mode = (gameMode ?? "").Trim().ToUpperInvariant();
+        if (mode.StartsWith("KIWI", StringComparison.OrdinalIgnoreCase)) return "aram_mayhem";
+        // 训练模式使用峡谷方案；其队列可能不在普通匹配队列列表中。
+        if (mode is "PRACTICETOOL" or "PRACTICE_TOOL") return "ranked";
+        if (queueId > 0)
+            return queueId switch
+            {
+                2400 or 3270 => "aram_mayhem",
+                450 => "aram",
+                1700 or 1701 or 1704 or 1710 => "arena",
+                1300 => "nexus_blitz",
+                900 or 1900 => "urf",
+                400 or 420 or 430 or 440 or 490 => "ranked",
+                _ => "unknown"
+            };
+        if (mode == "ARAM") return "aram";
+        if (mode is "CHERRY" or "ARENA") return "arena";
+        if (mode is "NEXUSBLITZ" or "NEXUS_BLITZ") return "nexus_blitz";
+        if (mode is "URF" or "ARURF") return "urf";
+        if (mode is "CLASSIC" or "CLASSIC SR") return "ranked";
+        return "unknown";
+    }
+
+    /// <summary>将推荐模式键转换为展示名称。</summary>
+    private static string GetModeName(string mode) => mode switch
+    {
+        "aram" => "极地大乱斗",
+        "aram_mayhem" => "海克斯大乱斗",
+        "arena" => "斗魂竞技场",
+        "nexus_blitz" => "极限闪击",
+        "urf" => "无限火力",
+        _ => "召唤师峡谷"
+    };
+
+    /// <summary>可写入客户端的符文、召唤师技能和装备方案。</summary>
+    private sealed record OpggBuild(
+        int PrimaryStyleId,
+        int SubStyleId,
+        List<int> RunePerks,
+        List<int> StarterItems,
+        List<int> CoreItems,
+        List<int> SituationalItems);
+
+    /// <summary>外部推荐数据解析后的方案、强化和对位信息集合。</summary>
+    internal sealed record OpggBuildPayload(
+        IReadOnlyList<OpggBuildOption> Options,
+        IReadOnlyList<OpggAugmentRecommendation> Augments,
+        IReadOnlyList<OpggMatchup> Matchups);
+}

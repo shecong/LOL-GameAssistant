@@ -24,7 +24,7 @@ internal static class TaskbarApplicationIdentity
             {
                 Set(store, 2, $"\"{Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath}\"");
                 Set(store, 3, IconResource.Value);
-                Set(store, 4, "SC · LOL GameAssistant");
+                Set(store, 4, "sc助手");
                 // 最后设置 ID：Shell 此时会重新读取窗口的图标和启动信息。
                 Set(store, 5, ApplicationId);
             });

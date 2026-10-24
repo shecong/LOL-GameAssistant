@@ -24,6 +24,9 @@ let context = null;
 let observer = null;
 let tierCache = new Map();
 let tierRequestMode = '';
+let tierCacheMode = '';
+let tierGeneration = 0;
+let tierPending = null;
 
 const defaults = {
   showBadges: true,
@@ -103,7 +106,10 @@ function applyVisuals() {
   document.body?.classList.toggle('lga-wallpaper', Boolean(config.wallpaperUrl));
   document.body?.classList.toggle('lga-hide-navigation', config.hideNavigation);
   ensureStyle(config.wallpaperUrl);
-  if (config.showBadges) void fetchTierData(config.tierMode).finally(scheduleBadgeInjection);
+  if (config.showBadges) void fetchTierData(config.tierMode).then(scheduleBadgeInjection, () => {
+    console.warn('OP.GG tier data unavailable; badges will retry on the next refresh.');
+    scheduleBadgeInjection();
+  });
   else document.querySelectorAll(`[${BADGE_ATTR}]`).forEach((node) => node.remove());
 }
 
@@ -208,22 +214,35 @@ function ensurePositionContext(element) {
 
 async function fetchTierData(mode) {
   const normalized = ['ranked', 'aram', 'arena', 'urf'].includes(mode) ? mode : 'ranked';
-  if (tierRequestMode === normalized && tierCache.size > 0) return;
+  if (tierRequestMode === normalized && tierPending) return tierPending;
+  const generation = ++tierGeneration;
   tierRequestMode = normalized;
-  const tier = normalized === 'arena' ? 'all' : 'gold_plus';
-  const response = await fetch(`https://lol-api-champion.op.gg/api/global/champions/${normalized}?tier=${tier}`);
-  if (!response.ok) throw new Error(`OP.GG tier request failed: ${response.status}`);
-  const payload = await response.json();
-  const next = new Map();
-  for (const champion of payload?.data || []) {
-    const stats = normalized === 'ranked'
-      ? [...(champion.positions || [])].filter((position) => Number.isFinite(position.stats?.tier_data?.tier)).sort((a, b) => a.stats.tier_data.tier - b.stats.tier_data.tier)[0]?.stats
-      : champion.average_stats;
-    const value = stats?.tier_data?.tier ?? stats?.tier;
-    if (champion?.id > 0 && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 5) {
-      next.set(Number(champion.id), Number(value) === 0 ? 'OP' : `T${Number(value)}`);
-    }
-  }
-  tierCache = next;
+  tierPending = null;
+  if (tierCacheMode === normalized) return;
+  tierCache = new Map();
+  tierCacheMode = '';
   document.querySelectorAll(`[${BADGE_ATTR}]`).forEach((node) => node.remove());
+  const request = (async () => {
+    const tier = normalized === 'arena' ? 'all' : 'gold_plus';
+    const response = await fetch(`https://lol-api-champion.op.gg/api/global/champions/${normalized}?tier=${tier}`);
+    if (!response.ok) throw new Error(`OP.GG tier request failed: ${response.status}`);
+    const payload = await response.json();
+    const next = new Map();
+    for (const champion of payload?.data || []) {
+      const stats = normalized === 'ranked'
+        ? [...(champion.positions || [])].filter((position) => Number.isFinite(position.stats?.tier_data?.tier)).sort((a, b) => a.stats.tier_data.tier - b.stats.tier_data.tier)[0]?.stats
+        : champion.average_stats;
+      const value = stats?.tier_data?.tier ?? stats?.tier;
+      if (champion?.id > 0 && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 5) {
+        next.set(Number(champion.id), Number(value) === 0 ? 'OP' : `T${Number(value)}`);
+      }
+    }
+    if (generation !== tierGeneration) return;
+    tierCache = next;
+    tierCacheMode = normalized;
+    document.querySelectorAll(`[${BADGE_ATTR}]`).forEach((node) => node.remove());
+  })();
+  tierPending = request;
+  try { await request; }
+  finally { if (generation === tierGeneration) tierPending = null; }
 }

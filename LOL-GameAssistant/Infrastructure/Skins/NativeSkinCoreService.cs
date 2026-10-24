@@ -241,7 +241,7 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
         long revision = Interlocked.Read(ref _revision); Check(revision);
         await _gate.WaitAsync(token).ConfigureAwait(false);
         try { Check(revision); if (Volatile.Read(ref _stopping) != 0) throw new SkinCoreException("core_stopping"); return await operation(revision, token).ConfigureAwait(false); }
-        catch (SkinCoreException error) { Log(new { stage = "failed", error.Code, error.OutcomeUnknown }); throw; }
+        catch (SkinCoreException error) { Log(new { stage = "failed", error.Code, error.OutcomeUnknown, error.Details }); throw; }
         finally { _gate.Release(); }
     }
     private async Task<SkinCoreReply> CatalogAsync(long revision, CancellationToken token)

@@ -258,7 +258,8 @@ public sealed class CoachThemeTests
                 ChampionId = id, Mode = "aram", AutoApply = true,
                 PrimaryStyleId = 8000, SubStyleId = 8100,
                 RunePerkIds = new() { 8005, 8009, 9104, 8014, 8139, 8135 },
-                SummonerSpellIds = new() { 4, 14 }
+                SummonerSpellIds = new() { 4, 14 },
+                ItemBlocks = [new("核心", [3006, 3031, 3094])]
             }).ToList()
         };
         int applications = 0;
@@ -293,6 +294,84 @@ public sealed class CoachThemeTests
         form.ResetOpggChampSelectPrompt();
         form.PromptOpggBuildIfNeededAsync().GetAwaiter().GetResult();
         Assert.Equal(3, applications);
+    });
+
+    [Theory]
+    [InlineData(450, "aram", false)]
+    [InlineData(2400, "aram_mayhem", false)]
+    [InlineData(450, "aram", true)]
+    public void AutomaticBuildsFollowChampionChangesAndUseSavedChoiceWithoutPopup(int queue, string mode, bool personalRunes) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var context = new AiGameContext { Phase = "ChampSelect", MyChampionId = 1, GameMode = "ARAM", QueueId = queue };
+        var settings = new AssistantSettings();
+        Assert.True(settings.AutoApplyRuneBuild);
+        settings.OpggManualBuildSelections[$"1:{mode}:none"] = 2;
+        var personal = new PersonalRunePreset
+        {
+            ChampionId = 1, Mode = mode, AutoApply = true, PrimaryStyleId = 8100, SubStyleId = 8200,
+            RunePerkIds = [8112, 8126, 8138, 8135, 8234, 8236], SummonerSpellIds = [4, 14]
+        };
+        if (personalRunes) settings.PersonalRunePresets.Add(personal);
+        var applied = new List<(int Champion, int Order)>();
+        var options = new[] { 1, 2 }.Select(order => new OpggBuildOption(order, [], [3006, 3031, 3094], [],
+            8000, 8200, mode == "aram_mayhem" ? [] : [8010, 9111, 9104, 8299, 8234, 8236], 100, 50, Mode: mode)).ToArray();
+        using var form = new CoachForm(
+            Service<IAiCoachingService>((_, _) => Task.FromResult(context)),
+            Service<IRecommendationCoordinator>((method, _) => method.Name == "get_Current" ? RecommendationState.Initial : null),
+            Service<IApplicationSettingsStore>((_, _) => settings),
+            Service<IOpggBuildApplyService>((method, args) =>
+            {
+                if (method.Name == "GetBuildChoicesAsync")
+                    return Task.FromResult(new OpggBuildChoices(true, "", "英雄", "大乱斗", options, Mode: mode));
+                Assert.Equal("ApplyBuildAsync", method.Name);
+                Assert.True((bool)args[4]!); // 页面满时允许替换当前页。
+                Assert.True((bool)args[6]!); // 同步替换装备。
+                if (personalRunes && (int)args[0]! == 1)
+                {
+                    var option = (OpggBuildOption)args[2]!;
+                    Assert.Equal(personal.RunePerkIds, option.RunePerkIds);
+                    Assert.Equal(personal.PrimaryStyleId, option.PrimaryStyleId);
+                    Assert.Equal(options[0].CoreItemIds, option.CoreItemIds);
+                }
+                applied.Add(((int)args[0]!, ((OpggBuildOption)args[2]!).Order));
+                return Task.FromResult(OpggBuildApplyResult.Success("已应用"));
+            }));
+        form.PromptOpggBuildIfNeededAsync().GetAwaiter().GetResult();
+        form.PromptOpggBuildIfNeededAsync().GetAwaiter().GetResult();
+        context = new AiGameContext { Phase = "ChampSelect", MyChampionId = 2, GameMode = "ARAM", QueueId = queue };
+        form.PromptOpggBuildIfNeededAsync().GetAwaiter().GetResult();
+        context = new AiGameContext { Phase = "ChampSelect", MyChampionId = 1, GameMode = "ARAM", QueueId = queue };
+        form.PromptOpggBuildIfNeededAsync().GetAwaiter().GetResult();
+        Assert.Equal(new[] { (1, 2), (2, 1), (1, 2) }, applied);
+        Assert.Empty(System.Windows.Forms.Application.OpenForms.OfType<OpggBuildPickerForm>());
+    });
+
+    [Theory]
+    [InlineData("ChampSelect", 2, true)]
+    [InlineData("InProgress", 1, true)]
+    [InlineData("ChampSelect", 1, false)]
+    public void AutomaticBuildRejectsStaleResponseOrDisabledSetting(string phase, int champion, bool enabled) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new AssistantSettings();
+        var context = new AiGameContext { Phase = "ChampSelect", MyChampionId = 1, GameMode = "ARAM" };
+        var pending = new TaskCompletionSource<OpggBuildChoices>();
+        using var form = new CoachForm(
+            Service<IAiCoachingService>((_, _) => Task.FromResult(context)),
+            Service<IRecommendationCoordinator>((method, _) => method.Name == "get_Current" ? RecommendationState.Initial : null),
+            Service<IApplicationSettingsStore>((_, _) => settings),
+            Service<IOpggBuildApplyService>((method, _) =>
+            {
+                Assert.Equal("GetBuildChoicesAsync", method.Name);
+                return pending.Task;
+            }));
+        Task task = form.PromptOpggBuildIfNeededAsync();
+        context = new AiGameContext { Phase = phase, MyChampionId = champion, GameMode = "ARAM" };
+        settings.AutoApplyRuneBuild = enabled;
+        pending.SetResult(new(true, "", "英雄", "大乱斗",
+            [new(1, [], [3006, 3031, 3094], [], 8000, 8200, [8010, 9111, 9104, 8299, 8234, 8236], 100, 50, Mode: "aram")], Mode: "aram"));
+        PumpUntil(() => task.IsCompleted);
+        task.GetAwaiter().GetResult();
+        Assert.Equal("", typeof(CoachForm).GetField("_opggPromptedContext", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form));
     });
 
     [Fact]

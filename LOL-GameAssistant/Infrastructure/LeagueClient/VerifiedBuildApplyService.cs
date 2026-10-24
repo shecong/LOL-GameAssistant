@@ -100,8 +100,9 @@ internal sealed class VerifiedBuildApplyService(IOpggBuildApplyService inner, IL
         catch (Exception e) { return OpggBuildApplyResult.Failure("配置未完整确认：" + e.Message + "；如已部分写入，可使用应用前快照恢复"); }
         finally { _gate.Release(); }
     }
-    public Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(PersonalRunePreset preset, CancellationToken token = default) =>
-        Apply((t, _) => inner.ApplyPersonalRunePresetAsync(preset, t), preset.ChampionId, preset.RunePerkIds,
+    public Task<OpggBuildApplyResult> ApplyPersonalRunePresetAsync(PersonalRunePreset preset, CancellationToken token = default,
+        bool allowReplaceCurrentRunePage = false) =>
+        Apply((t, _) => inner.ApplyPersonalRunePresetAsync(preset, t, allowReplaceCurrentRunePage), preset.ChampionId, preset.RunePerkIds,
             (preset.ItemBlocks ?? []).SelectMany(b => b.ItemIds).ToArray(), preset.SummonerSpellIds, token);
     public Task<OpggBuildApplyResult> ApplyBuildAsync(int id, string? position, OpggBuildOption option, CancellationToken token = default,
         bool allowReplaceCurrentRunePage = false, bool applySummonerSpells = true, bool applyItemSet = true) =>

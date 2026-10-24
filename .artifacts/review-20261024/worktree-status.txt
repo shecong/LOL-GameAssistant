@@ -1,0 +1,44 @@
+ M .gitignore
+ M LOL-GameAssistant.Tests/OpggBuildApplyServiceTests.cs
+ M LOL-GameAssistant.UiTests/AuditRegressionTests.cs
+ M LOL-GameAssistant.UiTests/CoachThemeTests.cs
+ M LOL-GameAssistant.UiTests/CompanionExperienceTests.cs
+ M LOL-GameAssistant.UiTests/PoroShopTests.cs
+ M LOL-GameAssistant.UiTests/PoroShopUiTests.cs
+ M LOL-GameAssistant.UiTests/TaskbarWindowRegistrationTests.cs
+ M LOL-GameAssistant.UiTests/UpdatePackageServiceTests.cs
+ M LOL-GameAssistant.UiTests/UpdatePlatformTests.cs
+ M LOL-GameAssistant/Application/Builds/IOpggBuildApplyService.cs
+ M LOL-GameAssistant/Application/Coaching/AiGameContextService.cs
+ M LOL-GameAssistant/BaseViewForm/ClientToolsForm.cs
+ M LOL-GameAssistant/BaseViewForm/CoachForm.cs
+ M LOL-GameAssistant/BaseViewForm/PoroShopForm.cs
+ M LOL-GameAssistant/BaseViewForm/RewardSelectionForm.cs
+ M LOL-GameAssistant/BaseViewForm/SettingForm.cs
+ M LOL-GameAssistant/Domain/Settings/AssistantPresetPolicy.cs
+ M LOL-GameAssistant/Domain/Settings/AssistantSettings.cs
+ M LOL-GameAssistant/Entity/SettingConfig.cs
+ M LOL-GameAssistant/GameMain.Designer.cs
+ M LOL-GameAssistant/GameMain.cs
+ M LOL-GameAssistant/Helper/TaskbarApplicationIdentity.cs
+ M LOL-GameAssistant/Helper/UiLanguage.cs
+ M LOL-GameAssistant/Infrastructure/ApplicationInfo/UpdatePackageService.cs
+ M LOL-GameAssistant/Infrastructure/LeagueClient/CachedOpggBuildApplyService.cs
+ M LOL-GameAssistant/Infrastructure/LeagueClient/OpggBuildApplyService.cs
+ M LOL-GameAssistant/Infrastructure/LeagueClient/VerifiedBuildApplyService.cs
+ M LOL-GameAssistant/LOL-GameGUI.csproj
+ M LOL-GameAssistant/Program.cs
+ M LOL-GameAssistant/Resources/locale-en.json
+ M build/update.example.json
+ M native/Updater/updater.cpp
+ M native/Updater/updater_tests.cpp
+ M tools/publish-update-menu.ps1
+ M tools/publish-update.ps1
+?? .artifacts/review-20261024/
+?? LOL-GameAssistant.UiTests/PoroShopExchangeCoordinatorTests.cs
+?? LOL-GameAssistant/Application/ClientFeatures/PoroShopExchangeCoordinator.cs
+?? LOL-GameAssistant/Application/ClientFeatures/PoroShopSelectionPolicy.cs
+?? LOL-GameAssistant/GameMain.PoroShop.cs
+?? README.md
+?? "docs/\347\216\251\345\256\266\344\275\277\347\224\250\346\214\207\345\215\227.md"
+?? tmp/

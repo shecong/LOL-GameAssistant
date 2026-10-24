@@ -1,0 +1,147 @@
+using LOL_GameAssistant.Domain.Builds;
+
+namespace LOL_GameAssistant.Domain.Settings;
+
+/// <summary>
+/// 助手运行设置的领域模型。
+/// JSON 字段名和本地加密细节不属于此模型，由基础设施负责兼容和映射。
+/// </summary>
+public sealed class AssistantSettings
+{
+    /// <summary>界面配色：跟随系统、浅色或深色。</summary>
+    public string ThemeMode { get; set; } = "System";
+    public LiveGameLayout LiveGameLayout { get; set; } = LiveGameLayout.Classic;
+    public LOL_GameAssistant.Domain.Matches.LiveHistoryFilter LiveHistoryFilter { get; set; }
+    public string LanguageMode { get; set; } = "zh-CN";
+
+    public bool AutoLaunchGameClient { get; set; }
+    public bool SkinCoreEnabled { get; set; }
+    public LOL_GameAssistant.Domain.Skins.SkinCoreMode SkinCoreMode { get; set; }
+    public bool UnlimitedZoomEnabled { get; set; }
+    public float? RememberedCameraDistance { get; set; }
+    public Dictionary<string, LOL_GameAssistant.Domain.Skins.SkinEntry> RememberedHeroSkins { get; set; } = new();
+    public bool SkinHotkeysEnabled { get; set; }
+    public string SkinPickerHotkey { get; set; } = "Home";
+    public string SkinPreviousHotkey { get; set; } = "Ctrl+Alt+Left";
+    public string SkinNextHotkey { get; set; } = "Ctrl+Alt+Right";
+    public string GameClientPath { get; set; } = "";
+    public int WindowOpacityPercent { get; set; } = 100;
+    public string HoldToTopHotkey { get; set; } = "Oem3";
+    public bool BattleOverlayEnabled { get; set; } = true;
+    public string BattleOverlayHotkey { get; set; } = "Oem3";
+    public bool HoldToTopOnlyWhenLeagueFocused { get; set; } = true;
+    public int QuickMessageSendIntervalSeconds { get; set; } = 3;
+    public string QuickMessageCustomPhrases { get; set; } = "";
+    public bool QuickShoutPerCharacter { get; set; }
+    public bool QuickShoutSendToAll { get; set; }
+    public bool QuickShoutUseClipboard { get; set; }
+    public bool QuickShoutHotkeysEnabled { get; set; } = true;
+    public string QuickShoutBuiltInHotkey { get; set; } = "F6";
+    public string QuickShoutCustomHotkey { get; set; } = "F7";
+    public string QuickShoutBatchHotkey { get; set; } = "F8";
+    public bool QuickShoutMultiSelectEnabled { get; set; }
+    public List<string> QuickShoutSelectedPhrases { get; set; } = new();
+
+    /// <summary>在选人阶段选定英雄后，显示 OP.GG 图文出装/符文选择器。</summary>
+    public bool OpggBuildAssistantEnabled { get; set; }
+
+    /// <summary>选人阵容加载完成后，汇总近期 KDA 并通过 LCU 发送到选人聊天。</summary>
+    public bool ChampSelectKdaAnnouncementEnabled { get; set; }
+
+    /// <summary>对局中双方近期 KDA 评估齐备后，通过游戏内喊话发送一次。</summary>
+    public bool GameKdaAnnouncementEnabled { get; set; }
+    public int RecentPerformanceMinimumGames { get; set; } = 10;
+
+    /// <summary>游戏前台手动发送双方 KDA，独立于自动发送开关。</summary>
+    public bool GameKdaHotkeyEnabled { get; set; } = true;
+    public string GameKdaHotkey { get; set; } = "F9";
+
+    /// <summary>小键盘 1–5 为蓝方，6–9、0 为红方，单独发送一名玩家的犀利测评。</summary>
+    public bool GameKdaPlayerHotkeysEnabled { get; set; } = true;
+
+    /// <summary>各评估档位的自定义文案，每行一条；空值使用内置词库。</summary>
+    public Dictionary<string, string> GameKdaCustomRemarks { get; set; } = new();
+
+    /// <summary>对局 KDA 喊话中每名玩家单独发送一条；默认按蓝红双方各汇总一条。</summary>
+    public bool GameKdaOnePlayerPerLine { get; set; }
+
+    /// <summary>选人 KDA 汇总消息模板，支持 {players}、{allies}、{enemies} 占位符。</summary>
+    public string ChampSelectKdaAnnouncementTemplate { get; set; } = "【选人近期 KDA 评估】\n{allies}\n{enemies}";
+
+    public CloudAiSettings Ai { get; set; } = new();
+    public bool AutoMatch { get; set; }
+    public bool AutoAccept { get; set; }
+    public int AutoAcceptDelayMinMilliseconds { get; set; }
+    public int AutoAcceptDelayMaxMilliseconds { get; set; }
+    public bool AutoBan { get; set; }
+    public bool AutoPick { get; set; }
+    public bool AutoPickPreselectOnly { get; set; }
+    public bool AutoSwapAramBench { get; set; }
+    public List<string> AramBenchPriorityChampions { get; set; } = new();
+    public bool SkipAutoPickOnFill { get; set; } = true;
+    public List<string> BanChampions { get; set; } = new();
+    public List<string> PickChampions { get; set; } = new();
+    public int CheckIntervalSeconds { get; set; } = 2;
+    public string Resolution { get; set; } = "1920x1080";
+    public bool MinimizeToTray { get; set; }
+    public bool AutoRefresh { get; set; }
+    public int AutoRefreshIntervalSeconds { get; set; } = 30;
+    public bool NotifyOnGameEnd { get; set; } = true;
+    public bool AutoReturnToLobby { get; set; }
+    public bool AutoReturnStartMatchmaking { get; set; }
+    public bool AutoHonor { get; set; }
+    public string HonorStrategy { get; set; } = "random";
+    public int QuickLobbyQueueId { get; set; } = 430;
+    public Dictionary<string, int> OpggManualBuildSelections { get; set; } = new();
+    public List<PersonalRunePreset> PersonalRunePresets { get; set; } = new();
+    public bool AutoApplyRuneBuild { get; set; } = true;
+    public bool MayhemOverlayEnabled { get; set; } = true;
+    public bool ChampSelectCompanionEnabled { get; set; } = true;
+    public bool LaunchOnStartup { get; set; }
+
+    /// <summary>统一修正旧配置缺失或异常时的安全默认值。</summary>
+    public void Normalize()
+    {
+        Ai ??= new CloudAiSettings();
+        ThemeMode = ThemeMode is "Light" or "Dark" or "System" ? ThemeMode : "System";
+        if (!Enum.IsDefined(LiveGameLayout)) LiveGameLayout = LiveGameLayout.Classic;
+        if (!Enum.IsDefined(LiveHistoryFilter)) LiveHistoryFilter = LOL_GameAssistant.Domain.Matches.LiveHistoryFilter.Latest;
+        HonorStrategy = HonorStrategy is "friends" or "manual" ? HonorStrategy : "random";
+        LanguageMode = LanguageMode is "en-US" or "zh-TW" ? LanguageMode : "zh-CN";
+        GameClientPath ??= "";
+        RememberedHeroSkins ??= new();
+        if (!Enum.IsDefined(SkinCoreMode)) SkinCoreMode = LOL_GameAssistant.Domain.Skins.SkinCoreMode.Classic;
+        if (RememberedCameraDistance is float distance && (!float.IsFinite(distance) || distance is < 600 or > 1700)) RememberedCameraDistance = null;
+        SkinPickerHotkey = string.IsNullOrWhiteSpace(SkinPickerHotkey) ? "Home" : SkinPickerHotkey;
+        WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);
+        HoldToTopHotkey = string.IsNullOrWhiteSpace(HoldToTopHotkey) ? "Oem3" : HoldToTopHotkey;
+        BattleOverlayHotkey = string.IsNullOrWhiteSpace(BattleOverlayHotkey) ? "Oem3" : BattleOverlayHotkey;
+        QuickMessageCustomPhrases ??= "";
+        QuickShoutBuiltInHotkey = string.IsNullOrWhiteSpace(QuickShoutBuiltInHotkey) ? "F6" : QuickShoutBuiltInHotkey;
+        QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
+        QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
+        GameKdaHotkey = string.IsNullOrWhiteSpace(GameKdaHotkey) ? "F9" : GameKdaHotkey;
+        GameKdaCustomRemarks ??= new Dictionary<string, string>();
+        RecentPerformanceMinimumGames = Math.Clamp(RecentPerformanceMinimumGames, 1, 50);
+        QuickShoutSelectedPhrases ??= new List<string>();
+        QuickMessageSendIntervalSeconds = Math.Clamp(QuickMessageSendIntervalSeconds, 2, 30);
+        AutoAcceptDelayMinMilliseconds = Math.Clamp(AutoAcceptDelayMinMilliseconds, 0, 15000);
+        AutoAcceptDelayMaxMilliseconds = Math.Clamp(AutoAcceptDelayMaxMilliseconds, 0, 15000);
+        if (AutoAcceptDelayMinMilliseconds > AutoAcceptDelayMaxMilliseconds)
+            (AutoAcceptDelayMinMilliseconds, AutoAcceptDelayMaxMilliseconds) = (0, 0);
+        ChampSelectKdaAnnouncementTemplate = string.IsNullOrWhiteSpace(ChampSelectKdaAnnouncementTemplate)
+            ? "【选人近期 KDA 评估】\n{allies}\n{enemies}"
+            : ChampSelectKdaAnnouncementTemplate.Trim()[..Math.Min(800, ChampSelectKdaAnnouncementTemplate.Trim().Length)];
+        CheckIntervalSeconds = Math.Max(1, CheckIntervalSeconds);
+        AutoRefreshIntervalSeconds = Math.Max(10, AutoRefreshIntervalSeconds);
+        BanChampions ??= new List<string>();
+        PickChampions ??= new List<string>();
+        AramBenchPriorityChampions ??= new List<string>();
+        Resolution = string.IsNullOrWhiteSpace(Resolution) ? "1920x1080" : Resolution;
+        QuickLobbyQueueId = Math.Max(1, QuickLobbyQueueId);
+        OpggManualBuildSelections ??= new Dictionary<string, int>();
+        PersonalRunePresets ??= new List<PersonalRunePreset>();
+        PersonalRunePresets = PersonalRunePresets.Where(preset => preset != null && preset.IsValid).ToList();
+        Ai.Normalize();
+    }
+}

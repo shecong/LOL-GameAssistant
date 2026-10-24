@@ -61,11 +61,11 @@ try {
                 # 兼容目前已发布在 E:\releases\1.0.1 根部的 x64 完整包。
                 if ($releaseArch -eq 'x64') { $releaseCandidates += Join-Path $PublishRoot $releaseVersion }
             }
-            $releaseSource = $releaseCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'LOL-GameGUI.exe') -PathType Leaf } | Select-Object -First 1
+            $releaseSource = $releaseCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'sc助手.exe') -PathType Leaf } | Select-Object -First 1
             if (-not $releaseSource -and $releaseInteractive) {
                 $releaseSource = (Read-Host "找不到 $releaseRuntime 发布包，请输入 VS 实际发布目录").Trim().Trim('"')
             }
-            if (-not $releaseSource -or -not (Test-Path -LiteralPath (Join-Path $releaseSource 'LOL-GameGUI.exe') -PathType Leaf)) {
+            if (-not $releaseSource -or -not (Test-Path -LiteralPath (Join-Path $releaseSource 'sc助手.exe') -PathType Leaf)) {
                 throw "找不到 $releaseRuntime 主程序。先用 VS 发布到 $PublishRoot\$releaseVersion\$releaseRuntime\publish，或通过 -PublishDirectory 指定实际目录；自动构建请使用 -Mode Build。"
             }
             $releaseSource = [IO.Path]::GetFullPath($releaseSource)
@@ -74,7 +74,7 @@ try {
                     throw "发布目录包含运行数据 $releaseUserPath，不能直接打包。请用 VS 发布到干净目录，或改用 -Mode Build 自动构建；不要删除正在使用的更新事务或个人配置。"
                 }
             }
-            $releaseEntry = Join-Path $releaseSource 'LOL-GameGUI.exe'
+            $releaseEntry = Join-Path $releaseSource 'sc助手.exe'
             $releaseInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($releaseEntry)
             if ($releaseInfo.FileVersion -ne "$releaseVersion.0") {
                 throw "$releaseEntry 版本是 $($releaseInfo.FileVersion)，配置要求 $releaseVersion.0，请重新发布。"

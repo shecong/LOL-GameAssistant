@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using LOL_GameAssistant.Domain.Skins;
 
 namespace LOL_GameAssistant.Helper;
 
@@ -20,6 +22,28 @@ public static class RuntimeDiagnostics
         "LOL-GameAssistant", "diagnostics.log");
 
     public static event EventHandler? Changed;
+    public static event Action<DiagnosticEntry>? Reported;
+    public const string SkinCoreComponent = "换肤核心";
+
+    public static void ReportSkinCoreFailure(SkinCoreException error)
+    {
+        string reason = error.Code switch
+        {
+            "message_post_failed" when error.Details?.Win32 == 5 => "发送消息被拒绝访问，请检查助手与游戏的权限级别及网吧管控策略。",
+            "message_post_failed" => "向游戏发送消息失败。",
+            "core_response_timeout" => "游戏端响应超时，请待对局加载稳定后读取。",
+            "host_response_timeout" => "核心宿主响应超时。",
+            "request_expired" => "核心请求已过期。",
+            "host_start_failed" => "核心宿主启动失败。",
+            "load_own_bridge_failed" => "核心 DLL 加载失败，请检查完整运行包。",
+            "standard_windows_hook_rejected" => "Windows 拒绝核心连接。",
+            "core_files_missing" or "hybrid_files_missing" => "核心运行文件缺失，请检查完整运行包。",
+            _ => "核心请求未完成。"
+        };
+        if (error.OutcomeUnknown) reason = "请求结果未确认，动作可能已执行。请读取状态，勿自动重试。";
+        Report(SkinCoreComponent, error.OutcomeUnknown ? "结果未确认" : "请求失败",
+            $"{reason}\n错误码：{error.Code}\n诊断详情：{JsonSerializer.Serialize(error.Details)}");
+    }
     public static void ReportStartup()
     {
         var assembly = System.Reflection.Assembly.GetEntryAssembly() ?? typeof(RuntimeDiagnostics).Assembly;
@@ -41,6 +65,7 @@ public static class RuntimeDiagnostics
         if (changed)
         {
             AppendLog($"{component} | {status} | {detail}");
+            Reported?.Invoke(entry);
             Changed?.Invoke(null, EventArgs.Empty);
         }
     }

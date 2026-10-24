@@ -27,7 +27,7 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
             if (!IsDisposed) { await RefreshAsync(); if (!IsDisposed) _status.Text = message; }
         };
         var shop = new AntdUI.Button { Text = "魄罗商店 · 勾选多个物品兑换", Dock = DockStyle.Top, Height = 45 };
-        shop.Click += (_, _) => { if (!_busy) { using var form = new PoroShopForm(_features); form.ShowDialog(this); } };
+        shop.Click += (_, _) => { if (!_busy) new PoroShopForm(_features).Show(this); };
         Controls.Add(_content); Controls.Add(_status); Controls.Add(shop); Controls.Add(claimAll); Controls.Add(refresh); AntdWindowChrome.AddHeader(this);
         Shown += async (_, _) => await RefreshAsync(); Disposed += (_, _) => _requests.Dispose(); UiTheme.Apply(this);
     }

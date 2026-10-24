@@ -282,7 +282,7 @@
             Name = "GameMain";
             ShowInTaskbar = true;
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "LOL GameAssistant";
+            Text = "sc助手";
             Load += GameMain_Load;
             tabs1.ResumeLayout(false);
             tabPage1.ResumeLayout(false);

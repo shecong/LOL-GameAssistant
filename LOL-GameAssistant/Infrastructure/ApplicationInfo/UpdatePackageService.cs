@@ -15,12 +15,14 @@ internal sealed class UpdatePackageService
     private static readonly HttpClient SharedClient = CreateClient();
     private readonly HttpClient _client;
     private readonly string _installDirectory;
+    private readonly TimeSpan _prepareTimeout;
 
     public UpdatePackageService() : this(SharedClient, AppContext.BaseDirectory) { }
-    internal UpdatePackageService(HttpClient client, string installDirectory)
+    internal UpdatePackageService(HttpClient client, string installDirectory, TimeSpan? prepareTimeout = null)
     {
         _client = client;
         _installDirectory = Path.GetFullPath(installDirectory);
+        _prepareTimeout = prepareTimeout ?? TimeSpan.FromMinutes(30);
     }
 
     internal static Uri AssetUrl(UpdateRelease release, string asset, bool useServer = false)
@@ -40,6 +42,19 @@ internal sealed class UpdatePackageService
     public async Task<PreparedUpdate> PrepareAsync(UpdateRelease release,
         IProgress<UpdateDownloadProgress>? progress, CancellationToken cancellationToken, bool useServer = false)
     {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(_prepareTimeout);
+        try { return await PrepareCoreAsync(release, progress, deadline.Token, useServer).ConfigureAwait(false); }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+        {
+            throw new TimeoutException("更新准备超时，请检查网络后重试。", ex);
+        }
+    }
+
+    private async Task<PreparedUpdate> PrepareCoreAsync(UpdateRelease release,
+        IProgress<UpdateDownloadProgress>? progress, CancellationToken cancellationToken, bool useServer)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         string updater = Path.Combine(_installDirectory, "Updater.exe");
         if (!File.Exists(updater)) throw new FileNotFoundException("当前运行包未包含 Updater.exe，请先从服务器、GitHub 或 QQ 群下载一次完整包。", updater);
         RejectReparsePoints(_installDirectory);
@@ -166,7 +181,7 @@ internal sealed class UpdatePackageService
             AppVersion.Normalize(version) != AppVersion.Normalize(release.Version) ||
             (requireNewer && !AppVersion.IsNewer(version, AppVersion.Current)) ||
             config.Size <= 0 || config.Size > MaximumPackageSize ||
-            config.EntryExecutable != "LOL-GameGUI.exe" ||
+            config.EntryExecutable != "sc助手.exe" ||
             !string.Equals(config.Package, UpdatePlatform.Package(UpdatePlatform.Current), StringComparison.Ordinal))
             throw new InvalidDataException("更新配置与目标版本或平台不匹配。");
         if (config.Sha256 is not { Length: 64 } || !config.Sha256.All(Uri.IsHexDigit))
@@ -280,7 +295,7 @@ internal sealed class UpdatePackageService
         foreach (string path in Directory.EnumerateFiles(destination, "*", SearchOption.AllDirectories))
             if (!listed.Contains(Path.GetRelativePath(destination, path).Replace('\\', '/')))
                 throw new InvalidDataException("更新包包含清单以外的文件。");
-        if (!listed.Contains("LOL-GameGUI.exe") || !listed.Contains("Updater.exe"))
+        if (!listed.Contains("sc助手.exe") || !listed.Contains("Updater.exe"))
             throw new InvalidDataException("更新包缺少主程序或更新器。");
     }
 
