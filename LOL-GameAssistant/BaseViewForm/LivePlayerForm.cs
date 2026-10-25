@@ -573,6 +573,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     row.UseReferenceLayout();
                     panelMatches.Controls.Add(row);
                     iconTasks.Add(row.SetSummaryAsync(game, _playerPuuid!));
+                    row.EnableAutomaticHonors();
                 }
                 if (games.Count == 0 && history.Games.MissingSummaryCount == 0) panelMatches.Controls.Add(new AntdUI.Label
                 {

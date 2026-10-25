@@ -134,7 +134,7 @@ public sealed class LivePlayerHistoryLoadingTests
     });
 
     [Fact]
-    public void FiveHundredSummariesAreScoredAndTenNewestRowsDoNotFetchDetails() => MatchListScrollingTests.OnUiThread(() =>
+    public void FiveHundredSummariesAreScoredButOnlyTenVisibleRowsLoadHonors() => MatchListScrollingTests.OnUiThread(() =>
     {
         long firstId = DateTime.UtcNow.Ticks;
         string puuid = Guid.NewGuid().ToString();
@@ -162,7 +162,8 @@ public sealed class LivePlayerHistoryLoadingTests
         }, puuid: puuid);
         using var form = Mount(card);
         Assert.Equal(1, batchRequests);
-        Assert.Empty(detailRequests);
+        SecondPhaseRegressionTests.PumpUntil(() => detailRequests.Count == 10);
+        Assert.Equal(Enumerable.Range(0, 10).Select(i => firstId + i), detailRequests.OrderBy(id => id));
         Assert.Equal(10, Child(card, "panelMatches").Controls.OfType<RecentMatchRow>().Count());
         Assert.Contains("50场", Child(card, "lblRecentKda").Text);
         Assert.Contains("KDA 6.50", Child(card, "lblRecentKda").Text);

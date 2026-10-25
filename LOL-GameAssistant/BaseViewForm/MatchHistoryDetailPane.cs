@@ -101,6 +101,11 @@ internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
         }
         _metrics = heading;
         AddBody(hero); AddBody(metricStrip); AddBody(_tabs); _tabs.SelectIndex = 0;
+        var honors = MatchHonorCalculator.ForPlayer(detail, mine);
+        var badges = new MatchHonorBadges { Honors = honors, Height = 24, AccessibleName = honors.Text };
+        _tips.SetToolTip(badges, MatchHonorCalculator.Explanation);
+        if (honors.Labels.Count > 0) AddBody(badges);
+        else badges.Dispose();
         foreach (var team in detail.participants.GroupBy(p => p.teamId).OrderBy(t => t.Key == mine?.teamId ? 0 : 1).ThenBy(t => t.Key))
         {
             bool own = team.Key == mine?.teamId;
@@ -152,13 +157,16 @@ internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "玩家", FillWeight = 48, SortMode = DataGridViewColumnSortMode.NotSortable });
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "K / D / A", FillWeight = 25, SortMode = DataGridViewColumnSortMode.NotSortable });
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "伤害", FillWeight = 27, SortMode = DataGridViewColumnSortMode.NotSortable });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "荣誉", FillWeight = 36, SortMode = DataGridViewColumnSortMode.NotSortable });
         foreach (var p in players)
         {
             var identity = Detail!.participantIdentities.FirstOrDefault(i => i.participantId == p.participantId)?.player;
             string name = identity?.GameName.Length > 0 ? identity.GameName : identity?.SummonerName ?? "未知玩家";
             int index = grid.Rows.Add(null!, (identity?.Puuid == ViewerPuuid ? "我 · " : "") + name,
-                p.stats is { HasKdaResult: true } ? p.GetKdaText() : "—", p.stats is { HasDamageResult: true } s ? s.totalDamageDealtToChampions.ToString("N0") : "—");
+                p.stats is { HasKdaResult: true } ? p.GetKdaText() : "—", p.stats is { HasDamageResult: true } s ? s.totalDamageDealtToChampions.ToString("N0") : "—",
+                MatchHonorCalculator.ForPlayer(Detail, p).Text);
             grid.Rows[index].Tag = p;
+            grid.Rows[index].Cells[4].ToolTipText = MatchHonorCalculator.ForPlayer(Detail, p).Text + "\n" + MatchHonorCalculator.Explanation;
             grid.Rows[index].Cells[1].ToolTipText = identity == null ? "身份未提供" : $"{identity.GameName}#{identity.TagLine}\n{identity.Puuid}";
         }
         grid.CellDoubleClick += (_, e) =>

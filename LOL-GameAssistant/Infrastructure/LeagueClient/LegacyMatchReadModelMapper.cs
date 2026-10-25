@@ -88,6 +88,8 @@ internal static class LegacyMatchReadModelMapper
         if (source == null) return null;
         return new MatchDetail
         {
+            HasFullParticipants = true,
+            endOfGameResult = source.endOfGameResult,
             GameId = source.gameId,
             gameCreationDate = source.gameCreationDate,
             gameDuration = source.gameDuration,
@@ -138,6 +140,7 @@ internal static class LegacyMatchReadModelMapper
         if (source == null) return null;
         return new MatchParticipantStats
         {
+            largestKillingSpree = source.largestKillingSpree,
             assists = source.assists ?? 0,
             champLevel = source.champLevel,
             deaths = source.deaths ?? 0,
@@ -185,6 +188,7 @@ internal static class LegacyMatchReadModelMapper
         if (source == null) return null;
         return new MatchParticipantStats
         {
+            largestKillingSpree = source.LargestKillingSpree,
             assists = source.Assists ?? 0,
             champLevel = source.ChampLevel,
             deaths = source.Deaths ?? 0,

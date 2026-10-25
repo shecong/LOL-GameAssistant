@@ -61,6 +61,7 @@ public partial class LivePlayerForm
         var row = new RecentMatchRow(_gameAssetService, _matchHistoryService);
         row.UseWorkspaceLayout();
         _ = row.SetSummaryAsync(summary, _playerPuuid ?? "");
+        row.EnableAutomaticHonors();
         return row;
     }
 }

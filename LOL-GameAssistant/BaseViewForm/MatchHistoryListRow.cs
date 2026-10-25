@@ -91,6 +91,7 @@ internal sealed class MatchHistoryListHeader : Control, IThemeAware
 internal sealed class MatchHistoryListRow : UserControl, IThemeAware
 {
     private readonly MatchParticipant? _mine;
+    private MatchHonors _honors = new(null, [], false);
     private readonly string _champion;
     private readonly MatchRowImages _images;
     private readonly ToolTip _tip = new();
@@ -112,12 +113,25 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
         Cursor = Cursors.Hand; TabStop = true;
         Margin = Padding.Empty;
         Height = 50; MinimumSize = new Size(260, 0);
-        AccessibleName = $"{ResultText} · {_champion} · {game.GetModeText()} · {KdaText}";
-        _tip.SetToolTip(this, $"{AccessibleName}\n{CreatedText}\n点击加载本局详情，列表位置不变。");
+        SetHonors(MatchHonorCalculator.ForPlayer(game, _mine));
         ApplyTheme(UiTheme.Palette);
     }
     private string ResultText => !Game.IsCompletedGame() ? "重开" : _mine?.stats is not { HasWinResult: true } ? "未知" : _mine.IsWin() ? "胜利" : "失败";
     private string KdaText => _mine?.stats is { HasKdaResult: true } ? _mine.GetKdaText() : "—";
+    internal MatchHonors Honors => _honors;
+    internal void ApplyDetailHonors(MatchDetail detail, string puuid)
+    {
+        if (detail.GameId == Game.GameId && detail.GetParticipant(puuid) is { } player)
+            SetHonors(MatchHonorCalculator.ForPlayer(detail, player));
+    }
+    private void SetHonors(MatchHonors honors)
+    {
+        _honors = honors;
+        AccessibleName = $"{ResultText} · {_champion} · {Game.GetModeText()} · {KdaText} · {honors.Text}";
+        _tip.SetToolTip(this, $"{AccessibleName}\n{CreatedText}\n{MatchHonorCalculator.Explanation}" +
+            (honors.MvpEvaluated ? "" : "\nMVP 暂无法评选，需完整双方数据与明确胜负。") + "\n点击加载本局详情，列表位置不变。");
+        Invalidate();
+    }
     private string CreatedText
     {
         get { try { return Game.GameCreation > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Game.GameCreation).ToLocalTime().ToString("MM-dd HH:mm") : "时间未知"; }
@@ -157,7 +171,15 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
                     int icon = S(32), y = (Height - icon) / 2;
                     DrawIcon(e.Graphics, "champion", _mine?.championId ?? 0, new(rect.X, y, icon, icon));
                     bool spells = rect.Width >= S(190);
-                    MatchListColumns.Text(e.Graphics, _champion, bold, p.TextPrimary, new(rect.X + icon + S(8), 0, Math.Max(0, rect.Width - icon - S(spells ? 38 : 14)), Height));
+                    int heroWidth = Math.Max(0, rect.Width - icon - S(spells ? 38 : 14));
+                    MatchListColumns.Text(e.Graphics, _champion, bold, p.TextPrimary,
+                        new(rect.X + icon + S(8), _honors.Feats.Count > 0 ? S(2) : 0, heroWidth, _honors.Feats.Count > 0 ? S(24) : Height));
+                    if (_honors.Feats.Count > 0)
+                    {
+                        using var featFont = new Font(UiMetrics.FontFamily, 7.5F, FontStyle.Bold);
+                        MatchHonorBadges.Draw(e.Graphics, new(null, _honors.Feats, _honors.MvpEvaluated), featFont,
+                            new(rect.X + icon + S(8), S(28), heroWidth, S(19)));
+                    }
                     if (spells)
                     {
                         DrawIcon(e.Graphics, "spell", _mine?.Spell1Id ?? 0, new(rect.Right - S(25), S(7), S(16), S(16)));
@@ -165,7 +187,16 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
                     }
                     break;
                 case "模式": MatchListColumns.Text(e.Graphics, Game.GetModeText(), Font, p.TextSecondary, rect); break;
-                case "K / D / A": MatchListColumns.Text(e.Graphics, KdaText.Replace("/", " / "), bold, p.TextPrimary, rect); break;
+                case "K / D / A":
+                    MatchListColumns.Text(e.Graphics, KdaText.Replace("/", " / "), bold, p.TextPrimary,
+                        _honors.Mvp is null ? rect : new(rect.X, S(2), rect.Width, S(24)));
+                    if (_honors.Mvp is not null)
+                    {
+                        using var badgeFont = new Font(UiMetrics.FontFamily, 7.5F, FontStyle.Bold);
+                        var kdaHonors = new MatchHonors(_honors.Mvp, [], true);
+                        MatchHonorBadges.Draw(e.Graphics, kdaHonors, badgeFont, new(rect.X, S(28), rect.Width - S(4), S(19)));
+                    }
+                    break;
                 case "时长": MatchListColumns.Text(e.Graphics, Game.GameDuration > 0 ? $"{Game.GameDuration / 60}:{Game.GameDuration % 60:D2}" : "—", Font, p.TextSecondary, rect); break;
                 case "时间": MatchListColumns.Text(e.Graphics, CreatedText, Font, p.TextSecondary, rect); break;
                 case "出装":

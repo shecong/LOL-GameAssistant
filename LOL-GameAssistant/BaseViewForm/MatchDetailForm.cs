@@ -119,7 +119,9 @@ namespace LOL_GameAssistant.BaseViewForm
                     : (UiTheme.Palette.IsDark ? Color.FromArgb(239, 154, 154) : Color.FromArgb(198, 40, 40));
 
                 string champName = GetChampionDisplayName(gamer.championId);
-                lblChampion.Text = $"{champName}  |  等级 {gamer.stats?.champLevel}";
+                var honors = MatchHonorCalculator.ForPlayer(_gameInfo, gamer);
+                lblChampion.Text = $"{champName}  |  等级 {gamer.stats?.champLevel}" + (honors.Labels.Count > 0 ? $"  ·  {honors.Text}" : "");
+                _assetToolTip.SetToolTip(lblChampion, MatchHonorCalculator.Explanation);
                 lblKda.Text = $"KDA: {gamer.GetKdaText()}  ({gamer.GetKdaRatio()})";
 
                 var s = gamer.stats;
@@ -325,6 +327,16 @@ namespace LOL_GameAssistant.BaseViewForm
                 };
                 panel.Controls.Add(premadeTag);
                 _premadeTagsByPuuid[playerPuuid] = premadeTag;
+            }
+            var honors = MatchHonorCalculator.ForPlayer(_gameInfo, p);
+            if (honors.Labels.Count > 0)
+            {
+                int top = panel.Height;
+                panel.Height += 24;
+                var badges = new MatchHonorBadges { Honors = honors, Location = new Point(70, top),
+                    Size = new Size(370, 22), AccessibleName = honors.Text };
+                _assetToolTip.SetToolTip(badges, MatchHonorCalculator.Explanation);
+                panel.Controls.Add(badges);
             }
             panel.Scale(new SizeF(DeviceDpi / 96f, DeviceDpi / 96f));
             return panel;

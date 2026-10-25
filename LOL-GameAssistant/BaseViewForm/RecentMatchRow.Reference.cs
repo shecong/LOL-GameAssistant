@@ -10,7 +10,7 @@ public partial class RecentMatchRow
     internal void UseReferenceLayout()
     {
         _referenceLayout = true;
-        Height = 52;
+        Height = 72;
         _detailArrow = new AntdUI.Label { Text = "›", AutoSize = false, Cursor = Cursors.Hand,
             BackColor = Color.Transparent, Font = new Font(UiMetrics.FontFamily, 14F) };
         _detailArrow.Click += (_, _) => OpenDetail();
@@ -25,7 +25,7 @@ public partial class RecentMatchRow
     }
     private void LayoutWorkspaceRow()
     {
-        int w = ClientSize.Width, y = (Height - 30) / 2;
+        int w = ClientSize.Width, y = (ContentHeight - 30) / 2;
         bool date = w >= 600;
         picChampion.SetBounds(10, y, 30, 30);
         lblChampion.SetBounds(48, y, Math.Max(25, (int)(w * .27) - 52), 30);

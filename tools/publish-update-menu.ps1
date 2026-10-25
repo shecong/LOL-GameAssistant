@@ -16,6 +16,7 @@ $ErrorActionPreference = 'Stop'
 try {
     $releaseRepository = Split-Path $PSScriptRoot -Parent
     . (Join-Path $PSScriptRoot 'UpdatePublishing.ps1')
+    $releaseEntryName = Get-UpdateEntryExecutable -Repository $releaseRepository
     $releaseInteractive = -not $Architecture
     if ($releaseInteractive) {
         Write-Host '自动更新打包：1=x64，2=x86（32 位），3=ARM64，4=全部架构'
@@ -61,11 +62,11 @@ try {
                 # 兼容目前已发布在 E:\releases\1.0.1 根部的 x64 完整包。
                 if ($releaseArch -eq 'x64') { $releaseCandidates += Join-Path $PublishRoot $releaseVersion }
             }
-            $releaseSource = $releaseCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'sc助手.exe') -PathType Leaf } | Select-Object -First 1
+            $releaseSource = $releaseCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ $releaseEntryName) -PathType Leaf } | Select-Object -First 1
             if (-not $releaseSource -and $releaseInteractive) {
                 $releaseSource = (Read-Host "找不到 $releaseRuntime 发布包，请输入 VS 实际发布目录").Trim().Trim('"')
             }
-            if (-not $releaseSource -or -not (Test-Path -LiteralPath (Join-Path $releaseSource 'sc助手.exe') -PathType Leaf)) {
+            if (-not $releaseSource -or -not (Test-Path -LiteralPath (Join-Path $releaseSource $releaseEntryName) -PathType Leaf)) {
                 throw "找不到 $releaseRuntime 主程序。先用 VS 发布到 $PublishRoot\$releaseVersion\$releaseRuntime\publish，或通过 -PublishDirectory 指定实际目录；自动构建请使用 -Mode Build。"
             }
             $releaseSource = [IO.Path]::GetFullPath($releaseSource)
@@ -74,7 +75,7 @@ try {
                     throw "发布目录包含运行数据 $releaseUserPath，不能直接打包。请用 VS 发布到干净目录，或改用 -Mode Build 自动构建；不要删除正在使用的更新事务或个人配置。"
                 }
             }
-            $releaseEntry = Join-Path $releaseSource 'sc助手.exe'
+            $releaseEntry = Join-Path $releaseSource $releaseEntryName
             $releaseInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($releaseEntry)
             if ($releaseInfo.FileVersion -ne "$releaseVersion.0") {
                 throw "$releaseEntry 版本是 $($releaseInfo.FileVersion)，配置要求 $releaseVersion.0，请重新发布。"
@@ -101,6 +102,12 @@ try {
     }
 
     $releaseRunRoot = [IO.Path]::GetFullPath((Join-Path $OutputRoot $releaseVersion))
+    # 双击 BAT 重打同版本时保留旧产物，使用独立目录；显式指定输出根目录仍严格禁止覆盖。
+    if ($releaseInteractive -and -not $PSBoundParameters.ContainsKey('OutputRoot') -and (Test-Path -LiteralPath $releaseRunRoot)) {
+        $releaseRunRoot = [IO.Path]::GetFullPath((Join-Path $OutputRoot (
+            $releaseVersion + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))))
+        Write-Host "本版本已有输出，将保留原文件并改用新目录：$releaseRunRoot"
+    }
     foreach ($releaseTask in $releaseTasks) {
         if ($releaseTask.Source -and ($releaseRunRoot.Equals($releaseTask.Source, [StringComparison]::OrdinalIgnoreCase) -or $releaseRunRoot.StartsWith($releaseTask.Source.TrimEnd('\','/') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase))) {
             throw '打包输出不能位于输入发布目录内部，请修改 -OutputRoot。'
@@ -109,13 +116,14 @@ try {
             if (Test-Path -LiteralPath (Join-Path $releaseRunRoot $releaseAsset)) { throw "已有本版本的 $releaseAsset，请升级版本号或通过 -OutputRoot 更换输出目录。" }
         }
     }
-    Write-Host "版本：$releaseVersion；方式：$Mode；服务器：$($releaseSettings.serverBaseUrl)"
+    Write-Host "版本：$releaseVersion；入口：$releaseEntryName；方式：$Mode；服务器：$($releaseSettings.serverBaseUrl)"
+    Write-Host '改名前仍运行 LOL-GameGUI.exe 的旧客户端需先下载一次完整包，无法直接自动更新到新入口。'
     $releaseTasks | Format-Table Runtime,Source,Updater -AutoSize | Out-Host
     Write-Host "本次输出目录：$releaseRunRoot"
     if ($Architecture -in @('arm64','all')) { Write-Host '默认复用对应架构的现成更新器，无需 C++ 编译器；各架构的 OCR、SkinCore、GameOverlay 依赖仍需兼容性验收。' }
     if ($CheckOnly) { Write-Host '检查完成，未构建或生成更新包。'; exit 0 }
 
-    $releaseSummary = @("版本：$releaseVersion", "下载服务器：$($releaseSettings.serverBaseUrl)", '请先上传所有版本/架构目录，验证后最后更新 IIS 根目录 update.json。', '')
+    $releaseSummary = @("版本：$releaseVersion", "主程序入口：$releaseEntryName", "下载服务器：$($releaseSettings.serverBaseUrl)", '改名前仍运行 LOL-GameGUI.exe 的旧客户端需先下载一次完整包。', '请先上传所有版本/架构目录，验证后最后更新 IIS 根目录 update.json。', '')
     foreach ($releaseTask in $releaseTasks) {
         $releaseOutput = $releaseRunRoot
         $releaseArguments = @{ Runtime=$releaseTask.Runtime; OutputDirectory=$releaseOutput; FlatOutput=$true }

@@ -188,6 +188,8 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
                 if (generation == Volatile.Read(ref _detailCacheGeneration)) _selectedDetails[key] = detail;
             }
             if (!request.IsCurrent) return;
+            foreach (var row in stackMatches.Controls.OfType<MatchHistoryListRow>().Where(row => row.Game.GameId == detail.GameId))
+                row.ApplyDetailHonors(detail, puuid);
             _detailPane.SetDetail(detail, puuid);
         }
         catch (OperationCanceledException) when (request.Token.IsCancellationRequested) { }

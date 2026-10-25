@@ -206,7 +206,8 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerH
         string session = PlayerHistorySession.Key;
         string scope = await _context(cancellationToken).ConfigureAwait(false);
         if (session != PlayerHistorySession.Key) return null;
-        string key = $"v3:{scope}:" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        // v4 includes full-roster provenance and the previously omitted killing-spree field.
+        string key = $"v4:{scope}:" + gameId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         Task<MatchDetail?> read = useCache
             ? _details.GetAsync(key, () => ReadDetailAsync(gameId, useCache, session), cancellationToken, requestContext: session)
             : _details.GetLatestOrCachedAsync(key, () => ReadDetailAsync(gameId, useCache, session));

@@ -3,12 +3,26 @@ $ErrorActionPreference = 'Stop'
 $updaterArch = $Runtime.Substring(4)
 $updaterVsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path -LiteralPath $updaterVsWhere)) { throw 'Install Visual Studio C++ Build Tools (Desktop development with C++) and Windows SDK.' }
-$updaterVs = & $updaterVsWhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-if (-not $updaterVs) { throw 'Visual Studio C++ build tools not found.' }
-$updaterVc = (Get-ChildItem -LiteralPath "$updaterVs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
-if (-not (Test-Path -LiteralPath "$updaterVc\bin\Hostx64\$updaterArch\cl.exe")) {
+$updaterInstallations = @(& $updaterVsWhere -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)
+if ($LASTEXITCODE -ne 0 -or $updaterInstallations.Count -eq 0) { throw 'Visual Studio C++ build tools not found.' }
+# 最新 IDE 不一定安装了目标架构；同时检查其他 VS/Build Tools 和并存的 MSVC 版本。
+$updaterVc = $null
+foreach ($updaterInstallation in $updaterInstallations) {
+    $updaterToolsRoot = Join-Path $updaterInstallation 'VC\Tools\MSVC'
+    if (-not (Test-Path -LiteralPath $updaterToolsRoot -PathType Container)) { continue }
+    foreach ($updaterToolset in (Get-ChildItem -LiteralPath $updaterToolsRoot -Directory | Sort-Object { [Version]$_.Name } -Descending)) {
+        if ((Test-Path -LiteralPath "$($updaterToolset.FullName)\bin\Hostx64\$updaterArch\cl.exe") -and
+            (Test-Path -LiteralPath "$($updaterToolset.FullName)\lib\$updaterArch\libcmt.lib")) {
+            $updaterVc = $updaterToolset.FullName
+            break
+        }
+    }
+    if ($updaterVc) { break }
+}
+if (-not $updaterVc) {
     throw "缺少 MSVC $updaterArch 编译器，不能生成 $Runtime 更新器。打开 Visual Studio Installer → 修改 → 单个组件，安装对应的 MSVC $updaterArch 编译工具后重试。"
 }
+Write-Host "原生更新器工具链：$Runtime -> $updaterVc"
 $updaterSdk = "${env:ProgramFiles(x86)}\Windows Kits\10"
 $updaterSdkVersion = (Get-ChildItem -LiteralPath "$updaterSdk\Lib" -Directory | Where-Object { Test-Path -LiteralPath "$($_.FullName)\um\$updaterArch\kernel32.lib" } | Sort-Object Name -Descending | Select-Object -First 1).Name
 if (-not $updaterSdkVersion) { throw 'Windows SDK not found.' }

@@ -13,7 +13,13 @@ namespace LOL_GameAssistant.BaseViewForm
     /// </summary>
     public partial class RecentMatchRow : UserControl, IThemeAware
     {
-        public const int RowHeight = 40;
+        public const int RowHeight = 60;
+        private readonly MatchHonorBadges _honorBadges = new();
+        private int ContentHeight => Math.Max(1, Height - _honorBadges.Height);
+        internal MatchHonors Honors => _honorBadges.Honors;
+        private static readonly SemaphoreSlim HonorDetailGate = new(2);
+        private bool _automaticHonors, _needsHonorDetail, _honorLoadStarted;
+        private long _honorRevision;
 
         private MatchDetail? _detail;
         private long _summaryGameId;
@@ -54,6 +60,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _gameAssetService = gameAssetService;
             _matchHistoryService = matchHistoryService;
             InitializeComponent();
+            Height = RowHeight;
+            Controls.Add(_honorBadges);
 
             SetStyle(
                 ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -86,12 +94,18 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void LayoutRow()
         {
+            LayoutMainRow();
+            _honorBadges.SetBounds(48, ContentHeight, Math.Max(0, ClientSize.Width - 64), _honorBadges.Height);
+        }
+
+        private void LayoutMainRow()
+        {
             if (_workspaceLayout) { LayoutWorkspaceRow(); return; }
             if (_referenceLayout) { LayoutReferenceRow(); return; }
             int w = Math.Max(1, ClientSize.Width);
             int x = 10;
-            int iconY = Math.Max(3, (Height - 34) / 2);
-            int labelY = Math.Max(6, (Height - 20) / 2);
+            int iconY = Math.Max(3, (ContentHeight - 34) / 2);
+            int labelY = Math.Max(6, (ContentHeight - 20) / 2);
 
             picChampion.Location = new Point(x, iconY);
             x += 34 + (_championAndModeOnly ? 6 : 8);
@@ -124,7 +138,7 @@ namespace LOL_GameAssistant.BaseViewForm
             int championWidth = showMode
                 ? Math.Min(150, Math.Max(92, detailsWidth / 2 - 3))
                 : detailsWidth;
-            lblChampion.Location = new Point(x, _championAndModeOnly ? Math.Max(2, (Height - 34) / 2) : labelY);
+            lblChampion.Location = new Point(x, _championAndModeOnly ? Math.Max(2, (ContentHeight - 34) / 2) : labelY);
             lblChampion.Width = championWidth;
             lblChampion.Height = _championAndModeOnly ? 34 : 20;
 
@@ -166,11 +180,16 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>列表只绑定查询者本人的摘要；完整十人详情留到用户打开时获取。</summary>
         public async Task SetSummaryAsync(MatchHistoryGame summary, string puuid)
         {
+            long revision = ++_honorRevision;
+            _honorLoadStarted = false;
             _detail = null;
             _summaryGameId = summary.GameId;
             _puuid = puuid;
             _championAndModeOnly = true;
             var participant = summary.GetParticipant(puuid);
+            _needsHonorDetail = !summary.HasFullParticipants && summary.IsCompletedGame() &&
+                participant?.stats is { HasWinResult: true, HasKdaResult: true };
+            SetHonors(MatchHonorCalculator.ForPlayer(summary, participant));
             _hasWinResult = participant?.stats?.HasWinResult == true;
             _isWin = _hasWinResult && participant!.IsWin();
             lblResult.Text = !_hasWinResult ? "未知" : _isWin ? "胜利" : "失败";
@@ -187,17 +206,89 @@ namespace LOL_GameAssistant.BaseViewForm
             _championTip.SetToolTip(lblChampion, "双击获取完整对局详情");
             ApplyTheme(UiTheme.Palette);
             LayoutRow();
+            QueueAutomaticHonors();
             if (champion <= 0) return;
             try
             {
                 var icon = ToImage(await _gameAssetService.GetChampionIconAsync(champion, _lifetime.Token));
-                if (IsDisposed) { icon?.Dispose(); return; }
+                if (IsDisposed || revision != _honorRevision) { icon?.Dispose(); return; }
                 picChampion.Image = icon;
                 _ownedChampionImage?.Dispose();
                 _ownedChampionImage = icon;
             }
             catch (OperationCanceledException) when (IsDisposed) { }
             catch (Exception error) { RuntimeDiagnostics.Report("近期战绩图标", "暂不可用", error.GetType().Name); }
+        }
+
+        private void SetHonors(MatchHonors honors)
+        {
+            _honorBadges.Honors = honors;
+            _honorBadges.StatusText = honors.MvpEvaluated ? "本局暂无荣誉" : "MVP 数据不足";
+            _honorBadges.AccessibleName = honors.Labels.Count > 0 ? honors.Text : _honorBadges.StatusText;
+            _championTip.SetToolTip(_honorBadges, honors.Text + "\n" + MatchHonorCalculator.Explanation +
+                (honors.MvpEvaluated ? "" : "\nMVP 暂无法评选，需完整双方数据与明确胜负。"));
+            _honorBadges.Invalidate();
+        }
+
+        internal void EnableAutomaticHonors()
+        {
+            _automaticHonors = true;
+            QueueAutomaticHonors();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            QueueAutomaticHonors();
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            QueueAutomaticHonors();
+        }
+
+        private void QueueAutomaticHonors()
+        {
+            if (!_automaticHonors || !_needsHonorDetail || _honorLoadStarted || !IsHandleCreated ||
+                !Visible || IsDisposed || string.IsNullOrEmpty(_puuid) || _summaryGameId <= 0) return;
+            _honorLoadStarted = true;
+            long revision = _honorRevision;
+            _honorBadges.StatusText = "荣誉读取中…";
+            if (Honors.Labels.Count == 0) _honorBadges.AccessibleName = _honorBadges.StatusText;
+            _honorBadges.Invalidate();
+            BeginInvoke(async () => await LoadAutomaticHonorsAsync(revision));
+        }
+
+        private async Task LoadAutomaticHonorsAsync(long revision)
+        {
+            if (IsDisposed || revision != _honorRevision) return;
+            bool acquired = false;
+            try
+            {
+                await HonorDetailGate.WaitAsync(_lifetime.Token);
+                acquired = true;
+                if (IsDisposed || revision != _honorRevision) return;
+                var detail = await LoadDetailAsync();
+                if (!IsDisposed && revision == _honorRevision && detail == null)
+                {
+                    _honorBadges.StatusText = "荣誉暂不可用";
+                    if (Honors.Labels.Count == 0) _honorBadges.AccessibleName = _honorBadges.StatusText;
+                    _honorBadges.Invalidate();
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                if (!IsDisposed && revision == _honorRevision)
+                {
+                    _honorBadges.StatusText = "荣誉暂不可用";
+                    if (Honors.Labels.Count == 0) _honorBadges.AccessibleName = _honorBadges.StatusText;
+                    _honorBadges.Invalidate();
+                    RuntimeDiagnostics.Report("近期战绩荣誉", "暂不可用", error.Message);
+                }
+            }
+            finally { if (acquired) HonorDetailGate.Release(); }
         }
 
         /// <summary>根据英雄标识取得展示名称。</summary>
@@ -259,6 +350,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _accent = !_hasWinResult ? palette.TextSecondary : _isWin ? Color.FromArgb(76, 175, 80) : Color.FromArgb(229, 57, 53);
             _hoverBack = UiAnimation.LerpColor(_baseBack, _accent, palette.IsDark ? .14 : .08);
             BackColor = _baseBack;
+            _honorBadges.BackColor = _baseBack;
+            _honorBadges.Invalidate();
             if (_referenceLayout)
             {
                 foreach (AntdUI.Label label in Controls.OfType<AntdUI.Label>()) label.BackColor = Color.Transparent;
@@ -333,9 +426,16 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (_detail != null) return _detail;
             if (_summaryGameId <= 0 || IsDisposed || string.IsNullOrEmpty(_puuid)) return null;
+            long revision = _honorRevision;
+            string session = PlayerHistorySession.Key;
             var detail = await PlayerHistoryRepository.For(_matchHistoryService ?? AppCompositionRoot.MatchHistoryService)
                 .GetDetailAsync(_summaryGameId, _lifetime.Token);
-            if (detail?.GameId == _summaryGameId && detail.GetParticipant(_puuid) != null) _detail = detail;
+            if (IsDisposed || revision != _honorRevision || session != PlayerHistorySession.Key) return null;
+            if (detail?.GameId == _summaryGameId && detail.GetParticipant(_puuid) is { } player)
+            {
+                _detail = detail;
+                if (!IsDisposed) SetHonors(MatchHonorCalculator.ForPlayer(detail, player));
+            }
             return _detail;
         }
 

@@ -22,6 +22,7 @@ if ($ServerBaseUrl) {
 }
 $updateRepository = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'UpdatePublishing.ps1')
+$updateEntryName = Get-UpdateEntryExecutable -Repository $updateRepository
 if ($RebuildUpdater -and ($SkipUpdaterBuild -or $UpdaterPath)) { throw '-RebuildUpdater cannot be combined with -SkipUpdaterBuild or -UpdaterPath.' }
 $updateVersionConfigPath = Join-Path $updateRepository 'build\Version.props'
 [xml]$updateVersionConfig = Get-Content -LiteralPath $updateVersionConfigPath -Raw
@@ -66,8 +67,8 @@ if (-not $PublishDirectory) {
     if ($LASTEXITCODE -ne 0) { throw 'Application publish failed.' }
 }
 $updateSource = [IO.Path]::GetFullPath($PublishDirectory)
-$updateEntry = Join-Path $updateSource 'sc助手.exe'
-if (-not (Test-Path -LiteralPath $updateEntry)) { throw 'Publish folder is missing sc助手.exe.' }
+$updateEntry = Join-Path $updateSource $updateEntryName
+if (-not (Test-Path -LiteralPath $updateEntry)) { throw "Publish folder is missing $updateEntryName. 请重新发布改名后的主程序，不要手动重命名旧版 EXE。" }
 if ((Get-UpdateExecutableRuntime -Path $updateEntry) -ne $Runtime) { throw "Executable architecture does not match $Runtime : $updateEntry" }
 $updateFileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($updateEntry)
 if ($updateFileVersion.FileMajorPart -ne $updateVersion.Major -or $updateFileVersion.FileMinorPart -ne $updateVersion.Minor -or $updateFileVersion.FileBuildPart -ne $updateVersion.Build -or $updateFileVersion.FilePrivatePart -ne 0) {
@@ -113,7 +114,7 @@ $updateManifest = [ordered]@{
     package = $updateZipName
     size = (Get-Item -LiteralPath $updateZip).Length
     sha256 = (Get-FileHash -LiteralPath $updateZip -Algorithm SHA256).Hash.ToLowerInvariant()
-    entryExecutable = 'sc助手.exe'
+    entryExecutable = $updateEntryName
 }
 $updateJson = $updateManifest | ConvertTo-Json
 $updateVersionManifest = if ($FlatOutput) { Join-Path $updateOutput "update-$Runtime.json" } else { Join-Path $updateVersionFolder 'update.json' }

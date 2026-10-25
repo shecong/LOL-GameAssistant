@@ -48,6 +48,7 @@ internal static class SgpMatchMapper
         }
         var detail = new MatchDetail
         {
+            HasFullParticipants = true,
             PlatformId = platform,
             GameId = id, endOfGameResult = summary.EndOfGameResult, gameCreationDate = summary.GameCreation > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(summary.GameCreation).ToString("O") : null,
             gameDuration = summary.GameDuration, gameMode = summary.GameMode, queueId = summary.QueueId.ToString(),

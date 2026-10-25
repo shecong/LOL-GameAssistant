@@ -47,7 +47,7 @@ public static class MatchHistoryGameExtensions
     /// <summary>SGP 摘要已包含所有参赛统计；导出无需再次下载每场相同 SUMMARY。</summary>
     public static MatchDetail ToSummaryDetail(this MatchHistoryGame game) => new()
     {
-        PlatformId = game.PlatformId, IsCrossRegion = game.IsCrossRegion,
+        PlatformId = game.PlatformId, IsCrossRegion = game.IsCrossRegion, HasFullParticipants = game.HasFullParticipants,
         GameId = game.GameId, gameDuration = game.GameDuration, gameMode = game.GameMode,
         queueId = game.QueueId.ToString(), _queueId = game.QueueId.ToString(), endOfGameResult = game.EndOfGameResult,
         gameCreationDate = game.GameCreation > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(game.GameCreation).ToString("O") : null,
@@ -128,6 +128,7 @@ public sealed class MatchIdentity
 /// <summary>单局比赛的领域读模型。</summary>
 public sealed class MatchDetail
 {
+    public bool HasFullParticipants { get; set; }
     public string PlatformId { get; set; } = "";
     public bool IsCrossRegion { get; set; }
     public string endOfGameResult { get; set; } = "";
