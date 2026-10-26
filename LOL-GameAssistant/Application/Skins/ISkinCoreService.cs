@@ -12,6 +12,7 @@ public interface ISkinCoreService
     Task<SkinCoreReply> RestoreAsync(string session, CancellationToken cancellationToken = default);
     Task<SkinCoreReply> StopAsync(string session, CancellationToken cancellationToken = default);
     Task<SkinCoreReply> GetRankBorderAsync(CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("rank_border_not_supported"));
+    Task<SkinCoreReply> ApplyRankBorderForLoadingAsync(string profile, string id, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("rank_border_not_supported"));
     Task<SkinCoreReply> ApplyRankBorderAsync(string session, string profile, string id, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("rank_border_not_supported"));
     Task<SkinCoreReply> RestoreRankBorderAsync(string session, string profile, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("rank_border_not_supported"));
     Task<SkinCoreReply> GetObjectCatalogAsync(CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("objects_not_supported"));

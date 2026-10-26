@@ -199,7 +199,7 @@ namespace LOL_GameAssistant
             tabs1.ItemSize = 112;
             tabs1.Gap = 12;
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
-            _skinTab = new AntdUI.TabPage { Text = "游戏换肤", Dock = DockStyle.Fill };
+            _skinTab = new AntdUI.TabPage { Text = "高级设置", Dock = DockStyle.Fill };
             _skinTools = new SkinToolsForm(AppCompositionRoot.SkinCoreService, _settingsStore);
             _skinTab.Controls.Add(_skinTools);
             tabs1.Controls.Add(_coachTab);

@@ -55,7 +55,9 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
             catch { /* Best-effort metadata must not hide the original failure. */ }
         }
         // Reporting must never replace the original transport failure.
-        try { diagnostic?.Invoke(error); }
+        bool expectedLoadingWait = arguments.Count > 0 && arguments[0] == "rank-border-auto" && !error.OutcomeUnknown &&
+            error.Code is "game_window_not_found" or "rank_border_not_ready" or "rank_border_loading_assets_unavailable";
+        try { if (!expectedLoadingWait) diagnostic?.Invoke(error); }
         catch { }
     }
 
@@ -64,10 +66,10 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
         string host = Path.Combine(directory, kernelRelay ? "league-skin-hybrid-host.exe" : "league-skin-core-host.exe");
         if (!File.Exists(host) || !File.Exists(Path.Combine(directory, "league-skin-core.dll")))
             throw new SkinCoreException(kernelRelay ? "hybrid_files_missing" : "core_files_missing");
-        if (arguments.Count == 0 || arguments[0] is not ("catalog" or "status" or "entry" or "restore" or "object-catalog" or "objects" or "objects-restore" or "module-state" or "camera-status" or "camera" or "camera-view" or "rank-border" or "driver-status") ||
+        if (arguments.Count == 0 || arguments[0] is not ("catalog" or "status" or "entry" or "restore" or "object-catalog" or "objects" or "objects-restore" or "module-state" or "camera-status" or "camera" or "camera-view" or "rank-border" or "rank-border-catalog" or "rank-border-auto" or "driver-status") ||
             (arguments[0] == "driver-status" && !kernelRelay))
             throw new SkinCoreException("invalid_request");
-        bool write = arguments[0] is "entry" or "restore" or "objects" or "objects-restore" or "camera" or "camera-view" or "rank-border";
+        bool write = arguments[0] is "entry" or "restore" or "objects" or "objects-restore" or "camera" or "camera-view" or "rank-border" or "rank-border-auto";
         var info = new ProcessStartInfo(host) { UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardOutput = true, RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, WorkingDirectory = directory };
@@ -85,6 +87,8 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
             if (!reply.Ok) throw ReplyFailure(reply, process.ExitCode);
             if (process.ExitCode != 0 || !reply.Independent || reply.OriginalRequired)
                 throw new SkinCoreException("invalid_independent_reply", write);
+            if (arguments[0] != "module-state" && arguments[0] != "driver-status" && reply.BridgeProtocol != 2)
+                throw new SkinCoreException("bridge_version_mismatch", write);
             if (kernelRelay && arguments[0] != "module-state" && reply.Backend != "kernel_relay")
                 throw new SkinCoreException("invalid_kernel_reply", write);
             return reply;

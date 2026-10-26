@@ -116,9 +116,11 @@ namespace LOL_GameAssistant.BaseViewForm
             IRegionalPlayerQueryFactory? regionalQueries = null,
             Func<PlayerNameSearchResult, CancellationToken, Task<PlayerSearchCandidate?>>? pickCandidate = null,
             LOL_GameAssistant.Application.GameData.IGameAssetService? listAssets = null,
-            LOL_GameAssistant.Application.GameData.IChampionCatalog? listChampions = null)
+            LOL_GameAssistant.Application.GameData.IChampionCatalog? listChampions = null,
+            IPlayerSpectateService? playerSpectateService = null)
         {
             _playerProfileService = playerProfileService;
+            _playerSpectateService = playerSpectateService ?? AppCompositionRoot.PlayerSpectateService;
             _regionalQueries = regionalQueries;
             _profileIconService = profileIconService;
             _matchHistoryService = matchHistoryService;
@@ -143,6 +145,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 _searchScope.Dispose();
                 _statsScope.Dispose();
                 _exportScope.Dispose();
+                _spectateScope.Dispose();
                 _detailScope.Dispose();
                 _selectedDetails.Clear();
                 CancelPageLoad();
@@ -249,6 +252,9 @@ namespace LOL_GameAssistant.BaseViewForm
             _backToTopButton = backToTop;
             backToTop.Click += (_, _) => stackMatches.AutoScrollPosition = Point.Empty;
             viewBar.Controls.Add(backToTop);
+            _spectateButton.Click += async (_, _) => await TrySpectatePlayerAsync();
+            _playerIdentityTip.SetToolTip(_spectateButton, "尝试观战当前查询的玩家（无需好友）；仅支持当前大区，目标须有可观战对局。");
+            viewBar.Controls.Add(_spectateButton);
 
             panelContent.Dock = DockStyle.Fill;
             panelContent.Margin = Padding.Empty;
@@ -389,7 +395,8 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (IsDisposed) return;
             int Scale(int value) => value * DeviceDpi / 96;
-            _viewSwitch.Width = Math.Min(Scale(600), Math.Max(Scale(310), ClientSize.Width - Scale(ClientSize.Width > Scale(950) ? 330 : 65)));
+            _viewSwitch.Width = Math.Min(Scale(600), Math.Max(Scale(310), ClientSize.Width - Scale(ClientSize.Width > Scale(950) ? 460 : 195)));
+            _spectateButton.Width = Scale(130);
             if (_pageSizeArea != null) _pageSizeArea.Visible = ClientSize.Width > Scale(950) && _viewSwitch.SelectIndex == 0;
             if (_backToTopButton != null) _backToTopButton.Visible = ClientSize.Width > Scale(950) && _viewSwitch.SelectIndex == 0;
             _viewSwitch.Height = Scale(37);
@@ -619,6 +626,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _playerProfileService = services.Profiles; _matchHistoryService = services.History;
             _rankedStatsService = services.Ranked; _queryPremades = services.Premades;
             _currentPlayer = null; _matchHistory = null; _filterHistory = null; _rawGameStats = null;
+            UpdateSpectateButton();
             _statsLoaded = false; _statsVersion++; _currentPage = 1; _totalGameCount = 0; _historyTotalKnown = true;
             solo = flex = null; ClearMatchControls(); pagination.Visible = false;
             _growthView?.Dispose(); _growthView = null;
@@ -777,6 +785,7 @@ namespace LOL_GameAssistant.BaseViewForm
             var player = await _playerProfileService.GetByPuuidAsync(puuid, token);
             if (IsDisposed || token.IsCancellationRequested) return;
             _currentPlayer = player;
+            UpdateSpectateButton();
             if (_currentPlayer == null) { lblStatus.Text = "获取玩家信息失败，请确认客户端已启动并登录。"; return; }
 
             CancelPageLoad();

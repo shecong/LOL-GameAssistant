@@ -232,6 +232,10 @@ public sealed partial class ClientToolsForm : UserControl, IThemeAware
         body.Controls.Add(ActionButton("更新在线状态", () =>
             _features.UpdateChatPresenceAsync(GetAvailabilityValue(), _statusMessage.Text)));
         body.Controls.Add(ActionButton("清除挑战角标", () => _features.ClearChallengeBadgesAsync()));
+        var identity = Button("边框 / 勋章 / 头衔 / 旗帜", (_, _) => {
+            using var picker = new ClientIdentityForm(AppCompositionRoot.ClientIdentityService);picker.ShowDialog(FindForm());
+        });
+        identity.Name = "ClientIdentityOpen";body.Controls.Add(identity);
 
         body.SetFlowBreak(body.Controls[body.Controls.Count - 1], true);
         body.Controls.Add(PreviewBox("生涯背景", _backgroundPreview, _backgroundPreviewCaption,

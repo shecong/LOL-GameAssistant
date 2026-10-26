@@ -23,7 +23,14 @@ public sealed record SkinEntry
 
 public sealed record SkinCoreReply
 {
+    public int BridgeProtocol { get; init; }
     public bool RankBorderSupported { get; init; }
+    public bool RankBorderLoadingReady { get; init; }
+    public int RankBorderDisplayCount { get; init; }
+    public bool? RankBorderDisplayVerified { get; init; }
+    public string RankBorderDisplayState { get; init; } = "";
+    public string RankBorderBaselineId { get; init; } = "";
+    public bool RankBorderBaselineAvailable { get; init; }
     public string RankBorderProfile { get; init; } = "";
     public string RankBorderId { get; init; } = "";
     public IReadOnlyList<RankBorderEntry> RankBorderEntries { get; init; } = [];

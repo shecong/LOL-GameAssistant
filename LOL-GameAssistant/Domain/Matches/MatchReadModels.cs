@@ -323,6 +323,7 @@ public static class LolGameModeNames
                 440 => "峡谷灵活组排",
                 490 => "峡谷快速游戏",
                 3110 => "自定义峡谷",
+                3140 => "训练营",
                 _ => null
             };
             if (!string.IsNullOrEmpty(name)) return name;
@@ -338,6 +339,7 @@ public static class LolGameModeNames
             "NEXUS_BLITZ" => "极限闪击",
             "ULTBOOK" => "终极魔典",
             "TFT" => "云顶之弈",
+            "PRACTICETOOL" or "PRACTICE_TOOL" => "训练营",
             _ when !string.IsNullOrEmpty(queue) => $"队列 {queue}",
             _ => "其他模式"
         };

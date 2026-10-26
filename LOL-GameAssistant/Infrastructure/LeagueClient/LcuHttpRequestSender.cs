@@ -35,7 +35,7 @@ public sealed class LcuHttpRequestSender : ILcuResultRequestSender
         };
         if (failure == LcuFailure.None && result.StatusCode is not (>= System.Net.HttpStatusCode.OK and < System.Net.HttpStatusCode.MultipleChoices))
             failure = result.StatusCode == null ? LcuFailure.Unexpected : LcuFailure.HttpStatus;
-        if (failure != LcuFailure.None) return new(null, result.StatusCode, failure);
+        if (failure != LcuFailure.None) return new(null, result.StatusCode, failure) { ServerErrorCode = result.ServerErrorCode };
         using var buffer = new MemoryStream();
         if (stream != null) await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
         return new(buffer.ToArray(), result.StatusCode, failure);

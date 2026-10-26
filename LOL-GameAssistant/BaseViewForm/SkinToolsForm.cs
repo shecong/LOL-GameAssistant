@@ -34,9 +34,11 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private readonly HashSet<string> _rememberedSessions = [];
 
     public SkinToolsForm(ISkinCoreService core, IApplicationSettingsStore settings,
-        IChampionSkinResourceService? skinResources = null, LOL_GameAssistant.Application.GameData.IGameOverlayBridge? cameraOverlay = null)
+        IChampionSkinResourceService? skinResources = null, LOL_GameAssistant.Application.GameData.IGameOverlayBridge? cameraOverlay = null,
+        IClientRegaliaService? clientRegalia = null)
     {
         _core = core; _settings = settings; _skinResources = skinResources ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ChampionSkinResourceService; Dock = DockStyle.Fill;
+        _clientRegalia = clientRegalia ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ClientRegaliaService;
         _cameraOverlay = cameraOverlay ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.GameOverlay;
         var viewport = new AntdUI.Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = Padding.Empty, Radius = 0 };
         var heading = new TableLayoutPanel { Dock = DockStyle.Top, Height = 56, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
@@ -404,12 +406,15 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (_objectCard != null) { _objectCard.Back = palette.SurfaceRaised; _objectCard.BackColor = palette.SurfaceRaised; _objectCard.BorderColor = palette.Border; ThemeCardLabels(_objectCard); }
         if (_otherSettingsCard != null) { _otherSettingsCard.Back = palette.SurfaceRaised; _otherSettingsCard.BackColor = palette.SurfaceRaised; _otherSettingsCard.BorderColor = palette.Border; ThemeCardLabels(_otherSettingsCard); }
         if (_borderCard != null) { _borderCard.Back = palette.SurfaceRaised; _borderCard.BackColor = palette.SurfaceRaised; _borderCard.BorderColor = palette.Border; ThemeCardLabels(_borderCard); }
+        if (_clientBorderCard != null) { _clientBorderCard.Back = palette.SurfaceRaised; _clientBorderCard.BackColor = palette.SurfaceRaised; _clientBorderCard.BorderColor = palette.Border; ThemeCardLabels(_clientBorderCard); }
     }
     protected override void Dispose(bool disposing)
     {
         if (disposing && !_disposing)
         {
             _disposing = true;
+            _clientRegaliaLifetime.Cancel();_clientRegaliaLifetime.Dispose();
+            _borderLifetime.Cancel();_borderLifetime.Dispose();
             Interlocked.Increment(ref _revision);
             VisibleChanged -= PageVisibleChanged;
             UiLanguage.Changed -= LanguageChanged;

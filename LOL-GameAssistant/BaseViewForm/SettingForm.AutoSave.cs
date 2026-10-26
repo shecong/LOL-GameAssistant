@@ -28,6 +28,7 @@ public partial class SettingForm
         Switch(_returnAndSearch, (s, v) => s.AutoReturnStartMatchmaking = v);
         Check(_autoSwapAramBench, (s, v) => s.AutoSwapAramBench = v);
         Check(_autoLaunchClient, (s, v) => s.AutoLaunchGameClient = v);
+        Check(_tclsAutoLogin, (s, v) => { if (!v) LOL_GameAssistant.Bootstrap.AppCompositionRoot.TclsLoginLauncher.Cancel();s.TclsAutoLoginEnabled = v;s.TclsSelectedAccountId = (_tclsAccounts.SelectedValue as LOL_GameAssistant.Domain.LeagueClient.TclsAccount)?.Id ?? ""; });
         Check(_onlyLeagueFocused, (s, v) => s.HoldToTopOnlyWhenLeagueFocused = v);
         Check(_battleOverlayEnabled, (s, v) => s.BattleOverlayEnabled = v);
         Check(_recommendationEnabled, (s, v) => s.Ai.RecommendationEnabled = v);

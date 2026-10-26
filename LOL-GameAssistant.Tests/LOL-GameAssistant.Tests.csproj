@@ -13,6 +13,7 @@
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\MatchStatisticsCalculator.cs" Link="Domain\MatchStatisticsCalculator.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\MatchHistoryRequestPolicy.cs" Link="Application\Matches\MatchHistoryRequestPolicy.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Skins\SkinCoreModels.cs" Link="Domain\Skins\SkinCoreModels.cs" />
+    <Compile Include="..\LOL-GameAssistant\Domain\Skins\RankBorderPresets.cs" Link="Domain\Skins\RankBorderPresets.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Matches\MatchHonors.cs" Link="Domain\Matches\MatchHonors.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Skins\SkinEntryCycle.cs" Link="Domain\Skins\SkinEntryCycle.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Skins\ISkinCoreService.cs" Link="Application\Skins\ISkinCoreService.cs" />

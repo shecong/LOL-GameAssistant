@@ -151,7 +151,25 @@ static int independentDefaultGear(const char* hero,int skin,int current) {
 #include "object_probe.h"
 #include "object_core.h"
 #include "camera_core.h"
+#include "rank_border_probe.h"
+#include "rank_border_display.h"
+#include "rank_border_core.h"
 static void independentProcess(Request* r) {
+    if(r->command>=19 && r->command<=21) {
+        bool invoked=false;
+        __try { Writer writer{r->result,0,sizeof(r->result),false};independentRankBorder(r,&writer,&invoked);if(writer.failed)fail(r,"reply_too_large","serialization",invoked); }
+        __except(EXCEPTION_EXECUTE_HANDLER) {fail(r,"rank_border_access_or_call_failed",invoked?"call_or_readback":"read",invoked);}
+        return;
+    }
+    if(r->command==18) {
+        __try {
+            BYTE* base=(BYTE*)GetModuleHandleW(nullptr);
+            if(!independentImage(base)){fail(r,"independent_game_version_not_supported");return;}
+            Writer writer{r->result,0,sizeof(r->result),false};independentBorderProbe(r,&writer,base);
+            if(writer.failed)fail(r,"reply_too_large");
+        } __except(EXCEPTION_EXECUTE_HANDLER) {fail(r,"border_probe_read_failed","read");}
+        return;
+    }
     IndependentContext c{};c.entries=(IndependentEntry*)calloc(IndependentMaxEntries,sizeof(IndependentEntry));
     if(!c.entries){fail(r,"independent_allocation_failed");return;}bool invoked=false;
     __try {

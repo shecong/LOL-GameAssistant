@@ -30,7 +30,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     private readonly IMatchHistoryService _matches;
     private readonly IApplicationSettingsStore _settings;
     private readonly Func<Rectangle?> _clientBounds;
-    private readonly Func<bool> _clientForeground;
+    private readonly Func<bool> _clientTopMost;
     private readonly Func<CancellationToken, Task<string>> _openBuildPicker;
     private Task? _buildEntryTask;
     private IntPtr _clientWindow;
@@ -89,7 +89,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     internal ChampSelectCompanionForm(IChampionSelectService selection, ILobbyService lobby,
         IClientFeatureService features, IChampionCatalog champions, IPlayerProfileService players,
         IRankedStatsService ranked, IMatchHistoryService matches, IApplicationSettingsStore settings,
-        Func<Rectangle?>? clientBounds = null, Func<bool>? clientForeground = null,
+        Func<Rectangle?>? clientBounds = null, Func<bool>? clientTopMost = null,
         Func<CancellationToken, Task<string>>? openBuildPicker = null)
     {
         _selection = selection;
@@ -101,7 +101,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         _matches = matches;
         _settings = settings;
         _clientBounds = clientBounds ?? (() => TryGetClientBounds(out var bounds) ? bounds : null);
-        _clientForeground = clientForeground ?? (() => _clientWindow != IntPtr.Zero && GetForegroundWindow() == _clientWindow);
+        _clientTopMost = clientTopMost ?? (() => IsClientWindowTopMost(_clientWindow));
         _openBuildPicker = openBuildPicker ?? (token => Program.GameMain.coachForm.OpenOpggBuildPickerAsync(token, owner: this));
         Text = "LOL 选人伴随窗";
         AntdWindowChrome.Configure(this, fitWorkingArea: false);
@@ -567,7 +567,9 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
             return false;
         }
         FollowClient(client.Value);
-        TopMost = _clientForeground();
+        // 前台焦点与系统置顶是不同状态，只同步客户端实际的置顶标志。
+        bool topMost = _clientTopMost();
+        if (TopMost != topMost) TopMost = topMost;
         if (!Visible) Show();
         RuntimeDiagnostics.Report("选人伴随窗", "已显示", "已定位客户端窗口并显示队友面板");
         return true;
@@ -638,6 +640,14 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         bounds = rectangle;
         return true;
     }
+
+    /// <summary>读取客户端实际的系统置顶状态，不因前台焦点变化而置顶。</summary>
+    internal static bool IsClientWindowTopMost(IntPtr handle) =>
+        handle != IntPtr.Zero && IsWindow(handle) &&
+        (GetWindowLong(handle, -20 /* GWL_EXSTYLE */) & 0x00000008 /* WS_EX_TOPMOST */) != 0;
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowLong(IntPtr window, int index);
 
     /// <summary>与 Windows 原生矩形布局对应的坐标结构。</summary>
     [StructLayout(LayoutKind.Sequential)]

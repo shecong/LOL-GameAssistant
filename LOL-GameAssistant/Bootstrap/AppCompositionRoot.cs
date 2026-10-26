@@ -15,6 +15,7 @@ using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Application.Ranked;
 using LOL_GameAssistant.Application.Settings;
+using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Infrastructure.Ai;
 using LOL_GameAssistant.Infrastructure.ApplicationInfo;
@@ -36,6 +37,9 @@ public static class AppCompositionRoot
 {
     static AppCompositionRoot()
     {
+        System.Windows.Forms.Application.ApplicationExit += (_, _) => TclsLoginLauncher.Cancel();
+        System.Windows.Forms.Application.ApplicationExit += (_, _) => RankBorderLoading.Dispose();
+        RankBorderLoading.Changed += update => LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("加载边框", update.Status, update.Message);
         MatchAnalysisSettings.Policy = () =>
         {
             var settings = ApplicationSettingsStore.Load();
@@ -58,6 +62,9 @@ public static class AppCompositionRoot
                 new LegacyApplicationSettingsStore().Load().SkinCoreMode),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
+    public static IClientRegaliaService ClientRegaliaService { get; } = new LcuClientRegaliaService(LcuRequestSender);
+    public static IClientIdentityService ClientIdentityService { get; } = new LcuClientIdentityService(LcuRequestSender,
+        detail => LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("身份装饰", "诊断", detail));
     private static readonly Infrastructure.Sgp.SgpClient Sgp = new(LcuRequestSender);
     private static readonly PlayerDataCacheScope PlayerCacheScope = new(LcuRequestSender);
     public static IClientCapabilityService ClientCapabilities { get; } = new LcuClientCapabilityService(LcuRequestSender);
@@ -72,7 +79,7 @@ public static class AppCompositionRoot
     public static LcuQuickShoutService QuickShoutService { get; } = new(LcuRequestSender);
 
     /// <summary>本地客户端扫描与启动服务。</summary>
-    public static IGameClientLauncher GameClientLauncher { get; } = new LocalGameClientLauncher();
+    public static IGameClientLauncher GameClientLauncher => TclsLoginLauncher;
 
     /// <summary>发布版本查询服务。</summary>
     public static IUpdateReleaseService UpdateReleaseService { get; } = new ServerUpdateReleaseService();
@@ -95,6 +102,9 @@ public static class AppCompositionRoot
     public static IFriendSpectateService FriendSpectateService { get; } =
         new LcuFriendSpectateService(LcuRequestSender);
 
+    public static IPlayerSpectateService PlayerSpectateService { get; } =
+        new LcuPlayerSpectateService((ILcuResultRequestSender)LcuRequestSender);
+
     /// <summary>好友列表查询服务。</summary>
     public static IFriendDirectoryService FriendDirectoryService { get; } =
         new LcuFriendDirectoryService(LcuRequestSender);
@@ -114,6 +124,16 @@ public static class AppCompositionRoot
     public static IApplicationSettingsStore ApplicationSettingsStore { get; } = new LegacyApplicationSettingsStore();
 
     public static ISettingsSecretProtector SettingsSecretProtector { get; } = new DpapiSettingsSecretProtector();
+    public static RankBorderLoadingCoordinator RankBorderLoading { get; } = new(SkinCoreService,
+        () => ApplicationSettingsStore.Load(), () =>
+        {
+            var processes = System.Diagnostics.Process.GetProcessesByName("League of Legends");
+            try { return processes.Length == 1 ? processes[0].Id : null; }
+            finally { foreach (var process in processes) process.Dispose(); }
+        });
+    public static ITclsAccountStore TclsAccounts { get; } = new LocalTclsAccountStore();
+    public static TclsAutomaticClientLauncher TclsLoginLauncher { get; } = new(new LocalGameClientLauncher(),
+        () => ApplicationSettingsStore.Load(), TclsAccounts);
 
     /// <summary>战绩列表和单局详情查询服务。</summary>
     public static IMatchHistoryService MatchHistoryService { get; } = new CachedMatchHistoryService(new Infrastructure.Sgp.SgpMatchHistoryService(Sgp), context: PlayerCacheScope.GetAsync);

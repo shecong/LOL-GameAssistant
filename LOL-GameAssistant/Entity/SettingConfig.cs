@@ -15,7 +15,12 @@ namespace LOL_GameAssistant.Entity
         /// <summary>是否在启动助手时直接启动已配置的国服 LOL 客户端。</summary>
         [JsonProperty("autoLaunchGameClient")]
         public bool AutoLaunchGameClient { get; set; } = false;
+        public bool TclsAutoLoginEnabled { get; set; }
+        public string TclsSelectedAccountId { get; set; } = "";
         public bool SkinCoreEnabled { get; set; } = false;
+        public bool RankBorderAutoApplyEnabled { get; set; }
+        public string PreferredRankBorderId { get; set; } = "";
+        public string PreferredRankBorderProfile { get; set; } = "";
         public LOL_GameAssistant.Domain.Skins.SkinCoreMode SkinCoreMode { get; set; }
         public bool UnlimitedZoomEnabled { get; set; }
         public float? RememberedCameraDistance { get; set; }

@@ -21,21 +21,59 @@ public sealed class RankBorderTests
         public Task<SkinCoreReply> InvokeAsync(IReadOnlyList<string> args, CancellationToken token)
         {
             Calls.Add(args.ToArray());
-            if (args[0] == "catalog") return Task.FromResult(State);
+            if (args[0] == "rank-border-catalog") return Task.FromResult(State);
             if (Write != null) return Write(args);
-            State = State with { RankBorderId = args[3], Invoked = true, StateVerified = true, TransportHookReleased = true };
+            State = State with { RankBorderId = args[3], Invoked = true, StateVerified = true, TransportHookReleased = true,
+                RankBorderDisplayVerified = true, RankBorderDisplayCount = 1,
+                RankBorderRestoreVerified = args[3] == "original" ? true : null };
             return Task.FromResult(State);
         }
     }
     private static NativeSkinCoreService Service(Transport transport) { var service = new NativeSkinCoreService(transport); service.SetEnabled(true); return service; }
 
     [Fact]
+    public async Task AtomicLoadingApplyRetainsNativeBaselineForRestore()
+    {
+        var transport = new Transport();
+        // The real host accepts uppercase tier ids; use an uppercase fixture entry.
+        var state = Catalog() with { RankBorderId = "CHALLENGER", RankBorderBaselineId = "original", RankBorderBaselineAvailable = true,
+            Invoked = true, StateVerified = true, TransportHookReleased = true,
+            RankBorderDisplayVerified = true, RankBorderDisplayCount = 1,
+            RankBorderEntries = [new() { Id = "original", Name = "Original" }, new() { Id = "CHALLENGER", Name = "Challenger" }] };
+        transport.Write = _ => Task.FromResult(state);
+        var service = Service(transport);
+        var result = await service.ApplyRankBorderForLoadingAsync("fixture.v1", "CHALLENGER");
+        Assert.True(result.StateVerified);Assert.Single(transport.Calls);
+        Assert.Equal("rank-border-auto", transport.Calls[0][0]);
+        transport.State = state;
+        transport.Write = _ => Task.FromResult(state with { RankBorderId = "original", RankBorderRestoreVerified = true });
+        Assert.True((await service.RestoreRankBorderAsync(result.Session, "fixture.v1")).RankBorderRestoreVerified);
+        Assert.Equal("original", transport.Calls.Last()[3]);
+    }
+    [Fact]
+    public async Task ComponentVerificationWithoutDisplayBindingIsUnknown()
+    {
+        var transport = new Transport { Write = _ => Task.FromResult(Catalog() with {
+            RankBorderId = "CHALLENGER", RankBorderBaselineId = "original", RankBorderBaselineAvailable = true,
+            Invoked = true, StateVerified = true, TransportHookReleased = true }) };
+        Assert.True((await Assert.ThrowsAsync<SkinCoreException>(() => Service(transport).ApplyRankBorderForLoadingAsync("fixture.v1", "CHALLENGER"))).OutcomeUnknown);
+        Assert.Single(transport.Calls);
+    }
+    [Fact]
+    public async Task AtomicReplyWithoutRecoverableBaselineIsUnknown()
+    {
+        var transport = new Transport { Write = _ => Task.FromResult(Catalog() with {
+            RankBorderId = "CHALLENGER", RankBorderBaselineId = "missing", Invoked = true, StateVerified = true, TransportHookReleased = true }) };
+        var error = await Assert.ThrowsAsync<SkinCoreException>(() => Service(transport).ApplyRankBorderForLoadingAsync("fixture.v1", "CHALLENGER"));
+        Assert.True(error.OutcomeUnknown);Assert.Single(transport.Calls);
+    }
+    [Fact]
     public async Task UnsupportedCatalogNeverInvokesNativeWrite()
     {
         var transport = new Transport { State = Catalog(false) }; var service = Service(transport);
         var error = await Assert.ThrowsAsync<SkinCoreException>(() => service.ApplyRankBorderAsync("1234567890abcdef", "fixture.v1", "selected"));
         Assert.Equal("rank_border_not_supported", error.Code);
-        Assert.Single(transport.Calls); Assert.Equal("catalog", transport.Calls[0][0]);
+        Assert.Single(transport.Calls); Assert.Equal("rank-border-catalog", transport.Calls[0][0]);
     }
     [Theory]
     [InlineData("0000000000000000", "fixture.v1", "selected", "stale_session")]

@@ -171,11 +171,13 @@ namespace LOL_GameAssistant.BaseViewForm
             IGameClientLauncher gameClientLauncher,
             IApplicationSettingsStore settingsStore,
             ISettingsSecretProtector settingsSecretProtector,
-            LOL_GameAssistant.Application.ClientFeatures.IClientFeatureService? clientFeatures = null)
+            LOL_GameAssistant.Application.ClientFeatures.IClientFeatureService? clientFeatures = null,
+            ITclsAccountStore? tclsAccounts = null)
         {
             _gameClientLauncher = gameClientLauncher;
             _settingsStore = settingsStore;
             _settingsSecretProtector = settingsSecretProtector;
+            _tclsAccountStore = tclsAccounts ?? AppCompositionRoot.TclsAccounts;
             _matchFeatures = clientFeatures ?? AppCompositionRoot.ClientFeatureService;
             InitializeComponent();
             WindowLayout.ConfigureDpi(this);
@@ -517,10 +519,15 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(layout, 3, "状态：", _clientStatus,
                 "上一次启动与连接的结果。");
             AddSegmentRow(layout, 4, "说明：", note);
-            AddSectionHeader(layout, 5, "应用启动与本地数据");
-            AddSegmentRow(layout, 6, "开机自启：", swi_startup);
-            AddSegmentRow(layout, 7, "本地缓存：", label_cache_status);
-            AddSegmentRow(layout, 8, "保存方式：", CreateNote("开关即时保存，安装路径编辑后离开输入框自动保存。"));
+            AddSegmentRow(layout, 5, "TCLS 账号：", CreateTclsAccountRow());
+            AddSegmentRow(layout, 6, "自动登录：", _tclsAutoLogin);
+            var tclsNote = CreateNote("先管理账号并保存默认大区，再开启自动登录。\n验证码、安全验证或无法识别的界面需手动处理，详情见运行日志。\n已登录的客户端不会自动切换账号。");
+            tclsNote.TextMultiLine = true;
+            AddSegmentRow(layout, 7, "登录说明：", tclsNote);
+            AddSectionHeader(layout, 8, "应用启动与本地数据");
+            AddSegmentRow(layout, 9, "开机自启：", swi_startup);
+            AddSegmentRow(layout, 10, "本地缓存：", label_cache_status);
+            AddSegmentRow(layout, 11, "保存方式：", CreateNote("开关即时保存，安装路径编辑后离开输入框自动保存。"));
             layout.ResumeLayout(true);
             return panel;
         }
@@ -862,6 +869,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.Normalize();
             _clientPath.Text = _gameClientLauncher.NormalizeConfiguredDirectory(_config.GameClientPath);
             _autoLaunchClient.Checked = _config.AutoLaunchGameClient;
+            _tclsAutoLogin.Checked = _config.TclsAutoLoginEnabled;
+            RefreshTclsAccounts(_config.TclsSelectedAccountId);
             _opacity.Value = _config.WindowOpacityPercent;
             _themeMode.SelectedIndex = _config.ThemeMode switch { "Light" => 1, "Dark" => 2, _ => 0 };
             _languageMode.SelectedIndex = _config.LanguageMode switch { "en-US" => 1, "zh-TW" => 2, _ => 0 };
@@ -969,12 +978,24 @@ namespace LOL_GameAssistant.BaseViewForm
             _launchClientButton.Enabled = false;
             _clientStatus.ForeColor = Color.DimGray;
             _clientStatus.Text = "正在查找安装目录并启动客户端，请稍候…";
+            var progress = new Progress<DiagnosticEntry>(entry =>
+            {
+                if (IsDisposed || _lifetime.Token.IsCancellationRequested || _launchClientButton.Enabled) return;
+                _clientStatus.Text = entry.Detail;
+            });
+            void OnLaunchProgress(DiagnosticEntry entry)
+            {
+                if (entry.Component == "TCLS 自动登录")
+                    ((IProgress<DiagnosticEntry>)progress).Report(entry);
+            }
+            RuntimeDiagnostics.Reported += OnLaunchProgress;
             try
             {
                 result = await _gameClientLauncher.StartAndVerifyAsync(_clientPath.Text.Trim(), _lifetime.Token);
             }
             catch (OperationCanceledException)
             {
+                if (!IsDisposed) _clientStatus.Text = "已取消客户端启动或 TCLS 自动登录。";
                 return;
             }
             catch (Exception ex)
@@ -983,6 +1004,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             finally
             {
+                RuntimeDiagnostics.Reported -= OnLaunchProgress;
                 if (!IsDisposed) _launchClientButton.Enabled = true;
             }
             if (IsDisposed) return;

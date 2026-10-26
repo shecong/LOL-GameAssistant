@@ -137,6 +137,8 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         }
     }
 
+    internal static bool IsClientReady(string executable) => GetClientState(executable).LcuReady;
+
     /// <summary>判断是否存在可读取的客户端 lockfile 凭据。</summary>
     private static bool HasReadableLcuLockfile(IEnumerable<Process> processes, string? leagueClientExecutable)
     {
@@ -158,6 +160,12 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
         {
             string? configuredDirectory = Path.GetDirectoryName(leagueClientExecutable);
             if (!string.IsNullOrWhiteSpace(configuredDirectory)) directories.Add(configuredDirectory);
+            if (GameClientExecutablePaths.IsTencentLauncher(leagueClientExecutable) && configuredDirectory != null &&
+                Directory.GetParent(configuredDirectory) is { } gameRoot)
+            {
+                directories.Add(gameRoot.FullName);
+                directories.Add(Path.Combine(gameRoot.FullName, "LeagueClient"));
+            }
         }
 
         foreach (string directory in directories)
@@ -253,7 +261,7 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
     }
 
     /// <summary>优先扫描用户选择的文件夹，未命中时才检查常见安装目录。</summary>
-    private static string? ResolveExecutable(string? configuredDirectory)
+    internal static string? ResolveExecutable(string? configuredDirectory)
     {
         if (!string.IsNullOrWhiteSpace(configuredDirectory))
         {

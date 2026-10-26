@@ -6,7 +6,7 @@ struct HookTrace {
     volatile LONG callbacks,messages,stage,win32;
 };
 static void hookTraceName(wchar_t (&name)[128],DWORD pid,DWORD thread) {
-    swprintf_s(name,L"Local\\LeagueSkinCore.HookTrace.v1.%lu.%lu",pid,thread);
+    swprintf_s(name,L"Local\\LeagueSkinCore.HookTrace.v2.%lu.%lu",pid,thread);
 }
 static const char* hookStage(LONG stage) {
     switch(stage) {

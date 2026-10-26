@@ -194,7 +194,19 @@ public class HttpClientHelper : IDisposable
                             }
                         }
                         RuntimeDiagnostics.Report("LCU HTTP", $"HTTP {(int)response.StatusCode}", $"{httpMethod} {endpoint}");
-                        return new LcuHttpResult(null, response.StatusCode, LcuHttpFailure.HttpStatus);
+                        string serverError = "";
+                        if (!external) {
+                            // Error messages can contain account identifiers. Retain
+                            // only a known category, never their raw body or token.
+                            using var errorStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                            byte[] errorPrefix = new byte[8192];int used = 0;
+                            while (used < errorPrefix.Length) {
+                                int read = await errorStream.ReadAsync(errorPrefix.AsMemory(used), cancellationToken).ConfigureAwait(false);
+                                if (read == 0)break;used += read;
+                            }
+                            serverError = ClassifyServerError(Encoding.UTF8.GetString(errorPrefix, 0, used));
+                        }
+                        return new LcuHttpResult(null, response.StatusCode, LcuHttpFailure.HttpStatus) { ServerErrorCode = serverError };
                     }
 
                     byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
@@ -273,6 +285,7 @@ public class HttpClientHelper : IDisposable
     }
 
     /// <summary>尝试重新读取本机客户端连接凭据。</summary>
+    internal static string ClassifyServerError(string text) => text.Contains("does not own", StringComparison.OrdinalIgnoreCase) ? "not_owned" : "";
     private static async Task<bool> TryRefreshLcuCredentialsAsync(CancellationToken cancellationToken)
     {
         (string? port, string? token) = await LOL_GameAssistant.LoLApi.GetlolLcu.GetAuthAsync(cancellationToken).ConfigureAwait(false);
@@ -286,4 +299,7 @@ public enum LcuHttpFailure
 { None, NoCredentials, HttpStatus, Timeout, Network, Unexpected }
 
 /// <summary>成功时 Content 归调用方释放；失败时通过 StatusCode 和 Failure 判断原因。</summary>
-public sealed record LcuHttpResult(Stream? Content, HttpStatusCode? StatusCode, LcuHttpFailure Failure);
+public sealed record LcuHttpResult(Stream? Content, HttpStatusCode? StatusCode, LcuHttpFailure Failure)
+{
+    public string ServerErrorCode { get; init; } = "";
+}

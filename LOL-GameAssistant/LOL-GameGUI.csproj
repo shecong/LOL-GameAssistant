@@ -81,6 +81,7 @@
     <InternalsVisibleTo Include="LOL-GameAssistant.UiTests" />
     <Compile Include="../Shared/LoungeProtocol.cs" Link="Lounge/LoungeProtocol.cs" />
     <Compile Include="../Shared/LoungeContent.cs" Link="Lounge/LoungeContent.cs" />
+    <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
     <PackageReference Include="AntdUI" Version="2.4.12" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />

@@ -166,23 +166,49 @@ public sealed class ChampSelectCompanionTests
     });
 
     [Fact]
-    public void CompanionIsTopMostOnlyWhileClientIsForegroundEvenWhenDataPending() => MatchListScrollingTests.OnUiThread(() =>
+    public void CompanionReadsAndFollowsNativeClientTopMostFlag() => MatchListScrollingTests.OnUiThread(() =>
     {
-        bool focused = false;
-        using var fixture = new Fixture(() => new Rectangle(100, 100, 900, 600), clientForeground: () => focused);
+        using var client = new Form { Size = new Size(900, 600), Opacity = 0, ShowInTaskbar = false };
+        client.Show();
+        using var fixture = new Fixture(() => ChampSelectCompanionForm.TryGetVisibleClientBounds(client.Handle, out var bounds)
+            ? bounds : null, clientTopMost: () => ChampSelectCompanionForm.IsClientWindowTopMost(client.Handle));
+        fixture.Form.StartTracking();
+        Assert.False(fixture.Form.TopMost);
+        client.TopMost = true;
+        fixture.Form.SyncClientVisibility();
+        Assert.True(fixture.Form.TopMost);
+        client.TopMost = false;
+        fixture.Form.SyncClientVisibility();
+        Assert.False(fixture.Form.TopMost);
+        client.TopMost = true;
+        fixture.Form.SyncClientVisibility();
+        client.Hide();
+        Assert.False(fixture.Form.SyncClientVisibility());
+        Assert.False(fixture.Form.TopMost);
+        client.Show();
+        Assert.True(fixture.Form.SyncClientVisibility());
+        Assert.True(fixture.Form.TopMost);
+        Assert.False(ChampSelectCompanionForm.IsClientWindowTopMost(IntPtr.Zero));
+    });
+
+    [Fact]
+    public void CompanionFollowsClientTopMostEvenWhenDataPending() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        bool topMost = false;
+        using var fixture = new Fixture(() => new Rectangle(100, 100, 900, 600), clientTopMost: () => topMost);
         Assert.False(fixture.Form.TopMost);
         fixture.Form.StartTracking();
         Assert.True(fixture.Form.Visible);
         Assert.False(fixture.Form.TopMost);
-        focused = true;
+        topMost = true;
         fixture.Form.SyncClientVisibility();
         Assert.True(fixture.Form.TopMost);
-        focused = false;
+        topMost = false;
         fixture.Form.SyncClientVisibility();
         Assert.True(fixture.Form.Visible);
         Assert.False(fixture.Form.TopMost);
         Assert.False(fixture.Player.Task.IsCompleted);
-        focused = true;
+        topMost = true;
         fixture.Form.SyncClientVisibility();
         Assert.True(fixture.Form.TopMost);
         fixture.Form.StopTracking();
@@ -195,7 +221,7 @@ public sealed class ChampSelectCompanionTests
     {
         Rectangle? bounds = new Rectangle(100, 100, 900, 600);
         var pending = new TaskCompletionSource<string>();
-        using var fixture = new Fixture(() => bounds, clientForeground: () => true,
+        using var fixture = new Fixture(() => bounds, clientTopMost: () => true,
             openBuildPicker: _ => pending.Task);
         fixture.Form.StartTracking();
         Assert.True(fixture.Form.TopMost);
@@ -312,7 +338,7 @@ public sealed class ChampSelectCompanionTests
         public ChampSelectCompanionForm Form { get; }
 
         public Fixture(Func<Rectangle?>? clientBounds = null, Func<MethodInfo, object?[], object?>? featureHandler = null,
-            Func<bool>? clientForeground = null, Func<CancellationToken, Task<string>>? openBuildPicker = null)
+            Func<bool>? clientTopMost = null, Func<CancellationToken, Task<string>>? openBuildPicker = null)
         {
             Form = new ChampSelectCompanionForm(
                 Service<IChampionSelectService>((_, args) => Selection.Task.WaitAsync(Token(args))),
@@ -323,7 +349,7 @@ public sealed class ChampSelectCompanionTests
                 Service<IPlayerProfileService>((_, _) => Player.Task),
                 Service<IRankedStatsService>((_, _) => null),
                 Service<IMatchHistoryService>((_, _) => null),
-                Service<IApplicationSettingsStore>((_, _) => new AssistantSettings()), clientBounds, clientForeground, openBuildPicker);
+                Service<IApplicationSettingsStore>((_, _) => new AssistantSettings()), clientBounds, clientTopMost, openBuildPicker);
         }
 
         public void Dispose()

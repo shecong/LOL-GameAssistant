@@ -7,6 +7,19 @@ namespace LOL_GameAssistant.Tests;
 
 public sealed class SkinCoreModeTests
 {
+    [Fact]
+    public async Task RankBorderUsesClassicChannelWithoutChangingSelectedHeroMode()
+    {
+        var classic = new Transport(() => Task.FromResult(new SkinCoreReply()));
+        var hybrid = new Transport(() => Task.FromResult(new SkinCoreReply()));
+        var router = new SelectableSkinCoreTransport(classic, hybrid);
+        router.SetMode(SkinCoreMode.KernelRelay);
+        await router.InvokeAsync(["rank-border-catalog"], default);
+        await router.InvokeAsync(["rank-border-auto", "cn16.21.regalia.v1", "CHALLENGER"], default);
+        await router.InvokeAsync(["catalog"], default);
+        Assert.Equal(2, classic.Calls);Assert.Equal(1, hybrid.Calls);
+        Assert.Equal(SkinCoreMode.KernelRelay, router.Mode);
+    }
     private sealed class Transport(Func<Task<SkinCoreReply>> invoke) : ISkinCoreTransport
     {
         public int Calls;

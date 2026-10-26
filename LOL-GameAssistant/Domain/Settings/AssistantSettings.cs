@@ -15,7 +15,12 @@ public sealed class AssistantSettings
     public string LanguageMode { get; set; } = "zh-CN";
 
     public bool AutoLaunchGameClient { get; set; }
+    public bool TclsAutoLoginEnabled { get; set; }
+    public string TclsSelectedAccountId { get; set; } = "";
     public bool SkinCoreEnabled { get; set; }
+    public bool RankBorderAutoApplyEnabled { get; set; }
+    public string PreferredRankBorderId { get; set; } = "";
+    public string PreferredRankBorderProfile { get; set; } = "";
     public LOL_GameAssistant.Domain.Skins.SkinCoreMode SkinCoreMode { get; set; }
     public bool UnlimitedZoomEnabled { get; set; }
     public float? RememberedCameraDistance { get; set; }

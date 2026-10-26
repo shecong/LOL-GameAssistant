@@ -6,8 +6,10 @@
 #include <cstring>
 #include <cstdarg>
 #include <cstdlib>
-constexpr DWORD Protocol=1, Magic=0x4c53434b;
-constexpr UINT BridgeMessage=WM_APP+0x532;
+constexpr DWORD Protocol=2, Magic=0x4c53434b;
+// Older hook DLLs consume the v1 message even when they cannot open its request.
+// A separate message and namespace prevent a resident older app claiming new work.
+constexpr UINT BridgeMessage=WM_APP+0x533;
 constexpr size_t ReplySize=1024*1024;
 #include "hook_diagnostics.h"
 struct Request {
@@ -37,8 +39,8 @@ static void fail(Request* r,const char* error,const char* stage="validation",boo
     sprintf_s(r->result,"{\"ok\":false,\"error\":\"%s\",\"stage\":\"%s\",\"invoked\":%s,\"request_id\":\"%016llx\"}",error,stage,invoked?"true":"false",r->nonce);
 }
 static void names(DWORD pid,uint64_t nonce,wchar_t* mapping,wchar_t* event) {
-    swprintf_s(mapping,128,L"Local\\LeagueSkinCore.v1.Request.%lu.%016llx",pid,nonce);
-    swprintf_s(event,128,L"Local\\LeagueSkinCore.v1.Result.%lu.%016llx",pid,nonce);
+    swprintf_s(mapping,128,L"Local\\LeagueSkinCore.v2.Request.%lu.%016llx",pid,nonce);
+    swprintf_s(event,128,L"Local\\LeagueSkinCore.v2.Result.%lu.%016llx",pid,nonce);
 }
 static uint64_t digest(uint64_t h,const void* data,size_t size) {
     for(size_t i=0;i<size;i++) {h^=((const unsigned char*)data)[i];h*=0x100000001b3ULL;}return h;
@@ -67,14 +69,20 @@ static bool span(BYTE* first,BYTE* end,BYTE* capacity,size_t stride,size_t max,i
 #include "standalone_core.h"
 static bool claim(Request* r,DWORD pid,uint64_t nonce) {
     return r->magic==Magic && r->version==Protocol && r->pid==pid && r->nonce==nonce &&
-        (r->command>=6 && r->command<=17) && memchr(r->session,0,sizeof(r->session)) && InterlockedCompareExchange(&r->phase,1,0)==0;
+        (r->command>=6 && r->command<=21) && memchr(r->session,0,sizeof(r->session)) && InterlockedCompareExchange(&r->phase,1,0)==0;
 }
 static void process(Request* r) { independentProcess(r); }
 static void finishRequest(Request* r) {
     if(GetTickCount64()>r->deadline) fail(r,"request_expired","dispatch_deadline");else process(r);
+    size_t length=strnlen_s(r->result,sizeof(r->result));
+    if(length && length<sizeof(r->result) && r->result[length-1]=='}') {
+        Writer writer{r->result,length-1,sizeof(r->result),false};append(&writer,",\"bridge_protocol\":%lu}",Protocol);
+        if(writer.failed)fail(r,"reply_too_large","protocol_metadata");
+    }
     InterlockedExchange(&r->phase,2);
 }
 #ifndef BUILD_HOST
+extern "C" __declspec(dllexport) DWORD StudioBridgeProtocol() {return Protocol;}
 extern "C" __declspec(dllexport) LRESULT CALLBACK StudioHookProc(int code,WPARAM removed,LPARAM data) {
     if(code<0)return CallNextHookEx(nullptr,code,removed,data);
     HookTraceObserver trace;
@@ -167,6 +175,23 @@ int main(int argc,char** argv) {
     if(argc==2 && !strcmp(argv[1],"catalog")) command=7;
     if(argc==2 && !strcmp(argv[1],"inventory")) command=10;
     if(argc==2 && !strcmp(argv[1],"object-probe")) command=11;
+    if(argc==2 && !strcmp(argv[1],"rank-border-probe")) command=18;
+    if(argc==2 && !strcmp(argv[1],"rank-border-catalog")) command=19;
+    if(argc==4 && !strcmp(argv[1],"rank-border-auto")) {
+        command=21;index=-1;
+        if(strcmp(argv[2],BorderProfile))return error("rank_border_profile_mismatch",ERROR_INVALID_PARAMETER);
+        for(int n=0;n<(int)(sizeof(BorderTiers)/sizeof(BorderTiers[0]));n++)if(!strcmp(argv[3],BorderTiers[n].id))index=n;
+        if(index<0)return error("invalid_rank_border_entry",ERROR_INVALID_PARAMETER);
+    }
+    if(argc==5 && !strcmp(argv[1],"rank-border")) {
+        command=20;session=argv[2];index=-1;
+        if(strcmp(argv[3],BorderProfile))return error("rank_border_profile_mismatch",ERROR_INVALID_PARAMETER);
+        if(strcmp(argv[4],"original")) {
+            bool found=false;for(int n=0;n<(int)(sizeof(BorderTiers)/sizeof(BorderTiers[0]));n++)if(!strcmp(argv[4],BorderTiers[n].id)){index=n;found=true;break;}
+            if(!found)return error("invalid_rank_border_entry",ERROR_INVALID_PARAMETER);
+        }
+    }
+    if(argc==3 && !strcmp(argv[1],"rank-border-probe")) {command=18;if(!strcmp(argv[2],"state"))index=-2;else if(!strcmp(argv[2],"display"))index=-3;else if(!integer(argv[2],0,(int)Game_image_size-1,&index))return error("invalid_probe_rva",ERROR_INVALID_PARAMETER);}
     if(argc==2 && !strcmp(argv[1],"object-catalog")) command=12;
     if(argc==2 && !strcmp(argv[1],"camera-status")) command=15;
     if(argc==4 && !strcmp(argv[1],"camera-view")) {
@@ -185,7 +210,7 @@ int main(int argc,char** argv) {
     if(argc==5 && !strcmp(argv[1],"entry")){command=8;session=argv[2];if(!integer(argv[3],0,999,&index)||!integer(argv[4],-1,127,&gear))return error("invalid_entry",ERROR_INVALID_PARAMETER);}
     if(argc==3 && !strcmp(argv[1],"restore")){command=9;session=argv[2];}
     if(command==99 || strlen(session)>=32) return error("invalid_request",ERROR_INVALID_PARAMETER);
-    if(command==8 || command==9 || command==13 || command==14 || command==16 || command==17) {
+    if(command==8 || command==9 || command==13 || command==14 || command==16 || command==17 || command==20) {
         if(strlen(session)!=16) return error("invalid_session",ERROR_INVALID_PARAMETER);
         for(const char* p=session;*p;p++) if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='f'))) return error("invalid_session",ERROR_INVALID_PARAMETER);
     }
@@ -206,6 +231,8 @@ int main(int argc,char** argv) {
     if(slash) {wcscpy_s(slash+1,32768-(slash+1-path),L"league-skin-core.dll");dll=LoadLibraryW(path);}
     if(!dll) result=error("load_own_bridge_failed",GetLastError(),"bridge_load");
     else {
+        auto version=(DWORD(__cdecl*)())GetProcAddress(dll,"StudioBridgeProtocol");
+        if(!version || version()!=Protocol) {FreeLibrary(dll);dll=nullptr;UnmapViewOfFile(r);CloseHandle(signal);CloseHandle(file);return error("bridge_version_mismatch",ERROR_REVISION_MISMATCH,"bridge_load");}
         auto callback=(HOOKPROC)GetProcAddress(dll,"StudioHookProc");hook=callback?SetWindowsHookExW(WH_GETMESSAGE,callback,dll,thread):nullptr;
         if(!hook) result=error("standard_windows_hook_rejected",GetLastError(),"hook_install");
         else {

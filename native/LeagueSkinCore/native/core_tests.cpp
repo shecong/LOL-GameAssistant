@@ -6,6 +6,38 @@
 #include <initializer_list>
 #include "object_skin_rules.h"
 int main() {
+    {
+        BorderContext context{};strcpy_s(context.tier,"CHALLENGER");strcpy_s(context.mode,"rank");
+        assert(!strcmp(borderCurrentId(&context),"CHALLENGER"));
+        strcpy_s(context.mode,"ranked");assert(!strcmp(borderCurrentId(&context),"original"));
+        strcpy_s(context.mode,"prestige");assert(!strcmp(borderCurrentId(&context),"original"));
+    }
+    assert(!borderDivisionValid(0) && !borderDivisionValid(-1) && !borderDivisionValid(5));
+    for(int division=1;division<=4;division++)assert(borderDivisionValid(division));
+    {
+        auto image=(BYTE*)VirtualAlloc(nullptr,0x1f0c000,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);assert(image);
+        BYTE card[0x928]{};BorderCard result{};
+        *(BYTE**)card=image+0x18dfdb8;card[0x10]=1;
+        assert(borderCard(image,card,1,&result,false) && result.display==card+0x1f0 && result.kind==1);
+        assert(!borderCard(image,card,2,&result,false));
+        assert(!borderCard(image,card,1,&result,true)); // Unbound images are never a write target.
+        *(BYTE**)card=image+0x18dff48;
+        assert(borderCard(image,card,1,&result,false) && result.display==card+0xf8 && result.kind==2);
+        *(BYTE**)card=image+0x18dff50;assert(!borderCard(image,card,1,&result,false));
+        VirtualFree(image,0,MEM_RELEASE);
+    }
+    {
+        auto resource=(BYTE*)VirtualAlloc(nullptr,4096,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);assert(resource);
+        *(LONG*)(resource+0x1c)=7;assert(borderRefValid(resource));BYTE* field=nullptr;
+        borderSetRef(nullptr,&field,resource);assert(field==resource && *(LONG*)(resource+0x1c)==8);
+        InterlockedDecrement((LONG*)(resource+0x1c));
+        DWORD previous=0;assert(VirtualProtect(resource,4096,PAGE_READONLY,&previous));assert(!borderRefValid(resource));
+        assert(VirtualProtect(resource,4096,PAGE_READWRITE,&previous));*(LONG*)(resource+0x1c)=0;assert(!borderRefValid(resource));
+        VirtualFree(resource,0,MEM_RELEASE);
+        struct GameText {const char* data;unsigned size,capacity;};GameText text{"GOLD",4,4};char copy[32];
+        assert(borderText((BYTE*)&text,copy,sizeof(copy)) && !strcmp(copy,"GOLD"));
+        text.size=0xffffffff;assert(!borderText((BYTE*)&text,copy,sizeof(copy)));
+    }
     assert(gameExecutable(L"C:\\Games\\League of Legends.exe"));
     assert(gameExecutable(L"LEAGUE OF LEGENDS.EXE"));
     assert(!gameExecutable(L"LeagueClient.exe") && !gameExecutable(L"League of Legends.exe.bak"));
@@ -67,12 +99,16 @@ int main() {
         wchar_t* dllName=wcsrchr(dllPath,L'\\');assert(dllName);wcscpy_s(dllName+1,32768-(dllName+1-dllPath),L"league-skin-core.dll");
         HMODULE bridge=LoadLibraryW(dllPath);assert(bridge);
         auto callback=(HOOKPROC)GetProcAddress(bridge,"StudioHookProc");assert(callback);
+        auto bridgeVersion=(DWORD(__cdecl*)())GetProcAddress(bridge,"StudioBridgeProtocol");assert(bridgeVersion && bridgeVersion()==Protocol);
         DWORD pid=GetCurrentProcessId(),thread=GetCurrentThreadId();uint64_t nonce=0x123456789abcdef0ULL;
         HookTraceOwner trace(pid,thread,nonce);assert(trace.trace);
         HookTraceOwner collision(pid,thread,nonce+1);assert(!collision.trace && activeHookTrace==trace.trace);
         MSG message{};message.message=WM_NULL;
         callback(HC_ACTION,PM_REMOVE,(LPARAM)&message);
         assert(trace.trace->callbacks==1 && trace.trace->messages==0 && trace.trace->stage==1);
+        message.message=WM_APP+0x532;message.wParam=Magic;message.lParam=(LPARAM)nonce;
+        callback(HC_ACTION,PM_REMOVE,(LPARAM)&message);
+        assert(message.message==WM_APP+0x532 && trace.trace->messages==0); // Never consume another protocol's request.
         auto invoke=[&]() {message.message=BridgeMessage;message.wParam=Magic;message.lParam=(LPARAM)nonce;callback(HC_ACTION,PM_REMOVE,(LPARAM)&message);};
         invoke();assert(trace.trace->stage==3 && trace.trace->win32==ERROR_FILE_NOT_FOUND);
         wchar_t mapping[128],event[128];names(pid,nonce,mapping,event);
@@ -82,7 +118,7 @@ int main() {
         auto request=(Request*)MapViewOfFile(file,FILE_MAP_ALL_ACCESS,0,0,sizeof(Request));assert(request);
         request->magic=0;request->nonce=nonce;
         invoke();assert(trace.trace->stage==6 && request->phase==0 && !request->result[0]);
-        assert(trace.trace->callbacks==4 && trace.trace->messages==3);
+        assert(trace.trace->callbacks==5 && trace.trace->messages==3);
         HWND routingWindow=CreateWindowExW(0,L"STATIC",L"Hook routing fixture",WS_OVERLAPPEDWINDOW,
             0,0,640,480,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);assert(routingWindow);
         HHOOK installed=SetWindowsHookExW(WH_GETMESSAGE,callback,bridge,thread);assert(installed);
@@ -160,9 +196,10 @@ int main() {
     request->magic=Magic;request->version=Protocol;request->pid=42;request->nonce=99;
     for(int command=0;command<6;command++){request->command=command;assert(!claim(request,42,99));}
     request->command=6;assert(!claim(request,41,99));assert(!claim(request,42,98));
+    request->version=1;assert(!claim(request,42,99));request->version=Protocol;
     assert(claim(request,42,99));assert(!claim(request,42,99));
     request->phase=0;request->deadline=0;assert(claim(request,42,99));finishRequest(request);
-    assert(strstr(request->result,"request_expired") && request->phase==2);
+    assert(strstr(request->result,"request_expired") && strstr(request->result,"\"bridge_protocol\":2") && request->phase==2);
     HeapFree(GetProcessHeap(),0,request);
     BYTE player[Game_skin_offset+24]{},stack[0xb0]{};
     BYTE* encrypted=player+Game_skin_offset;

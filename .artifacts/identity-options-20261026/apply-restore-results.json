@@ -1,0 +1,40 @@
+[
+  {
+    "kind": "title",
+    "requested": "2000004",
+    "status": 400,
+    "actual": "40210604",
+    "matched": false,
+    "error": "{\"errorCode\":\"RPC_ERROR\",\"httpStatus\":400,\"implementationDetails\":{},\"message\":\"{\\\"httpStatus\\\":404,\\\"errorCode\\\":\\\"BAD REQUEST\\\",\\\"message\\\":\\\"Player does not own ACHIEVEMENT_TITLE 2000004 in [{\\\\\\\"sub\\\\\\\":\\\\\\\"2df73414-71e2-55d0-b79d-47d1b9e69228\\\\\\\",\\\\\\\"shardId\\\\\\\":\\\\\\\"HN1\\\\\\\",\\\\\\\"productId\\\\\\\":\\\\",
+    "restore_verified": true
+  },
+  {
+    "kind": "bannerAccent",
+    "requested": "10",
+    "status": 400,
+    "actual": "22",
+    "matched": false,
+    "error": "{\"errorCode\":\"RPC_ERROR\",\"httpStatus\":400,\"implementationDetails\":{},\"message\":\"{\\\"httpStatus\\\":404,\\\"errorCode\\\":\\\"BAD REQUEST\\\",\\\"message\\\":\\\"Player does not own REGALIA_BANNER 10 in [{\\\\\\\"sub\\\\\\\":\\\\\\\"2df73414-71e2-55d0-b79d-47d1b9e69228\\\\\\\",\\\\\\\"shardId\\\\\\\":\\\\\\\"HN1\\\\\\\",\\\\\\\"productId\\\\\\\":\\\\\\\"d1c266",
+    "restore_verified": true
+  },
+  {
+    "kind": "challengeIds",
+    "requested": [
+      101306
+    ],
+    "status": 204,
+    "actual": [],
+    "matched": false,
+    "error": "",
+    "restore_verified": true
+  },
+  {
+    "kind": "selectedPrestigeCrest",
+    "requested": 20,
+    "status": 201,
+    "actual": 16,
+    "matched": false,
+    "error": "",
+    "restore_verified": true
+  }
+]

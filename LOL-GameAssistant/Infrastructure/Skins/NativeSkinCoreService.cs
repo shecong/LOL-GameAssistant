@@ -125,9 +125,14 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
         try {
             await _gate.WaitAsync(token).ConfigureAwait(false); acquired = true; Check(revision);
             bool borderRestored = true;
-            if (_borderSession == session && _borderChanged)
+            if (_borderRecoveryNeeded)
             {
-                try { borderRestored = (await ChangeBorderAsync(revision, session, _borderProfile!, "", true, token).ConfigureAwait(false)).StateVerified; }
+                try { var border = await BorderCatalogAsync(revision, token).ConfigureAwait(false);borderRestored = border.RankBorderBaselineAvailable; }
+                catch (SkinCoreException) { borderRestored = false; }
+            }
+            if (_borderSession != null && _borderChanged)
+            {
+                try { borderRestored = (await ChangeBorderAsync(revision, _borderSession, _borderProfile!, "", true, token).ConfigureAwait(false)).StateVerified; }
                 catch (SkinCoreException error) { borderRestored = false; Log(new { stage = "stop_rank_border_restore_failed", error.Code, error.OutcomeUnknown }); }
             }
             bool cameraRestored = true;

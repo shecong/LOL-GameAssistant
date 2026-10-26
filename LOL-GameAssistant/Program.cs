@@ -84,6 +84,7 @@ namespace LOL_GameAssistant
             }
             UiLanguage.Start();
 
+            Bootstrap.AppCompositionRoot.RankBorderLoading.Start();
             try { System.Windows.Forms.Application.Run(GameMain); }
             finally { Bootstrap.AppCompositionRoot.GameOverlay.Dispose(); }
         }
