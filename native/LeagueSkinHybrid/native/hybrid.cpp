@@ -49,14 +49,14 @@ int main(int argc, char** argv) {
         if(strlen(session)!=16) return error("invalid_session",ERROR_INVALID_PARAMETER);
         for(const char* p=session;*p;p++) if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='f'))) return error("invalid_session",ERROR_INVALID_PARAMETER);
     }
-    HWND window=FindWindowW(nullptr,L"League of Legends (TM) Client");if(!window) return error("game_window_not_found",ERROR_NOT_FOUND);
-    DWORD pid=0;DWORD thread=GetWindowThreadProcessId(window,&pid);uint64_t nonce=0;
+    if(!discoverGameWindow())return error("game_window_not_found",ERROR_NOT_FOUND,"window_discovery");
+    DWORD pid=windowDiscovery.selected.pid,thread=windowDiscovery.selected.thread;uint64_t nonce=0;
     if(BCryptGenRandom(nullptr,(PUCHAR)&nonce,sizeof(nonce),BCRYPT_USE_SYSTEM_PREFERRED_RNG)<0) return error("nonce_failed",ERROR_INVALID_DATA);
     diagnosticPid=pid;diagnosticThread=thread;diagnosticNonce=nonce;
     SKIN_RELAY_COMMAND request{};
     request.Size = sizeof(request); request.Version = SKIN_RELAY_VERSION; request.Command = command; request.ProcessId = pid;
     request.Nonce = nonce; request.Deadline = GetTickCount64() + 5000; request.Index = index; request.Gear = gear;
     strcpy_s(request.Session, session);
-    return kernelHost(request, thread);
+    return kernelHost(request, thread, windowDiscovery.selected.window);
 }
 #endif

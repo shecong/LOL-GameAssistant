@@ -352,6 +352,9 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         } : $"操作失败：{error.Message}";
         if (error is SkinCoreException { Details: { } details } diagnosed)
         {
+            if (diagnosed.Code == "game_window_not_found" && details.WindowDiscovery is { } discovery)
+                message = RuntimeDiagnostics.DescribeGameWindow(discovery);
+            if (!diagnosed.OutcomeUnknown && details.TargetProbe is { } probe) message += $"\n自动检查：{probe.Assessment}";
             message += $"\n诊断：{diagnosed.Code}";
             if (!string.IsNullOrEmpty(details.Stage)) message += $" · {details.Stage}";
             if (details.Win32 is int win32) message += $" · Win32={win32}";

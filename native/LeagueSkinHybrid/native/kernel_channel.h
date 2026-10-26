@@ -55,7 +55,7 @@ static bool relayReceive(HANDLE device, DWORD operation, ULONGLONG nonce, BYTE* 
         header->Phase <= SKIN_RELAY_CANCELLED && header->ResultBytes < SKIN_RELAY_RESULT_MAX &&
         bytes == sizeof(*header) + header->ResultBytes && (header->Phase == SKIN_RELAY_DONE || header->ResultBytes == 0);
 }
-static int kernelHost(const SKIN_RELAY_COMMAND& command, DWORD thread) {
+static int kernelHost(const SKIN_RELAY_COMMAND& command, DWORD thread, HWND window) {
     HANDLE device = CreateFileW(SKIN_RELAY_PATH, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
     if (device == INVALID_HANDLE_VALUE) return error("kernel_driver_unavailable", GetLastError());
     if (!relayCaps(device)) { CloseHandle(device); return error("kernel_protocol_mismatch", ERROR_REVISION_MISMATCH); }
@@ -73,7 +73,7 @@ static int kernelHost(const SKIN_RELAY_COMMAND& command, DWORD thread) {
         auto callback = (HOOKPROC)GetProcAddress(dll, "KernelHookProc");
         hook = callback ? SetWindowsHookExW(WH_GETMESSAGE, callback, dll, thread) : nullptr;
         if (!hook) result = error("standard_windows_hook_rejected", GetLastError(), "hook_install");
-        else if (!PostThreadMessageW(thread, KernelMessage, Magic, (LPARAM)command.Nonce)) result = error("message_post_failed", GetLastError(), "message_post");
+        else if (!postGameRequest(window, command.ProcessId, thread, KernelMessage, Magic, (LPARAM)command.Nonce)) result = error("message_post_failed", GetLastError(), "message_post");
         else {
             const DWORD capacity = sizeof(SKIN_RELAY_RESULT) + SKIN_RELAY_RESULT_MAX;
             ULONGLONG until = GetTickCount64() + 5500;

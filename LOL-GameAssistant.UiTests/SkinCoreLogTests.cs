@@ -9,6 +9,54 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class SkinCoreLogTests
 {
+    [Theory]
+    [InlineData("no_verified_game_process", 0, "未检测到游戏对局进程")]
+    [InlineData("no_verified_game_process", 1, "无法完成进程校验")]
+    [InlineData("no_usable_game_window", 0, "已检测到游戏进程")]
+    [InlineData("ambiguous_game_processes", 0, "多个候选游戏窗口")]
+    public void WindowDiscoveryExplainsWhichStepFailed(string state, int queryErrors, string expected)
+    {
+        string reason = RuntimeDiagnostics.DescribeGameWindow(new() { State = state, QueryErrors = queryErrors, Win32 = 5 });
+        Assert.Contains(expected, reason);
+    }
+
+    [Fact]
+    public void AutomaticTargetChecksAreIncludedInCopiedSoftwareLog() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var messages = new InfoMsgForm();
+        using var host = new Form { ShowInTaskbar = false };
+        host.Controls.Add(messages);
+        host.Show();
+        string marker = Guid.NewGuid().ToString("N");
+        RuntimeDiagnostics.ReportSkinCoreFailure(new SkinCoreException("core_response_timeout", details:
+            new SkinCoreFailureDetails { Stage = "response_wait", Win32 = 1460, Phase = 0, RequestId = marker,
+                TargetProbe = new SkinCoreTargetProbe { TargetArchitecture = "x64", TargetElevated = true,
+                    AssistantElevated = false, Assessment = "游戏已提权、助手未提权，请保持两者权限级别一致后重新读取。" } }));
+        SecondPhaseRegressionTests.PumpUntil(() => messages.GetLogText().Contains(marker));
+        Assert.Contains("自动检查", messages.GetLogText());
+        Assert.Contains("权限级别一致", messages.GetLogText());
+        Assert.Contains("\"TargetArchitecture\":\"x64\"", messages.GetLogText());
+        Assert.Contains("\"Phase\":0", messages.GetLogText());
+    });
+
+    [Fact]
+    public void HookEntryFailureHasReadableExplanationInCopiedLog() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var messages = new InfoMsgForm();
+        using var host = new Form { ShowInTaskbar = false };
+        host.Controls.Add(messages);
+        host.Show();
+        string marker = Guid.NewGuid().ToString("N");
+        RuntimeDiagnostics.ReportSkinCoreFailure(new SkinCoreException("core_response_timeout", details:
+            new SkinCoreFailureDetails { RequestId = marker, Phase = 0, HookTraceAvailable = true,
+                HookCallbacks = 4, HookMessages = 1, HookStage = "request_open_failed", HookWin32 = 5 }));
+        SecondPhaseRegressionTests.PumpUntil(() => messages.GetLogText().Contains(marker));
+        Assert.Contains("打开请求共享内存失败", messages.GetLogText());
+        Assert.Contains("回调 4 次", messages.GetLogText());
+        Assert.Contains("目标消息 1 次", messages.GetLogText());
+        Assert.Contains("\"HookWin32\":5", messages.GetLogText());
+    });
+
     [Fact]
     public void BackgroundTransportFailureAppearsInExistingSoftwareLog() => MatchListScrollingTests.OnUiThread(() =>
     {

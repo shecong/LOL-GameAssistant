@@ -245,6 +245,52 @@ public sealed class SkinCoreServiceTests
         Assert.Equal(1, error.Details.ExitCode);
     }
 
+    [Fact]
+    public void HookEntryEvidenceSurvivesJsonAndExceptionMapping()
+    {
+        var reply = NativeSkinCoreTransport.ParseReply("""
+            {"error":"core_response_timeout","message_route":"window","hook_trace_available":true,"hook_callbacks":4,
+             "hook_messages":1,"hook_stage":"request_open_failed","hook_win32":5,"phase":0}
+            """);
+        var error = NativeSkinCoreTransport.ReplyFailure(reply, 1);
+        Assert.True(error.Details!.HookTraceAvailable);
+        Assert.Equal(4, error.Details.HookCallbacks);
+        Assert.Equal(1, error.Details.HookMessages);
+        Assert.Equal("request_open_failed", error.Details.HookStage);
+        Assert.Equal(5, error.Details.HookWin32);
+        Assert.False(error.OutcomeUnknown);
+        Assert.Equal("window", error.Details.MessageRoute);
+        Assert.Null(NativeSkinCoreTransport.ParseReply("{}").HookTraceAvailable);
+    }
+
+    [Fact]
+    public void GameWindowDiscoverySurvivesJsonAndExceptionMapping()
+    {
+        var reply = NativeSkinCoreTransport.ParseReply("""
+            {"error":"game_window_not_found","window_discovery":{"state":"no_usable_game_window",
+              "process_count":1,"query_errors":0,"candidate_count":0,"selected_title":"",
+              "windows":[{"pid":123,"thread_id":456,"eligible":false,"title":"加载中","class_name":"GameClass",
+              "visible":false,"has_owner":true,"client_width":1,"client_height":2,"rect_win32":0,"reason":"hidden"}]}}
+            """);
+        var error = NativeSkinCoreTransport.ReplyFailure(reply, 1);
+        var discovery = error.Details!.WindowDiscovery!;
+        Assert.Equal("no_usable_game_window", discovery.State);
+        Assert.Equal(1, discovery.ProcessCount);
+        var window = Assert.Single(discovery.Windows);
+        Assert.Equal(123, window.Pid);
+        Assert.Equal(456u, window.ThreadId);
+        Assert.Equal("加载中", window.Title);
+        Assert.Equal("GameClass", window.ClassName);
+        Assert.False(window.Eligible);
+        Assert.False(window.Visible);
+        Assert.True(window.HasOwner);
+        Assert.Equal(1, window.ClientWidth);
+        Assert.Equal(2, window.ClientHeight);
+        Assert.Equal(0, window.RectWin32);
+        Assert.Equal("hidden", window.Reason);
+        Assert.Null(NativeSkinCoreTransport.ParseReply("{}").WindowDiscovery);
+    }
+
     [Theory]
     [InlineData("request_outcome_unknown", false)]
     [InlineData("request_expired", true)]

@@ -19,6 +19,10 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
         reply.Error == "request_outcome_unknown" || reply.Invoked,
         new SkinCoreFailureDetails { Stage = reply.Stage, Win32 = reply.Win32, RequestId = reply.RequestId,
             Phase = reply.Phase, Pid = reply.Pid, ThreadId = reply.ThreadId, HostArchitecture = reply.HostArchitecture,
+            HookTraceAvailable = reply.HookTraceAvailable, HookCallbacks = reply.HookCallbacks,
+            HookMessages = reply.HookMessages, HookStage = reply.HookStage, HookWin32 = reply.HookWin32,
+            WindowDiscovery = reply.WindowDiscovery,
+            MessageRoute = reply.MessageRoute,
             NativeElapsedMs = reply.ElapsedMs, ExitCode = exitCode });
     public async Task<SkinCoreReply> InvokeAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
@@ -45,6 +49,11 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
             HostPath = Path.Combine(directory, kernelRelay ? "league-skin-hybrid-host.exe" : "league-skin-core-host.exe"),
             ElapsedMs = elapsedMs, ProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
             OsArchitecture = RuntimeInformation.OSArchitecture.ToString(), OsDescription = RuntimeInformation.OSDescription };
+        if (error.Code is "core_response_timeout" or "request_expired" or "request_outcome_unknown")
+        {
+            try { error.Details = error.Details with { TargetProbe = SkinCoreTargetDiagnostics.Capture(error.Details) }; }
+            catch { /* Best-effort metadata must not hide the original failure. */ }
+        }
         // Reporting must never replace the original transport failure.
         try { diagnostic?.Invoke(error); }
         catch { }

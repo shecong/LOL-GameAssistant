@@ -9,6 +9,7 @@
 constexpr DWORD Protocol=1, Magic=0x4c53434b;
 constexpr UINT BridgeMessage=WM_APP+0x532;
 constexpr size_t ReplySize=1024*1024;
+#include "hook_diagnostics.h"
 struct Request {
     DWORD magic,version,command,pid;
     uint64_t nonce,deadline;
@@ -75,17 +76,28 @@ static void finishRequest(Request* r) {
 }
 #ifndef BUILD_HOST
 extern "C" __declspec(dllexport) LRESULT CALLBACK StudioHookProc(int code,WPARAM removed,LPARAM data) {
+    if(code<0)return CallNextHookEx(nullptr,code,removed,data);
+    HookTraceObserver trace;
     if(code>=0 && removed==PM_REMOVE) {
         MSG* message=(MSG*)data;
         if(message->message==BridgeMessage && message->wParam==Magic) {
             uint64_t nonce=(uint64_t)message->lParam;wchar_t mapping[128],event[128];names(GetCurrentProcessId(),nonce,mapping,event);
-            HANDLE file=OpenFileMappingW(FILE_MAP_ALL_ACCESS,FALSE,mapping),signal=OpenEventW(EVENT_MODIFY_STATE,FALSE,event);
+            bool tracing=trace.matches(nonce);
+            if(tracing) {InterlockedIncrement(&trace.trace->messages);trace.mark(2);}
+            HANDLE file=OpenFileMappingW(FILE_MAP_ALL_ACCESS,FALSE,mapping);
+            if(!file && tracing)trace.mark(3,GetLastError());
+            HANDLE signal=OpenEventW(EVENT_MODIFY_STATE,FALSE,event);
+            if(file && !signal && tracing)trace.mark(4,GetLastError());
             if(file && signal) {
                 auto r=(Request*)MapViewOfFile(file,FILE_MAP_ALL_ACCESS,0,0,sizeof(Request));
+                if(!r && tracing)trace.mark(5,GetLastError());
                 if(r) {
                     if(claim(r,GetCurrentProcessId(),nonce)) {
-                        finishRequest(r);SetEvent(signal);
-                    }
+                        if(tracing)trace.mark(7);
+                        finishRequest(r);
+                        if(tracing)trace.mark(8);
+                        if(!SetEvent(signal) && tracing)trace.mark(9,GetLastError());
+                    } else if(tracing)trace.mark(6,ERROR_INVALID_DATA);
                     UnmapViewOfFile(r);
                 }
             }
@@ -98,6 +110,8 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK StudioHookProc(int code,WPARAM
 BOOL WINAPI DllMain(HINSTANCE,DWORD,LPVOID) {return TRUE;}
 #else
 #include <tlhelp32.h>
+#include <climits>
+#include "game_window.h"
 static DWORD diagnosticPid=0,diagnosticThread=0;
 static uint64_t diagnosticNonce=0;
 static ULONGLONG diagnosticStart=GetTickCount64();
@@ -107,8 +121,11 @@ static int error(const char* name,DWORD code,const char* stage="transport",LONG 
 #else
     const char* architecture="x86";
 #endif
-    printf("{\"ok\":false,\"error\":\"%s\",\"stage\":\"%s\",\"win32\":%lu,\"pid\":%lu,\"thread_id\":%lu,\"request_id\":\"%016llx\",\"phase\":%ld,\"host_architecture\":\"%s\",\"elapsed_ms\":%llu}\n",
-        name,stage,code,diagnosticPid,diagnosticThread,diagnosticNonce,phase,architecture,GetTickCount64()-diagnosticStart);return 1;
+    printf("{\"ok\":false,\"error\":\"%s\",\"stage\":\"%s\",\"win32\":%lu,\"pid\":%lu,\"thread_id\":%lu,\"request_id\":\"%016llx\",\"phase\":%ld,\"host_architecture\":\"%s\",\"elapsed_ms\":%llu",
+        name,stage,code,diagnosticPid,diagnosticThread,diagnosticNonce,phase,architecture,GetTickCount64()-diagnosticStart);
+    if(activeHookTrace)printf(",\"hook_trace_available\":true,\"hook_callbacks\":%ld,\"hook_messages\":%ld,\"hook_stage\":\"%s\",\"hook_win32\":%ld",
+        activeHookTrace->callbacks,activeHookTrace->messages,hookStage(activeHookTrace->stage),activeHookTrace->win32);
+    printf(",\"message_route\":\"window\"");printWindowDiscovery();printf("}\n");return 1;
 }
 static bool integer(const char* text,int minimum,int maximum,int* result) {
     char* end=nullptr;long value=strtol(text,&end,10);
@@ -172,10 +189,11 @@ int main(int argc,char** argv) {
         if(strlen(session)!=16) return error("invalid_session",ERROR_INVALID_PARAMETER);
         for(const char* p=session;*p;p++) if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='f'))) return error("invalid_session",ERROR_INVALID_PARAMETER);
     }
-    HWND window=FindWindowW(nullptr,L"League of Legends (TM) Client");if(!window) return error("game_window_not_found",ERROR_NOT_FOUND);
-    DWORD pid=0;DWORD thread=GetWindowThreadProcessId(window,&pid);uint64_t nonce=0;
+    if(!discoverGameWindow())return error("game_window_not_found",ERROR_NOT_FOUND,"window_discovery");
+    DWORD pid=windowDiscovery.selected.pid,thread=windowDiscovery.selected.thread;uint64_t nonce=0;
     if(BCryptGenRandom(nullptr,(PUCHAR)&nonce,sizeof(nonce),BCRYPT_USE_SYSTEM_PREFERRED_RNG)<0) return error("nonce_failed",ERROR_INVALID_DATA);
     diagnosticPid=pid;diagnosticThread=thread;diagnosticNonce=nonce;
+    HookTraceOwner traceOwner(pid,thread,nonce);
     wchar_t mapping[128],event[128];names(pid,nonce,mapping,event);
     HANDLE file=CreateFileMappingW(INVALID_HANDLE_VALUE,nullptr,PAGE_READWRITE,0,sizeof(Request),mapping);
     if(!file) return error("create_mapping_failed",GetLastError());
@@ -191,7 +209,7 @@ int main(int argc,char** argv) {
         auto callback=(HOOKPROC)GetProcAddress(dll,"StudioHookProc");hook=callback?SetWindowsHookExW(WH_GETMESSAGE,callback,dll,thread):nullptr;
         if(!hook) result=error("standard_windows_hook_rejected",GetLastError(),"hook_install");
         else {
-            if(!PostThreadMessageW(thread,BridgeMessage,Magic,(LPARAM)nonce)) {
+            if(!postGameRequest(windowDiscovery.selected.window,pid,thread,BridgeMessage,Magic,(LPARAM)nonce)) {
                 DWORD code=GetLastError();InterlockedCompareExchange(&r->phase,3,0);
                 result=error("message_post_failed",code,"message_post");
             } else {

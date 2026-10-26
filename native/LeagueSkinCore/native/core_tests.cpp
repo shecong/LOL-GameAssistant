@@ -6,6 +6,92 @@
 #include <initializer_list>
 #include "object_skin_rules.h"
 int main() {
+    assert(gameExecutable(L"C:\\Games\\League of Legends.exe"));
+    assert(gameExecutable(L"LEAGUE OF LEGENDS.EXE"));
+    assert(!gameExecutable(L"LeagueClient.exe") && !gameExecutable(L"League of Legends.exe.bak"));
+    {
+        HWND renamed=CreateWindowExW(0,L"STATIC",L"Renamed game window diagnostic fixture",WS_OVERLAPPEDWINDOW,
+            0,0,640,480,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);assert(renamed);
+        ShowWindow(renamed,SW_SHOWNOACTIVATE);
+        GameWindowDiscovery info{};info.pids[0]=GetCurrentProcessId();info.processes=1;
+        collectGameWindow(renamed,(LPARAM)&info);
+        assert(selectGameWindow(info) && info.selected.window==renamed && info.selected.thread==GetCurrentThreadId());
+        assert(!wcscmp(info.selected.title,L"Renamed game window diagnostic fixture"));
+        assert(!wcscmp(info.selected.className,L"Static"));
+        const UINT routingMessage=WM_APP+0x633;MSG routed{};
+        assert(PostThreadMessageW(GetCurrentThreadId(),routingMessage,1,2));
+        assert(!PeekMessageW(&routed,renamed,routingMessage,routingMessage,PM_REMOVE));
+        assert(PeekMessageW(&routed,(HWND)-1,routingMessage,routingMessage,PM_REMOVE) && !routed.hwnd);
+        assert(postGameRequest(renamed,GetCurrentProcessId(),GetCurrentThreadId(),routingMessage,3,4));
+        assert(PeekMessageW(&routed,renamed,routingMessage,routingMessage,PM_REMOVE));
+        assert(routed.hwnd==renamed && routed.wParam==3 && routed.lParam==4);
+        assert(!postGameRequest(renamed,GetCurrentProcessId()+1,GetCurrentThreadId(),routingMessage,3,4));
+        assert(GetLastError()==ERROR_INVALID_WINDOW_HANDLE);
+        GameWindowDiscovery unrelated{};unrelated.pids[0]=0;unrelated.processes=1;
+        collectGameWindow(renamed,(LPARAM)&unrelated);assert(unrelated.observed==0);
+        ShowWindow(renamed,SW_HIDE);
+        info={};info.pids[0]=GetCurrentProcessId();info.processes=1;
+        collectGameWindow(renamed,(LPARAM)&info);assert(!selectGameWindow(info));
+        assert(!strcmp(info.state,"no_usable_game_window"));DestroyWindow(renamed);
+    }
+    {
+        WNDCLASSW gameClass{};gameClass.lpfnWndProc=DefWindowProcW;gameClass.hInstance=GetModuleHandleW(nullptr);
+        gameClass.lpszClassName=L"RiotWindowClass";assert(RegisterClassW(&gameClass));
+        HWND owner=CreateWindowExW(0,L"STATIC",L"Owner fixture",WS_OVERLAPPEDWINDOW,0,0,100,100,nullptr,nullptr,gameClass.hInstance,nullptr);
+        assert(owner);
+        HWND hiddenGame=CreateWindowExW(0,L"RiotWindowClass",L"League of Legends (TM) Client",WS_POPUP,
+            0,0,1,1,owner,nullptr,gameClass.hInstance,nullptr);assert(hiddenGame);
+        GameWindowDiscovery info{};info.pids[0]=GetCurrentProcessId();info.processes=1;
+        collectGameWindow(hiddenGame,(LPARAM)&info);
+        assert(selectGameWindow(info) && info.selected.window==hiddenGame);
+        assert(!info.selected.visible && info.selected.hasOwner && info.selected.width<64);
+        assert(!strcmp(info.selected.reason,"recognized_game_class"));
+        GameWindowDiscovery unrelated{};unrelated.pids[0]=0;unrelated.processes=1;
+        collectGameWindow(hiddenGame,(LPARAM)&unrelated);assert(!selectGameWindow(unrelated));
+        DestroyWindow(hiddenGame);DestroyWindow(owner);UnregisterClassW(L"RiotWindowClass",gameClass.hInstance);
+    }
+    {
+        GameWindowDiscovery info{};info.processes=2;info.observed=2;
+        info.windows[0].pid=1;info.windows[0].area=100;
+        info.windows[1].pid=2;info.windows[1].area=200;
+        assert(!selectGameWindow(info) && !strcmp(info.state,"ambiguous_game_processes"));
+        info.windows[1].pid=1;info.windows[1].area=100;
+        assert(!selectGameWindow(info) && !strcmp(info.state,"ambiguous_game_windows"));
+        info.windows[1].area=200;assert(selectGameWindow(info) && info.selected.area==200);
+        info.windows[0].priority=2;assert(selectGameWindow(info) && info.selected.area==100);
+        info.overflow=true;assert(!selectGameWindow(info));
+    }
+    // Exercise the real DLL callback only with invalid requests: never executes game functions.
+    {
+        wchar_t dllPath[32768];GetModuleFileNameW(nullptr,dllPath,32768);
+        wchar_t* dllName=wcsrchr(dllPath,L'\\');assert(dllName);wcscpy_s(dllName+1,32768-(dllName+1-dllPath),L"league-skin-core.dll");
+        HMODULE bridge=LoadLibraryW(dllPath);assert(bridge);
+        auto callback=(HOOKPROC)GetProcAddress(bridge,"StudioHookProc");assert(callback);
+        DWORD pid=GetCurrentProcessId(),thread=GetCurrentThreadId();uint64_t nonce=0x123456789abcdef0ULL;
+        HookTraceOwner trace(pid,thread,nonce);assert(trace.trace);
+        HookTraceOwner collision(pid,thread,nonce+1);assert(!collision.trace && activeHookTrace==trace.trace);
+        MSG message{};message.message=WM_NULL;
+        callback(HC_ACTION,PM_REMOVE,(LPARAM)&message);
+        assert(trace.trace->callbacks==1 && trace.trace->messages==0 && trace.trace->stage==1);
+        auto invoke=[&]() {message.message=BridgeMessage;message.wParam=Magic;message.lParam=(LPARAM)nonce;callback(HC_ACTION,PM_REMOVE,(LPARAM)&message);};
+        invoke();assert(trace.trace->stage==3 && trace.trace->win32==ERROR_FILE_NOT_FOUND);
+        wchar_t mapping[128],event[128];names(pid,nonce,mapping,event);
+        HANDLE file=CreateFileMappingW(INVALID_HANDLE_VALUE,nullptr,PAGE_READWRITE,0,sizeof(Request),mapping);assert(file);
+        invoke();assert(trace.trace->stage==4 && trace.trace->win32==ERROR_FILE_NOT_FOUND);
+        HANDLE signal=CreateEventW(nullptr,TRUE,FALSE,event);assert(signal);
+        auto request=(Request*)MapViewOfFile(file,FILE_MAP_ALL_ACCESS,0,0,sizeof(Request));assert(request);
+        request->magic=0;request->nonce=nonce;
+        invoke();assert(trace.trace->stage==6 && request->phase==0 && !request->result[0]);
+        assert(trace.trace->callbacks==4 && trace.trace->messages==3);
+        HWND routingWindow=CreateWindowExW(0,L"STATIC",L"Hook routing fixture",WS_OVERLAPPEDWINDOW,
+            0,0,640,480,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);assert(routingWindow);
+        HHOOK installed=SetWindowsHookExW(WH_GETMESSAGE,callback,bridge,thread);assert(installed);
+        assert(postGameRequest(routingWindow,pid,thread,BridgeMessage,Magic,(LPARAM)nonce));
+        MSG delivered{};assert(PeekMessageW(&delivered,routingWindow,BridgeMessage,BridgeMessage,PM_REMOVE));
+        assert(trace.trace->messages==4 && trace.trace->stage==6 && request->phase==0);
+        assert(delivered.message==WM_NULL);assert(UnhookWindowsHookEx(installed));DestroyWindow(routingWindow);
+        UnmapViewOfFile(request);CloseHandle(signal);CloseHandle(file);FreeLibrary(bridge);
+    }
     // Module verification must reject this test process rather than load or hook it.
     assert(moduleState(GetCurrentProcessId())==1);
     // The camera adapter changes one float, requires the observed baseline,

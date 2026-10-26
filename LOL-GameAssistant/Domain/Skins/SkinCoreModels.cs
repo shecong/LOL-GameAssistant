@@ -62,6 +62,13 @@ public sealed record SkinCoreReply
     public int? Phase { get; init; }
     public uint ThreadId { get; init; }
     public string HostArchitecture { get; init; } = "";
+    public bool? HookTraceAvailable { get; init; }
+    public SkinCoreWindowDiscovery? WindowDiscovery { get; init; }
+    public string MessageRoute { get; init; } = "";
+    public int? HookCallbacks { get; init; }
+    public int? HookMessages { get; init; }
+    public string HookStage { get; init; } = "";
+    public int? HookWin32 { get; init; }
     public long? ElapsedMs { get; init; }
     public string Session { get; init; } = "";
     public string RequestId { get; init; } = "";
@@ -76,6 +83,14 @@ public sealed record SkinCoreReply
 
 public sealed record SkinCoreFailureDetails
 {
+    public string MessageRoute { get; init; } = "";
+    public SkinCoreWindowDiscovery? WindowDiscovery { get; init; }
+    public SkinCoreTargetProbe? TargetProbe { get; init; }
+    public bool? HookTraceAvailable { get; init; }
+    public int? HookCallbacks { get; init; }
+    public int? HookMessages { get; init; }
+    public string HookStage { get; init; } = "";
+    public int? HookWin32 { get; init; }
     public string Stage { get; init; } = "";
     public int? Win32 { get; init; }
     public string RequestId { get; init; } = "";
@@ -92,6 +107,46 @@ public sealed record SkinCoreFailureDetails
     public string ProcessArchitecture { get; init; } = "";
     public string OsArchitecture { get; init; } = "";
     public string OsDescription { get; init; } = "";
+}
+
+public sealed record SkinCoreWindowDiscovery
+{
+    public string State { get; init; } = "";
+    public int ProcessCount { get; init; }
+    public int QueryErrors { get; init; }
+    public int Win32 { get; init; }
+    public int CandidateCount { get; init; }
+    public string SelectedTitle { get; init; } = "";
+    public string SelectedClass { get; init; } = "";
+    public IReadOnlyList<SkinCoreObservedWindow> Windows { get; init; } = [];
+}
+
+public sealed record SkinCoreObservedWindow
+{
+    public bool? Visible { get; init; }
+    public bool? HasOwner { get; init; }
+    public int? ClientWidth { get; init; }
+    public int? ClientHeight { get; init; }
+    public int? RectWin32 { get; init; }
+    public string Reason { get; init; } = "";
+    public int Pid { get; init; }
+    public uint ThreadId { get; init; }
+    public bool Eligible { get; init; }
+    public string Title { get; init; } = "";
+    public string ClassName { get; init; } = "";
+}
+
+/// <summary>Read-only observation after host cleanup; missing evidence stays unknown.</summary>
+public sealed record SkinCoreTargetProbe
+{
+    public bool? TargetRunning { get; init; }
+    public string TargetArchitecture { get; init; } = "";
+    public bool? AssistantElevated { get; init; }
+    public bool? TargetElevated { get; init; }
+    public bool? WindowHung { get; init; }
+    public bool? CoreModuleLoadedAfterCleanup { get; init; }
+    public string[] Errors { get; init; } = [];
+    public string Assessment { get; init; } = "";
 }
 
 public sealed class SkinCoreException(string code, bool outcomeUnknown = false,

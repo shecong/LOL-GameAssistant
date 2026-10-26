@@ -79,6 +79,10 @@ public partial class AboutForm
         var joinGroup = new AntdUI.Button { Name = "JoinQqGroup", Text = $"加入QQ群 · {UpdateAvailableForm.QqGroupNumber}", AutoSize = true, Height = 36 };
         joinGroup.Click += (_, _) => OpenUrl(UpdateAvailableForm.QqGroupUrl);
         footer.Controls.Add(joinGroup);
+        footer.Controls.Add(new AntdUI.Button
+        {
+            Name = "FreeSoftware", Text = "免费不要一分钱", AutoSize = true, Height = 36
+        });
         Controls.Add(_aboutPages);
         Controls.Add(footer);
         Controls.Add(_aboutNavigation);

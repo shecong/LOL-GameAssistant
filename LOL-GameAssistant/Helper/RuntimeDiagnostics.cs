@@ -25,6 +25,16 @@ public static class RuntimeDiagnostics
     public static event Action<DiagnosticEntry>? Reported;
     public const string SkinCoreComponent = "换肤核心";
 
+    internal static string DescribeGameWindow(SkinCoreWindowDiscovery discovery) => discovery.State switch
+    {
+        "no_verified_game_process" when discovery.QueryErrors > 0 => $"检测到游戏进程，但无法完成进程校验（Win32={discovery.Win32}），请复制日志反馈。",
+        "no_verified_game_process" => "未检测到游戏对局进程，请进入对局后读取。大厅和选人界面不属于游戏对局。",
+        "no_usable_game_window" => "已检测到游戏进程，但尚未发现可用的对局窗口，请待游戏画面出现后读取。",
+        "ambiguous_game_processes" or "ambiguous_game_windows" => "发现多个候选游戏窗口，无法确定操作目标，请关闭多余对局窗口后读取。",
+        "selected_by_process" => $"已按游戏进程识别窗口：{discovery.SelectedTitle}，类名：{discovery.SelectedClass}。",
+        _ => $"游戏窗口枚举未完成：{discovery.State}，Win32={discovery.Win32}。"
+    };
+
     public static void ReportSkinCoreFailure(SkinCoreException error)
     {
         string reason = error.Code switch
@@ -41,6 +51,26 @@ public static class RuntimeDiagnostics
             _ => "核心请求未完成。"
         };
         if (error.OutcomeUnknown) reason = "请求结果未确认，动作可能已执行。请读取状态，勿自动重试。";
+        if (error.Details?.WindowDiscovery is { } discovery) reason += $"\n窗口识别：{DescribeGameWindow(discovery)}";
+        if (error.Details?.TargetProbe is { } probe) reason += $"\n自动检查：{probe.Assessment}";
+        if (error.Details?.HookTraceAvailable == true)
+        {
+            var trace = error.Details;
+            string observation = trace.HookStage switch
+            {
+                "request_open_failed" => "收到请求消息，但打开请求共享内存失败。",
+                "signal_open_failed" => "收到请求消息，但打开响应事件失败。",
+                "request_map_failed" => "收到请求消息，但映射请求内存失败。",
+                "claim_rejected" => "收到请求消息，但请求校验或领取未通过。",
+                "request_claimed" => "已接手请求，尚未观察到处理完成。",
+                "request_completed" => "已完成处理，需检查响应通知。",
+                "signal_set_failed" => "处理已完成，但发送响应通知失败。",
+                "message_received" => "已观察到目标消息，尚未观察到后续处理。",
+                _ when trace.HookCallbacks > 0 => "已观察到钩子回调，尚未观察到目标请求消息被取出。",
+                _ => "未观察到回调；可能未进入回调，也可能回调无法访问诊断通道，不能据此认定被拦截。"
+            };
+            reason += $"\n核心入口：{observation} 回调 {trace.HookCallbacks} 次，目标消息 {trace.HookMessages} 次，阶段 {trace.HookStage}，Win32={trace.HookWin32}。";
+        }
         Report(SkinCoreComponent, error.OutcomeUnknown ? "结果未确认" : "请求失败",
             $"{reason}\n错误码：{error.Code}\n诊断详情：{JsonSerializer.Serialize(error.Details)}");
     }
