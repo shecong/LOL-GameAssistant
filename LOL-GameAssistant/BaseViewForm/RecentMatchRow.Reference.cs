@@ -10,7 +10,8 @@ public partial class RecentMatchRow
     internal void UseReferenceLayout()
     {
         _referenceLayout = true;
-        Height = 72;
+        Height = 48;
+        Margin = new Padding(0, 0, 0, 3);
         _detailArrow = new AntdUI.Label { Text = "›", AutoSize = false, Cursor = Cursors.Hand,
             BackColor = Color.Transparent, Font = new Font(UiMetrics.FontFamily, 14F) };
         _detailArrow.Click += (_, _) => OpenDetail();
@@ -21,6 +22,7 @@ public partial class RecentMatchRow
     {
         UseReferenceLayout();
         _workspaceLayout = true;
+        Height = 72;
         LayoutRow();
     }
     private void LayoutWorkspaceRow()
@@ -41,18 +43,18 @@ public partial class RecentMatchRow
     private void LayoutReferenceRow()
     {
         int right = ClientSize.Width - 8;
-        lblResult.SetBounds(10, 14, 38, 24);
-        picChampion.SetBounds(54, 8, 34, 34);
-        lblChampion.SetBounds(96, 4, Math.Max(20, right - 222), 22);
+        lblResult.SetBounds(8, 10, 34, 24);
+        picChampion.SetBounds(46, 7, 30, 30);
+        lblChampion.SetBounds(82, 2, Math.Max(20, right - 212), 22);
         lblMode.Visible = true;
-        lblMode.SetBounds(96, 26, lblChampion.Width, 20);
+        lblMode.SetBounds(82, 24, lblChampion.Width, 20);
         lblMode.Font = new Font(UiMetrics.FontFamily, 8F);
         lblMode.ForeColor = UiTheme.Palette.TextSecondary;
-        lblKda.SetBounds(right - 122, 14, 72, 24);
+        lblKda.SetBounds(right - 124, 2, 78, 24);
         lblKda.Font = new Font(UiMetrics.FontFamily, 9F, FontStyle.Bold);
-        lblDuration.SetBounds(right - 48, 14, 36, 24);
+        lblDuration.SetBounds(right - 44, 2, 34, 24);
         lblDuration.Font = new Font(UiMetrics.FontFamily, 7.5F);
         lblDate.Visible = false;
-        _detailArrow?.SetBounds(right - 10, 12, 16, 26);
+        _detailArrow?.SetBounds(right - 10, 4, 16, 24);
     }
 }

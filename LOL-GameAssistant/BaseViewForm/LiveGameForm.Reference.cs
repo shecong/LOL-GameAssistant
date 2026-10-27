@@ -100,19 +100,21 @@ public partial class LiveGameForm
     private void ConfigureReferenceOverview()
     {
         infoBar.Controls.Add(_gameSubtitle);
-        _gameSubtitle.SetBounds(32, 44, 660, 24);
-        lblGameInfo.Padding = new Padding(30, 0, 0, 28);
+        _gameSubtitle.Visible = false;
+        lblGameInfo.Padding = new Padding(8, 0, 0, 0);
+        lblGameInfo.AutoEllipsis = true;
         void Configure(GradientPanel header, AntdUI.Label title, AntdUI.Label overview, Color color)
         {
             header.Controls.Add(overview);
             title.Dock = DockStyle.None;
             var crest = new TeamCrest(color);
             header.Controls.Add(crest);
-            crest.SetBounds(16, 10, 44, 52);
+            crest.SetBounds(10, 5, 24, 28);
             void Layout()
             {
-                title.SetBounds(70, 8, Math.Max(100, header.Width - 220), 30);
-                overview.SetBounds(70, 38, Math.Max(100, header.Width - 160), 24);
+                title.SetBounds(40, 7, 100, 24);
+                overview.AutoEllipsis = true;
+                overview.SetBounds(144, 7, Math.Max(0, header.Width - 300), 24);
             }
             header.Resize += (_, _) => Layout();
             Layout();
@@ -142,6 +144,7 @@ public partial class LiveGameForm
         _teamOverview2.Text = DescribeTeam(panelTeam2.Controls.OfType<LivePlayerForm>());
         int count = panelTeam1.Controls.OfType<LivePlayerForm>().Count() + panelTeam2.Controls.OfType<LivePlayerForm>().Count();
         _gameSubtitle.Text = count == 0 ? "等待进入大厅、选人或对局" : $"{_modeDescription}  |  {panelTeam1.Controls.OfType<LivePlayerForm>().Count()}v{panelTeam2.Controls.OfType<LivePlayerForm>().Count()}  |  {count} 名玩家  |  {(_historyFilter == LOL_GameAssistant.Domain.Matches.LiveHistoryFilter.CurrentMode ? "每人当前模式最近 10 场" : "每人最近 10 场战绩")}";
+        _teamQueueTip.SetToolTip(lblGameInfo, _gameSubtitle.Text);
         _teamOverview1.ForeColor = _teamOverview2.ForeColor = _gameSubtitle.ForeColor = UiTheme.Palette.TextSecondary;
         SyncDisplayLayout();
     }

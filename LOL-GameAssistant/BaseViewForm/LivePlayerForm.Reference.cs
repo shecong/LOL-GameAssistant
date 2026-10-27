@@ -80,28 +80,28 @@ public partial class LivePlayerForm
             headerPanel.Controls.Add(_kdaLabel);
             headerPanel.Controls.Add(_encounterLabel);
         }
-        headerPanel.Height = 154;
+        headerPanel.Height = 108;
         int right = Math.Max(220, ClientSize.Width - 12);
-        picProfile.SetBounds(12, 12, 52, 52);
-        lblName.Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold);
+        picProfile.SetBounds(10, 6, 36, 36);
+        lblName.Font = new Font(UiMetrics.FontFamily, 10F, FontStyle.Bold);
         int rankWidth = !string.IsNullOrWhiteSpace(_rankLabel.Text) ? Math.Max(60, TextRenderer.MeasureText(_rankLabel.Text, _rankLabel.Font).Width + 10) : 0;
-        lblName.SetBounds(74, 10, Math.Max(60, right - 82 - rankWidth), 26);
+        lblName.SetBounds(54, 4, Math.Max(60, right - 62 - rankWidth), 22);
         lblSummary.Visible = true;
         lblSummary.AutoEllipsis = true;
         lblSummary.Font = new Font(UiMetrics.FontFamily, 8F);
-        lblSummary.SetBounds(right - 76, 40, 76, 22);
-        _rankLabel.SetBounds(right - rankWidth, 12, rankWidth, 22);
-        lblTeamTag.SetBounds(right - 40, 80, 40, 20);
-        lblSub.SetBounds(74, 40, Math.Max(60, right - 158), 22);
-        picCurrent.SetBounds(12, 70, 36, 36);
+        lblSummary.SetBounds(right - 76, 26, 76, 18);
+        _rankLabel.SetBounds(right - rankWidth, 4, rankWidth, 22);
+        lblTeamTag.SetBounds(right - 40, 48, 40, 20);
+        lblSub.SetBounds(54, 26, Math.Max(60, right - 138), 18);
+        picCurrent.SetBounds(10, 46, 36, 36);
         lblChampionNow.Visible = !string.IsNullOrEmpty(lblChampionNow.Text);
-        lblChampionNow.SetBounds(54, 78, Math.Max(110, right - 194), 20);
-        lblPremadeTag.SetBounds(right - 132, 80, 86, 20);
+        lblChampionNow.SetBounds(54, 46, Math.Max(60, right - 194), 20);
+        lblPremadeTag.SetBounds(right - 132, 48, 86, 20);
         int encounterWidth = Math.Min(120, (right - 24) / 2);
-        _kdaLabel.SetBounds(12, 106, Math.Max(80, right - encounterWidth - 20), 22);
-        _encounterLabel.SetBounds(right - encounterWidth, 106, encounterWidth, 22);
-        _historyHeading.SetBounds(12, 130, right - 12, 24);
+        _kdaLabel.SetBounds(54, 68, Math.Max(80, right - encounterWidth - 62), 18);
+        _encounterLabel.SetBounds(right - encounterWidth, 68, encounterWidth, 18);
+        _historyHeading.SetBounds(10, 88, right - 10, 20);
         _historyHeading.ForeColor = UiTheme.Palette.TextPrimary;
-        panelMatches.Padding = new Padding(8, 4, 8, 8);
+        panelMatches.Padding = new Padding(6, 2, 6, 4);
     }
 }

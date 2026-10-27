@@ -296,6 +296,38 @@ public sealed class LiveGameLayoutTests
         Assert.Null(workspace.SelectedPlayer);
     });
 
+    [Theory]
+    [InlineData(1280)]
+    [InlineData(1600)]
+    public void ClassicPrioritizesMatchViewportAndShowsAtLeastSixCompleteRows(int width) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var view = new LiveGameForm(Service<ILobbyService>((_, _) => null),
+            Service<IPlayerProfileService>((_, _) => null), Service<IChampionSelectService>((_, _) => null)) { Dock = DockStyle.Fill };
+        using var window = new Form { ClientSize = new Size(width, 800), Opacity = 0, ShowInTaskbar = false };
+        window.Controls.Add(view);
+        var players = Enumerable.Range(0, 10).Select(index => CreatePlayer(index, () => { })).ToArray();
+        for (int i = 0; i < players.Length; i++)
+            Find(view, i < 5 ? "panelTeam1" : "panelTeam2").Controls.Add(players[i]);
+        window.Show();
+        foreach (var player in players) player.EnsureDataLoadedAsync().GetAwaiter().GetResult();
+        System.Windows.Forms.Application.DoEvents();
+        Assert.True(Find(view, "infoBar").Height <= 48);
+        Assert.True(Find(view, "headerTeam1").Height <= 40);
+        foreach (var player in players)
+        {
+            var history = Find(player, "panelMatches");
+            var rows = history.Controls.OfType<RecentMatchRow>().ToArray();
+            Assert.Equal(10, rows.Length);
+            Assert.True(history.Height >= player.Height * .7);
+            Assert.True(rows.Count(row => row.Top >= 0 && row.Bottom <= history.ClientSize.Height) >= 6);
+            Assert.All(rows, row =>
+            {
+                Assert.False(Find(row, "lblChampion").Bounds.IntersectsWith(Find(row, "lblKda").Bounds));
+                Assert.False(Find(row, "matchHonors").Visible);
+            });
+        }
+    });
+
     private static LivePlayerForm CreatePlayer(int index, Action onHistory, string? position = null)
     {
         string puuid = "layout-test-" + index + "-" + Guid.NewGuid();

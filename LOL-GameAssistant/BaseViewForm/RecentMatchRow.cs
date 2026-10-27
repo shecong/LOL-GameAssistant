@@ -15,7 +15,7 @@ namespace LOL_GameAssistant.BaseViewForm
     {
         public const int RowHeight = 60;
         private readonly MatchHonorBadges _honorBadges = new();
-        private int ContentHeight => Math.Max(1, Height - _honorBadges.Height);
+        private int ContentHeight => Math.Max(1, Height - (_referenceLayout && !_workspaceLayout ? 0 : _honorBadges.Height));
         internal MatchHonors Honors => _honorBadges.Honors;
         private static readonly SemaphoreSlim HonorDetailGate = new(2);
         private bool _automaticHonors, _needsHonorDetail, _honorLoadStarted;
@@ -95,7 +95,17 @@ namespace LOL_GameAssistant.BaseViewForm
         private void LayoutRow()
         {
             LayoutMainRow();
-            _honorBadges.SetBounds(48, ContentHeight, Math.Max(0, ClientSize.Width - 64), _honorBadges.Height);
+            if (_referenceLayout && !_workspaceLayout)
+            {
+                // 荣誉与模式并排，无荣誉时不显示占位文字。
+                _honorBadges.Visible = Honors.Labels.Count > 0;
+                _honorBadges.SetBounds(ClientSize.Width - 132, 26, 112, 20);
+            }
+            else
+            {
+                _honorBadges.Visible = true;
+                _honorBadges.SetBounds(48, ContentHeight, Math.Max(0, ClientSize.Width - 64), _honorBadges.Height);
+            }
         }
 
         private void LayoutMainRow()
@@ -225,6 +235,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _honorBadges.Honors = honors;
             _honorBadges.StatusText = honors.MvpEvaluated ? "本局暂无荣誉" : "MVP 数据不足";
             _honorBadges.AccessibleName = honors.Labels.Count > 0 ? honors.Text : _honorBadges.StatusText;
+            LayoutRow();
             _championTip.SetToolTip(_honorBadges, honors.Text + "\n" + MatchHonorCalculator.Explanation +
                 (honors.MvpEvaluated ? "" : "\nMVP 暂无法评选，需完整双方数据与明确胜负。"));
             _honorBadges.Invalidate();

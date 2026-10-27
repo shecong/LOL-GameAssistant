@@ -75,11 +75,11 @@ namespace LOL_GameAssistant.BaseViewForm
             AutoSize = false,
             BackColor = Color.Transparent,
             Dock = DockStyle.Right,
-            Width = 340,
+            Width = 56,
             Padding = new Padding(10, 0, 10, 0),
             Font = new Font(UiMetrics.FontFamily, 9F),
             TextAlign = ContentAlignment.MiddleLeft,
-            Text = "近期晚间因官方对 AI 获取数据的管控，\n晚上 9 点后可能出现对局数据获取失败。"
+            Text = "提示"
         };
         private const int PlayerCardHeight = 440;
         private const int PlayerCardPreferredWidth = 560;
@@ -107,14 +107,15 @@ namespace LOL_GameAssistant.BaseViewForm
             _championSelectService = championSelectService;
             _matchHistoryService = matchHistoryService ?? AppCompositionRoot.MatchHistoryService;
             InitializeComponent();
-            rootGrid.Padding = new Padding(12);
-            rootGrid.RowStyles[0].Height = 76;
-            headerTeam1.Height = headerTeam2.Height = 72;
+            rootGrid.Padding = new Padding(6);
+            rootGrid.RowStyles[0].Height = 48;
+            infoBar.Margin = new Padding(3, 0, 3, 4);
+            headerTeam1.Height = headerTeam2.Height = 38;
             infoBar.CornerRadius = headerTeam1.CornerRadius = headerTeam2.CornerRadius = 12;
             infoBar.DrawBorder = headerTeam1.DrawBorder = headerTeam2.DrawBorder = true;
-            lblGameInfo.Font = new Font(UiMetrics.FontFamily, 12F, FontStyle.Bold);
-            lblTeamTitle1.Font = lblTeamTitle2.Font = new Font(UiMetrics.FontFamily, 13F, FontStyle.Bold);
-            var backToTop = new AntdUI.Button { Text = "回到顶部", Dock = DockStyle.Right, Width = 96 };
+            lblGameInfo.Font = new Font(UiMetrics.FontFamily, 10F, FontStyle.Bold);
+            lblTeamTitle1.Font = lblTeamTitle2.Font = new Font(UiMetrics.FontFamily, 10.5F, FontStyle.Bold);
+            var backToTop = new AntdUI.Button { Text = "回到顶部", Dock = DockStyle.Right, Width = 80 };
             backToTop.Click += (_, _) =>
             {
                 panelTeam1.AutoScrollPosition = Point.Empty;
@@ -129,7 +130,7 @@ namespace LOL_GameAssistant.BaseViewForm
             lblGameInfo.Padding = new Padding(30, 0, 0, 0);
             infoBar.Controls.Add(backToTop);
             backToTop.BringToFront();
-            var fetch = new AntdUI.Button { Name = "fetchAllPlayers", Text = "获取数据", Dock = DockStyle.Right, Width = 112, Type = AntdUI.TTypeMini.Primary };
+            var fetch = new AntdUI.Button { Name = "fetchAllPlayers", Text = "获取数据", Dock = DockStyle.Right, Width = 90, Type = AntdUI.TTypeMini.Primary };
             fetch.Click += async (_, _) =>
             {
                 fetch.Loading = true;
@@ -139,6 +140,7 @@ namespace LOL_GameAssistant.BaseViewForm
             infoBar.Controls.Add(fetch);
             fetch.BringToFront();
             infoBar.Controls.Add(_dataFetchNotice);
+            _teamQueueTip.SetToolTip(_dataFetchNotice, "近期晚间因官方对 AI 获取数据的管控，晚上 9 点后可能出现对局数据获取失败。可点击获取数据重试。");
             _dataFetchNotice.BringToFront();
             // Fill 控件最后分配剩余空间，给右侧说明和操作按钮留出宽度。
             lblGameInfo.BringToFront();
@@ -177,8 +179,8 @@ namespace LOL_GameAssistant.BaseViewForm
 
         internal void AttachLayoutSelector(Control selector, Control settingsButton)
         {
-            var holder = new Panel { Name = "liveLayoutToolbar", Dock = DockStyle.Right, Width = 294,
-                Padding = new Padding(4, 14, 4, 14), BackColor = Color.Transparent };
+            var holder = new Panel { Name = "liveLayoutToolbar", Dock = DockStyle.Right, Width = 264,
+                Padding = new Padding(4, 5, 4, 5), BackColor = Color.Transparent };
             selector.Dock = DockStyle.Fill;
             holder.Controls.Add(selector);
             holder.Controls.Add(settingsButton);
@@ -267,8 +269,8 @@ namespace LOL_GameAssistant.BaseViewForm
 
             int width = Math.Clamp(TextRenderer.MeasureText(tag.Text, tag.Font).Width + 16, 48, 132);
             tag.Size = new Size(width, 22);
-            tag.Location = new Point(Math.Max(4, header.ClientSize.Width - width - 16), 18);
-            title.Padding = new Padding(0, 0, width + 16, 0);
+            tag.Location = new Point(Math.Max(4, header.ClientSize.Width - width - 10), 8);
+            title.Padding = Padding.Empty;
         }
 
         /// <summary>更新队伍组队状态文本和提示内容。</summary>
