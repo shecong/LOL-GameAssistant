@@ -390,3 +390,4 @@ FodyWeavers.xsd
 /output/
 output/
 *.exe
+/.artifacts/live-density-20261027
