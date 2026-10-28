@@ -299,8 +299,29 @@ public sealed class DenseBattleQueryTests
         }
         Assert.All(content.Controls.Cast<Control>(), chart => Assert.InRange(chart.Width, viewport.ClientSize.Width - 50, viewport.ClientSize.Width));
         Assert.True(content.Height >= content.Controls.Cast<Control>().Sum(chart => chart.Height));
+        foreach (Control chart in content.Controls.Cast<Control>().Where(control => control != summaries))
+        {
+            using var bitmap = new Bitmap(chart.Width, chart.Height);
+            chart.DrawToBitmap(bitmap, chart.ClientRectangle);
+            var colors = new HashSet<int>();
+            for (int y = 0; y < bitmap.Height; y += 5)
+                for (int x = 0; x < bitmap.Width; x += 5) colors.Add(bitmap.GetPixel(x, y).ToArgb());
+            Assert.True(colors.Count > 5, "Chart must render data and axes, not just a blank panel background.");
+        }
         host.Close();
     });
+
+    [Fact]
+    public void KdaTrendExcludesOlderMatchesAndEndsWithTheMostRecentResult()
+    {
+        var history = Enumerable.Range(1, 40).Reverse().Select(day => ((double)day, day % 2 == 0)).ToList();
+        var trend = ChartDrawer.RecentKdaTrend(history);
+        Assert.Equal(30, trend.Count);
+        Assert.Equal((11d, false), trend[0]);
+        Assert.Equal((40d, true), trend[^1]);
+        Assert.DoesNotContain(trend, result => result.kda <= 10);
+        Assert.Equal(new[] { (3d, false), (8d, true) }, ChartDrawer.RecentKdaTrend([(8d, true), (3d, false)]));
+    }
 
     private static void Save(Form form, string name)
     {

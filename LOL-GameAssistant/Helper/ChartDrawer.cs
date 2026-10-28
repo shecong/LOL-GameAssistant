@@ -10,6 +10,10 @@ namespace LOL_GameAssistant.Helper
         private static readonly Color WinColor = Color.FromArgb(76, 175, 80);
         private static readonly Color LossColor = Color.FromArgb(244, 67, 54);
 
+        /// <summary>战绩输入按新到旧排列；趋势展示最近三十场，横轴从旧到新。</summary>
+        internal static List<(double kda, bool win)> RecentKdaTrend(IEnumerable<(double kda, bool win)> newestFirst) =>
+            newestFirst.Take(30).Reverse().ToList();
+
         /// <summary>
         /// 绘制 KDA 趋势折线图
         /// </summary>

@@ -1275,9 +1275,10 @@ namespace LOL_GameAssistant.BaseViewForm
 
             if (kdaList.Count > 1)
             {
-                var trendData = kdaList.TakeLast(30).ToList();
-                var kdaPanel = new Panel { Height = 210, BackColor = palette.SurfaceRaised, Margin = new Padding(0, 0, 0, 10) };
-                kdaPanel.Paint += (s, e) => ChartDrawer.DrawKdaTrend(e.Graphics, kdaPanel.ClientRectangle, trendData, "KDA 趋势（近 N 场 · 绿=胜 红=负）");
+                var trendData = ChartDrawer.RecentKdaTrend(kdaList);
+                // 自绘图表需要标准 Paint 事件；AntdUI.Panel 自行绘制背景，不触发该事件。
+                var kdaPanel = new System.Windows.Forms.Panel { Height = 210, BackColor = palette.SurfaceRaised, Margin = new Padding(0, 0, 0, 10) };
+                kdaPanel.Paint += (s, e) => ChartDrawer.DrawKdaTrend(e.Graphics, kdaPanel.ClientRectangle, trendData, $"KDA 趋势（近 {trendData.Count} 场 · 从旧到新 · 绿=胜 红=负）");
                 content.Controls.Add(kdaPanel);
             }
 
@@ -1287,24 +1288,26 @@ namespace LOL_GameAssistant.BaseViewForm
                     .OrderByDescending(x => x.Value.g).Take(10)
                     .Select(x => (GetChampionDisplayName(x.Key), x.Value.g, Math.Round((double)x.Value.w / x.Value.g * 100, 1)))
                     .ToList();
-                var champPanel = new Panel { Height = Math.Max(80, champData.Count * 25 + 30), BackColor = palette.SurfaceRaised };
+                var champPanel = new System.Windows.Forms.Panel { Height = Math.Max(80, champData.Count * 25 + 30), BackColor = palette.SurfaceRaised };
                 champPanel.Paint += (s, e) => ChartDrawer.DrawChampionBars(e.Graphics, champPanel.ClientRectangle, champData, "常用英雄 Top 10");
                 content.Controls.Add(champPanel);
             }
             panelStats.Controls.Add(chartContainer);
             panelStats.Controls.Add(filterBar);
-            content.Resize += (_, _) =>
+            void LayoutCharts()
             {
                 int width = Math.Max(280, content.ClientSize.Width - 18);
                 summaries.Width = width;
                 int columns = Math.Clamp((width + 9) / 189, 1, 3);
-                int tileWidth = (width - (columns - 1) * 9) / columns;
+                int tileWidth = (width - columns * 9) / columns;
                 foreach (Control tile in summaries.Controls) tile.Width = tileWidth;
                 summaries.Height = (3 + columns - 1) / columns * 82 + 8;
                 foreach (Control chart in content.Controls.Cast<Control>().Where(control => control != summaries))
                     chart.Width = width;
-            };
+            }
+            content.Resize += (_, _) => LayoutCharts();
             content.Width = Math.Max(300, chartContainer.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
+            LayoutCharts();
             lblStatus.Text = filtered.Count == 0 ? $"{filter}暂无有效统计数据" :
                 "筛选: " + filter + "  最近 " + filtered.Count + " 场 · 胜率 " + winRate + "%";
         }
