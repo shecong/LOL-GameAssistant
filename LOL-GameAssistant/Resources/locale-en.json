@@ -2346,5 +2346,16 @@
   "清除表情和提及": "Clear sticker and mentions",
   "暂无符合条件的消息；可切换筛选或加载更早消息。": "No matching messages. Change the filter or load older messages.",
   "● 已连接": "● Connected",
-  "○ 未连接": "○ Disconnected"
+  "○ 未连接": "○ Disconnected",
+  "区服筛选": "Region filter",
+  "全部区服": "All regions",
+  "当前区服": "My region",
+  "当前区服尚未确认，请登录 LOL 后重试。": "Your region is unavailable. Sign in to LoL and try again.",
+  "在线成员 · {0}/{1} · 右键复制 ID": "Online · {0}/{1} · Right-click to copy ID",
+  "筛选消息、上线通知和在线成员；发言仍发布到公共频道": "Filter messages, online notices and members. Messages are still sent to the public channel.",
+  "成员服务器筛选": "Member server filter",
+  "全部服务器": "All servers",
+  "国服": "China",
+  "其他服务器": "Other servers",
+  "服务器待确认": "Server pending"
 }

@@ -15,6 +15,7 @@ public sealed partial class LoungeForm
     private readonly HashSet<long> _pendingMessages = [];
     private readonly UiRequestScope _historyLoads = new();
     private readonly AntdUI.Select _messageFilter = new() { Name = "messageFilter", List = true, DropDownArrow = true, Width = 110, Height = 32 };
+    private readonly AntdUI.Select _regionFilter = new() { Name = "regionFilter", AccessibleName = "区服筛选", List = true, DropDownArrow = true, Width = 164, Height = 32 };
     private readonly AntdUI.Button _older = new() { Name = "loadOlderMessages", Text = "加载更早消息", AutoSize = true };
     private readonly AntdUI.Button _newMessages = new() { Name = "jumpToLatestMessages", Text = "返回最新消息", AutoSize = true, Visible = false };
     private readonly AntdUI.Label _connectionState = new() { Dock = DockStyle.Right, Width = 105, TextAlign = ContentAlignment.MiddleCenter };
@@ -23,6 +24,7 @@ public sealed partial class LoungeForm
     private readonly AntdUI.Label _onlineNotice = new() { Name = "onlineNotice", Dock = DockStyle.Fill, AutoEllipsis = true,
         TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0) };
     private string _timelineServer = "";
+    private string? _timelineRegion;
     private bool _windowInitialized, _loadingOlder, _hasOlder = true, _renderingHistory;
     private long _newestSeen;
     private string[] _renderedKeys = [];
@@ -42,8 +44,11 @@ public sealed partial class LoungeForm
         var description = layout.GetControlFromPosition(0, 1)!; layout.Controls.Remove(description); description.Dispose();
         var filters = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 4, 0, 0) };
         _messageFilter.Items.AddRange(new object[] { "全部", "聊天", "战绩", "招募", "上线通知" }); _messageFilter.SelectedIndex = 0;
+        _regionFilter.Items.AddRange(new object[] { "全部区服", "当前区服" }.Concat(LeagueRegionNames.DisplayNames.Cast<object>()).ToArray());
+        _regionFilter.SelectedIndex = 0;
         _memberTips.SetToolTip(_messageFilter, "上线通知单独保留最近 200 条，不计入全部消息；其他消息可向上翻页加载");
-        filters.Controls.AddRange([_messageFilter, _older, _newMessages]);
+        _memberTips.SetToolTip(_regionFilter, "筛选消息、上线通知和在线成员；发言仍发布到公共频道");
+        filters.Controls.AddRange([_messageFilter, _regionFilter, _older, _newMessages]);
         var toolbar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -64,7 +69,7 @@ public sealed partial class LoungeForm
         _members.CellHover += (_, e) =>
         {
             int index = _members.DataSource is LoungeListRow[] rows ? Array.IndexOf(rows, e.Record) : -1;
-            _memberTips.SetToolTip(_members, index >= 0 && index < _visibleMembers.Length ? $"{_visibleMembers[index].Name}\n{NormalizeRegion(_visibleMembers[index].Region)} · {_visibleMembers[index].Rank}\n右键复制 ID、提及或关注" : "");
+            _memberTips.SetToolTip(_members, index >= 0 && index < _visibleMembers.Length ? $"{_visibleMembers[index].Name}\n{MemberServerLabel(_visibleMembers[index].Region)} · {NormalizeRegion(_visibleMembers[index].Region)} · {_visibleMembers[index].Rank}\n右键复制 ID、提及或关注" : "");
         };
         var footer = (TableLayoutPanel)layout.GetControlFromPosition(0, 8)!;
         footer.ColumnCount = 3; footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72)); footer.Controls.Add(_counter, 2, 0);
@@ -77,10 +82,27 @@ public sealed partial class LoungeForm
             match => LeagueRegionNames.TryGetName(match.Groups["platform"].Value, out var known) ? known : "地区待确认",
             RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
+    private string? SelectedRegion => _regionFilter.SelectedIndex switch
+    {
+        <= 0 => null,
+        1 => NormalizeRegion(_client.CurrentRegion) is { Length: > 0 } current && current != "地区待确认" ? current : "",
+        _ => _regionFilter.SelectedValue?.ToString() ?? ""
+    };
+
+    private bool MatchesSelectedRegion(string region) => SelectedRegion is not { } selected ||
+        selected.Length > 0 && string.Equals(selected, NormalizeRegion(region), StringComparison.Ordinal);
+
+    private bool MatchesSelectedRegion(LoungeMessage message) => MatchesSelectedRegion(message.Kind == "recruit"
+        ? _client.Recruitments.FirstOrDefault(r => r.MessageId == message.Id)?.Recruitment.Region ??
+            LoungeContent.Parse<LoungeRecruitment>(message.Text)?.Region ?? message.Region
+        : message.Region);
+
     private void InitializeTimeline()
     {
         _history.HandleCreated += (_, _) => _history.BeginInvoke(() => { if (!_history.IsDisposed) ScrollToBottom(); });
         _messageFilter.SelectedIndexChanged += (_, _) => { _historyKey = "\0"; _renderedKeys = []; RefreshView(); };
+        _regionFilter.SelectedIndexChanged += (_, _) => { _historyKey = "\0"; _memberKey = "\0"; _renderedKeys = []; _selectedHistoryMessage = null; RefreshView(); };
+        _memberServerFilter.SelectedIndexChanged += (_, _) => { _memberKey = "\0"; RefreshView(); };
         _older.Click += async (_, _) => await LoadOlderMessagesAsync();
         _newMessages.Click += (_, _) => JumpToLatest();
         _history.MouseDown += (_, _) => _scrollInteraction++;
@@ -106,19 +128,22 @@ public sealed partial class LoungeForm
     }
     private void JumpToLatest()
     {
-        _window.Clear(); foreach (var message in _client.Messages.TakeLast(LoungeRules.HistoryPageSize)) _window[message.Id] = message;
+        var latest = _client.Messages.Where(MatchesSelectedRegion).ToArray();
+        _window.Clear(); foreach (var message in latest.TakeLast(LoungeRules.HistoryPageSize)) _window[message.Id] = message;
+        _newestSeen = latest.LastOrDefault()?.Id ?? 0;
         _windowInitialized = _window.Count > 0; _pendingMessages.Clear(); _hasOlder = true; _renderedKeys = []; _historyKey = "\0";
         RefreshTimeline(forceBottom: true);
     }
     private async Task LoadOlderMessagesAsync()
     {
-        if (_loadingOlder || !_hasOlder || _window.Count == 0 || IsDisposed) return;
+        long? before = _window.Count > 0 ? _window.Keys.First() : _client.Messages.FirstOrDefault()?.Id;
+        if (_loadingOlder || !_hasOlder || before == null || IsDisposed) return;
         _loadingOlder = true; _older.Enabled = false; _older.Text = "正在加载…";
-        using var request = _historyLoads.Begin(); string server = _client.Settings.ServerUrl; long before = _window.Keys.First();
+        using var request = _historyLoads.Begin(); string server = _client.Settings.ServerUrl; string? region = SelectedRegion;
         try
         {
-            var page = await _client.LoadOlderAsync(before, request.Token);
-            if (!request.IsCurrent || IsDisposed || server != _client.Settings.ServerUrl) return;
+            var page = await _client.LoadOlderAsync(before.Value, request.Token);
+            if (!request.IsCurrent || IsDisposed || server != _client.Settings.ServerUrl || region != SelectedRegion) return;
             var older = page.Messages.Where(m => m.Id < before).DistinctBy(m => m.Id).OrderBy(m => m.Id).ToArray();
             foreach (var message in older) _window[message.Id] = message;
             _hasOlder = page.HasMore && older.Length > 0;
@@ -137,12 +162,13 @@ public sealed partial class LoungeForm
     private void RefreshTimeline(bool forceBottom = false)
     {
         string server = _client.Settings.ServerUrl;
-        if (_timelineServer != server)
+        string? region = SelectedRegion;
+        if (_timelineServer != server || _timelineRegion != region)
         {
-            _historyLoads.Cancel(); _timelineServer = server; _window.Clear(); _pendingMessages.Clear(); _windowInitialized = false;
+            _historyLoads.Cancel(); _timelineServer = server; _timelineRegion = region; _window.Clear(); _pendingMessages.Clear(); _windowInitialized = false;
             _newestSeen = 0; _hasOlder = true; _renderedKeys = []; _historyKey = "\0";
         }
-        var latest = _client.Messages;
+        var latest = _client.Messages.Where(MatchesSelectedRegion).ToArray();
         if (!_windowInitialized && latest.Length > 0)
         {
             foreach (var message in latest.TakeLast(LoungeRules.HistoryPageSize)) _window[message.Id] = message;
@@ -163,18 +189,18 @@ public sealed partial class LoungeForm
         _newMessages.Visible = _messageFilter.SelectedIndex != 4 && (_pendingMessages.Count > 0 || _window.Count > 0 && _window.Keys.Last() < _newestSeen);
         _newMessages.Text = _pendingMessages.Count > 0 ? $"{_pendingMessages.Count}{(_pendingMessages.Count == 1000 ? "+" : "")} 条新消息 ↓" : "返回最新消息 ↓";
         _older.Visible = _messageFilter.SelectedIndex != 4;
-        if (!_loadingOlder) { _older.Enabled = _hasOlder && _window.Count > 0; _older.Text = _hasOlder ? "加载更早消息" : "已到最早消息"; }
+        if (!_loadingOlder) { _older.Enabled = _hasOlder && (_window.Count > 0 || _client.Messages.Length > 0); _older.Text = _hasOlder ? "加载更早消息" : "已到最早消息"; }
         RenderTimeline(forceBottom: forceBottom);
     }
     private void RenderTimeline(bool preserveAnchor = false, bool forceBottom = false)
     {
         var blocked = _client.Settings.BlockedSenders ?? [];
         IEnumerable<LoungeMessage> source = _messageFilter.SelectedIndex == 4 ? _client.OnlineMessages : _window.Values;
-        var messages = source.Where(m => !blocked.Contains(m.SenderId) && (_victories.Checked || m.Kind is not ("victory" or "highlight")))
+        var messages = source.Where(MatchesSelectedRegion).Where(m => !blocked.Contains(m.SenderId) && (_victories.Checked || m.Kind is not ("victory" or "highlight")))
             .Where(m => _messageFilter.SelectedIndex switch { 1 => m.Kind is "chat" or "sticker", 2 => m.Kind is "victory" or "highlight", 3 => m.Kind == "recruit", 4 => m.Kind == "online", _ => m.Kind != "online" })
             .Select(m => _client.IsDeleted(m.Id) ? m with { Kind = "deleted", Text = "此消息已被管理员删除" } : m).ToArray();
         string[] keys = messages.Select(m => $"{m.Id}:{m.Kind}:{m.Text}:{_client.Recruitments.FirstOrDefault(r => r.MessageId == m.Id)?.Revision}").ToArray();
-        string key = string.Join('|', keys) + ":" + _messageFilter.SelectedIndex;
+        string key = string.Join('|', keys) + ":" + _messageFilter.SelectedIndex + ":" + SelectedRegion;
         if (_historyKey == key && !forceBottom) return;
         _historyKey = key;
         int sequence = ++_renderSequence;
@@ -190,7 +216,8 @@ public sealed partial class LoungeForm
         {
             if (!append) { ClearHistoryItems(); _lastRenderedMessage = null; _lastRenderedDate = null; }
 
-            if (messages.Length == 0) _history.Items.Add(new AntdUI.Chat.TipChatItem("暂无符合条件的消息；可切换筛选或加载更早消息。"));
+            if (messages.Length == 0) _history.Items.Add(new AntdUI.Chat.TipChatItem(SelectedRegion == ""
+                ? "当前区服尚未确认，请登录 LOL 后重试。" : "暂无符合条件的消息；可切换筛选或加载更早消息。"));
             foreach (var message in messages.Skip(start)) AppendTimelineMessage(message);
             _renderedKeys = keys;
             if (_selectedHistoryMessage != null && !messages.Any(m => m.Id == _selectedHistoryMessage.Id)) _selectedHistoryMessage = null;
@@ -222,7 +249,7 @@ public sealed partial class LoungeForm
         else
         {
             bool group = message.Kind == "chat" && _lastRenderedMessage is { Kind: "chat" } previous && previous.SenderId == message.SenderId && previous.Name == message.Name && previous.Region == message.Region && message.SentAt - previous.SentAt < TimeSpan.FromMinutes(3);
-            string rank = _visibleMembers.FirstOrDefault(m => m.Name == message.Name && m.Region == message.Region)?.Rank ?? "";
+            string rank = _client.Members.FirstOrDefault(m => m.Name == message.Name && m.Region == message.Region)?.Rank ?? "";
             string name = group ? "" : $"{message.Name}  [{NormalizeRegion(message.Region)}]{(rank.Length > 0 ? " [" + rank + "]" : "")}  {time:HH:mm}";
             if (message.Kind == "sticker" && LoungeContent.Sticker(message.Text) is { } sticker)
             {

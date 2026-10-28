@@ -2,6 +2,8 @@ using System.Collections.Frozen;
 
 namespace LOL_GameAssistant.Domain.LeagueClient;
 
+public enum LeagueServerGroup { Unknown, China, Other }
+
 /// <summary>LCU/SGP 大区编号的展示名称。来源、历史别名和适用范围见 docs/league-region-codes.md。</summary>
 public static class LeagueRegionNames
 {
@@ -43,6 +45,10 @@ public static class LeagueRegionNames
     ];
 
     private static readonly FrozenDictionary<string, string> NamesByPlatform = BuildNames();
+    private static readonly FrozenSet<string> TencentNames = TencentPlatforms.Select(region => region.Name)
+        .Append("国服体验服").ToFrozenSet(StringComparer.Ordinal);
+    private static readonly FrozenSet<string> OtherNames = InternationalPlatforms.Where(region => region.Code != "PBE1")
+        .Select(region => region.Name).ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>招募等界面的去重选项；历史编号用于识别，不重复展示。</summary>
     public static IReadOnlyList<string> DisplayNames { get; } = Array.AsReadOnly(TencentPlatforms
@@ -51,6 +57,20 @@ public static class LeagueRegionNames
     /// <summary>仅匹配有来源的编号，不将 TENCENT、AMERICAS 等聚合区域猜成具体大区。</summary>
     public static bool TryGetName(string? platform, out string name) =>
         NamesByPlatform.TryGetValue(platform?.Trim() ?? "", out name!);
+
+    /// <summary>按已知编号或展示名称区分服务器；没有足够信息时保留待确认。</summary>
+    public static LeagueServerGroup GetServerGroup(string? region)
+    {
+        string value = region?.Trim() ?? "";
+        if (value.StartsWith("未知大区", StringComparison.Ordinal) && value.Length >= 6 &&
+            ((value[4] == '（' && value[^1] == '）') || (value[4] == '(' && value[^1] == ')')))
+            value = value[5..^1].Trim();
+        if (value.Equals("TENCENT", StringComparison.OrdinalIgnoreCase)) return LeagueServerGroup.China;
+        if (value.Equals("PBE1", StringComparison.OrdinalIgnoreCase)) return LeagueServerGroup.Other;
+        string name = TryGetName(value, out var known) ? known : value;
+        return TencentNames.Contains(name) ? LeagueServerGroup.China : OtherNames.Contains(name)
+            ? LeagueServerGroup.Other : LeagueServerGroup.Unknown;
+    }
 
     private static FrozenDictionary<string, string> BuildNames()
     {

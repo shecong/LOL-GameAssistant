@@ -2,6 +2,7 @@ using Panel = AntdUI.Panel;
 using LOL.Lounge;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.Lounge;
+using LOL_GameAssistant.Domain.LeagueClient;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -17,6 +18,8 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
     // RichEdit preserves inline sticker images, text selection and the reading anchor when prepending history.
     private readonly AntdUI.Chat.ChatList _history = new() { Dock = DockStyle.Fill, IconLess = true, EnabledClickImage = false };
     private readonly AntdUI.Table _members = CreateLoungeList();
+    private readonly AntdUI.Select _memberServerFilter = new() { Name = "memberServerFilter", AccessibleName = "成员服务器筛选",
+        Dock = DockStyle.Top, Height = 34, List = true, DropDownArrow = true };
     private readonly AntdUI.Label _memberCount = new() { Dock = DockStyle.Top, Height = 36, Text = "在线成员 · 0", TextAlign = ContentAlignment.MiddleLeft };
     private readonly AntdUI.Input _input = new() { Dock = DockStyle.Fill, Multiline = true, MaxLength = LoungeRules.MaxTextLength,
         PlaceholderText = "登录 LOL 后发言，Enter 发送，Shift+Enter 换行（最多 500 字）" };
@@ -72,6 +75,9 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
         conversation.Controls.Add(_history, 0, 0);
         var sidebar = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 0, 0, 0) };
         sidebar.Controls.Add(_members);
+        _memberServerFilter.Items.AddRange(new object[] { "全部服务器", "国服", "其他服务器", "服务器待确认" });
+        _memberServerFilter.SelectedIndex = 0;
+        sidebar.Controls.Add(_memberServerFilter);
         sidebar.Controls.Add(_memberCount);
         conversation.Controls.Add(sidebar, 1, 0);
         layout.Controls.Add(conversation, 0, 5);
@@ -203,16 +209,19 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
     {
         if (IsDisposed) return;
         _ = LoadSocialPreferencesAsync();
-        _client.SetReading(_messageFilter.SelectedIndex != 4 && IsHistoryAtBottom() && _pendingMessages.Count == 0 && (_window.Count == 0 || _window.Keys.Last() >= _newestSeen) && Visible && FindForm() is { Visible: true, ContainsFocus: true, WindowState: not FormWindowState.Minimized });
+        _client.SetReading(_regionFilter.SelectedIndex <= 0 && _messageFilter.SelectedIndex != 4 && IsHistoryAtBottom() && _pendingMessages.Count == 0 && (_window.Count == 0 || _window.Keys.Last() >= _newestSeen) && Visible && FindForm() is { Visible: true, ContainsFocus: true, WindowState: not FormWindowState.Minimized });
         UpdateFeatureBar();
         var online = _client.OnlineNotice;
-        _onlineNotice.Text = _messageFilter.SelectedIndex != 4 || online == null ? "" : NormalizeRegion($"{online.Name} 加入休息室 · {online.Region}");
+        _onlineNotice.Text = _messageFilter.SelectedIndex != 4 || online == null || !MatchesSelectedRegion(online.Region) ? "" : NormalizeRegion($"{online.Name} 加入休息室 · {online.Region}");
         _status.Text = NormalizeRegion(_client.Status);
         _connectionState.Text = _client.Status.StartsWith("已连接", StringComparison.Ordinal) ? "● 已连接" : "○ 未连接";
         _counter.Text = $"{_input.Text.Length}/{LoungeRules.MaxTextLength}";
         _send.Enabled = !_sending && _client.CanSend;
-        var members = _client.Members;
-        string memberKey = string.Join('|', members.Select(m => $"{m.Id}:{m.Name}:{m.Region}:{m.Status}:{m.Rank}:{_client.IsFollowed(m.Id)}"));
+        var allMembers = _client.Members;
+        var members = allMembers.Where(m => MatchesSelectedRegion(m.Region) && (_memberServerFilter.SelectedIndex <= 0 ||
+            LeagueRegionNames.GetServerGroup(m.Region) == (_memberServerFilter.SelectedIndex switch
+            { 1 => LeagueServerGroup.China, 2 => LeagueServerGroup.Other, _ => LeagueServerGroup.Unknown }))).ToArray();
+        string memberKey = SelectedRegion + ":" + _memberServerFilter.SelectedIndex + ":" + string.Join('|', members.Select(m => $"{m.Id}:{m.Name}:{m.Region}:{m.Status}:{m.Rank}:{_client.IsFollowed(m.Id)}"));
         if (_memberKey != memberKey)
         {
             _memberKey = memberKey;
@@ -220,12 +229,16 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
                 ? _visibleMembers[_members.SelectedIndex].Id : null;
             _visibleMembers = members;
             _members.DataSource = members.Select(member => new LoungeListRow(
-                $"{(_socialExperience.FavoriteTeammates.ContainsKey(member.Id) ? "♥" : _client.IsFollowed(member.Id) ? "★" : "●")} {member.Name}\n{NormalizeRegion(member.Region)}{(string.IsNullOrWhiteSpace(member.Rank) ? "" : " · " + member.Rank)}\n{member.Status}")).ToArray();
+                $"{(_socialExperience.FavoriteTeammates.ContainsKey(member.Id) ? "♥" : _client.IsFollowed(member.Id) ? "★" : "●")} {member.Name}\n{MemberServerLabel(member.Region)} · {NormalizeRegion(member.Region)}{(string.IsNullOrWhiteSpace(member.Rank) ? "" : " · " + member.Rank)}\n{member.Status}")).ToArray();
             _members.SelectedIndex = Array.FindIndex(members, m => m.Id == selected);
         }
-        _memberCount.Text = $"在线成员 · {members.Length} · 右键复制 ID";
+        _memberCount.Text = SelectedRegion == null && _memberServerFilter.SelectedIndex <= 0 ? $"在线成员 · {members.Length} · 右键复制 ID"
+            : $"在线成员 · {members.Length}/{allMembers.Length} · 右键复制 ID";
         RefreshTimeline();
     }
+
+    private static string MemberServerLabel(string region) => UiLanguage.T(LeagueRegionNames.GetServerGroup(region) switch
+    { LeagueServerGroup.China => "国服", LeagueServerGroup.Other => "其他服务器", _ => "服务器待确认" });
 
 public void ApplyTheme(ThemePalette palette)
     {

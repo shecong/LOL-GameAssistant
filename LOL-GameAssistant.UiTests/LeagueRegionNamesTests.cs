@@ -13,6 +13,23 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class LeagueRegionNamesTests
 {
     [Theory]
+    [InlineData("艾欧尼亚", LeagueServerGroup.China)]
+    [InlineData("未知大区（NJ100）", LeagueServerGroup.China)]
+    [InlineData("tencent_wt3_new", LeagueServerGroup.China)]
+    [InlineData("未知大区（TENCENT）", LeagueServerGroup.China)]
+    [InlineData("TENCENT_PBE", LeagueServerGroup.China)]
+    [InlineData("韩服", LeagueServerGroup.Other)]
+    [InlineData("NA1", LeagueServerGroup.Other)]
+    [InlineData("未知大区(PH1)", LeagueServerGroup.Other)]
+    [InlineData("PBE1", LeagueServerGroup.Other)]
+    [InlineData("PBE", LeagueServerGroup.Unknown)]
+    [InlineData("测试服（PBE）", LeagueServerGroup.Unknown)]
+    [InlineData("未知大区（FUTURE）", LeagueServerGroup.Unknown)]
+    [InlineData("", LeagueServerGroup.Unknown)]
+    public void ServerGroupsRecognizeKnownRegionsAndKeepAmbiguousServersPending(string region, LeagueServerGroup expected) =>
+        Assert.Equal(expected, LeagueRegionNames.GetServerGroup(region));
+
+    [Theory]
     [InlineData("NJ100", "联盟一区")]
     [InlineData("GZ100", "联盟二区")]
     [InlineData("CQ100", "联盟三区")]
