@@ -2,6 +2,7 @@ using LOL.Lounge;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.Lounge;
 using LOL_GameAssistant.Domain.MatchAnalysis;
+using LOL_GameAssistant.Domain.LeagueClient;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -30,9 +31,7 @@ public sealed partial class LoungeForm
             var box = new AntdUI.Select { Name = name, Dock = DockStyle.Fill, List = true, DropDownArrow = true };
             box.Items.AddRange(choices.Cast<object>().ToArray()); box.SelectedIndex = 0; return box;
         }
-        var regions = Enumerable.Range(1, 19).Select(i => LoungeLcuReader.RegionName("HN" + i))
-            .Concat(Enumerable.Range(1, 7).Select(i => LoungeLcuReader.RegionName("WT" + i)))
-            .Concat(["男爵领域", "峡谷之巅", "韩服", "北美", "欧洲西部", "日服"])
+        var regions = LeagueRegionNames.DisplayNames
             .Prepend(_client.CurrentRegion).Where(r => !string.IsNullOrWhiteSpace(r) && !r.Contains("未知")).Distinct();
         var region = Dropdown("Region", regions);
         var modes = LoungeRules.Modes.ToArray();

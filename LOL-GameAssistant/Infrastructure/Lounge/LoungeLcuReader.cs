@@ -1,4 +1,5 @@
 using LOL.Lounge;
+using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Application.LeagueClient;
 using Newtonsoft.Json.Linq;
 
@@ -216,17 +217,6 @@ public sealed class LoungeLcuReader(ILcuRequestSender lcu,
         };
     }
 
-    public static string RegionName(string platform) => platform.ToUpperInvariant() switch
-    {
-        "HN1" => "艾欧尼亚", "HN2" => "祖安", "HN3" => "诺克萨斯", "HN4" => "班德尔城",
-        "HN5" => "皮尔特沃夫", "HN6" => "战争学院", "HN7" => "巨神峰", "HN8" => "雷瑟守备",
-        "HN9" => "裁决之地", "HN10" => "黑色玫瑰", "HN11" => "暗影岛", "HN12" => "钢铁烈阳",
-        "HN13" => "水晶之痕", "HN14" => "均衡教派", "HN15" => "影流", "HN16" => "守望之海",
-        "HN17" => "征服之海", "HN18" => "卡拉曼达", "HN19" => "皮城警备",
-        "WT1" => "比尔吉沃特", "WT2" => "德玛西亚", "WT3" => "弗雷尔卓德", "WT4" => "无畏先锋",
-        "WT5" => "恕瑞玛", "WT6" => "扭曲丛林", "WT7" => "巨龙之巢", "EDU1" => "教育网专区",
-        "BGP1" => "男爵领域", "BGP2" => "峡谷之巅", "KR" => "韩服", "NA1" => "北美",
-        "EUW1" => "欧洲西部", "EUN1" => "欧洲北部", "JP1" => "日服",
-        "" => "未知大区", _ => "未知大区（" + LoungeRules.Clean(platform, 20) + "）"
-    };
+    public static string RegionName(string? platform) => LeagueRegionNames.TryGetName(platform, out var name)
+        ? name : string.IsNullOrWhiteSpace(platform) ? "未知大区" : "未知大区（" + LoungeRules.Clean(platform.Trim(), 40) + "）";
 }

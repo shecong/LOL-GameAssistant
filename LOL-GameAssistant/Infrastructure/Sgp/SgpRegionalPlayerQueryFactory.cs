@@ -2,13 +2,16 @@ using System.Collections.Concurrent;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Infrastructure.LeagueClient;
+using LOL_GameAssistant.Domain.LeagueClient;
 
 namespace LOL_GameAssistant.Infrastructure.Sgp;
 
 internal sealed class SgpRegionalPlayerQueryFactory(ILcuRequestSender lcu, PlayerQueryServices current) : IRegionalPlayerQueryFactory
 {
     public IReadOnlyList<PlayerQueryRegion> Regions { get; } =
-        [new("", "当前大区（自动）"), new("HN1", "艾欧尼亚 · HN1"), new("HN10", "黑色玫瑰 · HN10"), new("CQ100", "腾讯专区 · CQ100")];
+        new[] { "HN1", "HN10", "CQ100" }.Select(code => new PlayerQueryRegion(code,
+            $"{(LeagueRegionNames.TryGetName(code, out var name) ? name : code)} · {code}"))
+            .Prepend(new("", "当前大区（自动）")).ToArray();
     private readonly ConcurrentDictionary<string, PlayerQueryServices> _services = new(StringComparer.OrdinalIgnoreCase);
 
     public PlayerQueryServices Create(string? platform)

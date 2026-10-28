@@ -3,6 +3,7 @@ using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL.Lounge;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.Lounge;
+using LOL_GameAssistant.Domain.LeagueClient;
 using System.Text.RegularExpressions;
 
 namespace LOL_GameAssistant.BaseViewForm;
@@ -71,7 +72,10 @@ public sealed partial class LoungeForm
         _featureButtons.AddRange([_older, _newMessages]);
     }
 
-    internal static string NormalizeRegion(string text) => Regex.Replace(text ?? "", @"未知大区(?:[（(][^）)]*[）)])?", "地区待确认", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+    internal static string NormalizeRegion(string text) => LeagueRegionNames.TryGetName(text, out var name) ? name :
+        Regex.Replace(text ?? "", @"未知大区(?:[（(](?<platform>[^）)]*)[）)])?",
+            match => LeagueRegionNames.TryGetName(match.Groups["platform"].Value, out var known) ? known : "地区待确认",
+            RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     private void InitializeTimeline()
     {
@@ -230,6 +234,7 @@ public sealed partial class LoungeForm
                 string text = message.Kind == "recruit" && _client.Recruitments.FirstOrDefault(r => r.MessageId == message.Id) is { } recruitment
                     ? RecruitmentSummary(recruitment) : message.Kind is "victory" or "highlight"
                         ? LoungeContent.Display(message).Replace("【" + message.Name + "】", "", StringComparison.Ordinal).Trim() : LoungeContent.Display(message);
+                if (message.Kind is "victory" or "highlight") text = NormalizeRegion(text);
                 _history.Items.Add(new AntdUI.Chat.TextChatItem(text, null!, name) { Tag = message });
             }
         }

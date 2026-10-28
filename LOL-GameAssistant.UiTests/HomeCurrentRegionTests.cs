@@ -17,16 +17,23 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class HomeCurrentRegionTests
 {
-    [Fact]
-    public async Task PlatformMetadataDoesNotNeedMatchHistory()
+    [Theory]
+    [InlineData("HN1", "艾欧尼亚")]
+    [InlineData("NJ100", "联盟一区")]
+    [InlineData("GZ100", "联盟二区")]
+    [InlineData("CQ100", "联盟三区")]
+    [InlineData("TJ100", "联盟四区")]
+    [InlineData("TJ101", "联盟五区")]
+    [InlineData("ME1", "中东")]
+    public async Task PlatformMetadataDoesNotNeedMatchHistory(string platform, string name)
     {
         var lcu = Service<ILcuRequestSender>((method, args) =>
         {
             Assert.Equal("GetStringAsync", method.Name);
             Assert.Equal("/lol-platform-config/v1/namespaces/LoginDataPacket/platformId", args[0]);
-            return Task.FromResult<string?>("\"HN1\"");
+            return Task.FromResult<string?>("\"" + platform + "\"");
         });
-        Assert.Equal("艾欧尼亚", await new LcuCurrentRegionService(lcu).GetCurrentRegionAsync());
+        Assert.Equal(name, await new LcuCurrentRegionService(lcu).GetCurrentRegionAsync());
     }
 
     [Fact]
