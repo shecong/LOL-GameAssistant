@@ -1,3 +1,5 @@
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
+using PictureBox = AntdUI.Avatar;
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Helper;
@@ -172,7 +174,7 @@ internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
             Dock = DockStyle.Top,
             Height = imageHeight,
             BackColor = Color.FromArgb(36, 46, 60),
-            SizeMode = PictureBoxSizeMode.Zoom
+            ImageFit = AntdUI.TFit.Contain
         };
         var select = new AntdUI.Button { Dock = DockStyle.Bottom, Height = 28, Text = "选择" };
         select.Click += (_, _) => SelectItem(item);

@@ -1,4 +1,8 @@
-﻿using LOL_GameAssistant.Application.Builds;
+using Label = AntdUI.Label;
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
+using PictureBox = AntdUI.Avatar;
+using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Settings;
@@ -235,7 +239,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
                 if (IsDisposed || version != _detailVersion) return;
                 string detail = System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(textTask.Result ?? $"符文 {id}", "<[^>]+>", ""));
                 var tile = new Panel { Size = new Size(98, 78), Margin = new Padding(0, 0, 6, 8) };
-                var image = new PictureBox { Dock = DockStyle.Top, Height = 46, SizeMode = PictureBoxSizeMode.Zoom };
+                var image = new PictureBox { Dock = DockStyle.Top, Height = 46, ImageFit = AntdUI.TFit.Contain };
                 if (imageTask.Result is { IsEmpty: false } asset)
                 {
                     using var stream = new MemoryStream(asset.Content);

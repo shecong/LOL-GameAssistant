@@ -107,10 +107,10 @@ public sealed class CompanionExperienceUiTests
         });
         using var form = new SettingForm(Service<IGameClientLauncher>((_, _) => null), store,
             Service<ISettingsSecretProtector>((_, _) => null), Service<IClientFeatureService>((_, _) => null));
-        Field<AntdUI.Input>(form, "_apiKey").Text = "unsaved-key"; Field<ComboBox>(form, "_model").Text = "unsaved-model";
+        Field<AntdUI.Input>(form, "_apiKey").Text = "unsaved-key"; Field<AntdUI.Select>(form, "_model").Text = "unsaved-model";
         form.ApplyPreset(AssistantPreset.Aram);
         Assert.Equal(1, saves); Assert.True(settings.MayhemOverlayEnabled); Assert.Equal("secret", settings.Ai.EncryptedApiKey);
-        Assert.Equal("unsaved-key", Field<AntdUI.Input>(form, "_apiKey").Text); Assert.Equal("unsaved-model", Field<ComboBox>(form, "_model").Text);
+        Assert.Equal("unsaved-key", Field<AntdUI.Input>(form, "_apiKey").Text); Assert.Equal("unsaved-model", Field<AntdUI.Select>(form, "_model").Text);
     });
 
     [Fact]

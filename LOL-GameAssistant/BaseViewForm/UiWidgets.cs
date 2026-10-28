@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Drawing.Drawing2D;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -79,55 +79,16 @@ namespace LOL_GameAssistant.BaseViewForm
     /// <summary>
     /// 圆形头像（带描边）。
     /// </summary>
-    public class RoundPictureBox : PictureBox
+    public class RoundPictureBox : AntdUI.Avatar
     {
-        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public int BorderWidth { get; set; } = 2;
-
-        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Color BorderColor { get; set; } = Color.FromArgb(220, 255, 255, 255);
-
-        /// <summary>初始化 RoundPictureBox 的实例状态。</summary>
         public RoundPictureBox()
         {
-            SetStyle(
-                ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            SizeMode = PictureBoxSizeMode.Zoom;
-        }
-
-        /// <summary>绘制当前控件的自定义外观。</summary>
-        protected override void OnPaint(PaintEventArgs pe)
-        {
-            // 尺寸过小时 Width-3 / Height-3 为负数，GDI+ 矩形不接受
-            if (Width <= 3 || Height <= 3) return;
-
-            var g = pe.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            var rect = new Rectangle(1, 1, Width - 3, Height - 3);
-            int radius = Math.Min(rect.Width, rect.Height) / 2;
-            using var path = GradientPanel.RoundedRect(rect, radius);
-
-            g.SetClip(path);
-            if (Image != null)
-            {
-                g.DrawImage(Image, rect);
-            }
-            else
-            {
-                using var placeholder = new SolidBrush(Color.FromArgb(226, 229, 234));
-                g.FillPath(placeholder, path);
-            }
-            g.ResetClip();
-
-            if (BorderWidth > 0 && BorderColor.A > 0)
-            {
-                using var pen = new Pen(BorderColor, BorderWidth);
-                g.DrawPath(pen, path);
-            }
+            Round = true;
+            ImageFit = AntdUI.TFit.Cover;
+            BorderWidth = 2;
+            BorderColor = Color.FromArgb(220, 255, 255, 255);
         }
     }
-
     /// <summary>
     /// 呼吸脉冲状态点。
     /// </summary>

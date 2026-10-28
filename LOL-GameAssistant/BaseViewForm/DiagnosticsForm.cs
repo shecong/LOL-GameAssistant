@@ -1,3 +1,4 @@
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;

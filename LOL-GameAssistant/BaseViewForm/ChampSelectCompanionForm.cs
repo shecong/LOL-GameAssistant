@@ -1,3 +1,6 @@
+using Button = AntdUI.Button;
+using Label = AntdUI.Label;
+using Panel = AntdUI.Panel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using LOL_GameAssistant.Application.ChampionSelect;
@@ -19,7 +22,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>选人阶段的伴随窗，跟随 LeagueClientUx 窗口移动、缩放和最小化。</summary>
-internal sealed class ChampSelectCompanionForm : AntdUI.Window
+internal sealed class ChampSelectCompanionForm : AntdUI.Window, IThemeAware
 {
     private readonly IChampionSelectService _selection;
     private readonly ILobbyService _lobby;
@@ -44,14 +47,14 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
     private readonly Button _chooseBuild = new()
     {
         Dock = DockStyle.Right, Width = 132, Text = "一键选择符文装备",
-        FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(53, 66, 90), ForeColor = Color.White
+        BackColor = Color.FromArgb(53, 66, 90), ForeColor = Color.White
     };
     private readonly Label _buildStatus = new()
     {
         Dock = DockStyle.Bottom, Height = 36, Visible = false,
         ForeColor = Color.LightGray, AutoEllipsis = true, Padding = new Padding(7, 3, 7, 0)
     };
-    private readonly AntdUI.Label _automation = new() { Dock = DockStyle.Bottom, Height = 44, ForeColor = Color.LightGray };
+    private readonly AntdUI.Label _automation = new() { Dock = DockStyle.Bottom, Height = 44, TextMultiLine = true, ForeColor = Color.LightGray };
     private readonly Panel _mayhemBench = new() { Dock = DockStyle.Bottom, Height = 150, Visible = false, Padding = new Padding(7, 4, 7, 4) };
     private readonly Label _benchStatus = new() { Dock = DockStyle.Top, Height = 38, ForeColor = Color.White };
     private readonly FlowLayoutPanel _benchChoices = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };
@@ -133,6 +136,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
         _chooseBuild.Click += async (_, _) => await ChooseBuildAsync();
         _timer.Tick += async (_, _) => await RefreshAsync();
         UiLanguage.Changed += LanguageChanged;
+        UiTheme.Apply(this);
         Disposed += (_, _) =>
         {
             _lifetime.Cancel();
@@ -300,7 +304,8 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
                     {
                         Text = UiLanguage.T("队友资料加载中…"), Width = Math.Max(200, _cards.ClientSize.Width - 20),
                         Height = 106, Padding = new Padding(8), Margin = new Padding(0, 0, 0, 5),
-                        BackColor = Color.FromArgb(38, 47, 67), ForeColor = Color.White
+                        BackColor = UiTheme.Palette.SurfaceRaised, ForeColor = UiTheme.Palette.TextPrimary,
+                        TextMultiLine = true, TextAlign = ContentAlignment.TopLeft
                     };
                     cards.Add(card);
                     _cards.Controls.Add(card);
@@ -387,7 +392,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
             {
                 _benchChoices.Controls.Add(new Label
                 {
-                    AutoSize = true, ForeColor = Color.LightGray,
+                    AutoSize = true, ForeColor = UiTheme.Palette.TextSecondary,
                     Text = UiLanguage.IsEnglish ? "No bench champions available" : "当前没有可交换的备战英雄"
                 });
             }
@@ -396,10 +401,10 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
                 string name = _champions.GetDisplayName(id);
                 var button = new Button
                 {
-                    AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                    AutoSize = true,
                     Text = string.IsNullOrWhiteSpace(name) ? id.ToString() : name,
-                    Tag = id, Margin = new Padding(2), FlatStyle = FlatStyle.Flat,
-                    BackColor = Color.FromArgb(53, 66, 90), ForeColor = Color.White
+                    Tag = id, Margin = new Padding(2),
+                    BackColor = UiTheme.Palette.SurfaceMuted, ForeColor = UiTheme.Palette.TextPrimary
                 };
                 button.Click += async (_, _) => await SwapBenchChampionAsync(id);
                 _benchChoices.Controls.Add(button);
@@ -648,6 +653,21 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
     private static extern int GetWindowLong(IntPtr window, int index);
+
+    public void ApplyTheme(ThemePalette palette)
+    {
+        void Apply(Control control)
+        {
+            control.BackColor = control.Parent == _cards ? palette.SurfaceRaised
+                : control is AntdUI.Panel ? palette.SurfaceMuted : palette.Surface;
+            control.ForeColor = palette.TextPrimary;
+            if (control is AntdUI.Button button)
+            { button.DefaultBack = palette.SurfaceMuted; button.DefaultBorderColor = palette.Border; }
+            foreach (Control child in control.Controls) Apply(child);
+        }
+        Apply(this);
+        AntdContentTheme.Apply(this, palette);
+    }
 
     /// <summary>与 Windows 原生矩形布局对应的坐标结构。</summary>
     [StructLayout(LayoutKind.Sequential)]

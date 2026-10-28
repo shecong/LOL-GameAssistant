@@ -76,6 +76,7 @@ public static class UiTheme
         try
         {
             ApplyCore(root, palette);
+            AntdContentTheme.Apply(root, palette);
             ApplyThemeAware(root, palette);
             WatchNewControls(root);
         }

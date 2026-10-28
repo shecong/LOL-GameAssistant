@@ -110,13 +110,14 @@ public sealed class PlayerNameSearchTests
             UiTheme.SetMode(dark ? "Dark" : "Light");
             using var picker = new PlayerCandidatePickerForm(Choices()) { Width = width };
             picker.Show(); System.Windows.Forms.Application.DoEvents();
-            var grid = Field<DataGridView>(picker, "_players"); var confirm = Field<AntdUI.Button>(picker, "_confirm");
-            Assert.Equal(2, grid.Rows.Count); Assert.Empty(grid.SelectedRows.Cast<DataGridViewRow>()); Assert.False(confirm.Enabled);
+            var grid = Field<AntdUI.Table>(picker, "_players"); var confirm = Field<AntdUI.Button>(picker, "_confirm");
+            var rows = Assert.IsType<PlayerCandidatePickerForm.CandidateRow[]>(grid.DataSource);
+            Assert.Equal(2, rows.Length); Assert.Empty(grid.SelectedsReal()); Assert.False(confirm.Enabled);
             Assert.Null(picker.SelectedCandidate);
-            Assert.Equal("同名玩家#222", grid.Rows[1].Cells[0].Value); Assert.Equal("未提供", grid.Rows[1].Cells[2].Value);
+            Assert.Equal("同名玩家#222", rows[1].Name); Assert.Equal("未提供", rows[1].Level);
             using var bitmap = new Bitmap(picker.Width, picker.Height); picker.DrawToBitmap(bitmap, new Rectangle(Point.Empty, picker.Size));
             bitmap.Save(Path.Combine(AppContext.BaseDirectory, $"player-candidates-{dark}-{width}.png"));
-            grid.Rows[1].Selected = true; Assert.True(confirm.Enabled); Click(confirm);
+            grid.SelectedIndex = 2; Assert.True(confirm.Enabled); Click(confirm);
             Assert.Equal("two", picker.SelectedCandidate?.Puuid); Assert.Equal(DialogResult.OK, picker.DialogResult);
         }
         finally { UiTheme.SetMode(previous); }

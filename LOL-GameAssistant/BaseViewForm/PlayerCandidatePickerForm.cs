@@ -6,14 +6,13 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// <summary>不预选任何候选，防止按 Enter 或双击空白时误查第一个同名账号。</summary>
 internal sealed class PlayerCandidatePickerForm : AntdUI.Window, IThemeAware
 {
-    private readonly DataGridView _players = new()
+    private readonly AntdUI.Table _players = new()
     {
-        Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
-        MultiSelect = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect, RowHeadersVisible = false,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, BackgroundColor = Color.White,
-        BorderStyle = BorderStyle.None, AutoGenerateColumns = false, AllowUserToResizeRows = false
+        Dock = DockStyle.Fill, MultipleRows = false, LostFocusClearSelection = false,
+        Bordered = true, Radius = 8, EnableFocusNavigation = true
     };
-    private readonly AntdUI.Label _scope = new() { Dock = DockStyle.Fill };
+    private readonly AntdUI.Label _scope = new() { Dock = DockStyle.Fill, TextMultiLine = true };
+    internal sealed record CandidateRow(string Name, string Region, string Level, string Source, string Puuid, PlayerSearchCandidate Candidate);
     private readonly AntdUI.PageHeader _header = new()
     {
         Dock = DockStyle.Top, Height = 38, ShowButton = true, MinimizeBox = false,
@@ -38,27 +37,25 @@ internal sealed class PlayerCandidatePickerForm : AntdUI.Window, IThemeAware
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
         buttons.Controls.Add(_cancel); buttons.Controls.Add(_confirm); layout.Controls.Add(buttons, 0, 2); Controls.Add(layout);
         Controls.Add(_header);
-        foreach (var (name, weight) in new[] { ("名称#TAG", 28f), ("大区", 12f), ("等级", 8f), ("来源", 20f), ("PUUID", 32f) })
-            _players.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = name, FillWeight = weight, SortMode = DataGridViewColumnSortMode.NotSortable });
-        foreach (var candidate in result.Candidates)
-        {
-            int row = _players.Rows.Add(candidate.RiotId, candidate.Platform.Length > 0 ? candidate.Platform : "当前大区",
-                candidate.Level?.ToString() ?? "未提供", candidate.Source, candidate.Puuid);
-            _players.Rows[row].Tag = candidate;
-        }
-        _players.SelectionChanged += (_, _) => _confirm.Enabled = _players.SelectedRows.Count == 1;
-        _players.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Confirm(); };
+        foreach (var (key, title, width) in new[] { ("Name", "名称#TAG", "25%"), ("Region", "大区", "13%"), ("Level", "等级", "10%"), ("Source", "来源", "20%"), ("Puuid", "PUUID", "32%") })
+            _players.Columns.Add(new AntdUI.Column(key, title) { Width = width, LineBreak = true });
+        _players.DataSource = result.Candidates.Select(candidate => new CandidateRow(candidate.RiotId,
+            candidate.Platform.Length > 0 ? candidate.Platform : "当前大区", candidate.Level?.ToString() ?? "未提供",
+            candidate.Source, candidate.Puuid, candidate)).ToArray();
+        _players.SelectIndexChanged += (_, _) => _confirm.Enabled = _players.SelectedsReal().OfType<CandidateRow>().Count() == 1;
+        _players.CellDoubleClick += (_, e) => { if (e.Record is CandidateRow) Confirm(); };
         _confirm.Click += (_, _) => Confirm();
         _cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
         CancelButton = _cancel;
-        Shown += (_, _) => { _players.ClearSelection(); _players.CurrentCell = null; _confirm.Enabled = false; };
+        Shown += (_, _) => { _players.SelectedIndexs = []; _confirm.Enabled = false; };
         UiTheme.Apply(this);
     }
 
     private void Confirm()
     {
-        if (_players.SelectedRows.Count != 1 || _players.SelectedRows[0].Tag is not PlayerSearchCandidate selected) return;
-        SelectedCandidate = selected; DialogResult = DialogResult.OK; Close();
+        var selected = _players.SelectedsReal().OfType<CandidateRow>().ToArray();
+        if (selected.Length != 1) return;
+        SelectedCandidate = selected[0].Candidate; DialogResult = DialogResult.OK; Close();
     }
 
     public void ApplyTheme(ThemePalette palette)
@@ -68,14 +65,9 @@ internal sealed class PlayerCandidatePickerForm : AntdUI.Window, IThemeAware
         _header.ForeColor = palette.TextPrimary;
         _header.ColorScheme = _confirm.ColorScheme = _cancel.ColorScheme = _scope.ColorScheme = palette.IsDark ? AntdUI.TAMode.Dark : AntdUI.TAMode.Light;
         _scope.ForeColor = palette.TextPrimary;
-        _players.BackgroundColor = palette.Surface;
-        _players.GridColor = palette.SurfaceRaised;
-        _players.EnableHeadersVisualStyles = false;
-        _players.ColumnHeadersDefaultCellStyle.BackColor = palette.SurfaceRaised;
-        _players.ColumnHeadersDefaultCellStyle.ForeColor = palette.TextPrimary;
-        _players.DefaultCellStyle.BackColor = palette.Surface;
-        _players.DefaultCellStyle.ForeColor = palette.TextPrimary;
-        _players.DefaultCellStyle.SelectionBackColor = palette.Accent;
-        _players.DefaultCellStyle.SelectionForeColor = Color.White;
+        AntdContentTheme.Apply(this, palette);
+        _players.BackColor = palette.SurfaceRaised;
+        _players.ForeColor = palette.TextPrimary;
+        _players.BorderColor = palette.Border;
     }
 }

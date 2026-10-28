@@ -61,6 +61,7 @@ public sealed class SettingsAutoSaveAndCacheTests
             "_autoLaunchClient:AutoLaunchGameClient", "_onlyLeagueFocused:HoldToTopOnlyWhenLeagueFocused", "_battleOverlayEnabled:BattleOverlayEnabled",
             "_opggBuildAssistantEnabled:OpggBuildAssistantEnabled", "_autoApplyRuneBuild:AutoApplyRuneBuild", "_mayhemOverlayEnabled:MayhemOverlayEnabled",
             "_champSelectCompanionEnabled:ChampSelectCompanionEnabled", "_champSelectKdaAnnouncementEnabled:ChampSelectKdaAnnouncementEnabled",
+            "_enemyJungleRouteEnabled:EnemyJungleRouteEnabled",
             "_gameKdaAnnouncementEnabled:GameKdaAnnouncementEnabled", "_gameKdaOnePlayerPerLine:GameKdaOnePlayerPerLine",
             "_recommendationEnabled:Ai.RecommendationEnabled", "_dynamicRefresh:Ai.DynamicRefreshEnabled", "_showPopup:Ai.ShowRecommendationPopup",
             "_overlayEnabled:Ai.RecommendationOverlayEnabled"];
@@ -118,7 +119,7 @@ public sealed class SettingsAutoSaveAndCacheTests
         }
         Assert.Equal("", latest.QuickMessageCustomPhrases);
         int beforeSelection = saves;
-        Field<ListBox>(form, "_phrases").SelectedIndex = 2;
+        Field<AntdUI.Table>(form, "_phrases").SelectedIndex = 3;
         Assert.Equal(beforeSelection + 1, saves);
         Assert.Single(latest.QuickShoutSelectedPhrases);
     });

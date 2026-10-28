@@ -49,7 +49,7 @@ public sealed class ToolNavigationTests
         var context = SecondPhaseRegressionTests.Service<IAiCoachingService>((_, _) => throw new InvalidOperationException());
         using var form = new RunePresetManagerForm(settings, builds, context, new Assets());
         form.Show();
-        SecondPhaseRegressionTests.PumpUntil(() => Children(form).OfType<Label>().Any(label => label.Text == "征服者"));
+        SecondPhaseRegressionTests.PumpUntil(() => Children(form).OfType<AntdUI.Label>().Any(label => label.Text == "征服者"));
         Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Text?.Contains("最近应用") == true);
         var navigation = Children(form).OfType<AntdUI.Segmented>().Single();
         navigation.SelectIndex = 3;

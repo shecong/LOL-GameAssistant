@@ -1,3 +1,6 @@
+using Button = AntdUI.Button;
+using Label = AntdUI.Label;
+using Panel = AntdUI.Panel;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
@@ -8,7 +11,7 @@ namespace LOL_GameAssistant.BaseViewForm;
 internal sealed partial class LiveGameWorkspace : UserControl, IThemeAware
 {
     private static readonly string[] Roles = ["上路", "打野", "中路", "下路", "辅助"];
-    private readonly Panel _canvas = new() { Dock = DockStyle.Fill, AutoScroll = true, Name = "layoutCanvas" };
+    private readonly System.Windows.Forms.Panel _canvas = new() { Dock = DockStyle.Fill, AutoScroll = true, Name = "layoutCanvas" };
     private readonly Panel _drawer = new() { Visible = false, Padding = new Padding(12), Name = "playerDetailDrawer" };
     private readonly Dictionary<LivePlayerForm, string> _manualRoles = new();
     private LivePlayerForm[] _blue = [], _red = [];
@@ -133,13 +136,10 @@ internal sealed partial class LiveGameWorkspace : UserControl, IThemeAware
         tile.Click += (_, _) => SelectPlayer(player);
         if (_layout == LiveGameLayout.RoleComparison)
         {
-            var menu = new ContextMenuStrip();
-            menu.Items.Add("手动指定位置").Enabled = false;
-            foreach (string role in Roles)
-                menu.Items.Add(role, null, (_, _) => { _manualRoles[player] = role; Build(); });
-            menu.Items.Add("恢复识别位置", null, (_, _) => { _manualRoles.Remove(player); Build(); });
-            tile.ContextMenuStrip = menu;
-            tile.Disposed += (_, _) => menu.Dispose();
+            var actions = Roles.Select(role => (role, (Action)(() => { _manualRoles[player] = role; Build(); }), true)).ToList();
+            actions.Insert(0, ("手动指定位置", () => { }, false));
+            actions.Add(("恢复识别位置", () => { _manualRoles.Remove(player); Build(); }, true));
+            UiContextMenu.Bind(tile, actions.ToArray());
         }
         return tile;
     }
@@ -254,7 +254,7 @@ internal sealed partial class LiveGameWorkspace : UserControl, IThemeAware
             if (_detail == null || _detail.IsDisposed)
             {
                 _detail = new PlayerDetailPane { Dock = DockStyle.Fill };
-                var close = new Button { Text = "关闭详情 ×", Dock = DockStyle.Top, Height = 34, FlatStyle = FlatStyle.Flat };
+                var close = new Button { Text = "关闭详情 ×", Dock = DockStyle.Top, Height = 34 };
                 close.Click += (_, _) => _drawer.Visible = false;
                 _drawer.Controls.Add(_detail); _drawer.Controls.Add(close);
             }

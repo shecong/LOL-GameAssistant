@@ -208,10 +208,10 @@ public sealed class LoungeTests
         host.Controls.Add(page); host.Show();
         UiTheme.SetMode("Dark"); UiTheme.Apply(page);
         System.Windows.Forms.Application.DoEvents();
-        var history = (RichTextBox)typeof(LoungeForm).GetField("_history", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!;
-        Assert.Contains("\\pict", history.Rtf);
+        var history = (AntdUI.Chat.ChatList)typeof(LoungeForm).GetField("_history", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!;
+        Assert.NotEmpty(history.Items.OfType<AntdUI.Chat.ImageChatItem>());
         Assert.True(history.Height > 300);
-        Assert.True(history.GetPositionFromCharIndex(0).Y > -150, $"First Y: {history.GetPositionFromCharIndex(0).Y}, last Y: {history.GetPositionFromCharIndex(history.TextLength).Y}, height: {history.ClientSize.Height}"); // Images must not scroll a short history out of view.
+        Assert.InRange(history.ScrollBar.ValueY, 0, 150); // Short history remains visible.
         string? preview = Environment.GetEnvironmentVariable("LOL_LOUNGE_FEATURE_PREVIEW_PATH");
         if (!string.IsNullOrWhiteSpace(preview))
         {
@@ -261,8 +261,8 @@ public sealed class LoungeTests
         receive.Invoke(client, [new LoungeMessage(121, "", "a", "Alice", "艾欧尼亚", "sticker", "nice", DateTimeOffset.Now), true]);
         typeof(LoungeForm).GetMethod("RefreshView", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, null);
         System.Windows.Forms.Application.DoEvents();
-        var history = (RichTextBox)typeof(LoungeForm).GetField("_history", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!;
-        Assert.Contains("\\pict", history.Rtf);
+        var history = (AntdUI.Chat.ChatList)typeof(LoungeForm).GetField("_history", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!;
+        Assert.NotEmpty(history.Items.OfType<AntdUI.Chat.ImageChatItem>());
         using var bitmap = new Bitmap(history.Width, history.Height);
         history.DrawToBitmap(bitmap, new Rectangle(Point.Empty, history.ClientSize));
         int blue = 0;

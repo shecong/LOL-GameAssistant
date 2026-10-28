@@ -1,4 +1,5 @@
 using System.Reflection;
+using Button = AntdUI.Button;
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.GameData;
@@ -284,7 +285,7 @@ public sealed class ChampSelectCompanionTests
         current.SetResult("新结果");
         PumpUntil(() => second.IsCompleted);
         Assert.True(fixture.Form.Visible);
-        Assert.Equal("新结果", Children(fixture.Form).OfType<Label>().Single(label => label.Text == "新结果").Text);
+        Assert.Equal("新结果", Children(fixture.Form).OfType<AntdUI.Label>().Single(label => label.Text == "新结果").Text);
     });
 
     [Fact]

@@ -1,3 +1,6 @@
+using ComboBox = AntdUI.Select;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
+using PictureBox = AntdUI.Avatar;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Bootstrap;
@@ -127,6 +130,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Checkbox _autoApplyRuneBuild = new() { Text = "预选或选择英雄时自动替换符文和装备", AutoSize = true };
         private readonly AntdUI.Checkbox _mayhemOverlayEnabled = new() { Text = "海克斯大乱斗显示局内增幅侧边栏", AutoSize = true };
         private readonly AntdUI.Checkbox _champSelectCompanionEnabled = new() { Text = "选人时在客户端侧边显示队友伴随窗", AutoSize = true };
+        private readonly AntdUI.Checkbox _enemyJungleRouteEnabled = new() { Name = "enemyJungleRouteEnabled", Text = "自动分析敌方打野的历史路线", AutoSize = true };
         private readonly AntdUI.Checkbox _autoSwapAramBench = new() { Text = "按优先级自动交换备战席英雄", AutoSize = true };
         private readonly AntdUI.SelectMultiple _aramBenchPriority = new() { Dock = DockStyle.Fill };
         private readonly AntdUI.Checkbox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
@@ -137,7 +141,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Select _provider = new() { List = true, DropDownArrow = true, Width = 210 };
 
         // 可下拉可手填：模型名写错时服务端只回一个 400，所以按服务商给出可选值。
-        private readonly ComboBox _model = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 290 };
+        private readonly ComboBox _model = new() { List = false, DropDownArrow = true, Width = 290 };
 
         private readonly AntdUI.Button _testAi = new() { Text = "测试连接", AutoSize = true };
         private readonly AntdUI.Button _fetchModels = new() { Text = "获取可用模型", AutoSize = true };
@@ -694,6 +698,15 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(battle, 3, "面板说明：", CreateAiNote("游戏位于前台时，面板快捷键显示独立的蓝红双方信息表，不抢焦点。\n启用后，游戏中使用面板快捷键；客户端或桌面仍使用“外观与窗口”中的按住置顶键。\n可查看段位、赛季战绩、近期胜负、英雄样本胜率和本局 KDA / 补刀 / 视野得分。窗口或无边框模式下使用。"));
             battle.ResumeLayout(true);
 
+            var jungle = CreateAiSettingsCard(content, "aiJungleRouteCard", "敌方打野路线分析");
+            AddSegmentRow(jungle, 1, "路线预测：", _enemyJungleRouteEnabled,
+                "开启后自动识别敌方打野，读取近期打野对局前 8 分钟的位置和事件；无需配置 AI 密钥。");
+            var openJungle = new AntdUI.Button { Name = "openJungleRoute", Text = "查看峡谷路线图", AutoSize = true };
+            openJungle.Click += (_, _) => Program.GameMain?.ShowEnemyJungleRoute();
+            AddSegmentRow(jungle, 2, "峡谷地图：", openJungle);
+            AddSegmentRow(jungle, 3, "分析说明：", CreateAiNote("扫描最近 30 场，最多分析 8 场携带惩戒的常规峡谷对局。优先参考相同英雄，按双方阵营映射历史坐标。地图展示起始区域、时间点、样本一致性与可核对的历史事件；位置采样间连线为插值，不代表精确营地顺序或本局实时位置。客户端未确认打野时需手动选择；时间线不可用时显示数据不足。"));
+            jungle.ResumeLayout(true);
+
             var mayhem = CreateAiSettingsCard(content, "aiMayhemCard", "海克斯增幅助手");
             AddSegmentRow(mayhem, 1, "海克斯侧边栏：", _mayhemOverlayEnabled,
                 "仅海克斯大乱斗的窗口或无边框模式显示；独占全屏自动隐藏并停止扫描。可识别增幅卡片并比较胜率。");
@@ -890,6 +903,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _autoApplyRuneBuild.Checked = _config.AutoApplyRuneBuild;
             _mayhemOverlayEnabled.Checked = _config.MayhemOverlayEnabled;
             _champSelectCompanionEnabled.Checked = _config.ChampSelectCompanionEnabled;
+            _enemyJungleRouteEnabled.Checked = _config.EnemyJungleRouteEnabled;
             _champSelectKdaAnnouncementEnabled.Checked = _config.ChampSelectKdaAnnouncementEnabled;
             _gameKdaAnnouncementEnabled.Checked = _config.GameKdaAnnouncementEnabled;
             _gameKdaOnePlayerPerLine.Checked = _config.GameKdaOnePlayerPerLine;
@@ -1109,16 +1123,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
 
                 string current = _model.Text.Trim();
-                _model.BeginUpdate();
-                try
-                {
-                    _model.Items.Clear();
-                    foreach (string model in models) _model.Items.Add(model);
-                }
-                finally
-                {
-                    _model.EndUpdate();
-                }
+                _model.Items.Clear();
+                foreach (string model in models) _model.Items.Add(model);
+                _model.Update();
 
                 // 当前填的模型不在服务端列表里（写错或已下线）时，直接换成列表里的第一个。
                 bool currentIsValid = models.Any(item => string.Equals(item, current, StringComparison.OrdinalIgnoreCase));
@@ -1166,7 +1173,7 @@ namespace LOL_GameAssistant.BaseViewForm
             string url = new CloudAiSettings { Provider = provider }.GetKeyPortalUrl();
             if (string.IsNullOrWhiteSpace(url))
             {
-                MessageBox.Show(FindForm(), "自定义兼容服务请使用该服务商提供的控制台。", "AI 设置", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                UiMessage.info(FindForm()!, "自定义兼容服务请使用该服务商提供的控制台。");
                 return;
             }
 
@@ -1176,7 +1183,7 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             catch (Exception ex)
             {
-                MessageBox.Show(FindForm(), $"无法打开浏览器：{ex.Message}", "AI 设置", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                UiMessage.warn(FindForm()!, $"无法打开浏览器：{ex.Message}");
             }
         }
 
@@ -1334,7 +1341,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     Image = img,
                     Size = new Size(32, 32),
-                    SizeMode = PictureBoxSizeMode.StretchImage,
+                    ImageFit = AntdUI.TFit.Fill,
                     Margin = new Padding(2)
                 };
                 pic.Disposed += (_, _) => pic.Image?.Dispose();

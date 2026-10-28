@@ -86,6 +86,7 @@ internal static class LegacySettingsMapper
             AutoApplyRuneBuild = source.AutoApplyRuneBuild,
             MayhemOverlayEnabled = source.MayhemOverlayEnabled,
             ChampSelectCompanionEnabled = source.ChampSelectCompanionEnabled,
+            EnemyJungleRouteEnabled = source.EnemyJungleRouteEnabled,
             LaunchOnStartup = source.LaunchOnStartup,
             Ai = ToDomain(source.Ai)
         };
@@ -173,6 +174,7 @@ internal static class LegacySettingsMapper
             AutoApplyRuneBuild = source.AutoApplyRuneBuild,
             MayhemOverlayEnabled = source.MayhemOverlayEnabled,
             ChampSelectCompanionEnabled = source.ChampSelectCompanionEnabled,
+            EnemyJungleRouteEnabled = source.EnemyJungleRouteEnabled,
             LaunchOnStartup = source.LaunchOnStartup,
             Ai = ToLegacy(source.Ai)
         };

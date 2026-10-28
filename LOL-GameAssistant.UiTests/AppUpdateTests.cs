@@ -62,7 +62,7 @@ public sealed class AppUpdateTests
         prompt.Show(owner);
         prompt.Size = prompt.MinimumSize;
         System.Windows.Forms.Application.DoEvents();
-        var source = Assert.IsType<ComboBox>(prompt.Controls.Find("UpdateDownloadSource", true).Single());
+        var source = Assert.IsType<AntdUI.Select>(prompt.Controls.Find("UpdateDownloadSource", true).Single());
         Assert.Equal(2, source.Items.Count);
         Assert.Equal(0, source.SelectedIndex);
         source.SelectedIndex = 1;

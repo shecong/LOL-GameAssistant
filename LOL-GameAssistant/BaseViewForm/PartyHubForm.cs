@@ -1,3 +1,5 @@
+using Button = AntdUI.Button;
+using Label = AntdUI.Label;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Helper;
 

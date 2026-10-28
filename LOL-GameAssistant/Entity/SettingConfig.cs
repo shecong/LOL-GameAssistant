@@ -200,6 +200,9 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("champSelectCompanionEnabled")]
         public bool ChampSelectCompanionEnabled { get; set; } = true;
 
+        [JsonProperty("enemyJungleRouteEnabled")]
+        public bool EnemyJungleRouteEnabled { get; set; }
+
         [JsonProperty("languageMode")]
         public string LanguageMode { get; set; } = "zh-CN";
 

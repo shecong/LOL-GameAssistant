@@ -1,3 +1,6 @@
+using Label = AntdUI.Label;
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using System.Drawing.Drawing2D;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;

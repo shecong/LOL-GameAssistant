@@ -18,6 +18,25 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class SgpDataSourceTests
 {
+    [Fact]
+    public async Task HistoricalTimelineUsesDetailsRouteAndCurrentEntitlements()
+    {
+        using var http = new HttpClient(new Handler((request, _) =>
+        {
+            Assert.Equal("/match-history-query/v1/products/lol/HN1_42/DETAILS", request.RequestUri!.AbsolutePath);
+            Assert.Equal("Bearer", request.Headers.Authorization!.Scheme);
+            Assert.Equal("entitlements-test", request.Headers.Authorization.Parameter);
+            return Task.FromResult(Json(JObject.Parse("""
+            {"metadata":{"match_id":"HN1_42"},"json":{"frames":[
+              {"timestamp":120000,"participantFrames":{"1":{"position":{"x":3900,"y":7900}}}}
+            ]}}
+            """)));
+        }));
+        var timeline = await new SgpMatchTimelineService(new(Lcu(), http)).GetAsync(42);
+        Assert.Equal(42, timeline.GameId);
+        Assert.Equal(120, Assert.Single(timeline.Players[1]).Seconds);
+    }
+
     private static JObject MissingGame(long id, bool explicitNull = false)
     {
         var row = new JObject { ["metadata"] = new JObject { ["match_id"] = $"HN1_{id}", ["private"] = false } };

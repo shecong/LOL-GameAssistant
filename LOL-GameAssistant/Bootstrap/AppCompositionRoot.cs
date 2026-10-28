@@ -138,6 +138,9 @@ public static class AppCompositionRoot
     /// <summary>战绩列表和单局详情查询服务。</summary>
     public static IMatchHistoryService MatchHistoryService { get; } = new CachedMatchHistoryService(new Infrastructure.Sgp.SgpMatchHistoryService(Sgp), context: PlayerCacheScope.GetAsync);
 
+    public static EnemyJungleRouteService CreateEnemyJungleRouteService() =>
+        new(LobbyService, PlayerProfileService, MatchHistoryService, new Infrastructure.Sgp.SgpMatchTimelineService(Sgp));
+
     /// <summary>单双排、灵活组排查询服务。</summary>
     public static IRankedStatsService RankedStatsService { get; } = new CachedRankedStatsService(new Infrastructure.Sgp.SgpRankedStatsService(Sgp), context: PlayerCacheScope.GetAsync);
 
@@ -164,6 +167,10 @@ public static class AppCompositionRoot
 
     /// <summary>大厅、匹配确认与游戏流程服务。</summary>
     public static ILobbyService LobbyService { get; } = new LegacyLobbyService();
+
+    internal static RankedLpTracker RankedLpTracker { get; } = new(LobbyService,
+        new LcuPlayerProfileService(LcuRequestSender), new LegacyRankedStatsService(),
+        new Infrastructure.Sgp.SgpMatchHistoryService(Sgp), RankedLpStore.Shared);
 
     /// <summary>选人读取和自动禁用、选用服务。</summary>
     public static IChampionSelectService ChampionSelectService { get; } = new LegacyChampionSelectService();

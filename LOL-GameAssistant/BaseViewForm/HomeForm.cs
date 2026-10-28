@@ -1,3 +1,4 @@
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Matches;

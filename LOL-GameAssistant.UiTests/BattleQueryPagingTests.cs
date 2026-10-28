@@ -132,7 +132,7 @@ public sealed class BattleQueryPagingTests
         LoadStats(query).GetAwaiter().GetResult();
         Assert.Contains("暂无有效统计数据", Field<AntdUI.Label>(query, "lblStatus").Text);
         Assert.Equal("斗魂竞技场", Descendants(Field<Control>(query, "panelStats"))
-            .OfType<AntdUI.Select>().Single().SelectedValue);
+            .OfType<AntdUI.Select>().Single().SelectedValue?.ToString());
     });
 
     private static IEnumerable<Control> Descendants(Control parent) =>

@@ -269,12 +269,14 @@ public sealed class LiveGameLayoutTests
     {
         using var player = CreatePlayer(1, () => { }, position: "");
         using var workspace = new LiveGameWorkspace { Size = new Size(1200, 740) };
+        using var host = new Form { ClientSize = workspace.Size, ShowInTaskbar = false, Opacity = 0 };
+        host.Controls.Add(workspace);
+        host.Show();
         workspace.SetLayout(LiveGameLayout.RoleComparison);
         workspace.SetPlayers([player], [], "蓝方", "红方");
-        Assert.Contains(All(workspace).OfType<Label>(), label => label.Text == "待确认");
+        Assert.Contains(All(workspace).OfType<AntdUI.Label>(), label => label.Text == "待确认");
         var tile = All(workspace).Single(control => control.GetType().Name == "PlayerTile");
-        var menu = tile.ContextMenuStrip!;
-        menu.Items.Cast<ToolStripItem>().Single(item => item.Text == "打野").PerformClick();
+        ContextMenuTestDriver.Click(tile, "打野");
         Assert.Equal("打野", workspace.PositionFor(player));
         Assert.Single(All(workspace), control => control.GetType().Name == "PlayerTile");
     });

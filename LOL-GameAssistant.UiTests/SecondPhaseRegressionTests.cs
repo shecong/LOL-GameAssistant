@@ -290,7 +290,7 @@ public sealed class SecondPhaseRegressionTests
             return Task.FromResult<string?>(null);
         });
         using var form = new MatchDetailForm(new(), "player", assets);
-        using var box = new PictureBox();
+        using var box = new AntdUI.Avatar();
         form.Controls.Add(box);
         var load = (Task)typeof(MatchDetailForm).GetMethod("LoadItemIconAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, [box, 1])!;
         form.Dispose();

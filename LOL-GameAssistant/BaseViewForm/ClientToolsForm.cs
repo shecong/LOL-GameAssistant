@@ -1,3 +1,6 @@
+using Button = AntdUI.Button;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
+using PictureBox = AntdUI.Avatar;
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.Insights;
 using LOL_GameAssistant.Application.Profiles;
@@ -48,14 +51,14 @@ public sealed partial class ClientToolsForm : UserControl, IThemeAware
     {
         Size = new Size(208, 96),
         BackColor = Color.FromArgb(34, 43, 56),
-        SizeMode = PictureBoxSizeMode.Zoom
+        ImageFit = AntdUI.TFit.Contain
     };
 
     private readonly PictureBox _profileIconPreview = new()
     {
         Size = new Size(82, 82),
         BackColor = Color.FromArgb(34, 43, 56),
-        SizeMode = PictureBoxSizeMode.Zoom
+        ImageFit = AntdUI.TFit.Contain
     };
 
     /// <summary>初始化 ClientToolsForm 的实例状态，并保存传入的依赖或数据。</summary>

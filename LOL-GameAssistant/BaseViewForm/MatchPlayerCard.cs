@@ -1,3 +1,4 @@
+using Label = AntdUI.Label;
 using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;

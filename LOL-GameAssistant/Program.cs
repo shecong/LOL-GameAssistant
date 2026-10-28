@@ -22,8 +22,8 @@ namespace LOL_GameAssistant
             ApplicationConfiguration.Initialize();
             if (UpdateInstaller.HasPendingRecovery())
             {
-                MessageBox.Show("检测到未完成的更新。请关闭助手，运行程序目录中的 Updater.exe 恢复后再启动。",
-                    "更新恢复", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUI.Modal.open(new AntdUI.Modal.Config("更新恢复",
+                    "检测到未完成的更新。请关闭助手，运行程序目录中的 Updater.exe 恢复后再启动。", AntdUI.TType.Warn) { CancelText = null });
                 return;
             }
 
@@ -39,8 +39,8 @@ namespace LOL_GameAssistant
             });
             if (singleInstance == null)
             {
-                MessageBox.Show("前一个实例未能在 15 秒内退出，请手动关闭后重试。",
-                    "sc助手", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUI.Modal.open(new AntdUI.Modal.Config("sc助手",
+                    "前一个实例未能在 15 秒内退出，请手动关闭后重试。", AntdUI.TType.Warn) { CancelText = null });
                 return;
             }
             if (Volatile.Read(ref replaceRequested) != 0) return;

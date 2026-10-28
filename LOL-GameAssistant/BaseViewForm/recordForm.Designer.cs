@@ -1,3 +1,4 @@
+using PictureBox = AntdUI.Avatar;
 namespace LOL_GameAssistant.BaseViewForm
 {
     partial class RecordForm
@@ -53,15 +54,6 @@ namespace LOL_GameAssistant.BaseViewForm
             lblEnemy = new AntdUI.Label();
             flowEnemy = new FlowLayoutPanel();
             game_pic.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pic_D).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pic_F).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pic_1).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pic_2).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pic_3).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pic_4).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pic_5).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pic_6).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pic_7).BeginInit();
             SuspendLayout();
             // 
             // game_pic
@@ -177,7 +169,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_D.Location = new Point(436, 28);
             pic_D.Name = "pic_D";
             pic_D.Size = new Size(30, 30);
-            pic_D.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_D.ImageFit = AntdUI.TFit.Contain;
             pic_D.TabIndex = 10;
             pic_D.TabStop = false;
             // 
@@ -186,7 +178,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_F.Location = new Point(470, 28);
             pic_F.Name = "pic_F";
             pic_F.Size = new Size(30, 30);
-            pic_F.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_F.ImageFit = AntdUI.TFit.Contain;
             pic_F.TabIndex = 11;
             pic_F.TabStop = false;
             // 
@@ -196,7 +188,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_1.Location = new Point(64, 64);
             pic_1.Name = "pic_1";
             pic_1.Size = new Size(30, 30);
-            pic_1.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_1.ImageFit = AntdUI.TFit.Contain;
             pic_1.TabIndex = 12;
             pic_1.TabStop = false;
             // 
@@ -205,7 +197,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_2.Location = new Point(98, 64);
             pic_2.Name = "pic_2";
             pic_2.Size = new Size(30, 30);
-            pic_2.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_2.ImageFit = AntdUI.TFit.Contain;
             pic_2.TabIndex = 13;
             pic_2.TabStop = false;
             // 
@@ -214,7 +206,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_3.Location = new Point(132, 64);
             pic_3.Name = "pic_3";
             pic_3.Size = new Size(30, 30);
-            pic_3.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_3.ImageFit = AntdUI.TFit.Contain;
             pic_3.TabIndex = 14;
             pic_3.TabStop = false;
             // 
@@ -223,7 +215,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_4.Location = new Point(166, 64);
             pic_4.Name = "pic_4";
             pic_4.Size = new Size(30, 30);
-            pic_4.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_4.ImageFit = AntdUI.TFit.Contain;
             pic_4.TabIndex = 15;
             pic_4.TabStop = false;
             // 
@@ -232,7 +224,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_5.Location = new Point(200, 64);
             pic_5.Name = "pic_5";
             pic_5.Size = new Size(30, 30);
-            pic_5.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_5.ImageFit = AntdUI.TFit.Contain;
             pic_5.TabIndex = 16;
             pic_5.TabStop = false;
             // 
@@ -241,7 +233,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_6.Location = new Point(234, 64);
             pic_6.Name = "pic_6";
             pic_6.Size = new Size(30, 30);
-            pic_6.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_6.ImageFit = AntdUI.TFit.Contain;
             pic_6.TabIndex = 17;
             pic_6.TabStop = false;
             // 
@@ -250,7 +242,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_7.Location = new Point(268, 64);
             pic_7.Name = "pic_7";
             pic_7.Size = new Size(30, 30);
-            pic_7.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_7.ImageFit = AntdUI.TFit.Contain;
             pic_7.TabIndex = 18;
             pic_7.TabStop = false;
             // 
@@ -324,15 +316,6 @@ namespace LOL_GameAssistant.BaseViewForm
             Name = "RecordForm";
             Size = new Size(600, 138);
             game_pic.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)pic_D).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pic_F).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pic_1).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pic_2).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pic_3).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pic_4).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pic_5).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pic_6).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pic_7).EndInit();
             ResumeLayout(false);
         }
 

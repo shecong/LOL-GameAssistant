@@ -6,29 +6,12 @@ namespace LOL_GameAssistant.Helper;
 /// <summary>装备和符文的换行提示；点击可打开完整、可滚动的作用说明。</summary>
 internal sealed class AssetDetailToolTip : IDisposable
 {
-    private readonly ToolTip _tip = new() { OwnerDraw = true, InitialDelay = 300, ReshowDelay = 100, AutoPopDelay = 30000 };
+    private readonly UiToolTip _tip = new() { InitialDelay = 300, ReshowDelay = 100, AutoPopDelay = 30000, CustomWidth = 380 };
     private readonly Dictionary<Control, string> _details = new();
 
     /// <summary>初始化 AssetDetailToolTip 的实例状态。</summary>
     public AssetDetailToolTip()
     {
-        _tip.Popup += (_, e) =>
-        {
-            string text = _tip.GetToolTip(e.AssociatedControl) ?? "";
-            Size measured = TextRenderer.MeasureText(text, SystemFonts.MessageBoxFont, new Size(380, 0), TextFormatFlags.WordBreak);
-            e.ToolTipSize = new Size(measured.Width + 24, measured.Height + 24);
-        };
-        _tip.Draw += (_, e) =>
-        {
-            ThemePalette palette = UiTheme.Palette;
-            using var background = new SolidBrush(palette.SurfaceRaised);
-            using var border = new Pen(palette.TextSecondary);
-            e.Graphics.FillRectangle(background, e.Bounds);
-            e.Graphics.DrawRectangle(border, 0, 0, e.Bounds.Width - 1, e.Bounds.Height - 1);
-            TextRenderer.DrawText(e.Graphics, e.ToolTipText, SystemFonts.MessageBoxFont,
-                new Rectangle(12, 12, e.Bounds.Width - 24, e.Bounds.Height - 24), palette.TextPrimary,
-                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-        };
     }
 
     /// <summary>将游戏富文本标签和图标占位符转换为可读的纯文本。</summary>
@@ -67,10 +50,10 @@ internal sealed class AssetDetailToolTip : IDisposable
             StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
             MinimizeBox = false, MaximizeBox = false, Icon = control.FindForm()?.Icon
         };
-        dialog.Controls.Add(new TextBox
+        dialog.Controls.Add(new AntdUI.Input
         {
             Text = text.Replace("\n", Environment.NewLine), Multiline = true, ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, BorderStyle = BorderStyle.None,
+            AutoScroll = true, Dock = DockStyle.Fill, BorderWidth = 0,
             Font = new Font("Microsoft YaHei UI", 10F), BackColor = UiTheme.Palette.SurfaceRaised,
             ForeColor = UiTheme.Palette.TextPrimary
         });

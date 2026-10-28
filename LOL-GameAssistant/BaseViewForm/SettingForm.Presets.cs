@@ -34,6 +34,7 @@ public partial class SettingForm
                 _opggBuildAssistantEnabled.Checked = latest.OpggBuildAssistantEnabled; _autoApplyRuneBuild.Checked = latest.AutoApplyRuneBuild;
                 _champSelectCompanionEnabled.Checked = latest.ChampSelectCompanionEnabled; _battleOverlayEnabled.Checked = latest.BattleOverlayEnabled;
                 _mayhemOverlayEnabled.Checked = latest.MayhemOverlayEnabled;
+                _enemyJungleRouteEnabled.Checked = latest.EnemyJungleRouteEnabled;
                 _champSelectKdaAnnouncementEnabled.Checked = latest.ChampSelectKdaAnnouncementEnabled;
                 _gameKdaAnnouncementEnabled.Checked = latest.GameKdaAnnouncementEnabled;
                 _recommendationEnabled.Checked = latest.Ai.RecommendationEnabled;

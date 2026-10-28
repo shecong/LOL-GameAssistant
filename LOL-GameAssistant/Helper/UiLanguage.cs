@@ -31,6 +31,11 @@ internal static class UiLanguage
     private static readonly Dictionary<string, string> Overrides = new(StringComparer.Ordinal)
     {
         ["对局"] = "Live Game", ["对局记录"] = "Match History", ["战绩查询"] = "Player Search",
+        ["回到顶部"] = "Back to top", ["尝试观战"] = "Spectate", ["全部英雄"] = "All champions",
+        ["全部结果"] = "All results", ["重置"] = "Reset", ["重开"] = "Remake",
+        ["结果"] = "Result", ["英雄"] = "Champion", ["时长"] = "Duration", ["时间"] = "Date",
+        ["☆ 收藏"] = "☆ Favorite", ["导出战绩"] = "Export matches",
+        ["SGP · 摘要优先 / 详情按需"] = "SGP · Details on demand",
         ["好友"] = "Friends", ["设置"] = "Settings", ["智能建议"] = "Recommendations",
         ["运行诊断"] = "Diagnostics", ["客户端工具"] = "Client Tools",
         ["对局自动化"] = "Match Automation", ["客户端与数据"] = "Client & Data",

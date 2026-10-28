@@ -67,6 +67,7 @@ public sealed class LegacyLobbyService : ILobbyService
         cancellationToken.ThrowIfCancellationRequested();
         return legacy == null ? null : new ActiveGameSnapshot
         {
+            GameId = legacy.GameData?.GameId ?? 0,
             Phase = legacy.Phase,
             GameMode = !string.IsNullOrWhiteSpace(legacy.GameData?.GameMode)
                 ? legacy.GameData.GameMode : legacy.GameData?.Queue?.GameMode ?? "",

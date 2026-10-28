@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.Settings;
+using LOL_GameAssistant.Application.Settings;
 using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.Domain.Skins;
 using LOL_GameAssistant.Helper;

@@ -1,3 +1,7 @@
+using Label = AntdUI.Label;
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
+using PictureBox = AntdUI.Avatar;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
@@ -9,7 +13,7 @@ internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
 {
     private readonly IGameAssetService _assets;
     private readonly IChampionCatalog _champions;
-    private readonly Panel _content = new() { Dock = DockStyle.Fill, AutoScroll = true };
+    private readonly System.Windows.Forms.Panel _content = new() { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly AntdUI.Label _state = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter };
     private readonly AntdUI.Label _title = new() { Text = "对局详情", Dock = DockStyle.Fill };
     private readonly AntdUI.Button _close = new() { Text = "收起", Dock = DockStyle.Right, Width = 64 };
@@ -18,7 +22,7 @@ internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
     private readonly FlowLayoutPanel _actions = new() { Dock = DockStyle.Bottom, Height = 48, WrapContents = false, Padding = new Padding(6) };
     private readonly AntdUI.Segmented _tabs = new() { Dock = DockStyle.Top, Height = 38 };
     private readonly ToolTip _tips = new();
-    private readonly List<DataGridView> _grids = [];
+    private readonly List<AntdUI.Table> _grids = [];
     private MatchRowImages? _images;
     private TableLayoutPanel? _body;
     private FlowLayoutPanel? _items;
@@ -90,7 +94,7 @@ internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
         var heading = Label($"{result}  ·  {(mine == null ? "英雄未知" : _champions.GetDisplayName(mine.championId))}  ·  {(stats?.HasKdaResult == true ? mine.GetKdaText() : "—")}\n{detail.GetModeText()} · {detail.GetDurationText()} · {detail.PlatformId}", 70);
         heading.Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold);
         var hero = new Panel { Height = 74, Padding = new Padding(0, 6, 0, 6) };
-        _heroImage = new PictureBox { Dock = DockStyle.Left, Width = 60, SizeMode = PictureBoxSizeMode.Zoom, Margin = new Padding(0, 0, 10, 0) };
+        _heroImage = new PictureBox { Dock = DockStyle.Left, Width = 60, ImageFit = AntdUI.TFit.Contain, Margin = new Padding(0, 0, 10, 0) };
         heading.Dock = DockStyle.Fill; hero.Controls.Add(heading); hero.Controls.Add(_heroImage);
         var metricStrip = new TableLayoutPanel { Height = 62, ColumnCount = 4, RowCount = 1, BackColor = UiTheme.Palette.SurfaceMuted };
         for (int i = 0; i < 4; i++)
@@ -141,53 +145,37 @@ internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
         control.Dock = DockStyle.Fill; control.Margin = new Padding(0, 0, 0, 4); _body.Controls.Add(control, 0, row);
     }
     private static AntdUI.Label Label(string text, int height) => new() { Text = text, Height = height, TextAlign = ContentAlignment.MiddleLeft, ForeColor = UiTheme.Palette.TextPrimary };
-    private DataGridView CreateTeam(IReadOnlyList<MatchParticipant> players, bool own)
+    internal sealed record TeamRow(MatchParticipant Player, object? Icon, string Name, string Kda, AntdUI.ICell[] Damage, string Honors, string Identity);
+    private AntdUI.Table CreateTeam(IReadOnlyList<MatchParticipant> players, bool own)
     {
-        var grid = new DataGridView
+        var grid = new AntdUI.Table
         {
-            Height = 28 + players.Count * 33, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
-            RowHeadersVisible = false, BorderStyle = BorderStyle.None, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect, MultiSelect = false, AllowUserToResizeRows = false,
-            ScrollBars = ScrollBars.None, RowTemplate = { Height = 33 }, ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
-            ColumnHeadersHeight = 28, EnableHeadersVisualStyles = false, Tag = own,
-            CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal, ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None
+            Height = 34 + players.Count * 40, RowHeight = 40, RowHeightHeader = 34,
+            MultipleRows = false, Bordered = false, Tag = own, Gap = 4
         };
-        grid.Columns.Add(new DataGridViewImageColumn { HeaderText = "", Width = 34, AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
-            ImageLayout = DataGridViewImageCellLayout.Zoom, DefaultCellStyle = new() { NullValue = null, Padding = new Padding(2) } });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "玩家", FillWeight = 48, SortMode = DataGridViewColumnSortMode.NotSortable });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "K / D / A", FillWeight = 25, SortMode = DataGridViewColumnSortMode.NotSortable });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "伤害", FillWeight = 27, SortMode = DataGridViewColumnSortMode.NotSortable });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "荣誉", FillWeight = 36, SortMode = DataGridViewColumnSortMode.NotSortable });
-        foreach (var p in players)
+        foreach (var (key, title, width) in new[] { ("Icon", "", "34"), ("Name", "玩家", "28%"), ("Kda", "K / D / A", "20%"), ("Damage", "伤害", "25%"), ("Honors", "荣誉", "27%") })
+            grid.Columns.Add(new AntdUI.Column(key, title) { Width = width });
+        int maxDamage = Math.Max(1, players.Max(p => p.stats?.totalDamageDealtToChampions ?? 0));
+        grid.DataSource = players.Select(p =>
         {
             var identity = Detail!.participantIdentities.FirstOrDefault(i => i.participantId == p.participantId)?.player;
             string name = identity?.GameName.Length > 0 ? identity.GameName : identity?.SummonerName ?? "未知玩家";
-            int index = grid.Rows.Add(null!, (identity?.Puuid == ViewerPuuid ? "我 · " : "") + name,
-                p.stats is { HasKdaResult: true } ? p.GetKdaText() : "—", p.stats is { HasDamageResult: true } s ? s.totalDamageDealtToChampions.ToString("N0") : "—",
-                MatchHonorCalculator.ForPlayer(Detail, p).Text);
-            grid.Rows[index].Tag = p;
-            grid.Rows[index].Cells[4].ToolTipText = MatchHonorCalculator.ForPlayer(Detail, p).Text + "\n" + MatchHonorCalculator.Explanation;
-            grid.Rows[index].Cells[1].ToolTipText = identity == null ? "身份未提供" : $"{identity.GameName}#{identity.TagLine}\n{identity.Puuid}";
-        }
+            AntdUI.ICell[] damage = p.stats is { HasDamageResult: true } stats
+                ? [new AntdUI.CellProgress((float)stats.totalDamageDealtToChampions / maxDamage) { Size = new Size(38, 6), Fill = own ? UiTheme.Palette.Accent : Color.FromArgb(220, 100, 115) }, new AntdUI.CellText(stats.totalDamageDealtToChampions.ToString("N0"))]
+                : [new AntdUI.CellText("—")];
+            return new TeamRow(p, null, (identity?.Puuid == ViewerPuuid ? "我 · " : "") + name,
+                p.stats is { HasKdaResult: true } ? p.GetKdaText() : "—", damage, MatchHonorCalculator.ForPlayer(Detail, p).Text,
+                identity == null ? "身份未提供" : $"{identity.GameName}#{identity.TagLine}\n{identity.Puuid}");
+        }).ToArray();
         grid.CellDoubleClick += (_, e) =>
         {
-            if (e.RowIndex < 0 || Detail == null) return;
-            var p = (MatchParticipant)grid.Rows[e.RowIndex].Tag!;
-            string? id = Detail.participantIdentities.FirstOrDefault(i => i.participantId == p.participantId)?.player?.Puuid;
+            if (e.Record is not TeamRow row || Detail == null) return;
+            string? id = Detail.participantIdentities.FirstOrDefault(i => i.participantId == row.Player.participantId)?.player?.Puuid;
             if (!string.IsNullOrWhiteSpace(id)) PlayerRequested?.Invoke(id, Detail.PlatformId);
         };
-        grid.SelectionChanged += (_, _) => { if (!grid.Focused && grid.SelectedRows.Count > 0) grid.ClearSelection(); };
-        int maximumDamage = Math.Max(1, players.Max(p => p.stats?.totalDamageDealtToChampions ?? 0));
-        grid.CellPainting += (_, e) =>
-        {
-            if (e.RowIndex < 0 || e.ColumnIndex != 3 || grid.Rows[e.RowIndex].Tag is not MatchParticipant p || p.stats?.HasDamageResult != true) return;
-            e.PaintBackground(e.CellBounds, false);
-            int bar = Math.Clamp((int)((e.CellBounds.Width - 8) * (double)p.stats.totalDamageDealtToChampions / maximumDamage), 0, e.CellBounds.Width - 8);
-            using var brush = new SolidBrush(Color.FromArgb(45, own ? UiTheme.Palette.Accent : Color.FromArgb(220, 100, 115)));
-            e.Graphics!.FillRectangle(brush, e.CellBounds.X + 3, e.CellBounds.Y + 4, bar, e.CellBounds.Height - 8);
-            e.PaintContent(e.CellBounds); e.Handled = true;
-        };
-        grid.ClearSelection(); return grid;
+        grid.CellHover += (_, e) => _tips.SetToolTip(grid, e.Record is TeamRow row
+            ? e.ColumnIndex == 4 ? row.Honors + "\n" + MatchHonorCalculator.Explanation : row.Identity : "");
+        return grid;
     }
     private void UpdateMetricText()
     {
@@ -201,15 +189,15 @@ internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
     }
     private void AddIcon(string kind, int id)
     {
-        var box = new PictureBox { Size = new(30, 30), SizeMode = PictureBoxSizeMode.Zoom, Margin = new Padding(0, 0, 5, 0), Tag = (kind, id) };
+        var box = new PictureBox { Size = new(30, 30), ImageFit = AntdUI.TFit.Contain, Margin = new Padding(0, 0, 5, 0), Tag = (kind, id) };
         _tips.SetToolTip(box, (kind == "item" ? "装备 " : "符文 ") + id); _items!.Controls.Add(box); _ = _images!.LoadAsync(kind, id);
     }
     private void UpdateImages()
     {
         if (IsDisposed || _images == null) return;
         foreach (var grid in _grids)
-            foreach (DataGridViewRow row in grid.Rows)
-                if (row.Tag is MatchParticipant p) row.Cells[0].Value = _images.Get("champion", p.championId);
+            if (grid.DataSource is TeamRow[] rows)
+                grid.DataSource = rows.Select(row => row with { Icon = _images.Get("champion", row.Player.championId) is Image icon ? new AntdUI.CellImage(icon, 28) : null }).ToArray();
         if (_items != null)
             foreach (PictureBox box in _items.Controls) if (box.Tag is ValueTuple<string, int> key) box.Image = _images.Get(key.Item1, key.Item2);
         if (_heroImage != null && Detail?.GetParticipant(ViewerPuuid) is { } mine) _heroImage.Image = _images.Get("champion", mine.championId);
@@ -256,10 +244,9 @@ internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
         foreach (var label in _actions.Controls.OfType<AntdUI.Label>()) { label.ColorScheme = scheme; label.ForeColor = palette.TextSecondary; }
         foreach (var grid in _grids)
         {
-            grid.BackgroundColor = palette.SurfaceRaised; grid.GridColor = palette.Border;
-            grid.DefaultCellStyle.BackColor = palette.SurfaceRaised; grid.DefaultCellStyle.ForeColor = palette.TextPrimary;
-            grid.DefaultCellStyle.SelectionBackColor = palette.Accent; grid.DefaultCellStyle.SelectionForeColor = Color.White;
-            grid.ColumnHeadersDefaultCellStyle.BackColor = palette.SurfaceMuted; grid.ColumnHeadersDefaultCellStyle.ForeColor = palette.TextSecondary;
+            grid.ColorScheme = scheme;
+            grid.BackColor = palette.SurfaceRaised; grid.ForeColor = palette.TextPrimary;
+            grid.BorderColor = palette.Border; grid.ColumnBack = palette.SurfaceMuted; grid.ColumnFore = palette.TextSecondary;
         }
     }
     protected override void Dispose(bool disposing)

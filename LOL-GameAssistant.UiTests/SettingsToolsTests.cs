@@ -47,12 +47,12 @@ public sealed class SettingsToolsTests
         }
         Assert.Equal(78, Field<AntdUI.InputNumber>(form, "_opacity").Value);
         Assert.Equal(2, Field<AntdUI.Select>(form, "_themeMode").SelectedIndex);
-        Assert.Equal("saved-model", Field<ComboBox>(form, "_model").Text);
+        Assert.Equal("saved-model", Field<AntdUI.Select>(form, "_model").Text);
         Assert.Equal("https://example.com/v1", Field<AntdUI.Input>(form, "_baseUrl").Text);
-        Field<ComboBox>(form, "_model").Text = "unsaved-draft";
+        Field<AntdUI.Select>(form, "_model").Text = "unsaved-draft";
         navigation.SelectIndex = 0;
         navigation.SelectIndex = 4;
-        Assert.Equal("unsaved-draft", Field<ComboBox>(form, "_model").Text);
+        Assert.Equal("unsaved-draft", Field<AntdUI.Select>(form, "_model").Text);
         navigation.SelectIndex = 3;
         var shout = Assert.IsType<QuickShoutForm>(segments[3]);
         Assert.Equal(settings.QuickMessageCustomPhrases, Field<AntdUI.Input>(shout, "_customPhrases").Text);

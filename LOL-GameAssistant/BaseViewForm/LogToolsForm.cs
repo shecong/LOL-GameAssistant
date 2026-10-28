@@ -1,4 +1,5 @@
-﻿using LOL_GameAssistant.Helper;
+using Panel = AntdUI.Panel;
+using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 

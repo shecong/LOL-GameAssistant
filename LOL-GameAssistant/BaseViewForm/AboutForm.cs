@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.ApplicationInfo;
+using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.ApplicationInfo;
 using LOL_GameAssistant.Helper;

@@ -1,3 +1,5 @@
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Application.Friends;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Bootstrap;
@@ -231,7 +233,7 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>好友卡片：显示在线状态并提供查询和观战操作。</summary>
-        private sealed class FriendCard : Panel, IThemeAware
+        private sealed class FriendCard : System.Windows.Forms.Panel, IThemeAware
         {
             private readonly FriendProfile _friend;
             private readonly IFriendSpectateService _spectateService;

@@ -1,4 +1,10 @@
-﻿using LOL_GameAssistant.Application.Builds;
+using Button = AntdUI.Button;
+using Label = AntdUI.Label;
+using Panel = AntdUI.Panel;
+using CheckBox = AntdUI.Checkbox;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
+using PictureBox = AntdUI.Avatar;
+using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Bootstrap;
 using LOL_GameAssistant.Domain.GameData;
@@ -148,10 +154,9 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>创建推荐选择器使用的金色操作按钮。</summary>
     private static Button CreateGoldButton(string text) => new()
     {
-        Text = text, FlatStyle = FlatStyle.Flat, ForeColor = Gold, BackColor = Navy,
+        Text = text, ForeColor = Gold, BackColor = Navy,
         Size = new Size(116, 32), Cursor = Cursors.Hand,
-        FlatAppearance = { BorderColor = Gold, BorderSize = 1,
-            MouseOverBackColor = Color.FromArgb(38, 51, 51), MouseDownBackColor = SelectedNavy }
+        DefaultBorderColor = Gold, BorderWidth = 1, DefaultBack = Navy
     };
 
     /// <summary>创建装备、符文或召唤师技能图标行。</summary>
@@ -176,7 +181,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             tab.Size = new Size(mode.Key == "aram_mayhem" ? 140 : 90, 40);
             tab.Margin = new Padding(0, 4, 10, 4);
             tab.Tag = mode.Key;
-            tab.FlatAppearance.BorderSize = 0;
+            tab.BorderWidth = 0;
             tab.Click += async (_, _) =>
             {
                 if (_buildService == null) FilterCards(mode.Key);
@@ -200,7 +205,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         var hero = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 8, 8, 10) };
         _championIcon.Dock = DockStyle.Left;
         _championIcon.Width = 42;
-        _championIcon.SizeMode = PictureBoxSizeMode.Zoom;
+        _championIcon.ImageFit = AntdUI.TFit.Contain;
         var heroText = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 0, 0, 0) };
         var title = _heading;
         title.Text = $"{_choices.ChampionName}  /  {_choices.PositionName}  ·  {UniqueOptions(_choices.Options).Take(3).Count()} 套推荐";
@@ -515,7 +520,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private AssetTile CreateAssetTile(int id, int size)
     {
         var root = new Panel { Size = new Size(size, size), Margin = new Padding(0, 0, 4, 0), Cursor = Cursors.Hand };
-        var icon = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, BackColor = SelectedNavy };
+        var icon = new PictureBox { Dock = DockStyle.Fill, ImageFit = AntdUI.TFit.Contain, BackColor = SelectedNavy };
         var name = new Label { Text = $"#{id}", Visible = false };
         root.Controls.Add(name);
         root.Controls.Add(icon);
@@ -1031,14 +1036,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
             bool active = Equals(tab.Tag, _filter);
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
             tab.ForeColor = active ? Color.FromArgb(239, 221, 166) : Gold;
-            tab.FlatAppearance.BorderSize = active ? 1 : 0;
+            tab.BorderWidth = active ? 1 : 0;
         }
         foreach (Button tab in _laneTabs)
         {
             tab.Enabled = !_applyingSelection && !_selectionApplied && (_filter == "all" ? _choices.Mode : _filter) == "ranked";
             bool active = Equals(tab.Tag, _position);
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
-            tab.FlatAppearance.BorderSize = active ? 1 : 0;
+            tab.BorderWidth = active ? 1 : 0;
         }
     }
 
@@ -1065,12 +1070,12 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private static void PaintControls(Control control)
     {
         control.BackColor = control is PictureBox ? SelectedNavy :
-            control is Label label && label.Text.Contains('\n') ? Color.FromArgb(9, 48, 63) : Navy;
+            control is Label label && label.Text?.Contains('\n') == true ? Color.FromArgb(9, 48, 63) : Navy;
         if (control is Button) control.ForeColor = Gold;
         else if (control is CheckBox) control.ForeColor = Muted;
         foreach (Control child in control.Controls) PaintControls(child);
         // Let standard labels inherit the selected row background.
-        if (control is Label { Visible: true } && !control.Text.Contains('\n')) control.BackColor = Color.Transparent;
+        if (control is Label { Visible: true } label2 && label2.Text?.Contains('\n') != true) control.BackColor = Color.Transparent;
         if (Equals(control.Tag, "equipmentCaption")) control.BackColor = Color.FromArgb(5, 36, 48);
         if (control is TableLayoutPanel or FlowLayoutPanel) control.BackColor = Color.Transparent;
     }

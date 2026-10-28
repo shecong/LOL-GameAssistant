@@ -114,7 +114,7 @@ public sealed partial class LoungeForm
 
     private long? SelectedRecruitmentId()
     {
-        var message = _senders.LastOrDefault(s => s.Start <= _history.SelectionStart).Message;
+        var message = SelectedHistoryMessage;
         return message?.Kind == "recruit" ? message.Id : null;
     }
 

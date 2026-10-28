@@ -55,8 +55,8 @@ namespace LOL_GameAssistant.Helper
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"需要管理员权限运行此程序。错误: {ex.Message}",
-                    "权限不足", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUI.Modal.open(new AntdUI.Modal.Config("权限不足",
+                    $"需要管理员权限运行此程序。错误: {ex.Message}", AntdUI.TType.Error) { CancelText = null });
             }
         }
     }

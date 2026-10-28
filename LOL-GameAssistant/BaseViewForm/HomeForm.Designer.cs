@@ -1,3 +1,4 @@
+using PictureBox = AntdUI.Avatar;
 namespace LOL_GameAssistant.BaseViewForm
 {
     partial class HomeForm
@@ -90,14 +91,11 @@ namespace LOL_GameAssistant.BaseViewForm
             searchCard.SuspendLayout();
             flowSearch.SuspendLayout();
             playerCard.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)play_HeadIcon).BeginInit();
             rankedCard.SuspendLayout();
             bottomStats.SuspendLayout();
             rankGrid.SuspendLayout();
             soloPanel.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pic_dsp).BeginInit();
             flexPanel.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pic_lhp).BeginInit();
             historyCard.SuspendLayout();
             historyHeader.SuspendLayout();
             SuspendLayout();
@@ -511,7 +509,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_dsp.Location = new Point(14, 12);
             pic_dsp.Name = "pic_dsp";
             pic_dsp.Size = new Size(44, 44);
-            pic_dsp.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_dsp.ImageFit = AntdUI.TFit.Contain;
             pic_dsp.TabIndex = 0;
             pic_dsp.TabStop = false;
             // 
@@ -601,7 +599,7 @@ namespace LOL_GameAssistant.BaseViewForm
             pic_lhp.Location = new Point(14, 12);
             pic_lhp.Name = "pic_lhp";
             pic_lhp.Size = new Size(44, 44);
-            pic_lhp.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_lhp.ImageFit = AntdUI.TFit.Contain;
             pic_lhp.TabIndex = 0;
             pic_lhp.TabStop = false;
             // 
@@ -757,16 +755,13 @@ namespace LOL_GameAssistant.BaseViewForm
             flowSearch.ResumeLayout(false);
             playerCard.ResumeLayout(false);
             playerCard.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)play_HeadIcon).EndInit();
             rankedCard.ResumeLayout(false);
             rankedCard.PerformLayout();
             bottomStats.ResumeLayout(false);
             bottomStats.PerformLayout();
             rankGrid.ResumeLayout(false);
             soloPanel.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)pic_dsp).EndInit();
             flexPanel.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)pic_lhp).EndInit();
             historyCard.ResumeLayout(false);
             historyHeader.ResumeLayout(false);
             historyHeader.PerformLayout();

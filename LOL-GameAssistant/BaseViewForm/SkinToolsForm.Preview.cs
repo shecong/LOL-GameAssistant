@@ -1,4 +1,7 @@
-﻿using LOL_GameAssistant.Application.Skins;
+using Label = AntdUI.Label;
+using Panel = AntdUI.Panel;
+using PictureBox = AntdUI.Avatar;
+using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.Domain.Skins;
 using LOL_GameAssistant.Helper;
 
@@ -16,7 +19,7 @@ public sealed partial class SkinToolsForm
         Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold), Margin = Padding.Empty, BorderWidth = 1, Radius = 8 };
     private readonly IChampionSkinResourceService _skinResources;
     private readonly Dictionary<int, ChampionSkinResource> _clientSkins = [];
-    private readonly PictureBox _poster = new() { Name = "SkinPoster", Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+    private readonly PictureBox _poster = new() { Name = "SkinPoster", Dock = DockStyle.Fill, ImageFit = AntdUI.TFit.Contain };
     private readonly Label _posterCaption = new() { Dock = DockStyle.Bottom, Height = 60, Text = "连接游戏后显示当前英雄皮肤海报", TextAlign = ContentAlignment.MiddleCenter };
     private CancellationTokenSource? _previewCancellation;
     private string _previewKey = "";

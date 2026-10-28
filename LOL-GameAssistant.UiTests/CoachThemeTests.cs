@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using Button = AntdUI.Button;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.Coaching;
 using LOL_GameAssistant.Application.GameData;
@@ -225,7 +226,7 @@ public sealed class CoachThemeTests
         picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>().Single(button => button.Text == "完成").PerformClick();
         PumpUntil(() => opened.IsCompleted);
         Assert.True(fixture.Form.Visible);
-        Assert.Contains(Descendants(fixture.Form).OfType<Label>(), label => label.Text == "排位方案已配置");
+        Assert.Contains(Descendants(fixture.Form).OfType<AntdUI.Label>(), label => label.Text == "排位方案已配置");
         Assert.Equal(1, applications);
         if (firstEntry != null)
         {

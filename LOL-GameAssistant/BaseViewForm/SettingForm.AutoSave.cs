@@ -36,6 +36,7 @@ public partial class SettingForm
         Check(_autoApplyRuneBuild, (s, v) => s.AutoApplyRuneBuild = v);
         Check(_mayhemOverlayEnabled, (s, v) => s.MayhemOverlayEnabled = v);
         Check(_champSelectCompanionEnabled, (s, v) => s.ChampSelectCompanionEnabled = v);
+        Check(_enemyJungleRouteEnabled, (s, v) => s.EnemyJungleRouteEnabled = v);
         Check(_champSelectKdaAnnouncementEnabled, (s, v) => s.ChampSelectKdaAnnouncementEnabled = v);
         Check(_gameKdaAnnouncementEnabled, (s, v) => s.GameKdaAnnouncementEnabled = v);
         Check(_gameKdaOnePlayerPerLine, (s, v) => s.GameKdaOnePlayerPerLine = v);

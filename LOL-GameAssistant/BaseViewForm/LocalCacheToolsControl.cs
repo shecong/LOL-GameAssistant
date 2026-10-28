@@ -1,3 +1,4 @@
+using Panel = AntdUI.Panel;
 using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Helper;
 

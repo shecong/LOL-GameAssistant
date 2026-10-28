@@ -1,3 +1,7 @@
+using Panel = AntdUI.Panel;
+using ComboBox = AntdUI.Select;
+using TextBox = AntdUI.Input;
+using ProgressBar = AntdUI.Progress;
 using System.Diagnostics;
 using LOL_GameAssistant.Domain.ApplicationInfo;
 using LOL_GameAssistant.Helper;
@@ -49,7 +53,7 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
         content.Controls.Add(new TextBox
         {
             Name = "UpdateReleaseNotes", Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, Margin = new Padding(0, 12, 0, 12),
+            AutoScroll = true, Margin = new Padding(0, 12, 0, 12),
             Text = string.IsNullOrWhiteSpace(release.ReleaseNotes)
                 ? (UiLanguage.IsEnglish ? "No release notes provided." : "此版本未提供更新说明。")
                 : release.ReleaseNotes.ReplaceLineEndings(Environment.NewLine)
@@ -66,11 +70,11 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
         transfer.Controls.Add(transferProgress);
         content.Controls.Add(transfer, 0, 2);
         var sourceRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 6, 0, 8) };
-        sourceRow.Controls.Add(new System.Windows.Forms.Label
+        sourceRow.Controls.Add(new AntdUI.Label
         {
             Text = UiLanguage.IsEnglish ? "Download source:" : "下载源：", AutoSize = true, Margin = new Padding(0, 6, 8, 0)
         });
-        var source = new ComboBox { Name = "UpdateDownloadSource", DropDownStyle = ComboBoxStyle.DropDownList, Width = 190 };
+        var source = new ComboBox { Name = "UpdateDownloadSource", List = true, DropDownArrow = true, Width = 190 };
         if (release.ServerManifestUrl != null) source.Items.Add(UiLanguage.IsEnglish ? "Server download" : "服务器下载");
         source.Items.Add(UiLanguage.IsEnglish ? "GitHub download" : "GitHub 下载");
         source.SelectedIndex = release.ServerManifestUrl != null && !release.PreferServerDownload ? 1 : 0;
@@ -134,7 +138,7 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
                     {
                         if (IsDisposed) return;
                         transferStatus.Text = $"{value.Stage}  {value.Percent}%";
-                        transferProgress.Value = value.Percent;
+                        transferProgress.Value = Math.Clamp(value.Percent / 100F, 0, 1);
                     });
                     bool useServer = release.ServerManifestUrl != null && source.SelectedIndex == 0;
                     _prepared = await packageService.PrepareAsync(release, progress, _downloadLifetime.Token, useServer);
@@ -178,7 +182,7 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
         {
             transferStatus.Text = UiLanguage.IsEnglish ? "Update downloaded. Restart and install now, or close this window and install later."
                 : "更新包已下载并校验，可重启安装；关闭窗口或重启助手后仍可继续安装，无需重复下载。";
-            transferProgress.Value = 100;
+            transferProgress.Value = 1;
             autoUpdate.Text = UiLanguage.IsEnglish ? "Restart and install" : "重启并安装";
             source.Enabled = false;
         }

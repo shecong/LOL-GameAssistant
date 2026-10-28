@@ -1,3 +1,4 @@
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Application.Ranked;
 using LOL_GameAssistant.Domain.Ranked;
 using LOL_GameAssistant.Application.GameData;

@@ -1,3 +1,5 @@
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Application.ChampionSelect;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Players;
@@ -69,7 +71,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Label _teamQueueTag1;
         private readonly AntdUI.Label _teamQueueTag2;
         private readonly ToolTip _teamQueueTip = new();
-        private readonly System.Windows.Forms.Label _dataFetchNotice = new()
+        private readonly AntdUI.Label _dataFetchNotice = new()
         {
             Name = "dataFetchNotice",
             AutoSize = false,

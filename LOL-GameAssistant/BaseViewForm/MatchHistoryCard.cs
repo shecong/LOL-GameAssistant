@@ -1,3 +1,5 @@
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Teams;
 using LOL_GameAssistant.Bootstrap;

@@ -1,3 +1,4 @@
+using Panel = AntdUI.Panel;
 using LOL_GameAssistant.Domain.Coaching;
 using LOL_GameAssistant.Helper;
 
@@ -42,6 +43,9 @@ public sealed partial class CoachForm
         var settings = new AntdUI.Button { Text = "AI 设置", AutoSize = true };
         settings.Click += (_, _) => Program.GameMain?.OpenAiRecommendationSettings();
         header.Controls.Add(settings);
+        var jungle = new AntdUI.Button { Name = "coachJungleRoute", Text = "敌方打野路线", AutoSize = true };
+        jungle.Click += (_, _) => Program.GameMain?.ShowEnemyJungleRoute();
+        header.Controls.Add(jungle);
         header.Controls.Add(_reviewAugments);
         _reviewAugments.Click += async (_, _) =>
         {

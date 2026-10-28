@@ -1,3 +1,4 @@
+using Panel = AntdUI.Panel;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.LeagueClient;
@@ -11,6 +12,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private sealed record PhraseItem(string Text, bool IsCustom)
     {
         /// <summary>返回当前条目用于文本控件展示的内容。</summary>
+        public string Category => IsCustom ? "自定义" : "默认";
         public override string ToString() => $"{(IsCustom ? "自定义" : "默认")} · {Text}";
     }
 
@@ -31,7 +33,8 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly Func<Action<AssistantSettings>, bool>? _saveOption;
     private bool _loadingSettings = true;
     private int _updatingSelection;
-    private readonly ListBox _phrases = new() { Dock = DockStyle.Fill, IntegralHeight = false };
+    private readonly AntdUI.Table _phrases = new() { Dock = DockStyle.Fill, Bordered = true, AutoSizeColumnsMode = AntdUI.ColumnsMode.Fill, LostFocusClearSelection = false, EnableFocusNavigation = true };
+    private PhraseItem[] _phraseItems = [];
     private readonly AntdUI.Input _selectedPhrase = new() { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true };
     private readonly AntdUI.Input _customPhrases = new() { Dock = DockStyle.Fill, Multiline = true };
     private readonly AntdUI.Checkbox _perCharacter = new() { Text = "逐字发送", AutoSize = true };
@@ -69,13 +72,16 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _saveOption = saveOption;
         Dock = DockStyle.Fill;
 
-        var header = new AntdUI.Label
+        var header = new Panel { Dock = DockStyle.Top, Height = 44, Padding = new Padding(12, 2, 12, 2) };
+        var heading = new AntdUI.Label
         {
-            Dock = DockStyle.Top,
-            Height = 49,
-            Padding = new Padding(16, 12, 0, 0),
+            Dock = DockStyle.Fill,
+            Padding = new Padding(4, 0, 0, 0),
             Text = "一键喊话  ·  开启多选后点击多句，可按词库顺序发送到客户端或游戏内。"
         };
+        var toggleOptions = new AntdUI.Button { Name = "quickShoutToggleOptions", Text = "发送与快捷键设置 ▾", Dock = DockStyle.Right, Width = 164 };
+        header.Controls.Add(heading);
+        header.Controls.Add(toggleOptions);
         var columns = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -112,14 +118,50 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         right.Controls.Add(_customPhrases, 0, 1);
         columns.Controls.Add(left, 0, 0);
         columns.Controls.Add(right, 1, 0);
-        Controls.Add(columns);
-        Controls.Add(CreateOptionsArea());
-        Controls.Add(CreatePlayerHotkeyOptions());
+        // Keep the phrase list useful at small window heights; expanded settings scroll instead of crushing it.
+        var viewport = new System.Windows.Forms.Panel { Name = "quickShoutViewport", Dock = DockStyle.Fill, AutoScroll = true };
+        var content = new System.Windows.Forms.Panel { Location = Point.Empty };
+        var options = CreateOptionsArea();
+        var playerOptions = CreatePlayerHotkeyOptions();
+        content.Controls.Add(columns);
+        content.Controls.Add(options);
+        content.Controls.Add(playerOptions);
+        viewport.Controls.Add(content);
+        bool optionsExpanded = false;
+        void ResizeContent()
+        {
+            int height = Math.Max(viewport.ClientSize.Height, optionsExpanded ? 720 : 300);
+            content.Size = new Size(viewport.ClientSize.Width, height);
+        }
+        viewport.Resize += (_, _) => ResizeContent();
+        void SetOptionsVisible(bool visible)
+        {
+            optionsExpanded = visible;
+            options.Visible = playerOptions.Visible = visible;
+            toggleOptions.Text = visible ? "收起发送与快捷键 ▴" : "发送与快捷键设置 ▾";
+            toggleOptions.AccessibleDescription = visible ? "收起发送选项和快捷键设置" : "展开发送选项和快捷键设置";
+            if (!visible) viewport.AutoScrollPosition = Point.Empty;
+            ResizeContent();
+            viewport.PerformLayout();
+        }
+        toggleOptions.Click += (_, _) => SetOptionsVisible(!optionsExpanded);
+        SetOptionsVisible(false);
+        Controls.Add(viewport);
         Controls.Add(CreateActionBar());
         Controls.Add(_status);
         Controls.Add(header);
 
-        _phrases.SelectedIndexChanged += (_, _) =>
+        _phrases.Columns.Add(new AntdUI.Column(nameof(PhraseItem.Category), "分类") { Width = "80" });
+        _phrases.Columns.Add(new AntdUI.Column(nameof(PhraseItem.Text), "喊话内容") { LineBreak = true });
+        _phrases.CellClickBegin += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Left || e.Record is not PhraseItem) return;
+            e.Handled = true;
+            var selected = _phrases.MultipleRows ? _phrases.SelectedIndexs.ToHashSet() : [];
+            if (!selected.Add(e.RowIndex)) selected.Remove(e.RowIndex);
+            _phrases.SelectedIndexs = selected.Order().ToArray();
+        };
+        _phrases.SelectIndexChanged += (_, _) =>
         {
             UpdateSelectionPreview();
             if (_updatingSelection == 0 && !_loadingSettings && SelectedItems().Length <= 10)
@@ -127,7 +169,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         };
         _multiSelect.Click += (_, _) =>
         {
-            bool previous = _phrases.SelectionMode == SelectionMode.MultiSimple;
+            bool previous = _phrases.MultipleRows;
             SetMultiSelect(!previous);
             if (!AutoSave(s => s.QuickShoutMultiSelectEnabled = !previous)) SetMultiSelect(previous);
         };
@@ -222,7 +264,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         settings.GameKdaHotkey = _kdaHotkey.Text;
         settings.GameKdaPlayerHotkeysEnabled = _playerHotkeysEnabled.Checked;
         settings.GameKdaCustomRemarks = new Dictionary<string, string>(_kdaCustomRemarks);
-        settings.QuickShoutMultiSelectEnabled = _phrases.SelectionMode == SelectionMode.MultiSimple;
+        settings.QuickShoutMultiSelectEnabled = _phrases.MultipleRows;
         settings.QuickShoutSelectedPhrases = SelectedItems().Select(PhraseKey).ToList();
         settings.QuickMessageSendIntervalSeconds = (int)_minimumInterval.Value;
     }
@@ -396,7 +438,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     /// <summary>从候选喊话中选择一条并发送到游戏。</summary>
     public async Task SendRandomToGameAsync(bool custom)
     {
-        PhraseItem[] candidates = _phrases.Items.Cast<PhraseItem>()
+        PhraseItem[] candidates = _phraseItems.AsEnumerable()
             .Where(item => item.IsCustom == custom).ToArray();
         if (candidates.Length == 0)
         {
@@ -419,22 +461,23 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
                 .Distinct(StringComparer.CurrentCulture)
                 .Select(text => new PhraseItem(text, true)))
             .ToArray();
-        _phrases.BeginUpdate();
+        _phrases.PauseLayout = true;
         _updatingSelection++;
         try
         {
-            _phrases.Items.Clear();
-            _phrases.Items.AddRange(items);
+            _phraseItems = items;
+            _phrases.DataSource = items;
             RestoreSelection(selected);
         }
-        finally { _phrases.EndUpdate(); _updatingSelection--; }
+        finally { _phrases.PauseLayout = false; _updatingSelection--; }
     }
 
     /// <summary>为喊话条目生成稳定的选择标识。</summary>
     private static string PhraseKey(PhraseItem item) => $"{(item.IsCustom ? "C" : "D")}|{item.Text}";
 
     /// <summary>读取当前列表选中的喊话条目。</summary>
-    private PhraseItem[] SelectedItems() => _phrases.SelectedItems.Cast<PhraseItem>().ToArray();
+    private PhraseItem[] SelectedItems() => _phrases.SelectedIndexs.Order().Where(index => index > 0 && index <= _phraseItems.Length)
+        .Select(index => _phraseItems[index - 1]).ToArray();
 
     /// <summary>刷新列表后恢复仍然有效的选择。</summary>
     private void RestoreSelection(IReadOnlyCollection<string>? keys)
@@ -443,17 +486,11 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         try
         {
         var wanted = new HashSet<string>(keys ?? Array.Empty<string>(), StringComparer.Ordinal);
-        _phrases.ClearSelected();
-        for (int index = 0; index < _phrases.Items.Count; index++)
-        {
-            if (_phrases.Items[index] is PhraseItem item && wanted.Contains(PhraseKey(item)))
-            {
-                _phrases.SetSelected(index, true);
-                if (_phrases.SelectionMode == SelectionMode.One) break;
-            }
-        }
-        if (_phrases.SelectedItems.Count == 0 && _phrases.Items.Count > 0)
-            _phrases.SetSelected(0, true);
+        int[] selected = _phraseItems.Select((item, index) => (item, index))
+            .Where(pair => wanted.Contains(PhraseKey(pair.item))).Select(pair => pair.index + 1).ToArray();
+        if (!_phrases.MultipleRows) selected = selected.Take(1).ToArray();
+        if (selected.Length == 0 && _phraseItems.Length > 0) selected = [1];
+        _phrases.SelectedIndexs = selected;
         UpdateSelectionPreview();
         }
         finally { _updatingSelection--; }
@@ -466,7 +503,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         try
         {
         string[] selected = SelectedItems().Select(PhraseKey).ToArray();
-        _phrases.SelectionMode = enabled ? SelectionMode.MultiSimple : SelectionMode.One;
+        _phrases.MultipleRows = enabled;
         _multiSelect.Text = enabled ? "多选：开" : "多选：关";
         RestoreSelection(selected);
         }
@@ -486,15 +523,15 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     /// <summary>从可用文案中选择随机条目。</summary>
     private void SelectRandom(bool custom)
     {
-        int[] indices = _phrases.Items.Cast<PhraseItem>().Select((item, index) => (item, index))
+        int[] indices = _phraseItems.AsEnumerable().Select((item, index) => (item, index))
             .Where(pair => pair.item.IsCustom == custom).Select(pair => pair.index).ToArray();
         if (indices.Length == 0)
         {
             _status.Text = custom ? "自定义词库为空，请先填写并保存。" : "默认词库为空。";
             return;
         }
-        _phrases.ClearSelected();
-        _phrases.SetSelected(indices[Random.Shared.Next(indices.Length)], true);
+        _phrases.SelectedIndexs = [];
+        _phrases.SelectedIndex = indices[Random.Shared.Next(indices.Length)] + 1;
     }
 
     /// <summary>验证当前输入和选择是否满足发送条件。</summary>

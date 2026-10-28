@@ -69,7 +69,7 @@ public sealed class LivePlayerChampionTests
         newIcon.SetResult(Icon(Color.Blue));
         System.Windows.Forms.Application.DoEvents();
         Assert.True(newLoad.IsCompletedSuccessfully);
-        var picture = (PictureBox)Child(card, "picCurrent");
+        var picture = (AntdUI.Avatar)Child(card, "picCurrent");
         Image? newestImage = picture.Image;
         Assert.NotNull(newestImage);
         oldIcon.SetResult(Icon(Color.Red));

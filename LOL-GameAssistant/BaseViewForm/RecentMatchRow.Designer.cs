@@ -1,4 +1,5 @@
-﻿namespace LOL_GameAssistant.BaseViewForm
+using PictureBox = AntdUI.Avatar;
+namespace LOL_GameAssistant.BaseViewForm
 {
     partial class RecentMatchRow
     {
@@ -22,7 +23,6 @@
             lblDate = new AntdUI.Label();
             lblKda = new AntdUI.Label();
             lblDuration = new AntdUI.Label();
-            ((System.ComponentModel.ISupportInitialize)picChampion).BeginInit();
             SuspendLayout();
             // 
             // picChampion
@@ -30,7 +30,7 @@
             picChampion.Location = new Point(5, 3);
             picChampion.Name = "picChampion";
             picChampion.Size = new Size(34, 34);
-            picChampion.SizeMode = PictureBoxSizeMode.Zoom;
+            picChampion.ImageFit = AntdUI.TFit.Contain;
             picChampion.TabIndex = 0;
             picChampion.TabStop = false;
             // 
@@ -106,7 +106,6 @@
             DoubleBuffered = true;
             Name = "RecentMatchRow";
             Size = new Size(620, 40);
-            ((System.ComponentModel.ISupportInitialize)picChampion).EndInit();
             ResumeLayout(false);
         }
 

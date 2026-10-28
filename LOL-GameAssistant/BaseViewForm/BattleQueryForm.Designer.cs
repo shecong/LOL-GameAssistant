@@ -1,3 +1,5 @@
+using Panel = AntdUI.Panel;
+using ComboBox = AntdUI.Select;
 namespace LOL_GameAssistant.BaseViewForm
 {
     partial class BattleQueryForm
@@ -72,8 +74,7 @@ namespace LOL_GameAssistant.BaseViewForm
             // 
             // cboFavorites
             // 
-            cboFavorites.DropDownStyle = ComboBoxStyle.DropDown;
-            cboFavorites.FormattingEnabled = true;
+            cboFavorites.List = false; cboFavorites.DropDownArrow = true;
             cboFavorites.Location = new Point(10, 12);
             cboFavorites.Margin = new Padding(0, 2, 6, 2);
             cboFavorites.Name = "cboFavorites";
@@ -165,8 +166,7 @@ namespace LOL_GameAssistant.BaseViewForm
             // 
             // cboPageSize
             // 
-            cboPageSize.DropDownStyle = ComboBoxStyle.DropDownList;
-            cboPageSize.FormattingEnabled = true;
+            cboPageSize.List = true; cboPageSize.DropDownArrow = true;
             cboPageSize.Items.AddRange(new object[] { 10, 20, 50 });
             cboPageSize.Location = new Point(1206, 14);
             cboPageSize.Margin = new Padding(0, 2, 6, 0);
@@ -380,7 +380,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private AntdUI.Label lblFlexStats;
         private Panel panelContent;
         private Panel panelHistory;
-        private Panel stackMatches;
+        private LOL_GameAssistant.Helper.MatchScrollPanel stackMatches;
         private AntdUI.Pagination pagination;
         private Panel panelStats;
         private AntdUI.Label lblStatus;

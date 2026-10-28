@@ -97,7 +97,7 @@ public sealed class SkinCoreLogTests
         RuntimeDiagnostics.Report("日志测试", "完成", "不应重复追加核心错误");
         Assert.Equal(before, messages.GetLogText());
         var chat = Descendants(messages).OfType<AntdUI.Chat.ChatList>().Single();
-        chat.ContextMenuStrip!.Items.OfType<ToolStripMenuItem>().Single(item => item.Text == "清空消息").PerformClick();
+        ContextMenuTestDriver.Click(chat, "清空消息");
         Assert.Empty(messages.GetLogText());
         Assert.Empty(chat.Items);
     });

@@ -78,6 +78,39 @@ public sealed class DenseBattleQueryTests
     });
 
     [Fact]
+    public void SwitchingLanguageTranslatesFiltersWithoutChangingTheirMeaningOrReloadingHistory() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        string previous = UiLanguage.Mode;
+        try
+        {
+            UiLanguage.SetMode("zh-CN");
+            using var query = Create((id, _, _) => Task.FromResult<MatchDetail?>(Detail(id)));
+            using var host = new Form { ClientSize = new Size(1100, 760), ShowInTaskbar = false };
+            query.Dock = DockStyle.Fill; host.Controls.Add(query); host.Show();
+            Pump(Render(query));
+            var mode = Field<AntdUI.Select>(query, "_modeSelect");
+            var champion = Field<AntdUI.Select>(query, "_championFilter");
+            var result = Field<AntdUI.Select>(query, "_resultFilter");
+            result.SelectedIndex = 1;
+            PumpUntil(() => Field<Control>(query, "stackMatches").Controls.OfType<MatchHistoryListRow>().Count() == 14);
+            var originalRows = Field<Control>(query, "stackMatches").Controls.Cast<Control>().ToArray();
+            UiLanguage.SetMode("en-US"); UiLanguage.Refresh();
+            Assert.Equal("All", mode.Text);
+            Assert.Equal("All champions", champion.Text);
+            Assert.Equal("All results", result.Items[0]?.ToString());
+            Assert.Equal(UiLanguage.T("胜利"), result.Text);
+            Assert.Equal("胜利", Field<string>(query, "_selectedResult"));
+            Assert.Equal(originalRows, Field<Control>(query, "stackMatches").Controls.Cast<Control>().ToArray());
+            Assert.Equal("Export matches", Field<AntdUI.Button>(query, "btnExport").Text);
+            Assert.True(Field<AntdUI.Button>(query, "btnExport").Width >= 110);
+            UiLanguage.SetMode("zh-CN"); UiLanguage.Refresh();
+            Assert.Equal("全部", mode.Text); Assert.Equal("全部英雄", champion.Text); Assert.Equal("胜利", result.Text);
+            Assert.Equal(originalRows, Field<Control>(query, "stackMatches").Controls.Cast<Control>().ToArray());
+        }
+        finally { UiLanguage.SetMode(previous); }
+    });
+
+    [Fact]
     public void AsyncFirstPageDoesNotCreateHorizontalScrollbarWhenVerticalScrollbarAppears() => MatchListScrollingTests.OnUiThread(() =>
     {
         var pending = new TaskCompletionSource<MatchHistoryResponse?>();
@@ -233,11 +266,42 @@ public sealed class DenseBattleQueryTests
             Pump(query.SelectMatchAsync(Game(3))); System.Windows.Forms.Application.DoEvents();
             Assert.False(Field<SplitContainer>(query, "_matchWorkspace").Panel2Collapsed);
             Assert.Equal(3, Field<MatchHistoryDetailPane>(query, "_detailPane").Detail!.GameId);
+            Assert.False(list.HorizontalScroll.Visible);
             if (width >= 1000) Assert.Equal(scroll, list.AutoScrollPosition.Y);
             Save(host, $"dense-query-detail-{width}"); host.Close();
         }
         finally { UiTheme.SetMode(previous); }
     });
+    [Theory]
+    [InlineData(1600, 900)]
+    [InlineData(900, 820)]
+    [InlineData(520, 820)]
+    public void StatisticsChartsAndAllSummaryTilesFitTheViewport(int width, int height) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var query = Create((id, _, _) => Task.FromResult<MatchDetail?>(Detail(id)));
+        using var host = new Form { ClientSize = new(width, height) };
+        query.Dock = DockStyle.Fill; host.Controls.Add(query); host.Show();
+        Pump(query.PerformSearchAsync("11111111-1111-1111-1111-111111111111"));
+        typeof(BattleQueryForm).GetMethod("BtnViewStats_Click", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(query, [null, EventArgs.Empty]);
+        PumpUntil(() => Field<bool>(query, "_statsLoaded"));
+        System.Windows.Forms.Application.DoEvents();
+        var stats = Field<Control>(query, "panelStats");
+        var viewport = stats.Controls.OfType<AntdUI.Panel>().Single(control => control.Dock == DockStyle.Fill);
+        var content = viewport.Controls.OfType<FlowLayoutPanel>().Single();
+        var summaries = content.Controls.OfType<FlowLayoutPanel>().Single();
+        Save(host, $"dense-query-stats-{width}");
+        Assert.True(content.Width <= viewport.ClientSize.Width);
+        Assert.Equal(3, summaries.Controls.Count);
+        foreach (Control tile in summaries.Controls)
+        {
+            Assert.True(summaries.ClientRectangle.Contains(tile.Bounds), $"Tile {tile.Bounds} clipped by {summaries.ClientRectangle}");
+            Assert.Equal(2, tile.Controls.Count);
+        }
+        Assert.All(content.Controls.Cast<Control>(), chart => Assert.InRange(chart.Width, viewport.ClientSize.Width - 50, viewport.ClientSize.Width));
+        Assert.True(content.Height >= content.Controls.Cast<Control>().Sum(chart => chart.Height));
+        host.Close();
+    });
+
     private static void Save(Form form, string name)
     {
         using var bitmap = new Bitmap(form.Width, form.Height); form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size));

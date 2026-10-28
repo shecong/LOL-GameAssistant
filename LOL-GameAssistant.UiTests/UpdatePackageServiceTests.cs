@@ -269,10 +269,21 @@ public sealed class UpdatePackageServiceTests
             File.WriteAllText(Path.Combine(Install, "sc助手.exe"), "existing app");
             File.WriteAllText(Path.Combine(Install, "Updater.exe"), "native updater placeholder");
             File.WriteAllText(Path.Combine(Install, "settings.json"), "user settings");
-            // 使用测试宿主的真实 PE 版本资源验证准备阶段，不启动这个占位应用。
+            // 复制真实 PE 并只修改副本的固定版本资源。测试不能假设 testhost 版本高于应用版本。
             byte[] executable = File.ReadAllBytes(Environment.ProcessPath!);
-            var info = FileVersionInfo.GetVersionInfo(Environment.ProcessPath!);
-            var version = new Version(info.FileMajorPart, info.FileMinorPart, Math.Max(0, info.FileBuildPart), Math.Max(0, info.FilePrivatePart));
+            var version = new Version(AppVersion.Current.Major + 1, 0, 0, 0);
+            byte[] resourceKey = Encoding.Unicode.GetBytes("VS_VERSION_INFO\0");
+            int keyOffset = executable.AsSpan().IndexOf(resourceKey);
+            Assert.True(keyOffset >= 0);
+            int fixedInfo = (keyOffset + resourceKey.Length + 3) & ~3;
+            Assert.Equal(0xFEEF04BDu, BitConverter.ToUInt32(executable, fixedInfo));
+            uint majorMinor = checked((uint)version.Major << 16);
+            BitConverter.GetBytes(majorMinor).CopyTo(executable, fixedInfo + 8);
+            BitConverter.GetBytes(0u).CopyTo(executable, fixedInfo + 12);
+            string fixturePath = Path.Combine(Root, "future-app.exe");
+            File.WriteAllBytes(fixturePath, executable);
+            var info = FileVersionInfo.GetVersionInfo(fixturePath);
+            Assert.Equal(version, new Version(info.FileMajorPart, info.FileMinorPart, info.FileBuildPart, info.FilePrivatePart));
             Assert.True(AppVersion.IsNewer(version, AppVersion.Current));
             Release = new(version, "v" + version, "https://github.com/shecong/LOL-GameAssistant/releases/tag/v" + version, "");
             using var memory = new MemoryStream();

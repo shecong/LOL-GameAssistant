@@ -1,4 +1,4 @@
-﻿namespace LOL_GameAssistant.BaseViewForm
+namespace LOL_GameAssistant.BaseViewForm
 {
     using LOL_GameAssistant.Helper;
 
@@ -13,6 +13,7 @@
         public InfoMsgForm()
         {
             InitializeComponent();
+            UiContextMenu.Bind(chat_msg, ("清空消息", () => 清空消息ToolStripMenuItem_Click(this, EventArgs.Empty), true));
             var copy = new AntdUI.Button { Name = "copyLogs", Text = "复制日志", Dock = DockStyle.Top, Height = 38 };
             copy.Click += (_, _) => CopyLogs();
             Controls.Add(copy);

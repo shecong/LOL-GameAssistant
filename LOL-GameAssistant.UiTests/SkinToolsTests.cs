@@ -254,7 +254,7 @@ public sealed class SkinToolsTests
         using var page = new SkinToolsForm(core, settings, assets);
         host.Controls.Add(page); host.Show();
         page.OnGamePhaseChanged(true);
-        var poster = Descendants(page).OfType<PictureBox>().Single(picture => picture.Name == "SkinPoster");
+        var poster = Descendants(page).OfType<AntdUI.Avatar>().Single(picture => picture.Name == "SkinPoster");
         SecondPhaseRegressionTests.PumpUntil(() => poster.Image != null);
         Assert.Equal(("Lux", 0), calls.Last());
         var selector = Descendants(page).OfType<AntdUI.Select>().Single(select => select.Name == "HeroSkinEntries");

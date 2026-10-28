@@ -1,3 +1,4 @@
+using Panel = AntdUI.Panel;
 namespace LOL_GameAssistant.BaseViewForm
 {
     partial class LivePlayerForm
@@ -39,8 +40,6 @@ namespace LOL_GameAssistant.BaseViewForm
             picCurrent = new RoundPictureBox();
             panelMatches = new LOL_GameAssistant.Helper.MatchScrollPanel();
             headerPanel.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)picProfile).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)picCurrent).BeginInit();
             SuspendLayout();
             // 
             // headerPanel
@@ -178,8 +177,6 @@ namespace LOL_GameAssistant.BaseViewForm
             Name = "LivePlayerForm";
             Size = new Size(620, 470);
             headerPanel.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)picProfile).EndInit();
-            ((System.ComponentModel.ISupportInitialize)picCurrent).EndInit();
             ResumeLayout(false);
         }
 
@@ -194,6 +191,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private AntdUI.Label lblTeamTag;
         private AntdUI.Label lblPremadeTag;
         private RoundPictureBox picCurrent;
-        private Panel panelMatches;
+        private LOL_GameAssistant.Helper.MatchScrollPanel panelMatches;
     }
 }

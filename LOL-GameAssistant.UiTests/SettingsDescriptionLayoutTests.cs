@@ -65,12 +65,13 @@ public sealed class SettingsDescriptionLayoutTests
             .GetField("_settingsSegmented", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
         navigation.SelectIndex = 4;
         System.Windows.Forms.Application.DoEvents();
-        var notes = Children(settings).OfType<System.Windows.Forms.Label>()
-            .Where(note => note.Parent is TableLayoutPanel table && table.ColumnCount == 2).ToArray();
+        var notes = Children(settings).OfType<AntdUI.Label>()
+            .Where(note => note.Name == "aiDescription" && note.Parent is TableLayoutPanel table && table.ColumnCount == 2).ToArray();
         Assert.True(notes.Length >= 6);
-        var opgg = notes.Single(note => note.Text.StartsWith("开启后，助手会"));
+        var opgg = notes.Single(note => note.Parent?.Parent?.Name == "aiSelectionCard");
         int narrowWidth = opgg.Width;
         int narrowHeight = opgg.Height;
+        LOL_GameAssistant.Helper.UiTheme.Apply(settings);
         foreach (int width in new[] { 1600, 900, 1600 })
         {
             host.ClientSize = new Size(width, 760);
@@ -86,6 +87,13 @@ public sealed class SettingsDescriptionLayoutTests
             {
                 Assert.True(opgg.Width > narrowWidth + 400);
                 Assert.True(opgg.Height <= narrowHeight);
+                if (Environment.GetEnvironmentVariable("ANTD_UI_PREVIEWS") is string folder)
+                {
+                    Directory.CreateDirectory(folder);
+                    using var image = new Bitmap(settings.Width, settings.Height);
+                    settings.DrawToBitmap(image, settings.ClientRectangle);
+                    image.Save(Path.Combine(folder, "settings-ai.png"));
+                }
             }
         }
     });

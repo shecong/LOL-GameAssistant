@@ -1,3 +1,5 @@
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL.Lounge;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.Lounge;
@@ -73,13 +75,14 @@ public sealed partial class LoungeForm
 
     private void InitializeTimeline()
     {
+        _history.HandleCreated += (_, _) => _history.BeginInvoke(() => { if (!_history.IsDisposed) ScrollToBottom(); });
         _messageFilter.SelectedIndexChanged += (_, _) => { _historyKey = "\0"; _renderedKeys = []; RefreshView(); };
         _older.Click += async (_, _) => await LoadOlderMessagesAsync();
         _newMessages.Click += (_, _) => JumpToLatest();
         _history.MouseDown += (_, _) => _scrollInteraction++;
         _history.KeyDown += (_, _) => _scrollInteraction++;
         _history.MouseWheel += async (_, e) => { _scrollInteraction++; if (e.Delta > 0 && ScrollPosition().Y <= 4) await LoadOlderMessagesAsync(); };
-        _history.VScroll += async (_, _) =>
+        _history.ScrollBar.ValueYChanged += async (_, _) =>
         {
             int position = ScrollPosition().Y;
             bool upward = _lastScrollY > 4 && position <= 4;
@@ -87,14 +90,15 @@ public sealed partial class LoungeForm
             if (!_renderingHistory && upward && _history.Focused) await LoadOlderMessagesAsync();
         };
     }
-    private Point ScrollPosition() { Point point = default; if (_history.IsHandleCreated) HistoryScrollMessage(_history.Handle, 0x04DD, 0, ref point); return point; }
-    private bool IsHistoryAtBottom() => _history.TextLength == 0 || _history.GetPositionFromCharIndex(_history.TextLength - 1).Y <= _history.ClientSize.Height - _history.Font.Height;
-    private void ScrollToBottom()
+    private Point ScrollPosition() => new(0, _history.ScrollBar.ValueY);
+    private bool IsHistoryAtBottom() => _history.Items.Count == 0 || _history.IsBottom;
+    private void ScrollToBottom() => _history.ToBottom();
+    private void ClearHistoryItems()
     {
-        if (_history.TextLength == 0) return;
-        var position = ScrollPosition();
-        position.Y = Math.Max(0, position.Y + _history.GetPositionFromCharIndex(_history.TextLength).Y + _history.Font.Height * 2 - _history.ClientSize.Height);
-        HistoryScrollMessage(_history.Handle, 0x04DE, 0, ref position);
+        foreach (var item in _history.Items) item.Dispose();
+        _history.Items.Clear();
+        foreach (var image in _historyImages) image.Dispose();
+        _historyImages.Clear();
     }
     private void JumpToLatest()
     {
@@ -171,63 +175,63 @@ public sealed partial class LoungeForm
         _historyKey = key;
         int sequence = ++_renderSequence;
         bool bottom = forceBottom || !preserveAnchor && IsHistoryAtBottom();
-        int firstChar = _history.GetCharIndexFromPosition(Point.Empty);
-        var anchor = _senders.LastOrDefault(s => s.Start <= firstChar);
-        if (anchor.Message == null && _senders.Count > 0) anchor = _senders[0];
-        int anchorY = anchor.Message == null ? 0 : _history.GetPositionFromCharIndex(anchor.Start).Y;
-        var scroll = ScrollPosition(); int selection = _history.SelectionStart;
+        int scroll = _history.ScrollBar.ValueY;
+        var anchor = _history.Items.FirstOrDefault(item => item.Tag is LoungeMessage && item.rect.Bottom > scroll);
+        long? anchorId = (anchor?.Tag as LoungeMessage)?.Id;
+        int anchorY = anchor == null ? 0 : anchor.rect.Top - scroll;
         bool append = !preserveAnchor && _renderedKeys.Length > 0 && keys.Length >= _renderedKeys.Length && keys.Take(_renderedKeys.Length).SequenceEqual(_renderedKeys);
         int start = append ? _renderedKeys.Length : 0;
         _renderingHistory = true;
         try
         {
-            if (!append) { _history.Clear(); _senders.Clear(); _lastRenderedMessage = null; _lastRenderedDate = null; }
-            _history.SelectionStart = _history.TextLength;
-            if (messages.Length == 0) _history.AppendText("暂无符合条件的消息；可切换筛选或加载更早消息。\n");
+            if (!append) { ClearHistoryItems(); _lastRenderedMessage = null; _lastRenderedDate = null; }
+
+            if (messages.Length == 0) _history.Items.Add(new AntdUI.Chat.TipChatItem("暂无符合条件的消息；可切换筛选或加载更早消息。"));
             foreach (var message in messages.Skip(start)) AppendTimelineMessage(message);
             _renderedKeys = keys;
+            if (_selectedHistoryMessage != null && !messages.Any(m => m.Id == _selectedHistoryMessage.Id)) _selectedHistoryMessage = null;
             if (bottom)
             {
                 ScrollToBottom();
                 int interaction = _scrollInteraction;
-                _history.BeginInvoke(() => { if (!_history.IsDisposed && sequence == _renderSequence && interaction == _scrollInteraction) ScrollToBottom(); });
+                if (_history.IsHandleCreated)
+                    _history.BeginInvoke(() => { if (!_history.IsDisposed && sequence == _renderSequence && interaction == _scrollInteraction) ScrollToBottom(); });
             }
             else
             {
-                _history.SelectionStart = Math.Min(selection, _history.TextLength); _history.SelectionLength = 0;
-                var found = anchor.Message == null ? default : _senders.FirstOrDefault(s => s.Message.Id == anchor.Message.Id);
-                if (found.Message != null) scroll.Y = Math.Max(0, ScrollPosition().Y + _history.GetPositionFromCharIndex(found.Start).Y - anchorY);
-                HistoryScrollMessage(_history.Handle, 0x04DE, 0, ref scroll);
+                var found = _history.Items.FirstOrDefault(item => item.Tag is LoungeMessage m && m.Id == anchorId);
+                _history.ScrollBar.ValueY = Math.Max(0, found == null ? scroll : found.rect.Top - anchorY);
             }
         }
         finally { _renderingHistory = false; }
     }
     private void AppendTimelineMessage(LoungeMessage message)
     {
-        var p = UiTheme.Palette; var time = message.SentAt.ToLocalTime();
+        var time = message.SentAt.ToLocalTime();
         if (_lastRenderedDate != time.Date)
         {
-            _history.SelectionColor = p.TextSecondary; _history.AppendText($"──────── {time:yyyy-MM-dd} ────────\n\n"); _lastRenderedDate = time.Date;
+            _history.Items.Add(new AntdUI.Chat.TipChatItem(time.ToString("yyyy-MM-dd")));
+            _lastRenderedDate = time.Date;
         }
-        _senders.Add((_history.TextLength, message.SenderId, message));
         if (message.Kind == "online")
-        {
-            _history.SelectionColor = p.TextSecondary; _history.AppendText($"· {message.Name} 加入休息室  [{NormalizeRegion(message.Region)}]  {time:HH:mm}\n\n");
-        }
+            _history.Items.Add(new AntdUI.Chat.TipChatItem($"{message.Name} 加入休息室  [{NormalizeRegion(message.Region)}]  {time:HH:mm}") { Tag = message });
         else
         {
             bool group = message.Kind == "chat" && _lastRenderedMessage is { Kind: "chat" } previous && previous.SenderId == message.SenderId && previous.Name == message.Name && previous.Region == message.Region && message.SentAt - previous.SentAt < TimeSpan.FromMinutes(3);
-            if (!group)
+            string rank = _visibleMembers.FirstOrDefault(m => m.Name == message.Name && m.Region == message.Region)?.Rank ?? "";
+            string name = group ? "" : $"{message.Name}  [{NormalizeRegion(message.Region)}]{(rank.Length > 0 ? " [" + rank + "]" : "")}  {time:HH:mm}";
+            if (message.Kind == "sticker" && LoungeContent.Sticker(message.Text) is { } sticker)
             {
-                _history.SelectionColor = p.Accent;
-                string rank = _visibleMembers.FirstOrDefault(m => m.Name == message.Name && m.Region == message.Region)?.Rank ?? "";
-                _history.AppendText($"{message.Name}  [{NormalizeRegion(message.Region)}]{(rank.Length > 0 ? " [" + rank + "]" : "")}  {time:HH:mm}\n");
+                var image = LoungeStickerArt.Create(sticker); _historyImages.Add(image);
+                _history.Items.Add(new AntdUI.Chat.ImageChatItem(image, null!, name) { Width = 156, Height = 132, Tag = message });
             }
-            _history.SelectionColor = LoungeContent.Mentions(message).Contains(_client.CurrentPlayerId) ? p.Accent : p.TextPrimary;
-            if (message.Kind == "sticker" && LoungeContent.Sticker(message.Text) is { } sticker) Infrastructure.Lounge.LoungeStickerArt.Append(_history, sticker);
-            else if (message.Kind == "recruit" && _client.Recruitments.FirstOrDefault(r => r.MessageId == message.Id) is { } recruitment) _history.AppendText(RecruitmentSummary(recruitment));
-            else _history.AppendText(message.Kind is "victory" or "highlight" ? LoungeContent.Display(message).Replace("【" + message.Name + "】", "", StringComparison.Ordinal).Trim() : LoungeContent.Display(message));
-            _history.AppendText("\n\n");
+            else
+            {
+                string text = message.Kind == "recruit" && _client.Recruitments.FirstOrDefault(r => r.MessageId == message.Id) is { } recruitment
+                    ? RecruitmentSummary(recruitment) : message.Kind is "victory" or "highlight"
+                        ? LoungeContent.Display(message).Replace("【" + message.Name + "】", "", StringComparison.Ordinal).Trim() : LoungeContent.Display(message);
+                _history.Items.Add(new AntdUI.Chat.TextChatItem(text, null!, name) { Tag = message });
+            }
         }
         _lastRenderedMessage = message;
     }

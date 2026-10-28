@@ -22,7 +22,7 @@ public sealed partial class LoungeForm
 
     private void ShowHistoryMenu(Point location)
     {
-        var message = _senders.LastOrDefault(sender => sender.Start <= _history.SelectionStart).Message;
+        var message = SelectedHistoryMessage;
         OpenLoungeMenu(_history, location,
             ("屏蔽此消息发送者", () =>
             {

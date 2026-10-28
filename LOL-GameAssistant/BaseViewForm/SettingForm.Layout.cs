@@ -84,7 +84,7 @@ public partial class SettingForm
         {
             int[] widths = rows.GetColumnWidths();
             if (widths.Length < 2) return;
-            foreach (System.Windows.Forms.Label note in rows.Controls.OfType<System.Windows.Forms.Label>())
+            foreach (AntdUI.Label note in rows.Controls.OfType<AntdUI.Label>().Where(label => label.Name == "aiDescription"))
             {
                 // Layout fires before the table recalculates its percent column. Use the
                 // current client width so an early narrow measurement cannot stick.
@@ -98,11 +98,12 @@ public partial class SettingForm
         return rows;
     }
 
-    // WinForms labels measure wrapped text at MaximumSize; AntdUI auto-size labels measure one line.
-    private static System.Windows.Forms.Label CreateAiNote(string text) => new()
+    // Only the description grows vertically; section headers and field captions keep their own layout.
+    private static AntdUI.Label CreateAiNote(string text) => new()
     {
-        Text = text, AutoSize = true, Dock = DockStyle.Top,
-        ForeColor = Color.DimGray, UseMnemonic = false
+        Name = "aiDescription", Text = text, TextMultiLine = true, AutoSize = true, AutoSizeMode = AntdUI.TAutoSize.Height,
+        TextAlign = ContentAlignment.TopLeft, Dock = DockStyle.Top,
+        ForeColor = Color.DimGray
     };
 
     /// <summary>各列独立向下排列，避免英雄列表把另一列的设置挤出首屏。</summary>

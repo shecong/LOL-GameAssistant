@@ -1,4 +1,6 @@
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Application.GameData;
+using LOL_GameAssistant.Application.Ranked;
 using LOL_GameAssistant.Domain.GameData;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
@@ -82,7 +84,7 @@ internal sealed class MatchHistoryListHeader : Control, IThemeAware
         base.OnPaint(e);
         e.Graphics.TranslateTransform(4, 0);
         foreach (var column in MatchListColumns.Get(Math.Max(0, Math.Min(Width, _contentWidth?.Invoke() ?? Width) - 8), Height, DeviceDpi))
-            MatchListColumns.Text(e.Graphics, column.Title, Font, UiTheme.Palette.TextSecondary, column.Bounds);
+            MatchListColumns.Text(e.Graphics, UiLanguage.T(column.Title), Font, UiTheme.Palette.TextSecondary, column.Bounds);
     }
     public void ApplyTheme(ThemePalette palette) { BackColor = palette.SurfaceRaised; Invalidate(); }
 }
@@ -93,6 +95,7 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     private readonly MatchParticipant? _mine;
     private MatchHonors _honors = new(null, [], false);
     private readonly string _champion;
+    private readonly int? _lpDelta;
     private readonly MatchRowImages _images;
     private readonly ToolTip _tip = new();
     private bool _hover;
@@ -102,9 +105,10 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     internal bool Selected { get => _selected; set { _selected = value; Invalidate(); } }
     internal event Action<MatchHistoryGame>? Activated;
 
-    internal MatchHistoryListRow(MatchHistoryGame game, string puuid, IGameAssetService assets, IChampionCatalog champions)
+    internal MatchHistoryListRow(MatchHistoryGame game, string puuid, IGameAssetService assets, IChampionCatalog champions, RankedLpStore? lpStore = null)
     {
         Game = game; _mine = game.GetParticipant(puuid);
+        _lpDelta = game.QueueId is 420 or 440 ? (lpStore ?? RankedLpStore.Shared).Get(game.PlatformId, puuid, game.GameId) : null;
         _champion = _mine == null ? "英雄未提供" : champions.GetDisplayName(_mine.championId);
         if (string.IsNullOrWhiteSpace(_champion)) _champion = _mine == null ? "英雄未提供" : $"英雄 {_mine.championId}";
         Font = new Font(UiMetrics.FontFamily, 10F);
@@ -118,6 +122,7 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     }
     private string ResultText => !Game.IsCompletedGame() ? "重开" : _mine?.stats is not { HasWinResult: true } ? "未知" : _mine.IsWin() ? "胜利" : "失败";
     private string KdaText => _mine?.stats is { HasKdaResult: true } ? _mine.GetKdaText() : "—";
+    internal string? LpText => Game.QueueId is not (420 or 440) ? null : _lpDelta is int delta ? $"{delta:+0;-0;0} LP" : "胜点 —";
     internal MatchHonors Honors => _honors;
     internal void ApplyDetailHonors(MatchDetail detail, string puuid)
     {
@@ -127,9 +132,11 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     private void SetHonors(MatchHonors honors)
     {
         _honors = honors;
-        AccessibleName = $"{ResultText} · {_champion} · {Game.GetModeText()} · {KdaText} · {honors.Text}";
+        AccessibleName = $"{ResultText} · {_champion} · {Game.GetModeText()} · {KdaText} · {honors.Text}" + (LpText == null ? "" : " · " + LpText);
         _tip.SetToolTip(this, $"{AccessibleName}\n{CreatedText}\n{MatchHonorCalculator.Explanation}" +
-            (honors.MvpEvaluated ? "" : "\nMVP 暂无法评选，需完整双方数据与明确胜负。") + "\n点击加载本局详情，列表位置不变。");
+            (honors.MvpEvaluated ? "" : "\nMVP 暂无法评选，需完整双方数据与明确胜负。") +
+            (LpText == "胜点 —" ? "\n该场胜点变化不可用：未记录完整的赛前赛后数据或发生段位变化。"
+                : LpText != null ? "\n胜点为该局前后的已核对差值，期间其他排位调整也可能影响数值。" : "") + "\n点击加载本局详情，列表位置不变。");
         Invalidate();
     }
     private string CreatedText
@@ -166,7 +173,14 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
             var rect = column.Bounds;
             switch (column.Title)
             {
-                case "结果": MatchListColumns.Text(e.Graphics, ResultText, bold, resultColor, rect); break;
+                case "结果":
+                    MatchListColumns.Text(e.Graphics, UiLanguage.T(ResultText), bold, resultColor, LpText == null ? rect : new(rect.X, S(2), rect.Width, S(24)));
+                    if (LpText != null)
+                    {
+                        using var lpFont = new Font(UiMetrics.FontFamily, 7.5F);
+                        MatchListColumns.Text(e.Graphics, LpText, lpFont, _lpDelta.HasValue ? resultColor : p.TextSecondary, new(rect.X, S(26), rect.Width, S(20)));
+                    }
+                    break;
                 case "英雄":
                     int icon = S(32), y = (Height - icon) / 2;
                     DrawIcon(e.Graphics, "champion", _mine?.championId ?? 0, new(rect.X, y, icon, icon));
@@ -186,7 +200,7 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
                         DrawIcon(e.Graphics, "spell", _mine?.Spell2Id ?? 0, new(rect.Right - S(25), S(26), S(16), S(16)));
                     }
                     break;
-                case "模式": MatchListColumns.Text(e.Graphics, Game.GetModeText(), Font, p.TextSecondary, rect); break;
+                case "模式": MatchListColumns.Text(e.Graphics, UiLanguage.T(Game.GetModeText()), Font, p.TextSecondary, rect); break;
                 case "K / D / A":
                     MatchListColumns.Text(e.Graphics, KdaText.Replace("/", " / "), bold, p.TextPrimary,
                         _honors.Mvp is null ? rect : new(rect.X, S(2), rect.Width, S(24)));

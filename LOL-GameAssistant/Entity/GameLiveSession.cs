@@ -17,6 +17,9 @@
     /// </summary>
     public class GameData
     {
+        [Newtonsoft.Json.JsonProperty("gameId")]
+        public long GameId { get; set; }
+
         [Newtonsoft.Json.JsonProperty("gameMode")]
         public string GameMode { get; set; } = "";
 

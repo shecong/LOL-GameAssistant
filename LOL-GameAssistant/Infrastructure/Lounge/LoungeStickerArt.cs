@@ -1,6 +1,4 @@
 using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using LOL.Lounge;
 
 namespace LOL_GameAssistant.Infrastructure.Lounge;
@@ -8,7 +6,6 @@ namespace LOL_GameAssistant.Infrastructure.Lounge;
 // Built-in vector faces. No URLs, uploaded bytes or clipboard images are accepted.
 internal static class LoungeStickerArt
 {
-    private static readonly Dictionary<string, string> RtfCache = [];
 
     public static Bitmap Create(LoungeSticker sticker)
     {
@@ -42,38 +39,4 @@ internal static class LoungeStickerArt
         return bitmap;
     }
 
-    public static void Append(RichTextBox box, LoungeSticker sticker)
-    {
-        if (!RtfCache.TryGetValue(sticker.Id, out string? rtf))
-        {
-            using var bitmap = Create(sticker);
-            using var reference = box.CreateGraphics();
-            nint dc = reference.GetHdc();
-            try
-            {
-                using var stream = new MemoryStream();
-                using var meta = new Metafile(stream, dc);
-                using (var drawing = Graphics.FromImage(meta)) drawing.DrawImage(bitmap, 0, 0, bitmap.Width, bitmap.Height);
-                nint handle = meta.GetHenhmetafile();
-                try
-                {
-                    uint size = GetWinMetaFileBits(handle, 0, null, 8, dc);
-                    if (size == 0) throw new InvalidOperationException("表情绘制失败。");
-                    var bytes = new byte[size];
-                    if (GetWinMetaFileBits(handle, size, bytes, 8, dc) == 0) throw new InvalidOperationException("表情绘制失败。");
-                    rtf = $"{{\\rtf1\\ansi{{\\pict\\wmetafile8\\picwgoal2340\\pichgoal1980 {Convert.ToHexString(bytes)}}}}}";
-                    RtfCache[sticker.Id] = rtf;
-                }
-                finally { DeleteEnhMetaFile(handle); }
-            }
-            finally { reference.ReleaseHdc(dc); }
-        }
-        box.SelectedRtf = rtf;
-    }
-
-    [DllImport("gdi32.dll")]
-    private static extern uint GetWinMetaFileBits(nint metafile, uint size, byte[]? buffer, int mode, nint dc);
-    [DllImport("gdi32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DeleteEnhMetaFile(nint metafile);
 }

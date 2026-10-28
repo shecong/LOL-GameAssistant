@@ -1,3 +1,4 @@
+using Button = AntdUI.Button;
 using LOL_GameAssistant.Bootstrap;
 
 namespace LOL_GameAssistant.BaseViewForm;

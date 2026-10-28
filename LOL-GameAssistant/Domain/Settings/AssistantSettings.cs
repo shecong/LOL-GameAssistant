@@ -102,6 +102,7 @@ public sealed class AssistantSettings
     public bool AutoApplyRuneBuild { get; set; } = true;
     public bool MayhemOverlayEnabled { get; set; } = true;
     public bool ChampSelectCompanionEnabled { get; set; } = true;
+    public bool EnemyJungleRouteEnabled { get; set; }
     public bool LaunchOnStartup { get; set; }
 
     /// <summary>统一修正旧配置缺失或异常时的安全默认值。</summary>

@@ -27,6 +27,7 @@ namespace LOL_GameAssistant
         private readonly MayhemOverlayController _mayhemOverlay = new();
         private readonly BattleOverlayController _battleOverlay = new();
         private readonly ChampSelectCompanionForm _champSelectCompanion = new();
+        private readonly CancellationTokenSource _rankedLpLifetime = new();
         private DiagnosticsForm? _diagnosticsForm;
         public DiagnosticsForm diagnosticsForm => _diagnosticsForm is { IsDisposed: false }
             ? _diagnosticsForm : _diagnosticsForm = new DiagnosticsForm();
@@ -45,7 +46,6 @@ namespace LOL_GameAssistant
         private readonly IRecommendationCoordinator _recommendationCoordinator;
         private readonly LeagueClientConnectionMonitor _connectionMonitor;
         private NotifyIcon? _trayIcon;
-        private ContextMenuStrip? _trayMenu;
         private Image? _headerIconImage;
         private CancellationTokenSource? _autoActionCts;
         private bool _autoActionStartedForChampSelect;
@@ -232,12 +232,15 @@ namespace LOL_GameAssistant
                 _diagnosticsForm?.Dispose();
                 _settingForm?.Dispose();
                 _lounge.Dispose();
+                _jungleRoute?.Dispose();
+                _rankedLpLifetime.Cancel();
             };
         }
 
         /// <summary>应用设置页中的透明度和“按住置顶”快捷键。</summary>
         public void ApplyWindowSettings(AssistantSettings config)
         {
+            ApplyJungleRouteSetting(config.EnemyJungleRouteEnabled);
             _windowHoldController.Apply(config);
             RefreshBattleOverlaySetting(config);
             ConfigureQuickShoutHotkeys(config);
@@ -261,11 +264,6 @@ namespace LOL_GameAssistant
         private void UiLanguageChanged(object? sender, EventArgs e)
         {
             if (_trayIcon != null) _trayIcon.Text = UiLanguage.T("sc助手 运行中");
-            if (_trayMenu is { Items.Count: >= 3 })
-            {
-                _trayMenu.Items[0].Text = UiLanguage.T("显示窗口");
-                _trayMenu.Items[2].Text = UiLanguage.T("退出");
-            }
         }
 
         /// <summary>Reapply the semantic palette to all pages already attached to the main window.</summary>
@@ -831,6 +829,7 @@ namespace LOL_GameAssistant
                     break;
 
                 case "inprogress":
+                    _ = CaptureRankedLpAsync(start: true);
                     // 游戏进程、实时客户端接口和全员阵容并非同时可用，使用同一套延迟加载策略。
                     StartPhaseDataLoad(GameFlowPhase.InProgress);
                     break;
@@ -838,6 +837,7 @@ namespace LOL_GameAssistant
                 case "waitingforstats":
                 case "terminatedinerror":
                 case "endofgame":
+                    _ = CaptureRankedLpAsync(start: false);
                     StopPhaseDataLoad();
                     //结束对局：通知 + 刷新战绩
                     // 该局已经结束，清除对局页阵容和房间标识；下一局重新读取会话。
@@ -852,6 +852,17 @@ namespace LOL_GameAssistant
                 default:
                     break;
             }
+        }
+
+        private async Task CaptureRankedLpAsync(bool start)
+        {
+            try
+            {
+                if (start) await AppCompositionRoot.RankedLpTracker.CaptureStartAsync(_rankedLpLifetime.Token);
+                else await AppCompositionRoot.RankedLpTracker.CaptureEndAsync(_rankedLpLifetime.Token);
+            }
+            catch (OperationCanceledException) when (_rankedLpLifetime.IsCancellationRequested) { }
+            catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
         }
 
         /// <summary>根据持久化延迟范围安排一次自动接受；同一轮 Ready Check 不重复排队。</summary>
@@ -1236,16 +1247,12 @@ namespace LOL_GameAssistant
                 Visible = false
             };
 
-            var menu = new ContextMenuStrip();
-            _trayMenu = menu;
-            menu.Items.Add(UiLanguage.T("显示窗口"), null, (_, _) => ShowWindow());
-            menu.Items.Add("-");
-            menu.Items.Add(UiLanguage.T("退出"), null, (_, _) => ExitApp());
-            _trayIcon.ContextMenuStrip = menu;
             // 单击也要能唤回窗口：只挂双击时，习惯单击托盘图标的人会以为程序打不开了。
             _trayIcon.MouseClick += (_, e) =>
             {
                 if (e.Button == MouseButtons.Left) ShowWindow();
+                else if (e.Button == MouseButtons.Right)
+                    UiContextMenu.Open(this, Cursor.Position, ("显示窗口", ShowWindow, true), ("退出", ExitApp, true));
             };
             _trayIcon.DoubleClick += (_, _) => ShowWindow();
         }

@@ -33,6 +33,7 @@ public sealed class LobbySnapshot
 /// <summary>实际游戏阶段的双方阵容快照。</summary>
 public sealed class ActiveGameSnapshot
 {
+    public long GameId { get; init; }
     public string Phase { get; init; } = "";
     public string GameMode { get; init; } = "";
     public int QueueId { get; init; }

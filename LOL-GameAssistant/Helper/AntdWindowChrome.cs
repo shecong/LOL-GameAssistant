@@ -47,6 +47,7 @@ internal static class AntdWindowChrome
             window.HandleCreated += HandleCreated;
             window.HandleDestroyed += HandleDestroyed;
             window.Disposed += WindowDisposed;
+            UiTheme.Changed += ThemeChanged;
             if (fitWorkingArea)
             {
                 window.Shown += FitWindow;
@@ -71,12 +72,21 @@ internal static class AntdWindowChrome
         /// <summary>窗口释放时注销事件并解除原生句柄绑定。</summary>
         private void WindowDisposed(object? sender, EventArgs e)
         {
+            UiTheme.Changed -= ThemeChanged;
             _window.HandleCreated -= HandleCreated;
             _window.HandleDestroyed -= HandleDestroyed;
             _window.Disposed -= WindowDisposed;
             _window.Shown -= FitWindow;
             _window.DpiChanged -= DpiChanged;
             ReleaseHandle();
+        }
+
+        private void ThemeChanged(object? sender, EventArgs e)
+        {
+            // Main window has its own global style refresh; independent windows follow it here.
+            if (_window is GameMain || _window.IsDisposed || !_window.IsHandleCreated) return;
+            void Apply() { if (!_window.IsDisposed) UiTheme.Apply(_window); }
+            if (_window.InvokeRequired) _window.BeginInvoke(Apply); else Apply();
         }
 
         private void FitWindow(object? sender, EventArgs args)

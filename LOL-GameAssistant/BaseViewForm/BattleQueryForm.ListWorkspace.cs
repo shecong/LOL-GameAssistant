@@ -1,3 +1,4 @@
+using SplitContainer = AntdUI.Splitter;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Bootstrap;
@@ -54,7 +55,21 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
     private bool _filterHistoryTruncated;
     private string _filterHistorySource = "接口";
     private int _filterMissingSummaryCount;
-    private sealed record ChampionChoice(int? Id, string Name) { public override string ToString() => Name; }
+    private sealed record ChampionChoice(int? Id, string Name) { public override string ToString() => Id == null ? UiLanguage.T(Name) : Name; }
+    private sealed record FilterChoice(string Value) { public override string ToString() => UiLanguage.T(Value); }
+    private static string FilterValue(AntdUI.Select select) => (select.SelectedValue as FilterChoice)?.Value ?? "全部";
+    private void RefreshFilterLanguage(object? sender, EventArgs args)
+    {
+        if (IsDisposed) return;
+        if (InvokeRequired) { BeginInvoke(() => RefreshFilterLanguage(sender, args)); return; }
+        foreach (var select in new[] { _modeSelect, _championFilter, _resultFilter })
+            select.Text = select.SelectedValue?.ToString() ?? "";
+        foreach (var select in panelStats.Controls.Find("matchStatsModeFilter", true).OfType<AntdUI.Select>())
+            select.Text = select.SelectedValue?.ToString() ?? "";
+        _columnHeader.Invalidate();
+        stackMatches.Invalidate(true);
+        UpdateResponsiveLayout();
+    }
     private bool _adjustingSplit;
 
     private void InitializeListWorkspace()
@@ -82,7 +97,7 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         _listFilters.Controls.Add(_modeSelect);
         _championFilter.Items.Add(new ChampionChoice(null, "全部英雄")); _championFilter.SelectedIndex = 0;
         foreach (var champion in _listChampions.GetAll()) _championFilter.Items.Add(new ChampionChoice(champion.Id, champion.DisplayName));
-        foreach (string item in new[] { "全部结果", "胜利", "失败", "重开" }) _resultFilter.Items.Add(item);
+        foreach (string item in new[] { "全部结果", "胜利", "失败", "重开" }) _resultFilter.Items.Add(new FilterChoice(item));
         _resultFilter.SelectedIndex = 0;
         _championFilter.SelectedIndexChanged += async (_, _) =>
         {
@@ -93,7 +108,7 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         _resultFilter.SelectedIndexChanged += async (_, _) =>
         {
             if (_suppressListFilters) return;
-            _selectedResult = _resultFilter.SelectedValue?.ToString() ?? "全部结果";
+            _selectedResult = (_resultFilter.SelectedValue as FilterChoice)?.Value ?? "全部结果";
             _currentPage = 1; if (_currentPlayer != null) await RenderMatchPageAsync();
         };
         var reset = new AntdUI.Button { Text = "重置", Width = 60, Height = UiMetrics.ControlHeight };
@@ -121,6 +136,8 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         panelPlayer.Controls.Add(_recentSummary);
         _sourceLabel.Click += async (_, _) => { if (_currentPlayer != null) await RenderMatchPageAsync(); };
         _sourceLabel.Cursor = Cursors.Hand;
+        UiLanguage.Changed += RefreshFilterLanguage;
+        Disposed += (_, _) => UiLanguage.Changed -= RefreshFilterLanguage;
     }
     private void LayoutListFilters()
     {
@@ -149,8 +166,10 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
             _matchWorkspace.Panel1MinSize = _matchWorkspace.Panel2MinSize = 0;
             var orientation = narrow ? Orientation.Horizontal : Orientation.Vertical;
             bool change = _matchWorkspace.Orientation != orientation;
-            _matchWorkspace.Orientation = orientation;
+            // 换向时 AntdUI.Splitter 会按当前分隔距离重新校验，目标方向装不下时留到下次 SizeChanged。
             int dimension = narrow ? _matchWorkspace.Height : _matchWorkspace.Width;
+            if (change && dimension < _matchWorkspace.SplitterDistance + _matchWorkspace.SplitterWidth + 1) return;
+            _matchWorkspace.Orientation = orientation;
             int preferred = narrow ? dimension / 2 : dimension - Math.Clamp((int)(dimension * .40), S(430), S(670));
             if (reset || change || _matchWorkspace.SplitterDistance < S(180) || dimension - _matchWorkspace.SplitterDistance < S(160))
                 _matchWorkspace.SplitterDistance = Math.Clamp(preferred, 1, dimension - _matchWorkspace.SplitterWidth - 1);

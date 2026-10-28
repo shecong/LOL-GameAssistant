@@ -1,3 +1,5 @@
+using Panel = AntdUI.Panel;
+using PictureBox = AntdUI.Avatar;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Helper;
 
@@ -107,7 +109,7 @@ internal sealed class ClientIdentityForm : AntdUI.Window, IThemeAware
             bool selected = _selected?.Category == choice.Category && _selected.Id == choice.Id;
             var tile = new AntdUI.Panel { Width = 190, Height = 220, Padding = new Padding(7), Radius = 8, BorderWidth = selected ? 3 : 1,
                 Margin = new Padding(6), BackColor = UiTheme.Palette.SurfaceRaised, ForeColor = UiTheme.Palette.TextPrimary };
-            var picture = new PictureBox { Dock = DockStyle.Top, Height = 108, SizeMode = PictureBoxSizeMode.Zoom };
+            var picture = new PictureBox { Dock = DockStyle.Top, Height = 108, ImageFit = AntdUI.TFit.Contain };
             var details = new AntdUI.Label { Dock = DockStyle.Fill, TextMultiLine = true, AutoEllipsis = true,
                 Text = choice.Name + "\n" + (choice.Owned == true ? "已拥有" : choice.Owned == false ? "未获取" : "拥有状态未知") + " · ID " + choice.Id,
                 Padding = new Padding(2, 4, 2, 0) };

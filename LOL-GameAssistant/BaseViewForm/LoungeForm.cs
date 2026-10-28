@@ -1,3 +1,4 @@
+using Panel = AntdUI.Panel;
 using LOL.Lounge;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.Lounge;
@@ -14,7 +15,7 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
     private readonly AntdUI.Checkbox _victories = new() { Text = "显示战绩播报", AutoSize = true, Checked = true };
     private readonly AntdUI.Button _connect = new() { Text = "保存并连接", Dock = DockStyle.Fill, Type = AntdUI.TTypeMini.Primary };
     // RichEdit preserves inline sticker images, text selection and the reading anchor when prepending history.
-    private readonly RichTextBox _history = new() { Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BorderStyle = BorderStyle.None };
+    private readonly AntdUI.Chat.ChatList _history = new() { Dock = DockStyle.Fill, IconLess = true, EnabledClickImage = false };
     private readonly AntdUI.Table _members = CreateLoungeList();
     private readonly AntdUI.Label _memberCount = new() { Dock = DockStyle.Top, Height = 36, Text = "在线成员 · 0", TextAlign = ContentAlignment.MiddleLeft };
     private readonly AntdUI.Input _input = new() { Dock = DockStyle.Fill, Multiline = true, MaxLength = LoungeRules.MaxTextLength,
@@ -23,7 +24,9 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
     private readonly AntdUI.Label _feedback = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly System.Windows.Forms.Timer _refresh = new() { Interval = 500 };
     private LoungeMember[] _visibleMembers = [];
-    private readonly List<(int Start, string Sender, LoungeMessage Message)> _senders = [];
+    private LoungeMessage? _selectedHistoryMessage;
+    private LoungeMessage? SelectedHistoryMessage => _selectedHistoryMessage ?? _history.FocusedChatItem?.Tag as LoungeMessage;
+    private readonly List<Image> _historyImages = [];
     private string _historyKey = "\0";
     private string _memberKey = "";
     private string _pendingId = Guid.NewGuid().ToString("N");
@@ -109,18 +112,17 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
             try { _client.ClearBlocks(); _historyKey = "\0"; RefreshView(); }
             catch (Exception ex) { _feedback.Text = ex.Message; }
         };
-        _history.MouseUp += (_, e) =>
+        _history.ItemClick += (_, e) =>
         {
-            if (e.Button != MouseButtons.Right) return;
-            _history.SelectionStart = _history.GetCharIndexFromPosition(e.Location);
-            ShowHistoryMenu(_history.PointToScreen(e.Location));
+            _selectedHistoryMessage = e.Item.Tag as LoungeMessage;
+            if (e.Button == MouseButtons.Right) ShowHistoryMenu(_history.PointToScreen(e.Location));
+            else if (e.Clicks == 2) OpenSelectedRecruitment();
         };
         _history.KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Apps || (e.Shift && e.KeyCode == Keys.F10))
             { ShowHistoryMenu(_history.PointToScreen(Point.Empty)); e.SuppressKeyPress = true; }
         };
-        _history.MouseDoubleClick += (_, _) => OpenSelectedRecruitment();
         _members.CellClick += (_, e) =>
         {
             if (e.Button != MouseButtons.Right || _members.DataSource is not LoungeListRow[] rows) return;
@@ -225,16 +227,14 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
         RefreshTimeline();
     }
 
-    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
-    private static extern nint HistoryScrollMessage(nint window, uint message, nint parameter, ref Point point);
-
-    public void ApplyTheme(ThemePalette palette)
+public void ApplyTheme(ThemePalette palette)
     {
         AntdContentTheme.Apply(this, palette);
         BackColor = palette.Surface;
         ForeColor = palette.TextPrimary;
         _history.BackColor = palette.SurfaceRaised;
-        _history.ForeColor = palette.TextPrimary;
+        _history.ForeColor = palette.TextPrimary; _history.ForeBubble = palette.TextPrimary;
+        _history.BackBubble = palette.SurfaceMuted; _history.BackActiveBubble = palette.SurfaceMuted;
         _members.BackColor = palette.SurfaceRaised;
         _members.ForeColor = palette.TextPrimary;
         _members.RowSelectedBg = palette.SurfaceMuted;
@@ -267,7 +267,7 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
     protected override void Dispose(bool disposing)
     {
         if (disposing && !_resourcesDisposed)
-        { _resourcesDisposed = true; _socialLifetime.Cancel(); _socialLifetime.Dispose(); _historyLoads.Dispose(); _memberTips.Dispose(); _client.SetReading(false); _refresh.Dispose(); }
+        { _resourcesDisposed = true; ClearHistoryItems(); _socialLifetime.Cancel(); _socialLifetime.Dispose(); _historyLoads.Dispose(); _memberTips.Dispose(); _client.SetReading(false); _refresh.Dispose(); }
         base.Dispose(disposing);
     }
 }

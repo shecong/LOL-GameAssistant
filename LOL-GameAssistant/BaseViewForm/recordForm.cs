@@ -1,3 +1,6 @@
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
+using PictureBox = AntdUI.Avatar;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Bootstrap;
@@ -335,7 +338,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     Name = "championAvatar",
                     Size = new Size(30, 30),
-                    SizeMode = PictureBoxSizeMode.Zoom,
+                    ImageFit = AntdUI.TFit.Contain,
                     BorderWidth = isMe ? 3 : 1,
                     BorderColor = isMe ? Color.FromArgb(255, 193, 7) : Color.FromArgb(160, 255, 255, 255),
                     Margin = new Padding(0, 0, 4, 0)
@@ -412,15 +415,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>
         /// 替换控件图片并释放旧图，避免内存泄漏。
         /// </summary>
-        private void ReplaceImage(PictureBox box, Image? image)
-        {
-            if (IsDisposed || box.IsDisposed) { image?.Dispose(); return; }
-            if (_ownedImages.Remove(box, out Image? old)) old.Dispose();
-            box.Image = image;
-            if (image != null) _ownedImages[box] = image;
-        }
 
-        /// <summary>替换控件图像并释放旧图像资源。</summary>
         private void ReplaceImage(AntdUI.Avatar box, Image? image)
         {
             if (IsDisposed || box.IsDisposed) { image?.Dispose(); return; }

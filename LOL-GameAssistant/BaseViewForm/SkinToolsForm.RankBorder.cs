@@ -1,3 +1,4 @@
+using Panel = AntdUI.Panel;
 using LOL_GameAssistant.Domain.Skins;
 using LOL_GameAssistant.Helper;
 

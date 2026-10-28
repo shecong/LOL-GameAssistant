@@ -15,6 +15,14 @@ internal static class AntdContentTheme
             input.BorderHover = palette.Border;
             input.BorderActive = palette.Accent;
         }
+        if (root is AntdUI.Table table)
+        {
+            table.BackColor = palette.SurfaceRaised;
+            table.ForeColor = palette.TextPrimary;
+            table.ColumnBack = palette.SurfaceMuted;
+            table.ColumnFore = palette.TextSecondary;
+            table.BorderColor = palette.Border;
+        }
         foreach (Control child in root.Controls) Apply(child, palette);
     }
 }

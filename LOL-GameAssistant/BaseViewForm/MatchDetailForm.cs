@@ -1,3 +1,5 @@
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
+using PictureBox = AntdUI.Avatar;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Teams;
@@ -444,7 +446,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     Location = new Point(x + index * 28, y),
                     Size = new Size(24, 24),
-                    SizeMode = PictureBoxSizeMode.Zoom,
+                    ImageFit = AntdUI.TFit.Contain,
                     BackColor = Color.FromArgb(238, 241, 245)
                 };
                 icon.Disposed += (_, _) => icon.Image?.Dispose();
@@ -469,7 +471,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     Location = new Point(x + index * 29, y),
                     Size = new Size(25, 25),
-                    SizeMode = PictureBoxSizeMode.Zoom,
+                    ImageFit = AntdUI.TFit.Contain,
                     BackColor = Color.FromArgb(238, 241, 245)
                 };
                 icon.Disposed += (_, _) => icon.Image?.Dispose();
@@ -528,7 +530,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 var icon = new PictureBox
                 {
                     Location = new Point(70 + index * 29, _gameInfo.IsAugmentAram() ? 160 : 109),
-                    Size = new Size(25, 25), SizeMode = PictureBoxSizeMode.Zoom
+                    Size = new Size(25, 25), ImageFit = AntdUI.TFit.Contain
                 };
                 panel.Controls.Add(icon);
                 icon.Disposed += (_, _) => icon.Image?.Dispose();

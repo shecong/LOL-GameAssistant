@@ -1,3 +1,5 @@
+using Panel = AntdUI.Panel;
+using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
@@ -280,12 +282,12 @@ namespace LOL_GameAssistant.BaseViewForm
             foreach (string mode in new[] { "全部", "峡谷单双排", "峡谷灵活组排", "峡谷匹配", "峡谷匹配（盲选）",
                 "峡谷快速游戏", "深渊大乱斗", "海克斯大乱斗", "斗魂竞技场", "无限火力", "克隆大作战",
                 "终极魔典", "极限闪击", "人机对战", "自定义对局", "其他模式" })
-                _modeSelect.Items.Add(mode);
+                _modeSelect.Items.Add(new FilterChoice(mode));
             _modeSelect.Name = "matchModeFilter";
             _modeSelect.SelectedIndex = 0;
             _modeSelect.SelectedIndexChanged += async (_, _) =>
             {
-                if (!_suppressModeEvents) await ApplyModeFilterAsync(_modeSelect.SelectedValue?.ToString() ?? "全部");
+                if (!_suppressModeEvents) await ApplyModeFilterAsync(FilterValue(_modeSelect));
             };
             modeArea.Controls.Add(_modeSelect);
             historyHeader.Controls.Add(modeArea);
@@ -409,7 +411,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_pageSizeArea != null)
             {
                 _pageSizeArea.Width = Scale(155);
-                _pageSizeArea.Controls[0].Size = new Size(Scale(48), Scale(34));
+                _pageSizeArea.Controls[0].Size = new Size(Scale(UiLanguage.IsEnglish ? 58 : 48), Scale(34));
             }
             if (_historyHeader != null) _historyHeader.Height = Scale(48);
             _historyTitle.Height = Scale(23);
@@ -441,7 +443,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _favoriteActions.Width = Scale(390); _favoriteActions.Height = Scale(46); _favoriteActions.WrapContents = false;
             _favoriteSelect.Width = Scale(170);
             btnLoadFavorite.Width = Scale(48); btnLoadFavorite.AutoSize = false;
-            btnFavorite.Width = Scale(74); btnExport.Width = Scale(82);
+            btnFavorite.Width = Scale(UiLanguage.IsEnglish ? 100 : 74); btnExport.Width = Scale(UiLanguage.IsEnglish ? 110 : 82);
+            if (UiLanguage.IsEnglish) _favoriteActions.Width = Scale(445);
             _regionSelect.Width = Scale(170); if (_myHistoryButton != null) _myHistoryButton.Width = Scale(100);
             _searchActions.Dock = wide ? DockStyle.Fill : DockStyle.Top;
             width = _searchActions.ClientSize.Width;
@@ -728,7 +731,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private PlayerGrowthControl CreateGrowthView()
         {
             var view = new PlayerGrowthControl(_growthService, _matchHistoryService, AppCompositionRoot.ChampionCatalog);
-            view.ModeChanged += mode => { _selectedMode = mode; _statsLoaded = false; _statsVersion++; _suppressModeEvents = true; try { _modeSelect.SelectedValue = mode; } finally { _suppressModeEvents = false; } UpdateHistoryHeader(); };
+            view.ModeChanged += mode => { _selectedMode = mode; _statsLoaded = false; _statsVersion++; _suppressModeEvents = true; try { _modeSelect.SelectedValue = new FilterChoice(mode); } finally { _suppressModeEvents = false; } UpdateHistoryHeader(); };
             panelContent.Controls.Add(view); return view;
         }
 
@@ -924,7 +927,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_selectedMode == mode) return;
             _selectedMode = mode;
             _suppressModeEvents = true;
-            try { _modeSelect.SelectedValue = mode; }
+            try { _modeSelect.SelectedValue = new FilterChoice(mode); }
             finally { _suppressModeEvents = false; }
             _currentPage = 1;
             _totalGameCount = 0;
@@ -954,7 +957,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 try
                 {
                     foreach (string availableMode in _filterHistory.Select(game => game.GetModeText()).Distinct())
-                        if (!_modeSelect.Items.Contains(availableMode)) _modeSelect.Items.Add(availableMode);
+                        if (!_modeSelect.Items.Contains(new FilterChoice(availableMode))) _modeSelect.Items.Add(new FilterChoice(availableMode));
                 }
                 finally { _suppressModeEvents = false; }
             }
@@ -1111,7 +1114,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private void CboPageSize_SelectedIndexChanged(object? sender, EventArgs e)
         {
-            if (cboPageSize.SelectedItem is int size && size > 0)
+            if (cboPageSize.SelectedValue is int size && size > 0)
             {
                 _pageSize = size;
                 if (_matchHistory != null)
@@ -1244,12 +1247,12 @@ namespace LOL_GameAssistant.BaseViewForm
             }
             ThemePalette palette = UiTheme.Palette;
             var filterBar = new AntdUI.Panel { Dock = DockStyle.Top, Height = 48, Radius = 8, BorderWidth = 1, Padding = new Padding(10, 6, 10, 4), BackColor = palette.SurfaceRaised };
-            var modeSelect = new AntdUI.Select { Width = 200, Height = 34 };
-            foreach (string mode in _modeSelect.Items.OfType<string>())
+            var modeSelect = new AntdUI.Select { Name = "matchStatsModeFilter", Width = 200, Height = 34 };
+            foreach (FilterChoice mode in _modeSelect.Items.OfType<FilterChoice>())
                 modeSelect.Items.Add(mode);
-            modeSelect.SelectedValue = filter;
+            modeSelect.SelectedValue = new FilterChoice(filter);
             modeSelect.SelectedIndexChanged += async (_, _) =>
-                await ApplyModeFilterAsync(modeSelect.SelectedValue?.ToString() ?? "全部");
+                await ApplyModeFilterAsync(FilterValue(modeSelect));
             filterBar.Controls.Add(modeSelect);
 
             var chartContainer = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = palette.SurfaceMuted };
