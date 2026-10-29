@@ -16,6 +16,53 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class TclsLoginTests
 {
     [Fact]
+    public void BrokenAccessibleProviderStillUsesRenderedLogin()
+    {
+        var expected = new TclsLoginStep("已识别图像登录表单");
+        var result = TclsAutomaticClientLauncher.ReadLoginStep(
+            () => throw new System.Runtime.InteropServices.COMException("provider unavailable"), () => expected);
+        Assert.Same(expected, result);
+    }
+
+    [Fact]
+    public void VerificationAndCancellationNeverFallThroughToRenderedInput()
+    {
+        var verification = new TclsLoginStep("需要安全验证", true);
+        Assert.Same(verification, TclsAutomaticClientLauncher.ReadLoginStep(() => verification,
+            () => throw new InvalidOperationException("must not type")));
+        Assert.Throws<OperationCanceledException>(() => TclsAutomaticClientLauncher.ReadLoginStep(
+            () => throw new OperationCanceledException(), () => throw new InvalidOperationException("must not type")));
+    }
+
+    [Fact]
+    public void TencentLauncherDiscoveryIncludesHandoffButNotOtherInstallations()
+    {
+        Assert.Equal([@"E:\Games\LOL\TCLS\client.exe", @"E:\Games\LOL\Launcher\Client.exe"],
+            TclsLauncherWindows.Executables(@"E:\Games\LOL\TCLS\client.exe"));
+        Assert.Empty(TclsLauncherWindows.Executables(@"E:\Other\client.exe"));
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+        Assert.True(TclsLauncherWindows.MatchesPath(process, process.MainModule!.FileName));
+        Assert.False(TclsLauncherWindows.MatchesPath(process, @"E:\Other\client.exe"));
+    }
+
+    [Fact]
+    public void RenderedLauncherRequestsForegroundOnceAndWaitsAfterUserSwitchesAway() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var launcher = new Form { Text = "英雄联盟登录程序", ClientSize = new Size(1000, 600), ShowInTaskbar = false };
+        using var other = new Form { Text = "其他窗口", ShowInTaskbar = false };
+        launcher.Show();other.Show();System.Windows.Forms.Application.DoEvents();
+        using var rendered = new TclsRenderedLoginAutomation();
+        var session = new TclsLoginSession();
+        var first = rendered.Step([launcher.Handle], session, "unused-account", "unused-password", default);
+        Assert.Contains("置前", first!.Message);
+        other.Activate();System.Windows.Forms.Application.DoEvents();
+        Thread.Sleep(1100);
+        var second = rendered.Step([launcher.Handle], session, "unused-account", "unused-password", default);
+        Assert.Contains("请将", second!.Message);
+        Assert.False(session.Submitted);
+    });
+
+    [Fact]
     public void PasswordIsEncryptedAndWhitespaceSurvivesRestart()
     {
         string path = Path.Combine(Path.GetTempPath(), "tcls-test-" + Guid.NewGuid(), "accounts.json");

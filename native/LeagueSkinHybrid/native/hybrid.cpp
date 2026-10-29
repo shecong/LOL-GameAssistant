@@ -7,7 +7,7 @@
 #undef main
 #endif
 #include "../../SkinCoreRelay/public.h"
-constexpr UINT KernelMessage = WM_APP + 0x533;
+constexpr UINT KernelMessage = WM_APP + 0x53a;
 #include "kernel_channel.h"
 #ifdef BUILD_HOST
 int main(int argc, char** argv) {

@@ -1,6 +1,5 @@
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using LOL_GameAssistant.Infrastructure.GameData;
@@ -17,16 +16,25 @@ internal sealed class TclsRenderedLoginAutomation : IDisposable
 {
     private PaddleOcrAll? _ocr;
     private DateTime _nextScan;
+    private readonly HashSet<IntPtr> _activationAttempted = [];
 
-    internal TclsLoginStep? Step(AutomationElement[] roots, TclsLoginSession session,
+    internal TclsLoginStep? Step(IntPtr[] windows, TclsLoginSession session,
         string username, string password, CancellationToken token)
     {
         if (DateTime.UtcNow < _nextScan) return null;
         _nextScan = DateTime.UtcNow.AddSeconds(1);
-        foreach (var root in roots)
+        foreach (var window in windows)
         {
-            if (!root.Name.Contains("英雄联盟", StringComparison.Ordinal)) continue;
-            var window = new IntPtr(root.Properties.NativeWindowHandle.ValueOrDefault);
+            var title = new System.Text.StringBuilder(256);
+            GetWindowText(window, title, title.Capacity);
+            if (!title.ToString().Contains("英雄联盟", StringComparison.Ordinal)) continue;
+            // One activation per verified launcher window. Never keep stealing focus from the user.
+            if (!session.Submitted && _activationAttempted.Add(window))
+            {
+                if (IsIconic(window)) ShowWindowAsync(window, 9);
+                SetForegroundWindow(window);
+                return new("已请求将英雄联盟登录程序置前，等待登录面板就绪。");
+            }
             if (window == IntPtr.Zero || !GetClientRect(window, out var rect)) continue;
             Point origin = Point.Empty;
             if (!ClientToScreen(window, ref origin) || rect.Right < 800 || rect.Bottom < 450) continue;
@@ -59,6 +67,8 @@ internal sealed class TclsRenderedLoginAutomation : IDisposable
             void Fill(Point point, string value)
             {
                 Click(point);
+                // Rendered fields apply mouse focus asynchronously, unlike native ValuePattern.
+                if (token.WaitHandle.WaitOne(150)) token.ThrowIfCancellationRequested();
                 Guard(Screen(point));
                 Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
                 // Individual Unicode keystrokes allow cancellation/focus checks throughout a password.
@@ -134,6 +144,10 @@ internal sealed class TclsRenderedLoginAutomation : IDisposable
         .All(point => GetAncestor(WindowFromPoint(point), 2) == window);
 
     public void Dispose() => _ocr?.Dispose();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int count);
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool ShowWindowAsync(IntPtr window, int command);
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr window, out Rect rect);
     [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr window, ref Point point);

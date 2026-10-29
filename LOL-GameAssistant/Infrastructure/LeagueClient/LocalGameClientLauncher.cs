@@ -127,7 +127,8 @@ public sealed class LocalGameClientLauncher : IGameClientLauncher
             });
             bool lcuReady = processes.Length > 0 && HasReadableLcuLockfile(processes, leagueClientExecutable);
             Process[] launchers = Process.GetProcessesByName("RiotClientServices");
-            bool launcherRunning = launchers.Length > 0;
+            bool launcherRunning = launchers.Length > 0 ||
+                (!string.IsNullOrWhiteSpace(leagueClientExecutable) && TclsLauncherWindows.ProcessIds(leagueClientExecutable).Length > 0);
             foreach (Process launcher in launchers) launcher.Dispose();
             return new ClientState(processes.Length > 0, visible, lcuReady, launcherRunning);
         }

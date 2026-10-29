@@ -36,9 +36,8 @@ static bool cameraReplace(float* field,float expected,float selected) {
     return InterlockedCompareExchange((volatile LONG*)field,cameraBits(selected),cameraBits(expected))==cameraBits(expected);
 }
 static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* invoked) {
-    if(memcmp(c->base+CameraLookupRva,CameraLookup,sizeof(CameraLookup)) ||
-       memcmp(c->base+CameraDefaultRva,CameraDefault,sizeof(CameraDefault))) {fail(r,"camera_profile_not_supported");return;}
-    BYTE* config=*(BYTE**)(c->base+CameraSlot);
+    if(!runtimeResolveCamera(c->base,false)) {fail(r,runtimeGame.error,runtimeGame.stage);return;}
+    BYTE* config=*(BYTE**)(c->base+runtimeGame.camera_slot);
     if(!objectReadable(config,0xa0) || !cameraWritable(config+0x20)) {fail(r,"camera_unavailable");return;}
     float* field=(float*)(config+0x20);float value=*field;
     if(!cameraDistance(value)){fail(r,"camera_state_not_supported");return;}
@@ -47,8 +46,8 @@ static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* i
     if(r->command==17) {
         if(strcmp(r->session,c->session)){fail(r,"stale_session");return;}
         if(!cameraDistance(cameraFloat(r->index)) && cameraFloat(r->index)!=defaultView){fail(r,"invalid_camera_distance");return;}
-        if(memcmp(c->base+CameraViewLookupRva,CameraViewLookup,sizeof(CameraViewLookup)) || memcmp(c->base+CameraViewInitRva,CameraViewInit,sizeof(CameraViewInit))) {fail(r,"camera_view_profile_not_supported");return;}
-        BYTE* manager=*(BYTE**)(c->base+CameraManagerSlot);
+        if(!runtimeResolveCamera(c->base,true)) {fail(r,runtimeGame.error,runtimeGame.stage);return;}
+        BYTE* manager=*(BYTE**)(c->base+runtimeGame.camera_manager);
         if(!objectReadable(manager,0x20)){fail(r,"camera_view_unavailable");return;}
         BYTE* camera=*(BYTE**)(manager+0x18);
         if(!objectReadable(camera,0x480) || *(BYTE**)(camera+0x478)!=config || *(BYTE**)(camera+0x3b0)!=config || camera[0x3e5]) {fail(r,"camera_view_unavailable");return;}

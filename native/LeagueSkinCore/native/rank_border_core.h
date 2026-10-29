@@ -15,6 +15,11 @@ static bool borderText(BYTE* object,char* text,size_t capacity) {
 static bool borderContext(BorderContext* context,Request* request) {
     auto base=(BYTE*)GetModuleHandleW(nullptr);context->base=base;
     if(!independentImage(base)){fail(request,"independent_game_version_not_supported");return false;}
+    // Regalia has a separate, still version-bound schema. Its offsets must not
+    // become writable merely because the hero-skin resolver found a new build.
+    if(runtimeGame.timestamp!=Game_timestamp || runtimeGame.image_size!=Game_image_size || !gameProfileMatches(base)) {
+        fail(request,"rank_border_profile_not_supported","regalia_schema");return false;
+    }
     const BYTE mapGetter[]={0x48,0x8d,0x41,0x08,0xc3};
     const BYTE buildPrefix[]={0x40,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x60,0x01,0x00,0x00};
     if(memcmp(base+0x21c9f0,mapGetter,sizeof(mapGetter)) || memcmp(base+0x413260,buildPrefix,sizeof(buildPrefix))) {
@@ -63,7 +68,7 @@ static const char* borderCurrentId(BorderContext* context) {
 }
 static void borderReply(Request* request,Writer* writer,BorderContext* context,bool invoked,bool verified,bool available,bool restored=false,int cards=0,bool displayVerified=false) {
     append(writer,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"invoked\":%s,\"state_verified\":%s,\"rank_border_supported\":true,\"rank_border_loading_ready\":%s,\"rank_border_profile\":\"%s\",\"rank_border_id\":\"%s\",\"session\":\"%s\",\"pid\":%lu,\"request_id\":\"%016llx\",\"reference_sha256\":\"%s\",\"rank_border_entries\":[{\"id\":\"original\",\"name\":\"原始边框 / 当前等级装饰\"}",
-        invoked?"true":"false",verified?"true":"false",available && cards>0?"true":"false",BorderProfile,borderCurrentId(context),context->session,GetCurrentProcessId(),request->nonce,GameProfileSha);
+        invoked?"true":"false",verified?"true":"false",available && cards>0?"true":"false",BorderProfile,borderCurrentId(context),context->session,GetCurrentProcessId(),request->nonce,runtimeGame.sha);
     for(auto& tier:BorderTiers) {append(writer,",{\"id\":\"%s\",\"name\":",tier.id);quoted(writer,tier.name);append(writer,"}");}
     const char* baseline=borderCurrentId(context);
     if(borderOriginal.captured && !strcmp(borderOriginal.session,context->session) && !strcmp(borderOriginal.mode,"rank"))for(auto& tier:BorderTiers)if(!strcmp(tier.id,borderOriginal.tier))baseline=tier.id;

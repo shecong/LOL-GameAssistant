@@ -5,6 +5,7 @@
 #include <cassert>
 #include <initializer_list>
 #include "object_skin_rules.h"
+#include "runtime_test_support.h"
 int main() {
     {
         BorderContext context{};strcpy_s(context.tier,"CHALLENGER");strcpy_s(context.mode,"rank");
@@ -147,6 +148,7 @@ int main() {
     VirtualFree(readonlyCamera,0,MEM_RELEASE);
     auto cameraImage=(BYTE*)VirtualAlloc(nullptr,Game_image_size,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
     assert(cameraImage);
+    runtimeTestHeaders(cameraImage,(DWORD)Game_image_size);
     memcpy(cameraImage+CameraLookupRva,CameraLookup,sizeof(CameraLookup));
     memcpy(cameraImage+CameraDefaultRva,CameraDefault,sizeof(CameraDefault));
     alignas(8) BYTE cameraConfig[0xa0]{};*(float*)(cameraConfig+0x20)=600.25f;*(float*)(cameraConfig+0x28)=2250.f;
@@ -183,14 +185,14 @@ int main() {
     assert(!cameraInvoked && strstr(cameraRequest->result,"camera_view_unavailable"));cameraController[0x3e5]=0;
     cameraImage[CameraViewInitRva]^=1;cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
-    assert(!cameraInvoked && strstr(cameraRequest->result,"camera_view_profile_not_supported"));cameraImage[CameraViewInitRva]^=1;
+    assert(!cameraInvoked && strstr(cameraRequest->result,"profile_signature_missing"));cameraImage[CameraViewInitRva]^=1;
     cameraRequest->command=16;
     cameraInvoked=false;cameraWriter.used=0;cameraRequest->session[0]='0';
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
     assert(!cameraInvoked && strstr(cameraRequest->result,"stale_session") && *(float*)(cameraConfig+0x20)==1700.f);
     cameraImage[CameraLookupRva]^=1;cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
-    assert(!cameraInvoked && strstr(cameraRequest->result,"camera_profile_not_supported"));
+    assert(!cameraInvoked && strstr(cameraRequest->result,"profile_signature_missing"));
     HeapFree(GetProcessHeap(),0,cameraRequest);VirtualFree(cameraImage,0,MEM_RELEASE);
     auto request=(Request*)HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(Request));
     request->magic=Magic;request->version=Protocol;request->pid=42;request->nonce=99;

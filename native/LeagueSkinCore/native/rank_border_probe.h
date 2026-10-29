@@ -11,20 +11,20 @@ static bool borderReadable(BYTE* address,size_t bytes) {
 static bool borderFunction(BYTE* base,uintptr_t rva,uintptr_t* begin,uintptr_t* end) {
     auto dos=(IMAGE_DOS_HEADER*)base;auto nt=(IMAGE_NT_HEADERS64*)(base+dos->e_lfanew);
     auto directory=nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
-    if(!directory.Size || directory.Size%sizeof(RUNTIME_FUNCTION) || directory.VirtualAddress+directory.Size>Game_image_size)return false;
+    if(!directory.Size || directory.Size%sizeof(RUNTIME_FUNCTION) || directory.VirtualAddress+directory.Size>runtimeGame.image_size)return false;
     auto functions=(RUNTIME_FUNCTION*)(base+directory.VirtualAddress);size_t low=0,high=directory.Size/sizeof(RUNTIME_FUNCTION);
     while(low<high) {size_t middle=low+(high-low)/2;if(functions[middle].BeginAddress<=rva)low=middle+1;else high=middle;}
     if(!low)return false;auto& function=functions[low-1];
-    if(rva>=function.EndAddress || function.EndAddress>Game_image_size || function.BeginAddress>=function.EndAddress)return false;
+    if(rva>=function.EndAddress || function.EndAddress>runtimeGame.image_size || function.BeginAddress>=function.EndAddress)return false;
     *begin=function.BeginAddress;*end=function.EndAddress;
     DWORD unwind=function.UnwindData;
     for(int depth=0;depth<16;depth++) {
-        if(unwind+4>Game_image_size || !borderReadable(base+unwind,4))break;
+        if(unwind+4>runtimeGame.image_size || !borderReadable(base+unwind,4))break;
         BYTE* info=base+unwind;if(!(info[0]>>3&UNW_FLAG_CHAININFO))break;
         uintptr_t chained=unwind+4+((info[2]+1)/2)*4;
-        if(chained+sizeof(RUNTIME_FUNCTION)>Game_image_size || !borderReadable(base+chained,sizeof(RUNTIME_FUNCTION)))break;
+        if(chained+sizeof(RUNTIME_FUNCTION)>runtimeGame.image_size || !borderReadable(base+chained,sizeof(RUNTIME_FUNCTION)))break;
         auto parent=(RUNTIME_FUNCTION*)(base+chained);
-        if(parent->BeginAddress>=parent->EndAddress || parent->EndAddress>Game_image_size)break;
+        if(parent->BeginAddress>=parent->EndAddress || parent->EndAddress>runtimeGame.image_size)break;
         if(parent->BeginAddress<*begin)*begin=parent->BeginAddress;
         if(parent->EndAddress>*end)*end=parent->EndAddress;
         unwind=parent->UnwindData;
@@ -133,7 +133,7 @@ static void borderProbeSlots(Writer* writer,BYTE* base) {
         if(slot<32) {
             BYTE* entity=base+0x1cc0990+slot*0x120;
             BYTE** table=*(BYTE***)entity;
-            if(table && borderReadable((BYTE*)(table+2),sizeof(void*)) && table[2]>=base && table[2]<base+Game_image_size) {
+            if(table && borderReadable((BYTE*)(table+2),sizeof(void*)) && table[2]>=base && table[2]<base+runtimeGame.image_size) {
                 append(writer,",\"component_map_getter\":");borderCode(writer,base,table[2]-base,256);
                 const BYTE getter[]={0x48,0x8d,0x41,0x08,0xc3};
                 if(!memcmp(table[2],getter,sizeof(getter))) {
@@ -157,7 +157,7 @@ static void borderProbeSlots(Writer* writer,BYTE* base) {
 }
 static void independentBorderProbe(Request* request,Writer* writer,BYTE* base) {
     append(writer,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"read_only\":true,\"reference_sha256\":\"%s\",\"pid\":%lu,\"request_id\":\"%016llx\"",
-        GameProfileSha,GetCurrentProcessId(),request->nonce);
+        runtimeGame.sha,GetCurrentProcessId(),request->nonce);
     if(request->index==-3) {borderProbeDisplay(writer,base);append(writer,"}");return;}
     if(request->index==-2) {borderProbeSlots(writer,base);append(writer,"}");return;}
     if(request->index>=0) {
@@ -166,7 +166,7 @@ static void independentBorderProbe(Request* request,Writer* writer,BYTE* base) {
         auto dos=(IMAGE_DOS_HEADER*)base;auto nt=(IMAGE_NT_HEADERS64*)(base+dos->e_lfanew);auto sections=IMAGE_FIRST_SECTION(nt);
         for(int s=0;s<nt->FileHeader.NumberOfSections;s++) {
             auto section=&sections[s];if(!(section->Characteristics&IMAGE_SCN_MEM_EXECUTE))continue;
-            uintptr_t lo=section->VirtualAddress,hi=lo+section->Misc.VirtualSize;if(hi>Game_image_size || hi<lo)continue;
+            uintptr_t lo=section->VirtualAddress,hi=lo+section->Misc.VirtualSize;if(hi>runtimeGame.image_size || hi<lo)continue;
             uintptr_t checked=0;
             for(uintptr_t at=lo;at+5<=hi && count<12;at++) {
                 if(at+5>checked) {
@@ -194,7 +194,7 @@ static void independentBorderProbe(Request* request,Writer* writer,BYTE* base) {
         for(int s=0;s<nt->FileHeader.NumberOfSections && !stringRva;s++) {
             auto section=&sections[s];if(!(section->Characteristics&IMAGE_SCN_MEM_READ) || section->Characteristics&(IMAGE_SCN_MEM_EXECUTE|IMAGE_SCN_MEM_WRITE))continue;
             uintptr_t low=section->VirtualAddress,high=low+section->Misc.VirtualSize;
-            if(high>Game_image_size || high<low)continue;
+            if(high>runtimeGame.image_size || high<low)continue;
             uintptr_t checked=0;
             for(uintptr_t at=low;at+length<=high;at++) {
                 if(at+length>checked) {
@@ -210,7 +210,7 @@ static void independentBorderProbe(Request* request,Writer* writer,BYTE* base) {
         append(writer,",\"rva\":%llu,\"xrefs\":[",(uint64_t)stringRva);int count=0;
         if(stringRva)for(int s=0;s<nt->FileHeader.NumberOfSections;s++) {
             auto section=&sections[s];if(!(section->Characteristics&IMAGE_SCN_MEM_EXECUTE))continue;
-            uintptr_t low=section->VirtualAddress,high=low+section->Misc.VirtualSize;if(high>Game_image_size || high<low)continue;
+            uintptr_t low=section->VirtualAddress,high=low+section->Misc.VirtualSize;if(high>runtimeGame.image_size || high<low)continue;
             uintptr_t checked=0;
             for(uintptr_t at=low;at+7<=high && count<8;at++) {
                 if(at+7>checked) {

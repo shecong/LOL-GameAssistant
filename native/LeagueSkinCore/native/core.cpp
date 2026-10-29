@@ -9,7 +9,7 @@
 constexpr DWORD Protocol=2, Magic=0x4c53434b;
 // Older hook DLLs consume the v1 message even when they cannot open its request.
 // A separate message and namespace prevent a resident older app claiming new work.
-constexpr UINT BridgeMessage=WM_APP+0x533;
+constexpr UINT BridgeMessage=WM_APP+0x53a;
 constexpr size_t ReplySize=1024*1024;
 #include "hook_diagnostics.h"
 struct Request {
@@ -39,8 +39,8 @@ static void fail(Request* r,const char* error,const char* stage="validation",boo
     sprintf_s(r->result,"{\"ok\":false,\"error\":\"%s\",\"stage\":\"%s\",\"invoked\":%s,\"request_id\":\"%016llx\"}",error,stage,invoked?"true":"false",r->nonce);
 }
 static void names(DWORD pid,uint64_t nonce,wchar_t* mapping,wchar_t* event) {
-    swprintf_s(mapping,128,L"Local\\LeagueSkinCore.v2.Request.%lu.%016llx",pid,nonce);
-    swprintf_s(event,128,L"Local\\LeagueSkinCore.v2.Result.%lu.%016llx",pid,nonce);
+    swprintf_s(mapping,128,L"Local\\LeagueSkinCore.Auto.v1.Request.%lu.%016llx",pid,nonce);
+    swprintf_s(event,128,L"Local\\LeagueSkinCore.Auto.v1.Result.%lu.%016llx",pid,nonce);
 }
 static uint64_t digest(uint64_t h,const void* data,size_t size) {
     for(size_t i=0;i<size;i++) {h^=((const unsigned char*)data)[i];h*=0x100000001b3ULL;}return h;
@@ -69,14 +69,16 @@ static bool span(BYTE* first,BYTE* end,BYTE* capacity,size_t stride,size_t max,i
 #include "standalone_core.h"
 static bool claim(Request* r,DWORD pid,uint64_t nonce) {
     return r->magic==Magic && r->version==Protocol && r->pid==pid && r->nonce==nonce &&
-        (r->command>=6 && r->command<=21) && memchr(r->session,0,sizeof(r->session)) && InterlockedCompareExchange(&r->phase,1,0)==0;
+        (r->command>=6 && r->command<=22) && memchr(r->session,0,sizeof(r->session)) && InterlockedCompareExchange(&r->phase,1,0)==0;
 }
 static void process(Request* r) { independentProcess(r); }
 static void finishRequest(Request* r) {
     if(GetTickCount64()>r->deadline) fail(r,"request_expired","dispatch_deadline");else process(r);
     size_t length=strnlen_s(r->result,sizeof(r->result));
     if(length && length<sizeof(r->result) && r->result[length-1]=='}') {
-        Writer writer{r->result,length-1,sizeof(r->result),false};append(&writer,",\"bridge_protocol\":%lu}",Protocol);
+        Writer writer{r->result,length-1,sizeof(r->result),false};append(&writer,",\"bridge_protocol\":%lu",Protocol);
+        if(runtimeGame.base){append(&writer,",");runtimeMetadata(&writer);}
+        append(&writer,"}");
         if(writer.failed)fail(r,"reply_too_large","protocol_metadata");
     }
     InterlockedExchange(&r->phase,2);
@@ -172,6 +174,7 @@ int main(int argc,char** argv) {
     }
     DWORD command=99;int index=-1,gear=-1;const char* session="";
     if(argc==2 && !strcmp(argv[1],"status")) command=6;
+    if(argc==2 && !strcmp(argv[1],"profile")) command=22;
     if(argc==2 && !strcmp(argv[1],"catalog")) command=7;
     if(argc==2 && !strcmp(argv[1],"inventory")) command=10;
     if(argc==2 && !strcmp(argv[1],"object-probe")) command=11;

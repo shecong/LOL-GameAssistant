@@ -1,5 +1,6 @@
 // Independent current-build engine, using game-owned skin data and game functions.
 #include "game_profile.h"
+#include "runtime_profile.h"
 #include "variant_metadata.h"
 #include "original1_skin_rules.h"
 constexpr int IndependentMaxEntries=2048;
@@ -7,10 +8,7 @@ static bool independentModulePinned=false;
 struct IndependentEntry {int index,skin,gear;const char* stableModel;char model[64],name[1024],gearName[128];};
 struct IndependentContext {BYTE* base;BYTE* player;BYTE* stack;BYTE* champion;IndependentEntry* entries;int count;char hero[64],session[32];};
 static bool independentImage(BYTE* base) {
-    auto dos=(IMAGE_DOS_HEADER*)base;if(dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<=0 || dos->e_lfanew>1024*1024)return false;
-    auto nt=(IMAGE_NT_HEADERS64*)(base+dos->e_lfanew);
-    return nt->Signature==IMAGE_NT_SIGNATURE && nt->OptionalHeader.Magic==IMAGE_NT_OPTIONAL_HDR64_MAGIC &&
-        nt->FileHeader.TimeDateStamp==Game_timestamp && nt->OptionalHeader.SizeOfImage==Game_image_size && gameProfileMatches(base);
+    return runtimeResolve(base,&runtimeGame);
 }
 static uint32_t skinRotateRight(uint32_t value,unsigned bits) {
     return (value>>bits)|(value<<(32-bits));
@@ -32,14 +30,14 @@ static bool independentAdd(IndependentContext* c,int index,int skin,int gear,con
         cstring(gearName,entry->gearName,sizeof(entry->gearName));
 }
 static BYTE* independentChampion(BYTE* base,const char* hero) {
-    BYTE* manager=*(BYTE**)(base+Game_champion_slot);if(!manager)return nullptr;
+    BYTE* manager=*(BYTE**)(base+runtimeGame.champion_slot);if(!manager)return nullptr;
     BYTE** list=*(BYTE***)(manager+0x18);int size=*(int*)(manager+0x20),capacity=*(int*)(manager+0x24);
     if(!list || size<=0 || size>10000 || capacity<size || capacity>20000)return nullptr;
     for(int n=0;n<size;n++){char name[64];if(!list[n] || !cstring(*(const char**)(list[n]+8),name,sizeof(name)))return nullptr;if(!strcmp(name,hero))return list[n];}
     return nullptr;
 }
 static BYTE* independentChampionIndex(BYTE* base,int index,int* count) {
-    BYTE* manager=*(BYTE**)(base+Game_champion_slot);if(!manager)return nullptr;
+    BYTE* manager=*(BYTE**)(base+runtimeGame.champion_slot);if(!manager)return nullptr;
     BYTE** list=*(BYTE***)(manager+0x18);int size=*(int*)(manager+0x20),capacity=*(int*)(manager+0x24);
     if(!list || size<=0 || size>10000 || capacity<size || capacity>20000)return nullptr;
     *count=size;return index>=0 && index<size?list[index]:nullptr;
@@ -53,7 +51,7 @@ static bool independentCatalog(IndependentContext* c) {
     using Translate=const char*(__fastcall*)(const char*);
     for(int n=0;n<size;n++) {
         char key[160],name[1024];sprintf_s(key,"game_character_skin_displayname_%s_%d",c->hero,ids[n]);
-        const char* translated=ids[n]?((Translate)(c->base+Game_translate))(key):stableHero;
+        const char* translated=ids[n]?((Translate)(c->base+runtimeGame.translate))(key):stableHero;
         if(!translated || !cstring(translated,name,sizeof(name)))return false;
         if(ids[n] && !strcmp(name,key))continue;
         int duplicate=0;for(int j=0;j<c->count;j++)if(c->entries[j].gear==-1 && !strcmp(c->entries[j].model,c->hero)){
@@ -72,12 +70,12 @@ static bool independentCatalog(IndependentContext* c) {
 }
 static bool independentContext(IndependentContext* c,Request* r) {
     c->base=(BYTE*)GetModuleHandleW(nullptr);
-    if(!independentImage(c->base)){fail(r,"independent_game_version_not_supported");return false;}
-    c->player=*(BYTE**)(c->base+Game_player_slot);
+    if(!independentImage(c->base)){fail(r,runtimeGame.error,runtimeGame.stage);return false;}
+    c->player=*(BYTE**)(c->base+runtimeGame.player_slot);
     if(!c->player){fail(r,"local_player_unavailable");return false;}
-    c->stack=c->player+Game_stack_offset;
+    c->stack=c->player+runtimeGame.stack_offset;
     if(!cstring(*(const char**)(c->stack+0x18),c->hero,sizeof(c->hero))){fail(r,"player_model_unavailable");return false;}
-    int skin;if(!skinValue(c->player+Game_skin_offset,&skin) || skin!=*(int*)(c->stack+0x38)){fail(r,"independent_skin_field_not_verified");return false;}
+    int skin;if(!skinValue(c->player+runtimeGame.skin_offset,&skin) || skin!=*(int*)(c->stack+0x38)){fail(r,"independent_skin_field_not_verified");return false;}
     c->champion=independentChampion(c->base,c->hero);
     if(!c->champion || !independentCatalog(c)){fail(r,"independent_game_catalog_unavailable");return false;}
     FILETIME created,exited,kernel,user;if(!GetProcessTimes(GetCurrentProcess(),&created,&exited,&kernel,&user))return false;
@@ -134,7 +132,7 @@ static void independentState(Writer* writer,IndependentContext* c) {
     append(writer,",\"module_pinned\":%s",independentModulePinned?"true":"false");
 }
 static bool independentWriteSkin(IndependentContext* c,int skin) {
-    BYTE* field=c->player+Game_skin_offset;int previous;if(!skinValue(field,&previous))return false;
+    BYTE* field=c->player+runtimeGame.skin_offset;int previous;if(!skinValue(field,&previous))return false;
     if(skin<0 || skin>10000)return false;
     *(uint32_t*)field=skinEncoded(skin);*(int*)(c->stack+0x38)=skin;return true;
 }
@@ -148,6 +146,19 @@ static int independentDefaultGear(const char* hero,int skin,int current) {
 #include "rank_border_display.h"
 #include "rank_border_core.h"
 static void independentProcess(Request* r) {
+    if(r->command==22) {
+        __try {
+            auto base=(BYTE*)GetModuleHandleW(nullptr);
+            if(!independentImage(base)){fail(r,runtimeGame.error,runtimeGame.stage);return;}
+            Writer w{r->result,0,sizeof(r->result),false};
+            append(&w,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"read_only\":true,\"reference_sha256\":\"%s\",\"pid\":%lu,\"player_slot\":%llu,\"champion_slot\":%llu,\"translate\":%llu,\"update\":%llu,\"push\":%llu,\"stack_offset\":%llu,\"skin_offset\":%llu,\"locator_rvas\":[",
+                runtimeGame.sha,GetCurrentProcessId(),(uint64_t)runtimeGame.player_slot,(uint64_t)runtimeGame.champion_slot,(uint64_t)runtimeGame.translate,
+                (uint64_t)runtimeGame.update,(uint64_t)runtimeGame.push,(uint64_t)runtimeGame.stack_offset,(uint64_t)runtimeGame.skin_offset);
+            for(unsigned n=0;n<9;n++){if(n)append(&w,",");append(&w,"%llu",(uint64_t)runtimeGame.matches[n].rva);}
+            append(&w,"]}");if(w.failed)fail(r,"reply_too_large");
+        } __except(EXCEPTION_EXECUTE_HANDLER){fail(r,"profile_code_not_ready","profile_read_exception");}
+        return;
+    }
     if(r->command>=19 && r->command<=21) {
         bool invoked=false;
         __try { Writer writer{r->result,0,sizeof(r->result),false};independentRankBorder(r,&writer,&invoked);if(writer.failed)fail(r,"reply_too_large","serialization",invoked); }
@@ -175,7 +186,7 @@ static void independentProcess(Request* r) {
             if(r->command==10){
                 int count=0;independentChampionIndex(c.base,0,&count);
                 if(!count){fail(r,"independent_game_catalog_unavailable");__leave;}
-                append(&writer,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"catalog_only\":true,\"reference_sha256\":\"%s\"",GameProfileSha);
+                append(&writer,"{\"ok\":true,\"independent\":true,\"original_required\":false,\"catalog_only\":true,\"reference_sha256\":\"%s\"",runtimeGame.sha);
                 if(r->index<0){
                     append(&writer,",\"heroes\":[");for(int n=0;n<count;n++){int checked=0;BYTE* champion=independentChampionIndex(c.base,n,&checked);char name[64];
                         if(!champion || !cstring(*(const char**)(champion+8),name,sizeof(name))){fail(r,"independent_game_catalog_unavailable");__leave;}
@@ -202,20 +213,20 @@ static void independentProcess(Request* r) {
                     independentModulePinned=true;
                     *(BYTE**)(c.stack+8)=*(BYTE**)c.stack;
                     using Push=__int64(__fastcall*)(uintptr_t,const char*,int,int,bool,bool,bool,bool,bool,bool,int8_t,const char*,int,const char*,int,bool,int,const char*);
-                    ((Push)(c.base+Game_push))((uintptr_t)c.stack,selected->stableModel,selected->skin,0,false,false,false,false,true,false,-1,"",0,"",0,false,1,"");
+                    ((Push)(c.base+runtimeGame.push))((uintptr_t)c.stack,selected->stableModel,selected->skin,0,false,false,false,false,true,false,-1,"",0,"",0,false,1,"");
                 } else {
                     if(!strcmp(c.hero,"Lux") || !strcmp(c.hero,"Sona"))*(BYTE**)(c.stack+8)=*(BYTE**)c.stack;
                     *(signed char*)(c.stack+0x9c)=(signed char)independentDefaultGear(c.hero,selected->skin,*(signed char*)(c.stack+0x9c));
                 }
                 if(selected->gear>=0)*(signed char*)(c.stack+0x9c)=(signed char)selected->gear;
                 if(!independentSyncLayers(&c,selected->model,selected->skin)){fail(r,"independent_skin_layer_not_verified","call",true);__leave;}
-                ((Update)(c.base+Game_update))((uintptr_t)c.stack,true);
+                ((Update)(c.base+runtimeGame.update))((uintptr_t)c.stack,true);
                 char active[64];int skin,activeSkin;
-                bool verified=skinValue(c.player+Game_skin_offset,&skin) && skin==selected->skin && *(int*)(c.stack+0x38)==skin &&
+                bool verified=skinValue(c.player+runtimeGame.skin_offset,&skin) && skin==selected->skin && *(int*)(c.stack+0x38)==skin &&
                     independentActiveState(&c,active,sizeof(active),&activeSkin) && activeSkin==skin && !strcmp(active,selected->model) && (selected->gear<0 || *(signed char*)(c.stack+0x9c)==selected->gear);
                 append(&writer,"{\"ok\":true,\"invoked\":true,\"state_verified\":%s,",verified?"true":"false");
             } else if(r->command!=10)append(&writer,"{\"ok\":true,\"matched\":true,");
-            if(r->command!=10){append(&writer,"\"independent\":true,\"original_required\":false,\"connected\":true,\"session\":\"%s\",\"pid\":%lu,\"request_id\":\"%016llx\",\"reference_sha256\":\"%s\",",c.session,GetCurrentProcessId(),r->nonce,GameProfileSha);independentState(&writer,&c);}
+            if(r->command!=10){append(&writer,"\"independent\":true,\"original_required\":false,\"connected\":true,\"session\":\"%s\",\"pid\":%lu,\"request_id\":\"%016llx\",\"reference_sha256\":\"%s\",",c.session,GetCurrentProcessId(),r->nonce,runtimeGame.sha);independentState(&writer,&c);}
             if(r->command==7 || r->command==10){
                 append(&writer,",\"entries\":[");for(int n=0;n<c.count;n++){auto entry=&c.entries[n];if(n)append(&writer,",");append(&writer,"{\"entry_id\":\"%d:%d\",\"index\":%d,\"gear\":%d,\"skin_num\":%d,\"name\":",entry->index,entry->gear,entry->index,entry->gear,entry->skin);quoted(&writer,entry->name);append(&writer,",\"model\":");quoted(&writer,entry->model);if(entry->gear>=0){append(&writer,",\"gear_name\":");quoted(&writer,entry->gearName);}append(&writer,"}");}append(&writer,"]");
             }

@@ -24,7 +24,7 @@ public sealed class SelectableSkinCoreTransport(ISkinCoreTransport classic, ISki
     {
         ISkinCoreTransport target;
         // Regalia belongs to the game UI model and has a dedicated classic channel in either hero-skin mode.
-        bool regalia = arguments.Count > 0 && arguments[0] is "rank-border" or "rank-border-catalog" or "rank-border-auto";
+        bool regalia = arguments.Count > 0 && arguments[0] is "rank-border" or "rank-border-catalog" or "rank-border-auto" or "profile";
         lock (_sync) { target = !regalia && _mode == SkinCoreMode.KernelRelay ? kernelRelay : classic; _active++; }
         try { return await target.InvokeAsync(arguments, cancellationToken).ConfigureAwait(false); }
         finally { lock (_sync) _active--; }

@@ -18,6 +18,10 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Core tests compilation failed' }
         & "$coreOut\core-tests.exe"
         if ($LASTEXITCODE -ne 0) { throw 'Core tests failed' }
+        & cl.exe /nologo /utf-8 /O2 /MT /EHsc /std:c++20 runtime_profile_tests.cpp "/Fe:$coreOut\runtime-profile-tests.exe" /link user32.lib bcrypt.lib
+        if ($LASTEXITCODE -ne 0) { throw 'Runtime profile tests compilation failed' }
+        & "$coreOut\runtime-profile-tests.exe"
+        if ($LASTEXITCODE -ne 0) { throw 'Runtime profile tests failed' }
     } else {
         & cl.exe /nologo /utf-8 /O2 /MT /EHsc /std:c++20 /LD core.cpp "/Fe:$coreOut\league-skin-core.dll" /link user32.lib bcrypt.lib
         if ($LASTEXITCODE -ne 0) { throw 'Core DLL compilation failed' }

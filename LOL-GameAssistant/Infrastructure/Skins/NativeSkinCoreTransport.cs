@@ -66,7 +66,7 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
         string host = Path.Combine(directory, kernelRelay ? "league-skin-hybrid-host.exe" : "league-skin-core-host.exe");
         if (!File.Exists(host) || !File.Exists(Path.Combine(directory, "league-skin-core.dll")))
             throw new SkinCoreException(kernelRelay ? "hybrid_files_missing" : "core_files_missing");
-        if (arguments.Count == 0 || arguments[0] is not ("catalog" or "status" or "entry" or "restore" or "object-catalog" or "objects" or "objects-restore" or "module-state" or "camera-status" or "camera" or "camera-view" or "rank-border" or "rank-border-catalog" or "rank-border-auto" or "driver-status") ||
+        if (arguments.Count == 0 || arguments[0] is not ("catalog" or "status" or "profile" or "entry" or "restore" or "object-catalog" or "objects" or "objects-restore" or "module-state" or "camera-status" or "camera" or "camera-view" or "rank-border" or "rank-border-catalog" or "rank-border-auto" or "driver-status") ||
             (arguments[0] == "driver-status" && !kernelRelay))
             throw new SkinCoreException("invalid_request");
         bool write = arguments[0] is "entry" or "restore" or "objects" or "objects-restore" or "camera" or "camera-view" or "rank-border" or "rank-border-auto";

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text;
 using FlaUI.UIA3;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.LeagueClient;
@@ -22,12 +21,17 @@ public sealed class TclsAutomaticClientLauncher(LocalGameClientLauncher inner, F
     public async Task<GameClientLaunchResult> StartAndVerifyAsync(string? path, CancellationToken cancellationToken = default)
     {
         var config = settings();
-        if (!config.TclsAutoLoginEnabled) return await inner.StartAndVerifyAsync(path, cancellationToken);
+        if (!config.TclsAutoLoginEnabled)
+        {
+            RuntimeDiagnostics.Report("TCLS 自动登录", "未启用", "本次仅启动客户端；自动登录开关未开启。如刚开启开关，请重新点击启动。");
+            return await inner.StartAndVerifyAsync(path, cancellationToken);
+        }
         if (!await _gate.WaitAsync(0, cancellationToken)) return new(false, "已有 TCLS 自动登录任务，请等待或取消后再操作。");
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         lock (_sync) _active = lifetime;
         try
         {
+            RuntimeDiagnostics.Report("TCLS 自动登录", "准备中", "正在检查所选账号和登录器，账号密码不会写入日志。");
             return await Task.Run(() => Run(path, config.TclsSelectedAccountId, lifetime.Token), lifetime.Token);
         }
         catch (OperationCanceledException)
@@ -72,16 +76,13 @@ public sealed class TclsAutomaticClientLauncher(LocalGameClientLauncher inner, F
                 return new(true, session.RegionSelected ? "客户端已连接，已在登录器中选择默认大区。"
                     : "客户端已连接，但本次未自动确认账号和大区，请在客户端核对。", executable, true, true);
             }
-            var processes = Process.GetProcessesByName("client");
-            try
+            var windows = TclsLauncherWindows.Find(executable);
             {
-                string launcher = Path.Combine(Directory.GetParent(Path.GetDirectoryName(executable)!)!.FullName, "Launcher", "Client.exe");
-                var roots = processes.Where(process => MatchesPath(process, executable) || MatchesPath(process, launcher)).SelectMany(process =>
-                    automation.GetDesktop().FindAllChildren(factory => factory.ByProcessId(process.Id))).ToArray();
-                var step = roots.Length == 0 ? new TclsLoginStep("等待 TCLS 登录窗口；如果出现新版启动器，请在该窗口手动登录。")
-                    : TclsLoginAutomation.Step(roots, session, account.Username, password, account.Region, token);
-                if (!step.Pause && roots.Length > 0)
-                    step = renderedLogin.Step(roots, session, account.Username, password, token) ?? step;
+                var step = windows.Length == 0 ? new TclsLoginStep("等待 TCLS 登录窗口就绪。")
+                    : ReadLoginStep(
+                        () => TclsLoginAutomation.Step(windows.Select(automation.FromHandle).ToArray(), session,
+                            account.Username, password, account.Region, token),
+                        () => renderedLogin.Step(windows, session, account.Username, password, token));
                 if (step.Message != previous)
                 {
                     previous = step.Message;
@@ -89,7 +90,6 @@ public sealed class TclsAutomaticClientLauncher(LocalGameClientLauncher inner, F
                 }
                 if (step.Pause) return new(true, step.Message, executable);
             }
-            finally { foreach (var process in processes) process.Dispose(); }
             if (token.WaitHandle.WaitOne(700)) token.ThrowIfCancellationRequested();
         }
         string message = session.Submitted
@@ -99,22 +99,19 @@ public sealed class TclsAutomaticClientLauncher(LocalGameClientLauncher inner, F
         return new(true, message, executable);
     }
 
-    private static bool MatchesPath(Process process, string executable)
+    internal static TclsLoginStep ReadLoginStep(Func<TclsLoginStep> accessible, Func<TclsLoginStep?> rendered)
     {
-        IntPtr handle = IntPtr.Zero;
+        TclsLoginStep step;
         try
         {
-            handle = OpenProcess(0x1000, false, process.Id);
-            if (handle == IntPtr.Zero) return false;
-            var image = new StringBuilder(32768);int length = image.Capacity;
-            return QueryFullProcessImageName(handle, 0, image, ref length) &&
-                string.Equals(image.ToString(), executable, StringComparison.OrdinalIgnoreCase);
+            step = accessible();
         }
-        catch { return false; }
-        finally { if (handle != IntPtr.Zero) CloseHandle(handle); }
+        catch (Exception error) when (error is COMException or FlaUI.Core.Exceptions.ElementNotAvailableException)
+        {
+            // TPF can expose a broken UIA tree while its rendered form is fully usable.
+            // Session flags still prevent re-submitting after a partially completed operation.
+            step = new("登录器控件暂不可用，正在尝试图像识别并等待窗口刷新。");
+        }
+        return step.Pause ? step : rendered() ?? step;
     }
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
-    [DllImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern bool QueryFullProcessImageName(IntPtr process, int flags, StringBuilder image, ref int length);
-    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
 }
