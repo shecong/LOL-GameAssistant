@@ -13,7 +13,7 @@ $skinProjectRoot = Join-Path $PSScriptRoot $skinProjectFolder
 if ($Action -eq 'Clean') {
     # Remove only named build outputs, never the runtime copies or original backup.
     $skinOutputNames = switch ($Project) {
-        'Classic' { @('league-skin-core.dll', 'league-skin-core-host.exe', 'league-skin-core.lib', 'league-skin-core.exp', 'core-tests.exe') }
+        'Classic' { @('league-skin-core.dll', 'league-skin-core-host.exe', 'league-skin-core.lib', 'league-skin-core.exp', 'core-tests.exe', 'runtime-profile-tests.exe') }
         'Hybrid' { @('league-skin-core.dll', 'league-skin-hybrid-host.exe', 'league-skin-core.lib', 'league-skin-core.exp', 'relay-test-client.exe', 'relay-dispatch-tests.exe') }
         'Relay' { @('SkinCoreRelay.sys', 'driver.obj') }
     }

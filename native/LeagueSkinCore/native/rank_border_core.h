@@ -14,7 +14,7 @@ static bool borderText(BYTE* object,char* text,size_t capacity) {
 }
 static bool borderContext(BorderContext* context,Request* request) {
     auto base=(BYTE*)GetModuleHandleW(nullptr);context->base=base;
-    if(!independentImage(base)){fail(request,"independent_game_version_not_supported");return false;}
+    if(!independentImage(base)){fail(request,runtimeGame.error,runtimeGame.stage);return false;}
     // Regalia has a separate, still version-bound schema. Its offsets must not
     // become writable merely because the hero-skin resolver found a new build.
     if(runtimeGame.timestamp!=Game_timestamp || runtimeGame.image_size!=Game_image_size || !gameProfileMatches(base)) {

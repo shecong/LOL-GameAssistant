@@ -10,7 +10,7 @@ struct RuntimeProfile {
     uintptr_t stack_offset=Game_stack_offset,skin_offset=Game_skin_offset,object_list_slot=Game_object_list_slot,owner_offset=Game_owner_offset;
     uintptr_t camera_slot=0,camera_manager=0;
     RuntimeMatch matches[RuntimeRuleCount]{};
-    bool ready=false,objects=false,camera=false,view=false;
+    bool ready=false,objects=false,camera=false,view=false,cacheHit=false;
     char sha[65]{};const char* error="profile_not_resolved";char stage[96]{};ULONGLONG elapsed=0;
 };
 static RuntimeProfile runtimeGame;
@@ -77,7 +77,12 @@ static int runtimeFind(const RuntimeImage& image,const RuntimePattern& pattern,u
                 if(!hit)break;uintptr_t position=hit-image.base;cursor=position+1;
                 if(position<low+anchor)continue;
                 uintptr_t candidate=position-anchor;
-                if(candidate+pattern.size>high || !runtimeReadable(image.base+candidate,pattern.size))continue;
+                if(candidate+pattern.size>high)continue;
+                uintptr_t regionLow=(BYTE*)region.BaseAddress-image.base;
+                bool withinRegion=candidate>=regionLow && candidate+pattern.size<=limit;
+                if(!withinRegion && !runtimeReadable(image.base+candidate,pattern.size))continue;
+                // The entire current region was already checked. Query memory
+                // again only across a region boundary or after a full anchor hit.
                 if(memcmp(hit,pattern.bytes+anchor,length)==0 && runtimePatternAt(image,pattern,candidate)) {
                     if(!count)*found=candidate;if(++count==2)return count;
                 }
@@ -178,7 +183,8 @@ static bool runtimeResolveCamera(BYTE* base,bool view) {
     return true;
 }
 static void runtimeMetadata(Writer* w) {
-    append(w,"\"profile_resolution\":{\"mode\":\"runtime_signatures\",\"rules_sha256\":\"%s\",\"ready\":%s,\"timestamp\":%lu,\"image_size\":%lu,\"elapsed_ms\":%llu,\"stage\":",
-        RuntimeRulesSha,runtimeGame.ready?"true":"false",runtimeGame.timestamp,runtimeGame.image_size,runtimeGame.elapsed);
+    append(w,"\"profile_resolution\":{\"mode\":\"runtime_signatures\",\"rules_sha256\":\"%s\",\"ready\":%s,\"cache_hit\":%s,\"timestamp\":%lu,\"image_size\":%lu,\"elapsed_ms\":%llu,\"stage\":",
+        RuntimeRulesSha,runtimeGame.ready?"true":"false",runtimeGame.cacheHit?"true":"false",runtimeGame.timestamp,runtimeGame.image_size,runtimeGame.elapsed);
     quoted(w,runtimeGame.stage);append(w,"}");
 }
+#include "runtime_profile_cache.h"

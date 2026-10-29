@@ -37,6 +37,7 @@ static bool cameraReplace(float* field,float expected,float selected) {
 }
 static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* invoked) {
     if(!runtimeResolveCamera(c->base,false)) {fail(r,runtimeGame.error,runtimeGame.stage);return;}
+    runtimeCacheSave(runtimeGame);
     BYTE* config=*(BYTE**)(c->base+runtimeGame.camera_slot);
     if(!objectReadable(config,0xa0) || !cameraWritable(config+0x20)) {fail(r,"camera_unavailable");return;}
     float* field=(float*)(config+0x20);float value=*field;
@@ -47,6 +48,7 @@ static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* i
         if(strcmp(r->session,c->session)){fail(r,"stale_session");return;}
         if(!cameraDistance(cameraFloat(r->index)) && cameraFloat(r->index)!=defaultView){fail(r,"invalid_camera_distance");return;}
         if(!runtimeResolveCamera(c->base,true)) {fail(r,runtimeGame.error,runtimeGame.stage);return;}
+        runtimeCacheSave(runtimeGame);
         BYTE* manager=*(BYTE**)(c->base+runtimeGame.camera_manager);
         if(!objectReadable(manager,0x20)){fail(r,"camera_view_unavailable");return;}
         BYTE* camera=*(BYTE**)(manager+0x18);

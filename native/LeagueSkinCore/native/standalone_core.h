@@ -8,7 +8,9 @@ static bool independentModulePinned=false;
 struct IndependentEntry {int index,skin,gear;const char* stableModel;char model[64],name[1024],gearName[128];};
 struct IndependentContext {BYTE* base;BYTE* player;BYTE* stack;BYTE* champion;IndependentEntry* entries;int count;char hero[64],session[32];};
 static bool independentImage(BYTE* base) {
-    return runtimeResolve(base,&runtimeGame);
+    bool cached=runtimeCacheLoad(base,&runtimeGame);
+    bool resolved=runtimeResolve(base,&runtimeGame);runtimeGame.cacheHit=cached;
+    if(resolved)runtimeCacheSave(runtimeGame);return resolved;
 }
 static uint32_t skinRotateRight(uint32_t value,unsigned bits) {
     return (value>>bits)|(value<<(32-bits));
@@ -168,7 +170,10 @@ static void independentProcess(Request* r) {
     if(r->command==18) {
         __try {
             BYTE* base=(BYTE*)GetModuleHandleW(nullptr);
-            if(!independentImage(base)){fail(r,"independent_game_version_not_supported");return;}
+            if(!independentImage(base)){fail(r,runtimeGame.error,runtimeGame.stage);return;}
+            if(runtimeGame.timestamp!=Game_timestamp || runtimeGame.image_size!=Game_image_size || !gameProfileMatches(base)) {
+                fail(r,"rank_border_profile_not_supported","regalia_probe_schema");return;
+            }
             Writer writer{r->result,0,sizeof(r->result),false};independentBorderProbe(r,&writer,base);
             if(writer.failed)fail(r,"reply_too_large");
         } __except(EXCEPTION_EXECUTE_HANDLER) {fail(r,"border_probe_read_failed","read");}

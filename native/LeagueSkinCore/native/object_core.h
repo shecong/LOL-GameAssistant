@@ -15,7 +15,7 @@ static bool objectReadable(const void* p,size_t length) {
         !(region.Protect&(PAGE_NOACCESS|PAGE_GUARD)) && address+length<=(uintptr_t)region.BaseAddress+region.RegionSize;
 }
 static bool objectProfile(BYTE* base) {
-    return runtimeResolveObjects(base);
+    bool resolved=runtimeResolveObjects(base);if(resolved)runtimeCacheSave(runtimeGame);return resolved;
 }
 struct ObjectTarget {BYTE* object;int skin;bool ward;char model[64];};
 static bool objectList(IndependentContext* c,BYTE*** objects,int* count) {

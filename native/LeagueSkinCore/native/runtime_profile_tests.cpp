@@ -76,5 +76,35 @@ int main(int argc,char** argv) {
         assert(runtimeResolve(image,&runtimeGame) && runtimeGame.ready); // Hero remains usable.
         VirtualFree(image,0,MEM_RELEASE);runtimeGame=RuntimeProfile{};
     }
+    {
+        // A live mapping owner stands in for the long-lived GUI process.
+        HANDLE owner=nullptr;auto cache=runtimeCacheOpen(&owner);assert(cache);
+        auto image=fixtureImage(fixture);RuntimeProfile source{},loaded{};
+        assert(runtimeResolve(image,&source));runtimeCacheSave(source);
+        assert(runtimeCacheLoad(image,&loaded));assert(runtimeResolve(image,&loaded));
+        assert(!strcmp(source.sha,loaded.sha));
+        image[fixture.blocks[7].rva]^=1;
+        assert(!runtimeCacheLoad(image,&loaded)); // Cached addresses never bypass code validation.
+        image[fixture.blocks[7].rva]^=1;
+        auto nt=(IMAGE_NT_HEADERS64*)(image+0x100);nt->FileHeader.TimeDateStamp++;
+        assert(!runtimeCacheLoad(image,&loaded));nt->FileHeader.TimeDateStamp--;
+        bool checked=false;
+        for(auto& row:cache->rows) {
+            if(InterlockedCompareExchange(&row.phase,2,1)!=1)continue;
+            if(row.data.pid==GetCurrentProcessId()) {
+                auto original=row.data;auto checksum=row.checksum;
+                row.data.rules[0]^=1; // Bad integrity data is discarded.
+                InterlockedExchange(&row.phase,1);assert(!runtimeCacheLoad(image,&loaded));
+                assert(InterlockedCompareExchange(&row.phase,2,1)==1);
+                row.data=original;row.checksum=checksum;row.data.created++;
+                row.checksum=digest(0xcbf29ce484222325ULL,&row.data,sizeof(row.data));
+                InterlockedExchange(&row.phase,1);assert(!runtimeCacheLoad(image,&loaded)); // PID reuse is not enough.
+                assert(InterlockedCompareExchange(&row.phase,2,1)==1);row.data=original;row.checksum=checksum;
+                InterlockedExchange(&row.phase,1);checked=true;break;
+            }
+            InterlockedExchange(&row.phase,1);
+        }
+        assert(checked);VirtualFree(image,0,MEM_RELEASE);UnmapViewOfFile(cache);CloseHandle(owner);
+    }
     puts("Runtime resolver: both saved builds, synthetic relocated functions/globals/layouts, changed build ID, ambiguity, missing code, changed decoder, invalid targets, unreadable pages and feature isolation passed.");
 }

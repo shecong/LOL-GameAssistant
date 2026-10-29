@@ -23,6 +23,7 @@ public sealed record SkinEntry
 
 public sealed record SkinCoreReply
 {
+    public SkinCoreProfileResolution? ProfileResolution { get; init; }
     public int BridgeProtocol { get; init; }
     public bool RankBorderSupported { get; init; }
     public bool RankBorderLoadingReady { get; init; }
@@ -90,6 +91,7 @@ public sealed record SkinCoreReply
 
 public sealed record SkinCoreFailureDetails
 {
+    public SkinCoreProfileResolution? ProfileResolution { get; init; }
     public string MessageRoute { get; init; } = "";
     public SkinCoreWindowDiscovery? WindowDiscovery { get; init; }
     public SkinCoreTargetProbe? TargetProbe { get; init; }
@@ -114,6 +116,18 @@ public sealed record SkinCoreFailureDetails
     public string ProcessArchitecture { get; init; } = "";
     public string OsArchitecture { get; init; } = "";
     public string OsDescription { get; init; } = "";
+}
+
+public sealed record SkinCoreProfileResolution
+{
+    public string Mode { get; init; } = "";
+    public string RulesSha256 { get; init; } = "";
+    public bool Ready { get; init; }
+    public bool CacheHit { get; init; }
+    public uint Timestamp { get; init; }
+    public uint ImageSize { get; init; }
+    public long ElapsedMs { get; init; }
+    public string Stage { get; init; } = "";
 }
 
 public sealed record SkinCoreWindowDiscovery

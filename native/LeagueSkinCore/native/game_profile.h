@@ -1,4 +1,4 @@
-// Verified code capture 2026-10-29; original1 locators; unknown builds fail closed.
+// Historical code reference (2026-10-29). Hero execution resolves runtime_profile.h.
 #pragma once
 constexpr char GameProfileSha[]="80bff3d1cdedad4de07690958b17af85bd4b84ea23efa2e6266c45f1931b17e0";
 constexpr uintptr_t Game_timestamp=0x6adff306;

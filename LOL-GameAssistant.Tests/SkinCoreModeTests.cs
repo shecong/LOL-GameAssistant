@@ -8,6 +8,16 @@ namespace LOL_GameAssistant.Tests;
 public sealed class SkinCoreModeTests
 {
     [Fact]
+    public async Task ReadOnlyProfileDiagnosisDoesNotRequireRelayDriverOrChangeSelectedMode()
+    {
+        var classic = new Transport(() => Task.FromResult(new SkinCoreReply()));
+        var hybrid = new Transport(() => Task.FromResult(new SkinCoreReply()));
+        var router = new SelectableSkinCoreTransport(classic, hybrid, SkinCoreMode.KernelRelay);
+        await router.InvokeAsync(["profile"], default);
+        Assert.Equal(1, classic.Calls); Assert.Equal(0, hybrid.Calls);
+        Assert.Equal(SkinCoreMode.KernelRelay, router.Mode);
+    }
+    [Fact]
     public async Task RankBorderUsesClassicChannelWithoutChangingSelectedHeroMode()
     {
         var classic = new Transport(() => Task.FromResult(new SkinCoreReply()));

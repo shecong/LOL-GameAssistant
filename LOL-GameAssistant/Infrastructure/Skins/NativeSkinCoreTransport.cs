@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Runtime.InteropServices;
+using System.IO.MemoryMappedFiles;
 using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.Domain.Skins;
 
@@ -11,13 +12,22 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
     Action<SkinCoreException>? diagnostic = null) : ISkinCoreTransport
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+    // Keep validated locator RVAs alive while host processes come and go.
+    // Failure to create the optional cache never prevents a normal scan.
+    private static readonly Lazy<MemoryMappedFile?> ProfileCache = new(() =>
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        try { return MemoryMappedFile.CreateOrOpen(@"Local\LeagueSkinCore.Auto.ProfileCache.v1", 16384); }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    });
     internal static SkinCoreReply ParseReply(string json, bool outcomeUnknown = false) => JsonSerializer.Deserialize<SkinCoreReply>(json, JsonOptions)
         ?? throw new SkinCoreException("invalid_bridge_reply", outcomeUnknown,
             new SkinCoreFailureDetails { Stage = "reply_parse" });
     internal static SkinCoreException ReplyFailure(SkinCoreReply reply, int exitCode) => new(
         string.IsNullOrEmpty(reply.Error) ? "core_failed" : reply.Error,
         reply.Error == "request_outcome_unknown" || reply.Invoked,
-        new SkinCoreFailureDetails { Stage = reply.Stage, Win32 = reply.Win32, RequestId = reply.RequestId,
+        new SkinCoreFailureDetails { Stage = reply.Stage, ProfileResolution = reply.ProfileResolution, Win32 = reply.Win32, RequestId = reply.RequestId,
             Phase = reply.Phase, Pid = reply.Pid, ThreadId = reply.ThreadId, HostArchitecture = reply.HostArchitecture,
             HookTraceAvailable = reply.HookTraceAvailable, HookCallbacks = reply.HookCallbacks,
             HookMessages = reply.HookMessages, HookStage = reply.HookStage, HookWin32 = reply.HookWin32,
@@ -75,6 +85,7 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, WorkingDirectory = directory };
         foreach (string argument in arguments) info.ArgumentList.Add(argument);
         cancellationToken.ThrowIfCancellationRequested();
+        _ = ProfileCache.Value;
         using var process = Process.Start(info) ?? throw new SkinCoreException("host_start_failed");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(9));

@@ -3,6 +3,14 @@
   "source_version": "1.3.0",
   "mode": "independent only",
   "original_required": false,
+  "runtime_adaptation": {
+    "mode": "runtime_signatures",
+    "rules_sha256": "3158ffb8465919f0ed4aed056fa517dae7c43b868a35c2e4ed24ee02c199dced",
+    "runtime_source": "game executable code; no original assistant or remote DLL",
+    "hero_timestamp_gate": false,
+    "layout_family": "CharacterDataStack 0xa0 layers; verified DWORD skin codec",
+    "cache": "validated scalar RVAs, process identity, rule identity; 16 KiB anonymous shared memory"
+  },
   "latest_adaptation": {
     "date": "2026-10-29",
     "game_version": "16.21.832.5350",
