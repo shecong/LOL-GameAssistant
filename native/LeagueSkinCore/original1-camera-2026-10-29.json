@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "independent": true,
+  "original_required": false,
+  "session": "711d827b154cd715",
+  "reference_sha256": "80bff3d1cdedad4de07690958b17af85bd4b84ea23efa2e6266c45f1931b17e0",
+  "request_id": "c1cda9ed359e42f7",
+  "camera_id": "d291eef29e4791b7",
+  "camera_default_view_distance": 2250,
+  "camera_distance": 600,
+  "invoked": false,
+  "state_verified": true,
+  "bridge_protocol": 2,
+  "transport_hook_released": true
+}

@@ -1,0 +1,107 @@
+{
+  "game_path": "E:\\WeGameApps\\英雄联盟（含经典模式）\\Game\\League of Legends.exe",
+  "game_file_sha256": "8dd49307106f45f65288425ce5291b9de4d0ad50e721d9255c0f63b888baf0ee",
+  "timestamp": 1793061638,
+  "image_size": 32550912,
+  "expected_timestamp": 1792188909,
+  "expected_image_size": 32555008,
+  "checks": [
+    {
+      "old_rva": 2238876,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 136,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2894143,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 156,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2211872,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 151,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2894323,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 120,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 4268851,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 130,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 9673336,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 117,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2326592,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 135,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2681906,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 43,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2630100,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 37,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2688576,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 10,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2680432,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 8,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 2674448,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 17,
+      "candidate_is_verified": false
+    },
+    {
+      "old_rva": 6103875,
+      "exact_match": false,
+      "relocation_masked_candidates": [],
+      "constrained_bytes": 21,
+      "candidate_is_verified": false
+    }
+  ],
+  "compatible_with_existing_profile": false,
+  "profile_updated": false,
+  "game_runtime_verified": false,
+  "protected_disk_image": true,
+  "candidate_search_skipped": false,
+  "note": "Protected disk images require an authorized loaded-code reference before adaptation; disk signature mismatches do not prove corresponding runtime functions changed. Candidates are navigation hints only and do not validate structures, globals, ABI or runtime effects."
+}

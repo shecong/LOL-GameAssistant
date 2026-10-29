@@ -1,8 +1,12 @@
 // Recovered original menu: DLL RVA 0x5d4ac..0x5d5ae, UTF-8 labels 0xa7c40/0xa7c50.
 #pragma once
 #include <cmath>
-constexpr uintptr_t CameraSlot=0x1c85220;
-constexpr unsigned char CameraLookup[]={0x48,0x8b,0x05,0xe8,0x67,0x92,0x01,0x48,0x85,0xc0,0x75,0x5a,0x48,0x8b,0x1d,0x04,0x68,0x92,0x01};
+constexpr uintptr_t CameraViewInitRva=0x989b08;
+constexpr uintptr_t CameraViewLookupRva=0x65aca6;
+constexpr uintptr_t CameraDefaultRva=0x346cfa;
+constexpr uintptr_t CameraLookupRva=0x35e931;
+constexpr uintptr_t CameraSlot=0x1c84220;
+constexpr unsigned char CameraLookup[]={0x48,0x8b,0x05,0xe8,0x58,0x92,0x01,0x48,0x85,0xc0,0x75,0x5a,0x48,0x8b,0x1d,0x04,0x59,0x92,0x01};
 constexpr unsigned char CameraDefault[]={0xc7,0x41,0x20,0x00,0x00,0x16,0x44,0xc7,0x41,0x24,0x00,0x00,0x7a,0x44};
 static bool cameraDistance(float value) { return std::isfinite(value) && value>=600.f && value<=1700.f; }
 static int cameraBits(float value) { int bits;memcpy(&bits,&value,4);return bits; }
@@ -16,8 +20,8 @@ static bool cameraWritable(void* field,size_t bytes=4) {
 }
 // Saved game code: camera manager -> +0x18 controller; +0x3c0 current zoom,
 // +0x3c4 target zoom. Constructor initializes both from config +0x28.
-constexpr uintptr_t CameraManagerSlot=0x1c7c020;
-constexpr unsigned char CameraViewLookup[]={0x48,0x8b,0x0d,0x83,0x11,0x62,0x01,0x48,0x8d,0x54,0x24,0x20,0xf3,0x0f,0x10,0x48,0x28,0xf3,0x0f,0x11,0x4c,0x24,0x20,0x48,0x8b,0x41,0x18,0xf3,0x0f,0x10,0x88,0xc0,0x03,0x00,0x00};
+constexpr uintptr_t CameraManagerSlot=0x1c7b020;
+constexpr unsigned char CameraViewLookup[]={0x48,0x8b,0x0d,0x73,0x03,0x62,0x01,0x48,0x8d,0x54,0x24,0x20,0xf3,0x0f,0x10,0x48,0x28,0xf3,0x0f,0x11,0x4c,0x24,0x20,0x48,0x8b,0x41,0x18,0xf3,0x0f,0x10,0x88,0xc0,0x03,0x00,0x00};
 constexpr unsigned char CameraViewInit[]={0x48,0x8b,0x8b,0x78,0x04,0x00,0x00,0x48,0x89,0x8b,0xb0,0x03,0x00,0x00,0x8b,0x41,0x28,0x89,0x83,0xc0,0x03,0x00,0x00,0x8b,0x41,0x28,0x89,0x83,0xc4,0x03,0x00,0x00};
 struct CameraViewPair {float current,target;};
 static_assert(sizeof(CameraViewPair)==8);
@@ -32,8 +36,8 @@ static bool cameraReplace(float* field,float expected,float selected) {
     return InterlockedCompareExchange((volatile LONG*)field,cameraBits(selected),cameraBits(expected))==cameraBits(expected);
 }
 static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* invoked) {
-    if(memcmp(c->base+0x35ea31,CameraLookup,sizeof(CameraLookup)) ||
-       memcmp(c->base+0x346dfa,CameraDefault,sizeof(CameraDefault))) {fail(r,"camera_profile_not_supported");return;}
+    if(memcmp(c->base+CameraLookupRva,CameraLookup,sizeof(CameraLookup)) ||
+       memcmp(c->base+CameraDefaultRva,CameraDefault,sizeof(CameraDefault))) {fail(r,"camera_profile_not_supported");return;}
     BYTE* config=*(BYTE**)(c->base+CameraSlot);
     if(!objectReadable(config,0xa0) || !cameraWritable(config+0x20)) {fail(r,"camera_unavailable");return;}
     float* field=(float*)(config+0x20);float value=*field;
@@ -43,7 +47,7 @@ static void independentCamera(Request* r,Writer* w,IndependentContext* c,bool* i
     if(r->command==17) {
         if(strcmp(r->session,c->session)){fail(r,"stale_session");return;}
         if(!cameraDistance(cameraFloat(r->index)) && cameraFloat(r->index)!=defaultView){fail(r,"invalid_camera_distance");return;}
-        if(memcmp(c->base+0x65ae96,CameraViewLookup,sizeof(CameraViewLookup)) || memcmp(c->base+0x98a028,CameraViewInit,sizeof(CameraViewInit))) {fail(r,"camera_view_profile_not_supported");return;}
+        if(memcmp(c->base+CameraViewLookupRva,CameraViewLookup,sizeof(CameraViewLookup)) || memcmp(c->base+CameraViewInitRva,CameraViewInit,sizeof(CameraViewInit))) {fail(r,"camera_view_profile_not_supported");return;}
         BYTE* manager=*(BYTE**)(c->base+CameraManagerSlot);
         if(!objectReadable(manager,0x20)){fail(r,"camera_view_unavailable");return;}
         BYTE* camera=*(BYTE**)(manager+0x18);

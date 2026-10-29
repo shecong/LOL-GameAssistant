@@ -1,6 +1,7 @@
 // Independent current-build engine, using game-owned skin data and game functions.
 #include "game_profile.h"
 #include "variant_metadata.h"
+#include "original1_skin_rules.h"
 constexpr int IndependentMaxEntries=2048;
 static bool independentModulePinned=false;
 struct IndependentEntry {int index,skin,gear;const char* stableModel;char model[64],name[1024],gearName[128];};
@@ -138,15 +139,7 @@ static bool independentWriteSkin(IndependentContext* c,int skin) {
     *(uint32_t*)field=skinEncoded(skin);*(int*)(c->stack+0x38)=skin;return true;
 }
 static int independentDefaultGear(const char* hero,int skin,int current) {
-    if(!strcmp(hero,"Kayn"))return current;
-    if(!strcmp(hero,"Morgana") && skin==80)return 3;
-    if((!strcmp(hero,"Katarina") && skin>=29 && skin<=36) || (!strcmp(hero,"Viego") && skin==43) ||
-       (!strcmp(hero,"Jinx") && skin==60) || (!strcmp(hero,"Mordekaiser") && skin==54) ||
-       (!strcmp(hero,"Jax") && skin>=14 && skin<=19) || (!strcmp(hero,"Sett") && skin==66) ||
-       (!strcmp(hero,"Kayle") && skin==6) || (!strcmp(hero,"Ashe") && skin==76) ||
-       (!strcmp(hero,"Kaisa") && skin==71) || (!strcmp(hero,"Renekton") && skin>=26 && skin<=32) ||
-       (!strcmp(hero,"MasterYi") && skin==116) || (!strcmp(hero,"Ahri") && skin==86))return 0;
-    return -1;
+    return original1DefaultGear(hero,skin,current);
 }
 #include "object_probe.h"
 #include "object_core.h"

@@ -1,0 +1,25 @@
+{
+  "profile_sha256": "80bff3d1cdedad4de07690958b17af85bd4b84ea23efa2e6266c45f1931b17e0",
+  "camera": [
+    {
+      "name": "CameraLookup",
+      "rva": 3533105,
+      "hex": "488b05e85892014885c0755a488b1d04599201"
+    },
+    {
+      "name": "CameraDefault",
+      "rva": 3435770,
+      "hex": "c7412000001644c7412400007a44"
+    },
+    {
+      "name": "CameraViewLookup",
+      "rva": 6663334,
+      "hex": "488b0d73036201488d542420f30f104828f30f114c2420488b4118f30f1088c0030000"
+    },
+    {
+      "name": "CameraViewInit",
+      "rva": 10001160,
+      "hex": "488b8b7804000048898bb00300008b41288983c00300008b41288983c4030000"
+    }
+  ]
+}

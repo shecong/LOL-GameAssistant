@@ -147,8 +147,8 @@ int main() {
     VirtualFree(readonlyCamera,0,MEM_RELEASE);
     auto cameraImage=(BYTE*)VirtualAlloc(nullptr,Game_image_size,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
     assert(cameraImage);
-    memcpy(cameraImage+0x35ea31,CameraLookup,sizeof(CameraLookup));
-    memcpy(cameraImage+0x346dfa,CameraDefault,sizeof(CameraDefault));
+    memcpy(cameraImage+CameraLookupRva,CameraLookup,sizeof(CameraLookup));
+    memcpy(cameraImage+CameraDefaultRva,CameraDefault,sizeof(CameraDefault));
     alignas(8) BYTE cameraConfig[0xa0]{};*(float*)(cameraConfig+0x20)=600.25f;*(float*)(cameraConfig+0x28)=2250.f;
     *(BYTE**)(cameraImage+CameraSlot)=cameraConfig;
     IndependentContext cameraContext{};cameraContext.base=cameraImage;strcpy_s(cameraContext.session,"1234567890abcdef");
@@ -160,8 +160,8 @@ int main() {
     cameraRequest->index=cameraBits(1700.f);cameraRequest->gear=cameraBits(600.25f);cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
     assert(cameraInvoked && *(float*)(cameraConfig+0x20)==1700.f && strstr(cameraRequest->result,"\"state_verified\":true"));
-    memcpy(cameraImage+0x65ae96,CameraViewLookup,sizeof(CameraViewLookup));
-    memcpy(cameraImage+0x98a028,CameraViewInit,sizeof(CameraViewInit));
+    memcpy(cameraImage+CameraViewLookupRva,CameraViewLookup,sizeof(CameraViewLookup));
+    memcpy(cameraImage+CameraViewInitRva,CameraViewInit,sizeof(CameraViewInit));
     alignas(8) BYTE cameraManager[0x20]{},cameraController[0x480]{};
     *(BYTE**)(cameraImage+CameraManagerSlot)=cameraManager;*(BYTE**)(cameraManager+0x18)=cameraController;
     *(BYTE**)(cameraController+0x478)=cameraConfig;*(BYTE**)(cameraController+0x3b0)=cameraConfig;
@@ -181,14 +181,14 @@ int main() {
     cameraController[0x3e5]=1;cameraInvoked=false;cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
     assert(!cameraInvoked && strstr(cameraRequest->result,"camera_view_unavailable"));cameraController[0x3e5]=0;
-    cameraImage[0x98a028]^=1;cameraWriter.used=0;
+    cameraImage[CameraViewInitRva]^=1;cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
-    assert(!cameraInvoked && strstr(cameraRequest->result,"camera_view_profile_not_supported"));cameraImage[0x98a028]^=1;
+    assert(!cameraInvoked && strstr(cameraRequest->result,"camera_view_profile_not_supported"));cameraImage[CameraViewInitRva]^=1;
     cameraRequest->command=16;
     cameraInvoked=false;cameraWriter.used=0;cameraRequest->session[0]='0';
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
     assert(!cameraInvoked && strstr(cameraRequest->result,"stale_session") && *(float*)(cameraConfig+0x20)==1700.f);
-    cameraImage[0x35ea31]^=1;cameraWriter.used=0;
+    cameraImage[CameraLookupRva]^=1;cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
     assert(!cameraInvoked && strstr(cameraRequest->result,"camera_profile_not_supported"));
     HeapFree(GetProcessHeap(),0,cameraRequest);VirtualFree(cameraImage,0,MEM_RELEASE);
@@ -259,6 +259,22 @@ int main() {
     assert(independentDefaultGear("Morgana",80,-1)==3);
     assert(independentDefaultGear("Ahri",86,-1)==0);
     assert(independentDefaultGear("Kayn",0,2)==2);
+    for(const char* hero:{"Kayn","Lux","Sona"})for(int skin:{0,6,7,100})
+        assert(independentDefaultGear(hero,skin,2)==2);
+    for(const char* hero:{"Morgana","Tristana"}) {
+        assert(independentDefaultGear(hero,80,-1)==3);
+        assert(independentDefaultGear(hero,79,3)==-1 && independentDefaultGear(hero,81,3)==-1);
+    }
+    struct GearCase {const char* hero;int skin;};
+    for(const auto& item:std::initializer_list<GearCase>{{"Ezreal",5},{"Leona",64},{"Caitlyn",22},{"Zeri",40},
+        {"Thresh",19},{"Lillia",46},{"Aatrox",33},{"Evelynn",24},{"Viego",43}}) {
+        assert(independentDefaultGear(item.hero,item.skin,-1)==0);
+        assert(independentDefaultGear(item.hero,item.skin-1,0)==-1);
+        assert(independentDefaultGear(item.hero,item.skin+1,0)==-1);
+    }
+    assert(independentDefaultGear("Ashe",76,2)==-1 && independentDefaultGear("MasterYi",116,2)==-1);
+    assert(independentDefaultGear("Katarina",28,2)==-1 && independentDefaultGear("Katarina",29,2)==0 &&
+        independentDefaultGear("Katarina",36,2)==0 && independentDefaultGear("Katarina",37,2)==-1);
     ObjectSkinObservation object{true,false,false,1,0,0,"SRU_OrderMinionMelee","Ashe"};
     ObjectSkinSelection selection{4,12};
     auto decision=selectObjectSkin(object,selection);

@@ -1,0 +1,321 @@
+{
+  "date": "2026-10-29",
+  "mode": "PRACTICETOOL",
+  "original_dll_sha256": "cf4ed878813631efaf4018ad7cfa8354ab10b3b395a29ca64411e13590a6d3b2",
+  "before": {
+    "ok": true,
+    "matched": true,
+    "independent": true,
+    "original_required": false,
+    "connected": true,
+    "session": "711d827b154cd715",
+    "pid": 48548,
+    "request_id": "9afa3bcafbb3bb23",
+    "reference_sha256": "80bff3d1cdedad4de07690958b17af85bd4b84ea23efa2e6266c45f1931b17e0",
+    "skin": 0,
+    "gear": -1,
+    "model": "Heimerdinger",
+    "active_model": "Heimerdinger",
+    "active_skin": 0,
+    "module_pinned": false,
+    "entries": [
+      {
+        "entry_id": "0:-1",
+        "index": 0,
+        "gear": -1,
+        "skin_num": 0,
+        "name": "Heimerdinger",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "1:-1",
+        "index": 1,
+        "gear": -1,
+        "skin_num": 1,
+        "name": "第三类接触 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "2:-1",
+        "index": 2,
+        "gear": -1,
+        "skin_num": 2,
+        "name": "拆弹专家 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "3:-1",
+        "index": 3,
+        "gear": -1,
+        "skin_num": 3,
+        "name": "创意工坊 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "4:-1",
+        "index": 4,
+        "gear": -1,
+        "skin_num": 4,
+        "name": "雪默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "5:-1",
+        "index": 5,
+        "gear": -1,
+        "skin_num": 5,
+        "name": "生化博士 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "6:-1",
+        "index": 6,
+        "gear": -1,
+        "skin_num": 6,
+        "name": "驯龙学者 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "7:-1",
+        "index": 7,
+        "gear": -1,
+        "skin_num": 15,
+        "name": "泳池派对 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "8:-1",
+        "index": 8,
+        "gear": -1,
+        "skin_num": 16,
+        "name": "泳池派对 黑默丁格 流金岁月",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "9:-1",
+        "index": 9,
+        "gear": -1,
+        "skin_num": 17,
+        "name": "泳池派对 黑默丁格 薰衣草花园",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "10:-1",
+        "index": 10,
+        "gear": -1,
+        "skin_num": 18,
+        "name": "泳池派对 黑默丁格 芒果堡垒",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "11:-1",
+        "index": 11,
+        "gear": -1,
+        "skin_num": 19,
+        "name": "泳池派对 黑默丁格 水上威尼斯",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "12:-1",
+        "index": 12,
+        "gear": -1,
+        "skin_num": 20,
+        "name": "泳池派对 黑默丁格 柠檬庄园",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "13:-1",
+        "index": 13,
+        "gear": -1,
+        "skin_num": 21,
+        "name": "泳池派对 黑默丁格 聚沙成堡",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "14:-1",
+        "index": 14,
+        "gear": -1,
+        "skin_num": 22,
+        "name": "泳池派对 黑默丁格 热恋海滩",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "15:-1",
+        "index": 15,
+        "gear": -1,
+        "skin_num": 23,
+        "name": "泳池派对 黑默丁格 缤纷国度",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "16:-1",
+        "index": 16,
+        "gear": -1,
+        "skin_num": 24,
+        "name": "小蜜蜂 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "17:-1",
+        "index": 17,
+        "gear": -1,
+        "skin_num": 25,
+        "name": "元气满满七星瓢 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "18:-1",
+        "index": 18,
+        "gear": -1,
+        "skin_num": 26,
+        "name": "冷若冰霜小深蓝 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "19:-1",
+        "index": 19,
+        "gear": -1,
+        "skin_num": 27,
+        "name": "浪漫浪漫小淡紫 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "20:-1",
+        "index": 20,
+        "gear": -1,
+        "skin_num": 28,
+        "name": "春意盎然小青青 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "21:-1",
+        "index": 21,
+        "gear": -1,
+        "skin_num": 29,
+        "name": "可爱可爱粉红红 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "22:-1",
+        "index": 22,
+        "gear": -1,
+        "skin_num": 30,
+        "name": "白白嫩嫩小迷糊 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "23:-1",
+        "index": 23,
+        "gear": -1,
+        "skin_num": 31,
+        "name": "野心勃勃特工蝇 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "24:-1",
+        "index": 24,
+        "gear": -1,
+        "skin_num": 32,
+        "name": "五彩缤纷小可爱 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "25:-1",
+        "index": 25,
+        "gear": -1,
+        "skin_num": 33,
+        "name": "双城之战2 教授 黑默丁格",
+        "model": "Heimerdinger"
+      },
+      {
+        "entry_id": "26:-1",
+        "index": 26,
+        "gear": -1,
+        "skin_num": 34,
+        "name": "双城之战2 教授 黑默丁格 典范",
+        "model": "Heimerdinger"
+      }
+    ],
+    "bridge_protocol": 2,
+    "transport_hook_released": true
+  },
+  "visual_confirmation": "pending",
+  "apply": {
+    "ok": true,
+    "invoked": true,
+    "state_verified": true,
+    "independent": true,
+    "original_required": false,
+    "connected": true,
+    "session": "711d827b154cd715",
+    "pid": 48548,
+    "request_id": "48c4a1a026e333fc",
+    "reference_sha256": "80bff3d1cdedad4de07690958b17af85bd4b84ea23efa2e6266c45f1931b17e0",
+    "skin": 1,
+    "gear": -1,
+    "model": "Heimerdinger",
+    "active_model": "Heimerdinger",
+    "active_skin": 1,
+    "module_pinned": false,
+    "bridge_protocol": 2,
+    "transport_hook_released": true
+  },
+  "readback": {
+    "ok": true,
+    "matched": true,
+    "independent": true,
+    "original_required": false,
+    "connected": true,
+    "session": "711d827b154cd715",
+    "pid": 48548,
+    "request_id": "81945a31af343216",
+    "reference_sha256": "80bff3d1cdedad4de07690958b17af85bd4b84ea23efa2e6266c45f1931b17e0",
+    "skin": 1,
+    "gear": -1,
+    "model": "Heimerdinger",
+    "active_model": "Heimerdinger",
+    "active_skin": 1,
+    "module_pinned": false,
+    "bridge_protocol": 2,
+    "transport_hook_released": true
+  },
+  "restore": {
+    "ok": true,
+    "invoked": true,
+    "state_verified": true,
+    "independent": true,
+    "original_required": false,
+    "connected": true,
+    "session": "711d827b154cd715",
+    "pid": 48548,
+    "request_id": "42ca5639fe11412c",
+    "reference_sha256": "80bff3d1cdedad4de07690958b17af85bd4b84ea23efa2e6266c45f1931b17e0",
+    "skin": 0,
+    "gear": -1,
+    "model": "Heimerdinger",
+    "active_model": "Heimerdinger",
+    "active_skin": 0,
+    "module_pinned": false,
+    "bridge_protocol": 2,
+    "transport_hook_released": true
+  },
+  "final": {
+    "ok": true,
+    "matched": true,
+    "independent": true,
+    "original_required": false,
+    "connected": true,
+    "session": "711d827b154cd715",
+    "pid": 48548,
+    "request_id": "a50a1bbd00470f69",
+    "reference_sha256": "80bff3d1cdedad4de07690958b17af85bd4b84ea23efa2e6266c45f1931b17e0",
+    "skin": 0,
+    "gear": -1,
+    "model": "Heimerdinger",
+    "active_model": "Heimerdinger",
+    "active_skin": 0,
+    "module_pinned": false,
+    "bridge_protocol": 2,
+    "transport_hook_released": true
+  }
+}
