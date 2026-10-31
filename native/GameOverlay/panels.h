@@ -47,6 +47,38 @@ void RecommendationRows(const char* text) {
     }
 }
 
+void DrawBitmapPanel(Session& current, uint32_t width, uint32_t height, uint32_t version,
+    size_t pixelOffset, size_t versionOffset, uint32_t& textureVersion, ComPtr<ID3D11ShaderResourceView>& textureView) {
+    if (!width || !height || width > 1600 || height > 1000) return;
+    ComPtr<ID3D11Device> textureDevice;
+    if (textureView) textureView->GetDevice(&textureDevice);
+    if (textureVersion != version || textureDevice.Get() != device.Get()) {
+        DWORD acquired = WaitForSingleObject(current.mutex, 0);
+        if (acquired == WAIT_OBJECT_0 || acquired == WAIT_ABANDONED) {
+            auto bytes = reinterpret_cast<uint8_t*>(current.frame);
+            if (*reinterpret_cast<uint32_t*>(bytes + AuxOffset + versionOffset) == version) {
+                D3D11_TEXTURE2D_DESC d{}; d.Width = width; d.Height = height;
+                d.MipLevels = d.ArraySize = 1; d.Format = DXGI_FORMAT_B8G8R8A8_UNORM; d.SampleDesc.Count = 1;
+                d.Usage = D3D11_USAGE_IMMUTABLE; d.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                D3D11_SUBRESOURCE_DATA pixels{bytes + pixelOffset, width * 4, 0};
+                ComPtr<ID3D11Texture2D> texture;
+                if (SUCCEEDED(device->CreateTexture2D(&d, &pixels, &texture))) {
+                    textureView.Reset();
+                    if (SUCCEEDED(device->CreateShaderResourceView(texture.Get(), nullptr, &textureView))) textureVersion = version;
+                }
+            }
+            ReleaseMutex(current.mutex);
+        }
+    }
+    if (textureView) {
+        auto display = ImGui::GetIO().DisplaySize;
+        float factor = (std::min)(1.f, (std::min)(display.x * .92f / width, display.y * .85f / height));
+        ImVec2 size(width * factor, height * factor);
+        ImGui::GetBackgroundDrawList()->AddImage((ImTextureID)textureView.Get(),
+            ImVec2((display.x - size.x) / 2, (display.y - size.y) / 2), ImVec2((display.x + size.x) / 2, (display.y + size.y) / 2));
+    }
+}
+
 void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float sy) {
     auto display = ImGui::GetIO().DisplaySize;
     auto& style = ImGui::GetStyle();
@@ -147,33 +179,10 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         }
         ImGui::End(); ImGui::PopStyleVar(2);
     } else { current.frame->panelWidth=0; current.frame->panelHeight=0; }
-    if ((aux.flags & 1) && aux.battleWidth > 0 && aux.battleHeight > 0 && aux.battleWidth <= 1600 && aux.battleHeight <= 1000) {
-        ComPtr<ID3D11Device> textureDevice;
-        if(current.battleTexture) current.battleTexture->GetDevice(&textureDevice);
-        if(current.textureVersion != aux.battleVersion || textureDevice.Get() != device.Get()) {
-            DWORD acquired=WaitForSingleObject(current.mutex,0);
-            if(acquired==WAIT_OBJECT_0 || acquired==WAIT_ABANDONED) {
-                auto source=reinterpret_cast<Auxiliary*>(reinterpret_cast<uint8_t*>(current.frame)+AuxOffset);
-                if(source->battleVersion==aux.battleVersion) {
-                    D3D11_TEXTURE2D_DESC d{}; d.Width=aux.battleWidth; d.Height=aux.battleHeight;
-                    d.MipLevels=d.ArraySize=1; d.Format=DXGI_FORMAT_B8G8R8A8_UNORM; d.SampleDesc.Count=1;
-                    d.Usage=D3D11_USAGE_IMMUTABLE; d.BindFlags=D3D11_BIND_SHADER_RESOURCE;
-                    D3D11_SUBRESOURCE_DATA pixels{reinterpret_cast<uint8_t*>(current.frame)+BattlePixelOffset,aux.battleWidth*4,0};
-                    ComPtr<ID3D11Texture2D> texture;
-                    if(SUCCEEDED(device->CreateTexture2D(&d,&pixels,&texture))) {
-                        current.battleTexture.Reset();
-                        if(SUCCEEDED(device->CreateShaderResourceView(texture.Get(),nullptr,&current.battleTexture))) current.textureVersion=aux.battleVersion;
-                    }
-                }
-                ReleaseMutex(current.mutex);
-            }
-        }
-        if(current.battleTexture) {
-            float factor=(std::min)(1.f,(std::min)(display.x*.92f/aux.battleWidth,display.y*.85f/aux.battleHeight));
-            ImVec2 size(aux.battleWidth*factor,aux.battleHeight*factor);
-            ImGui::GetBackgroundDrawList()->AddImage((ImTextureID)current.battleTexture.Get(),ImVec2((display.x-size.x)/2,(display.y-size.y)/2),ImVec2((display.x+size.x)/2,(display.y+size.y)/2));
-        }
-    }
+    if (aux.flags & 1) DrawBitmapPanel(current, aux.battleWidth, aux.battleHeight, aux.battleVersion,
+        BattlePixelOffset, offsetof(Auxiliary, battleVersion), current.textureVersion, current.battleTexture);
+    if (aux.flags & 32) DrawBitmapPanel(current, aux.jungleWidth, aux.jungleHeight, aux.jungleVersion,
+        JunglePixelOffset, offsetof(Auxiliary, jungleVersion), current.jungleTextureVersion, current.jungleTexture);
     if((aux.flags & 2) && (!aux.coachDeadline || GetTickCount64()<aux.coachDeadline)) {
         ImVec2 size((std::min)(450.f,display.x),0), anchor(0,1);
         ImVec2 pos(float(aux.coachOffsetX),display.y-aux.coachOffsetY);

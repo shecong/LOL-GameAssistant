@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Domain.ApplicationInfo;
 using Newtonsoft.Json.Linq;
@@ -87,7 +88,7 @@ public sealed class GitHubUpdateReleaseService : IUpdateReleaseService
     /// <summary>创建当前服务使用的 HTTP 客户端及请求配置。</summary>
     private static HttpClient CreateClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        var client = new HttpClient(NetworkTrafficService.Handler(NetworkModule.Updates)) { Timeout = TimeSpan.FromSeconds(10) };
         client.DefaultRequestHeaders.Add("User-Agent", "LOL-GameAssistant");
         return client;
     }

@@ -6,6 +6,23 @@ namespace LOL_GameAssistant.Tests;
 public sealed class AugmentNameMatcherTests
 {
     [Theory]
+    [InlineData(3004, "罪恶快感！", 1)]
+    [InlineData(3016, "伤不过三", 2)]
+    [InlineData(3025, "音之屏障", 0)]
+    [InlineData(3081, "命运之武器", 1)]
+    [InlineData(3123, "珠光手镯", 1)]
+    [InlineData(3150, "升级：\n风暴狂涌", 1)]
+    [InlineData(3163, "迷人蝴蝶", 1)]
+    public void UpdatedMayhemTitles_MatchOfflineCatalogWithRarity(int id, string text, int rarity)
+    {
+        var catalog = LOL_GameAssistant.Infrastructure.GameData.AugmentCatalog.GetAll();
+        var names = catalog.Where(item => item.Id >= 1000)
+            .SelectMany(item => new[] { (item.Id, item.Name), (item.Id, item.EnglishName ?? "") });
+        Assert.Equal(id, AugmentNameMatcher.MatchCard(text, names)?.Id);
+        Assert.Equal(rarity, Assert.Single(catalog, item => item.Id == id).Rarity);
+    }
+
+    [Theory]
     [InlineData("残\n\n《LA\n\nPa\n")]
     [InlineData("邹 刍\n\nFU Lt\n\n小子\n")]
     public void CardTitle_RejectsObservedLatinNoise(string text)

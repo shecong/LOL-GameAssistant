@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.ChampionSelect;
@@ -62,6 +63,9 @@ public static class AppCompositionRoot
                 new LegacyApplicationSettingsStore().Load().SkinCoreMode),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
+    public static IPlayerGrowthService CreateRegionalGrowthService(IMatchHistoryService matches, string platform) =>
+        new LcuPlayerGrowthService(matches, ChampionCatalog, LcuRequestSender,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "training", string.Concat(platform.Where(char.IsLetterOrDigit))), allowInventory: false);
     public static IClientRegaliaService ClientRegaliaService { get; } = new LcuClientRegaliaService(LcuRequestSender);
     public static IClientIdentityService ClientIdentityService { get; } = new LcuClientIdentityService(LcuRequestSender,
         detail => LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("身份装饰", "诊断", detail));
@@ -232,7 +236,7 @@ public static class AppCompositionRoot
 
     /// <summary>云端 AI 共用的 HTTP 客户端：单实例复用连接，避免每次建议都重新握手。</summary>
     // 禁止重定向，避免自定义服务把带 API Key 的请求转发到另一个地址。
-    private static readonly HttpClient AiHttpClient = new(new HttpClientHandler { AllowAutoRedirect = false })
+    private static readonly HttpClient AiHttpClient = new(LOL_GameAssistant.Helper.NetworkTrafficService.Handler(LOL_GameAssistant.Helper.NetworkModule.Ai, new HttpClientHandler { AllowAutoRedirect = false }))
     {
         Timeout = TimeSpan.FromSeconds(25)
     };

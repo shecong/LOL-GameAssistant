@@ -11,6 +11,53 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class SettingsDescriptionLayoutTests
 {
+    [Theory]
+    [InlineData(760, "Dark")]
+    [InlineData(1000, "Dark")]
+    [InlineData(1594, "Light")]
+    public void AiDirectoryNavigatesEveryCardAndTracksManualScrolling(int width, string theme) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        string oldTheme = LOL_GameAssistant.Helper.UiTheme.Mode;
+        try
+        {
+            LOL_GameAssistant.Helper.UiTheme.SetMode(theme);
+            using var settings = new SettingForm(Service<IGameClientLauncher>((_, _) => null),
+                Service<IApplicationSettingsStore>((method, _) => method.Name == "GetStoragePath" ? "test-settings.json" : new AssistantSettings()),
+                Service<ISettingsSecretProtector>((_, _) => null), Service<IClientFeatureService>((_, _) => null));
+            using var host = new Form { ClientSize = new Size(width, 780), ShowInTaskbar = false, Opacity = 0 };
+            settings.Dock = DockStyle.Fill; host.Controls.Add(settings); host.Show();
+            var tabs = (AntdUI.Segmented)typeof(SettingForm).GetField("_settingsSegmented", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
+            tabs.SelectIndex = 4; System.Windows.Forms.Application.DoEvents();
+            var menu = Children(settings).OfType<AntdUI.Menu>().Single(c => c.Name == "aiSectionNavigation");
+            var page = Children(settings).OfType<AntdUI.Panel>().Single(c => c.Name == "aiSettingsDashboard");
+            Assert.Equal(9, menu.Items.Count);
+            Assert.NotNull(page.YScroll);
+            int fixedTop = menu.PointToScreen(Point.Empty).Y;
+            foreach (AntdUI.MenuItem item in menu.Items)
+            {
+                menu.Select(item, false); System.Windows.Forms.Application.DoEvents();
+                var card = Assert.IsAssignableFrom<Control>(item.Tag);
+                int relativeTop = card.PointToScreen(Point.Empty).Y - page.PointToScreen(Point.Empty).Y;
+                Assert.InRange(relativeTop, page.Padding.Top - 2, page.ClientSize.Height - 1);
+                Assert.True(item.Select, $"{item.Name} must remain highlighted after jumping; top={relativeTop}, scroll={page.YScroll!.Value}, cardTop={card.Top}, contentTop={card.Parent!.Top}, selected={string.Join(',', menu.Items.Where(i => i.Select).Select(i => i.Name))}");
+                Assert.Equal(fixedTop, menu.PointToScreen(Point.Empty).Y);
+            }
+            page.YScroll!.Value = 0; System.Windows.Forms.Application.DoEvents();
+            Assert.True(menu.Items[0].Select);
+            Assert.False(menu.Items[^1].Select);
+            if (Environment.GetEnvironmentVariable("ANTD_UI_PREVIEWS") is string folder)
+            {
+                Directory.CreateDirectory(folder);
+                using var image = new Bitmap(settings.Width, settings.Height);
+                settings.DrawToBitmap(image, settings.ClientRectangle);
+                image.Save(Path.Combine(folder, $"ai-navigation-{width}-{theme}.png"));
+            }
+            tabs.SelectIndex = 0; tabs.SelectIndex = 4;
+            Assert.Same(menu, Children(settings).OfType<AntdUI.Menu>().Single(c => c.Name == "aiSectionNavigation"));
+        }
+        finally { LOL_GameAssistant.Helper.UiTheme.SetMode(oldTheme); }
+    });
+
     [Fact]
     public void AiCardsFitTheirRowsOnFirstDisplayAndAfterSwitching() => MatchListScrollingTests.OnUiThread(() =>
     {
@@ -80,7 +127,7 @@ public sealed class SettingsDescriptionLayoutTests
             {
                 var table = (TableLayoutPanel)note.Parent!;
                 Assert.InRange(table.ClientSize.Width - note.Right - note.Margin.Right, 0, 4);
-                Assert.True(note.Width > 300, $"Description remained narrow: {note.Bounds}");
+                Assert.True(note.Width > 220, $"Description remained narrow beside the fixed directory: {note.Bounds}");
                 Assert.True(note.Height >= note.GetPreferredSize(new Size(note.Width, 0)).Height);
             }
             if (width == 1600)

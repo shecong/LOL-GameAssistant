@@ -55,6 +55,8 @@ public sealed class CompanionExperienceUiTests
             using var host = new Form { ClientSize = new(width, 760), ShowInTaskbar = false, Opacity = 0 };
             host.Controls.Add(view); host.Show(); Pump(view.ShowAsync("player-one", false, "召唤师峡谷")); UiTheme.Apply(view);
             var buttons = Children(view).OfType<AntdUI.Button>().ToArray();
+            Assert.Contains("样本总览", Children(view).OfType<AntdUI.Input>().Single(c => c.Name == "growthAnalysis").Text);
+            Assert.True(Children(view).OfType<SplitContainer>().Single(c => c.Name == "growthWorkspace").Panel2.Height >= 100);
             Assert.Contains(buttons, b => b.Name == "minuteReview"); Assert.Contains(buttons, b => b.Name == "patchWatch");
             foreach (var button in buttons) Assert.True(button.Right <= button.Parent!.ClientSize.Width);
             var progress = Field<AntdUI.Label>(view, "_goalProgress");

@@ -59,6 +59,10 @@ namespace LOL_GameAssistant
             UiTheme.SetMode(startupSettings.ThemeMode);
             AntdUI.Config.IsDark = UiTheme.Palette.IsDark;
             UiLanguage.SetMode(startupSettings.LanguageMode);
+            using var augmentUpdates = new CancellationTokenSource();
+            _ = Task.Run(() => Infrastructure.GameData.AugmentCatalog.RunUpdatesAsync(
+                message => RuntimeDiagnostics.Report("增幅对照表", "自动更新", message), augmentUpdates.Token));
+            System.Windows.Forms.Application.ApplicationExit += (_, _) => augmentUpdates.Cancel();
             using (new StartupDiagnostics("创建主窗口")) GameMain = new GameMain();
             // A replacement request may arrive while the main window is being created.
             GameMain.Shown += async (_, _) =>

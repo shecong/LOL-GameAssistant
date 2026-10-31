@@ -95,6 +95,8 @@ public partial class SettingForm
             // 只更新当前开关；未提交的连接配置、词库或其他页面的新设置不能被覆盖。
             AssistantSettings latest = _settingsStore.Load();
             update(latest, value);
+            if (control == _enemyJungleRouteEnabled && WindowHoldController.HasGameHotkeyConflict(latest))
+                throw new InvalidOperationException("路线分析快捷键冲突，请先更换快捷键。");
             if (control == _battleOverlayEnabled && WindowHoldController.HasBattleOverlayHotkeyConflict(latest))
                 throw new InvalidOperationException("对局面板快捷键与喊话或 KDA 快捷键冲突，请先更换快捷键。");
             _settingsStore.Save(latest);

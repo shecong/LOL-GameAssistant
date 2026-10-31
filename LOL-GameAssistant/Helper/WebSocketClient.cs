@@ -18,7 +18,7 @@ public class WebSocketClient : IDisposable, IAsyncDisposable
     private readonly WebSocketClientOptions _options;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly SemaphoreSlim _sendLock = new(1, 1);
-    private ClientWebSocket? _socket;
+    private TrafficWebSocket? _socket;
     private CancellationTokenSource? _lifetime;
     private Task? _runTask;
     private volatile bool _isRunning;
@@ -70,14 +70,14 @@ public class WebSocketClient : IDisposable, IAsyncDisposable
         await firstAttempt.ConfigureAwait(false);
     }
 
-    private ClientWebSocket CreateSocket()
+    private TrafficWebSocket CreateSocket()
     {
         var socket = new ClientWebSocket();
         if (!string.IsNullOrEmpty(_token)) socket.Options.SetRequestHeader("Authorization", $"Basic {_token}");
         // 本机 LCU 使用自签名证书；远程目标仍执行正常证书校验。
         if (_uri.Host == "127.0.0.1")
             socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
-        return socket;
+        return new TrafficWebSocket(NetworkModule.ClientEvents, socket);
     }
 
     private async Task RunConnectionLoopAsync(TaskCompletionSource<bool> started, CancellationToken lifetime)
@@ -154,7 +154,7 @@ public class WebSocketClient : IDisposable, IAsyncDisposable
         }
     }
 
-    private async Task HeartbeatAsync(ClientWebSocket socket, CancellationTokenSource session)
+    private async Task HeartbeatAsync(TrafficWebSocket socket, CancellationTokenSource session)
     {
         try
         {
@@ -181,7 +181,7 @@ public class WebSocketClient : IDisposable, IAsyncDisposable
         await SendOnSocketAsync(socket, message, lifetime.Token).ConfigureAwait(false);
     }
 
-    private async Task SendOnSocketAsync(ClientWebSocket socket, string message, CancellationToken cancellationToken)
+    private async Task SendOnSocketAsync(TrafficWebSocket socket, string message, CancellationToken cancellationToken)
     {
         await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try

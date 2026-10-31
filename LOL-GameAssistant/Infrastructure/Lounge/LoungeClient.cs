@@ -218,6 +218,8 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
         {
             try
             {
+                if (!NetworkTrafficService.Shared.IsEnabled(NetworkModule.Lounge))
+                { await Task.Delay(TimeSpan.FromSeconds(2), token); continue; }
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
                 timeout.CancelAfter(TimeSpan.FromSeconds(15));
                 var state = await local.ReadAsync(_settings.ShareActivity, timeout.Token);
@@ -248,6 +250,12 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
             HubConnection? hub = null;
             try
             {
+                if (!NetworkTrafficService.Shared.IsEnabled(NetworkModule.Lounge))
+                {
+                    SetStatus("网络访问已在流量监控中关闭");
+                    await Task.Delay(TimeSpan.FromSeconds(2), token);
+                    continue;
+                }
                 if (string.IsNullOrWhiteSpace(_settings.ServerUrl))
                 { SetStatus("尚未配置服务器，请填写地址并保存连接"); return; }
                 string server = LoungeSettings.ValidateUrl(_settings.ServerUrl);
@@ -255,10 +263,20 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                 hub = new HubConnectionBuilder().WithUrl(server + "/hubs/lounge", options =>
                 {
                     options.AccessTokenProvider = () => Task.FromResult<string?>(credential);
+                    options.WebSocketFactory = async (context, token) =>
+                    {
+                        var transport = new System.Net.WebSockets.ClientWebSocket();
+                        foreach (var header in context.Options.Headers)
+                            transport.Options.SetRequestHeader(header.Key, header.Value);
+                        transport.Options.SetRequestHeader("Authorization", "Bearer " + credential);
+                        var socket = new TrafficWebSocket(NetworkModule.Lounge, transport);
+                        try { await socket.ConnectAsync(context.Uri, token); return socket; }
+                        catch { socket.Dispose(); throw; }
+                    };
                     options.HttpMessageHandlerFactory = handler =>
                     {
                         if (handler is HttpClientHandler http) http.AllowAutoRedirect = false;
-                        return handler;
+                        return NetworkTrafficService.Handler(NetworkModule.Lounge, handler);
                     };
                 }).Build();
                 hub.ServerTimeout = TimeSpan.FromSeconds(45);

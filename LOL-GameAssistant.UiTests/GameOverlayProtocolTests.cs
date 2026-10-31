@@ -80,6 +80,16 @@ public sealed class GameOverlayProtocolTests
         bridge.HidePanel(GameOverlayPanelKind.Coaching); bridge.HidePanel(GameOverlayPanelKind.SkinPicker);
         Assert.Equal(1,view.ReadInt32(aux)); Assert.Equal(1,view.ReadInt32(8));
         bridge.HidePanel(GameOverlayPanelKind.Battle); Assert.Equal(0,view.ReadInt32(8));
+        using var jungle = new Bitmap(4, 5);
+        using (var graphics = Graphics.FromImage(jungle)) graphics.Clear(Color.Lime);
+        bridge.PublishPanel(new(GameOverlayPanelKind.JungleRoute, Image: jungle));
+        Assert.Equal(32, view.ReadInt32(aux));
+        Assert.Equal(4, view.ReadInt32(aux + 108)); Assert.Equal(5, view.ReadInt32(aux + 112));
+        Assert.Equal((byte)255, view.ReadByte(NativeGameOverlayBridge.JunglePixelOffset + 1));
+        Assert.Equal((byte)255, view.ReadByte(NativeGameOverlayBridge.BattlePixelOffset + 2));
+        Assert.Equal(1, view.ReadInt32(8));
+        bridge.HidePanel(GameOverlayPanelKind.JungleRoute);
+        Assert.Equal(0, view.ReadInt32(8));
     }
 
     [Fact]

@@ -49,6 +49,13 @@ internal sealed class PoroShopForm : AntdUI.Window, IThemeAware
         Disposed += (_, _) => { _exchanges.Changed -= ExchangeChanged; _requests.Dispose(); };
     }
 
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        // Modeless Show(owner) does not apply CenterParent automatically.
+        if (Owner != null) CenterToParent();
+    }
+
     private async Task RefreshShopAsync()
     {
         if (_busy || IsDisposed) return;

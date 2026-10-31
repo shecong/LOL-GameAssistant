@@ -8,6 +8,42 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class RewardCollectionTests
 {
+    [Theory]
+    [InlineData(1, 1, 1, true)]
+    [InlineData(2, 1, 2, true)]
+    [InlineData(2, 2, 2, true)]
+    [InlineData(2, 1, 1, false)]
+    [InlineData(3, 1, 2, false)]
+    [InlineData(0, 1, 1, false)]
+    [InlineData(1, 2, 2, false)]
+    public async Task ClaimAllIncludesEveryRewardWhenNoCandidatesMustBeExcluded(int count, int minimum, int maximum, bool canClaimAll)
+    {
+        var lcu = new Sender();
+        var ids = Enumerable.Range(1, count).Select(i => "reward" + i).ToArray();
+        lcu.Data["/lol-rewards/v1/grants"] = new JArray(new JObject
+        {
+            ["info"] = new JObject { ["id"] = "grant", ["status"] = "PENDING_SELECTION" },
+            ["rewardGroup"] = new JObject
+            {
+                ["id"] = "group",
+                ["selectionStrategyConfig"] = new JObject { ["minSelectionsAllowed"] = minimum, ["maxSelectionsAllowed"] = maximum },
+                ["rewards"] = new JArray(ids.Select(id => new JObject { ["id"] = id }))
+            }
+        }).ToString();
+        lcu.Data["/lol-rso-auth/v1/authorization"] = "{}";
+        var service = new LcuClientFeatureService(lcu);
+        var scan = await service.ScanRewardsAsync();
+        Assert.Equal(!canClaimAll, Assert.Single(scan.Rewards).RequiresSelection);
+        var result = await service.ClaimAllPendingRewardsAsync();
+        Assert.Equal(canClaimAll, result.Succeeded);
+        if (canClaimAll)
+        {
+            Assert.Equal("/lol-rewards/v1/grants/grant/select", Assert.Single(lcu.Writes));
+            Assert.Equal(ids, JObject.Parse(Assert.Single(lcu.Bodies))["selections"]!.Values<string>());
+        }
+        else Assert.Empty(lcu.Writes);
+    }
+
     [Fact]
     public async Task ScanIncludesDailyBoxAndEveryBattlePassLevelWithoutWriting()
     {
@@ -95,10 +131,11 @@ public sealed class RewardCollectionTests
             ["/lol-tencent-cookie-relay/v1/tft-cookies"] = "{\"https://apps.game.qq.com\":{\"uin\":\"o0012345\",\"skey\":\"dummy\"}}"
         };
         public List<string> Writes { get; } = [];
+        public List<string> Bodies { get; } = [];
         public Task<string?> GetStringAsync(string endpoint, CancellationToken cancellationToken = default) => Task.FromResult(Data.GetValueOrDefault(endpoint));
         public Task<byte[]?> GetBytesAsync(string endpoint, CancellationToken cancellationToken = default) => Task.FromResult<byte[]?>(null);
         public Task<bool> PostAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
-        { Writes.Add(endpoint); Data[Root + "/unclaimed-rewards"] = "{\"rewardsCount\":0}"; return Task.FromResult(true); }
+        { Writes.Add(endpoint); Bodies.Add(jsonBody); Data[Root + "/unclaimed-rewards"] = "{\"rewardsCount\":0}"; return Task.FromResult(true); }
         public Task<bool> PutAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> PatchAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> DeleteAsync(string endpoint, CancellationToken cancellationToken = default) => throw new NotSupportedException();

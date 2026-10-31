@@ -1,5 +1,6 @@
 using System.Reflection;
 using LOL_GameAssistant.Application.Coaching;
+using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Lobby;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
@@ -144,6 +145,8 @@ public sealed class EnemyJungleRouteTests
         var fixture = new Fixture { Timeline = (_, token) => pending.Task.WaitAsync(token) };
         using var controller = new EnemyJungleRouteController(fixture.Service);
         controller.Apply(true);
+        Assert.Equal(0, fixture.TimelineReads);
+        _ = controller.RefreshAsync(true);
         Assert.Equal(1, fixture.TimelineReads);
         controller.Apply(false);
         pending.TrySetResult(Timeline(1));
@@ -158,6 +161,7 @@ public sealed class EnemyJungleRouteTests
         var fixture = new Fixture();
         using var controller = new EnemyJungleRouteController(fixture.Service);
         controller.Apply(true);
+        controller.RefreshAsync(true).GetAwaiter().GetResult();
         Assert.NotNull(controller.Current.Prediction);
         string previous = UiTheme.Mode;
         try
@@ -203,6 +207,7 @@ public sealed class EnemyJungleRouteTests
                     empty.Save(Path.Combine(screenshots, mode + "-Empty.png"));
                 }
                 controller.Apply(true);
+                controller.RefreshAsync(true).GetAwaiter().GetResult();
             }
         }
         finally { UiTheme.SetMode(previous); }
@@ -233,8 +238,76 @@ public sealed class EnemyJungleRouteTests
     public void SettingRoundTripsAndDefaultsOff()
     {
         Assert.False(new AssistantSettings().EnemyJungleRouteEnabled);
-        Assert.True(LegacySettingsMapper.ToDomain(LegacySettingsMapper.ToLegacy(new AssistantSettings { EnemyJungleRouteEnabled = true })).EnemyJungleRouteEnabled);
+        Assert.Equal("F10", new AssistantSettings().EnemyJungleRouteHotkey);
+        var settings = LegacySettingsMapper.ToDomain(LegacySettingsMapper.ToLegacy(new AssistantSettings
+            { EnemyJungleRouteEnabled = true, EnemyJungleRouteHotkey = "Ctrl+F10" }));
+        Assert.True(settings.EnemyJungleRouteEnabled);
+        Assert.Equal("Ctrl+F10", settings.EnemyJungleRouteHotkey);
     }
+
+    [Fact]
+    public void ShortcutAnalyzesOnlyOnOpeningAndPublishesMapWithoutOpeningAWindow() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var fixture = new Fixture();
+        using var bridge = new RecordingGameOverlay();
+        bool foreground = true;
+        using var controller = new EnemyJungleRouteController(fixture.Service, bridge, () => foreground);
+        int openWindows = System.Windows.Forms.Application.OpenForms.Count;
+        controller.Apply(true);
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Equal(0, fixture.HistoryReads);
+        Assert.Empty(bridge.Panels);
+        controller.ToggleForGameAsync("F10").GetAwaiter().GetResult();
+        Assert.Equal(1, fixture.HistoryReads);
+        Assert.True(controller.OverlayVisible);
+        Assert.Equal(openWindows, System.Windows.Forms.Application.OpenForms.Count);
+        var image = Assert.Single(bridge.Panels).Value.Image!;
+        Assert.Equal(new Size(1120, 740), image.Size);
+        Assert.NotNull(controller.Current.Prediction);
+        string? previews = Environment.GetEnvironmentVariable("JUNGLE_ROUTE_SCREENSHOTS");
+        if (previews != null) { Directory.CreateDirectory(previews); image.Save(Path.Combine(previews, "Overlay.png")); }
+        controller.ToggleForGameAsync("F10").GetAwaiter().GetResult();
+        Assert.False(controller.OverlayVisible);
+        Assert.Empty(bridge.Panels);
+        Assert.Equal(1, fixture.HistoryReads);
+        controller.ToggleForGameAsync("F10").GetAwaiter().GetResult();
+        Assert.Equal(2, fixture.HistoryReads);
+        foreground = false;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (controller.OverlayVisible && watch.Elapsed < TimeSpan.FromSeconds(2))
+        { System.Windows.Forms.Application.DoEvents(); Thread.Sleep(5); }
+        Assert.False(controller.OverlayVisible);
+        Assert.Empty(bridge.Panels);
+        controller.ToggleForGameAsync("F10").GetAwaiter().GetResult();
+        Assert.Equal(2, fixture.HistoryReads);
+        foreground = true;
+        controller.Apply(false);
+        controller.ToggleForGameAsync("F10").GetAwaiter().GetResult();
+        Assert.Equal(2, fixture.HistoryReads);
+    });
+
+    [Fact]
+    public void ClosingDuringAnalysisCancelsAndCannotReopenFromLateResults() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var pending = new TaskCompletionSource<JungleTimeline>();
+        CancellationToken requestToken = default;
+        var fixture = new Fixture { Timeline = (_, token) => { requestToken = token; return pending.Task.WaitAsync(token); } };
+        using var bridge = new RecordingGameOverlay();
+        using var controller = new EnemyJungleRouteController(fixture.Service, bridge, () => true);
+        controller.Apply(true);
+        var analysis = controller.ToggleForGameAsync("F10");
+        Assert.False(analysis.IsCompleted);
+        controller.ToggleForGameAsync("F10").GetAwaiter().GetResult();
+        Assert.True(requestToken.IsCancellationRequested);
+        pending.TrySetResult(Timeline(1));
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (!analysis.IsCompleted && watch.Elapsed < TimeSpan.FromSeconds(2))
+        { System.Windows.Forms.Application.DoEvents(); Thread.Sleep(5); }
+        Assert.True(analysis.IsCompletedSuccessfully);
+        Assert.False(controller.OverlayVisible);
+        Assert.Empty(bridge.Panels);
+        Assert.Null(controller.Current.Prediction);
+    });
 
     private static IEnumerable<Control> All(Control control) => control.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(All(c)));
     private static readonly IReadOnlyList<JungleObservation> Points =

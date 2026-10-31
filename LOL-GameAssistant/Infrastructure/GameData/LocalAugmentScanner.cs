@@ -29,6 +29,7 @@ public sealed class LocalAugmentScanner : IAugmentScanner
     /// <summary>执行本机强化选项识别。</summary>
     public async Task<AugmentScanResult> ScanAsync(CancellationToken cancellationToken = default)
     {
+        await AugmentCatalog.RefreshAsync(cancellationToken).ConfigureAwait(false);
         // Reuse one model pipeline without overlapping scans. Cancellation also applies while queued.
         await ScanGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try

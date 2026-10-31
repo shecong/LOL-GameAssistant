@@ -170,7 +170,7 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
         int submitted = 0, skipped = 0, failed = 0;
         foreach (var grant in grants)
         {
-            if (grant.RequiresSelection && (grant.RewardIds.Count != 1 || grant.AvailableChoices < 1)) { skipped++; continue; }
+            if (grant.RequiresSelection) { skipped++; continue; }
             if ((await ClaimRewardAsync(grant.GrantId, grant.RewardIds, cancellationToken).ConfigureAwait(false)).Succeeded) submitted++;
             else failed++;
         }
@@ -462,9 +462,11 @@ public sealed partial class LcuClientFeatureService : IClientFeatureService
             .Select(reward => reward.Value<string>("id"))
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Cast<string>().ToArray();
+        int minimumSelections = Math.Max(1, group?.SelectToken("selectionStrategyConfig.minSelectionsAllowed")?.Value<int?>() ?? 1);
         return new ClientRewardGrant(grant.SelectToken("info.id")?.Value<string>() ?? "", title, Math.Min(choices, ids.Count), ids)
         {
-            MinimumSelections = Math.Max(1, group?.SelectToken("selectionStrategyConfig.minSelectionsAllowed")?.Value<int?>() ?? 1),
+            RequiresSelection = ids.Count == 0 || choices < ids.Count || minimumSelections > ids.Count,
+            MinimumSelections = minimumSelections,
             Choices = (group?["rewards"] as JArray ?? []).OfType<JObject>()
                 .Where(r => !string.IsNullOrWhiteSpace(r.Value<string>("id")))
                 .Select(r => new ClientRewardChoice(r.Value<string>("id")!, r.SelectToken("localizations.title")?.ToString() ?? r.Value<string>("name") ?? r.Value<string>("id")!,

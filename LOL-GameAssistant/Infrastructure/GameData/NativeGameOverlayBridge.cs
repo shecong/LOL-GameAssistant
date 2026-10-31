@@ -14,7 +14,8 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
 {
     internal const int PixelOffset = 65536, PixelCapacity = 32 * 1024 * 1024;
     internal const int AuxOffset = PixelOffset + PixelCapacity, BattlePixelOffset = AuxOffset + 65536;
-    internal const int MappingSize = BattlePixelOffset + 1600 * 1000 * 4;
+    internal const int JunglePixelOffset = BattlePixelOffset + 1600 * 1000 * 4;
+    internal const int MappingSize = JunglePixelOffset + 1600 * 1000 * 4;
     internal const int TitleOffset = 128, StatusOffset = 384, RecommendationsOffset = 2432, OfferedOffset = 35200;
     private readonly object _gate = new();
     private readonly SemaphoreSlim _captureGate = new(1, 1);
@@ -31,6 +32,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
     private bool _panelsDirty, _frameDirty = true;
     private readonly HashSet<GameOverlayPanelKind> _dirtyPanels = [];
     private int _battleVersion;
+    private int _jungleVersion;
     public NativeGameOverlayBridge() : this(true) { }
     internal NativeGameOverlayBridge(bool connectToGame) => _heartbeat = new(_ => Heartbeat(), null,
         connectToGame ? 250 : Timeout.Infinite, connectToGame ? 250 : Timeout.Infinite);
@@ -75,6 +77,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                 (existing.Panel.ItemStyles ?? []).SequenceEqual(panel.ItemStyles ?? [])) return;
             _panels[panel.Kind] = new(panel, pixels, width, height); _panelsDirty = true; _dirtyPanels.Add(panel.Kind);
             if (panel.Kind == GameOverlayPanelKind.Battle) ++_battleVersion;
+            if (panel.Kind == GameOverlayPanelKind.JungleRoute) ++_jungleVersion;
             Flush();
         }
     }
@@ -159,6 +162,10 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                 case GameOverlayPanelKind.Battle:
                     view.Write(AuxOffset + 4, _battleVersion); view.Write(AuxOffset + 8, payload.Width); view.Write(AuxOffset + 12, payload.Height);
                     if (payload.Pixels is { } pixels) view.WriteArray(BattlePixelOffset, pixels, 0, pixels.Length);
+                    break;
+                case GameOverlayPanelKind.JungleRoute:
+                    view.Write(AuxOffset + 104, _jungleVersion); view.Write(AuxOffset + 108, payload.Width); view.Write(AuxOffset + 112, payload.Height);
+                    if (payload.Pixels is { } junglePixels) view.WriteArray(JunglePixelOffset, junglePixels, 0, junglePixels.Length);
                     break;
                 case GameOverlayPanelKind.Coaching:
                     view.Write(AuxOffset + 16, p.Deadline); view.Write(AuxOffset + 32, p.Position);

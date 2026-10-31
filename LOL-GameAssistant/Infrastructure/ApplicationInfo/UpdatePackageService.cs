@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -343,7 +344,7 @@ internal sealed class UpdatePackageService
 
     private static HttpClient CreateClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        var client = new HttpClient(NetworkTrafficService.Handler(NetworkModule.Updates)) { Timeout = TimeSpan.FromMinutes(30) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("LOL-GameAssistant-Updater/1.0");
         return client;
     }

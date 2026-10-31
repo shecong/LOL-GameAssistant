@@ -11,6 +11,10 @@ public sealed class AugmentRecommendationGroupsTests
     [InlineData(1001, 2)]
     [InlineData(1005, 1)]
     [InlineData(1204, 0)]
+    [InlineData(1064, 1)]
+    [InlineData(7001, 0)]
+    [InlineData(7003, 2)]
+    [InlineData(7012, 2)]
     public async Task OfflineCatalog_HasVerifiedMayhemRarity(int id, int rarity)
     {
         var item = Assert.Single(await AugmentCatalog.ResolveAsync([id]));

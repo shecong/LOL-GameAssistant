@@ -9,7 +9,8 @@ constexpr uint32_t Magic = 0x53434f56, Version = 2;
 constexpr size_t PixelOffset = 65536, PixelCapacity = 32 * 1024 * 1024;
 constexpr size_t AuxOffset = PixelOffset + PixelCapacity, BattlePixelOffset = AuxOffset + 65536;
 constexpr size_t BattlePixelCapacity = 1600 * 1000 * 4;
-constexpr size_t MappingSize = BattlePixelOffset + BattlePixelCapacity;
+constexpr size_t JunglePixelOffset = BattlePixelOffset + BattlePixelCapacity;
+constexpr size_t MappingSize = JunglePixelOffset + BattlePixelCapacity;
 constexpr wchar_t StartMessage[] = L"SC.MayhemOverlay.Start.v2";
 #pragma pack(push, 1)
 struct Frame {
@@ -38,7 +39,8 @@ struct Auxiliary {
     int32_t skinPage, skinPageCount;
     int32_t cameraEnabled, cameraReady;
     volatile LONG cameraWheel, cameraReset;
-    uint8_t reserved[24];
+    uint32_t jungleVersion, jungleWidth, jungleHeight;
+    uint8_t reserved[12];
     char coachTitle[256], coachBody[2048], coachDetail[1024], skinToast[1024];
     char skinTitle[256], skinStatus[2048], skinNames[256][192];
     uint32_t skinPrefixBytes[256], skinPrefixColors[256]; // Optional quality label styling in v2 auxiliary tail.
@@ -47,6 +49,7 @@ struct Auxiliary {
 static_assert(offsetof(Frame, title) == 128);
 static_assert(sizeof(Frame) == 51584);
 static_assert(offsetof(Auxiliary, coachTitle) == 128);
+static_assert(offsetof(Auxiliary, jungleVersion) == 104);
 static_assert(offsetof(Auxiliary, skinCategory) == 76);
 static_assert(offsetof(Auxiliary, skinNames) == 6784);
 static_assert(offsetof(Auxiliary, skinPrefixBytes) == 55936);

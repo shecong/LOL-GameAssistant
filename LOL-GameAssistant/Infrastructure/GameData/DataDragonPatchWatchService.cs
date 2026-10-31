@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using System.Collections.Concurrent;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
@@ -8,7 +9,7 @@ namespace LOL_GameAssistant.Infrastructure.GameData;
 /// <summary>比较官方资源快照，不把资源差异宣称为国服补丁说明或强度结论。</summary>
 public sealed class DataDragonPatchWatchService(HttpClient? client = null) : IPatchWatchService
 {
-    private static readonly HttpClient Shared = new() { Timeout = TimeSpan.FromSeconds(12) };
+    private static readonly HttpClient Shared = new(NetworkTrafficService.Handler(NetworkModule.Patch)) { Timeout = TimeSpan.FromSeconds(12) };
     private readonly HttpClient _http = client ?? Shared;
     private readonly ConcurrentDictionary<string, JToken> _cache = new();
     private readonly SemaphoreSlim _gate = new(3, 3);

@@ -11,6 +11,23 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class GameKdaHotkeyTests
 {
     [Fact]
+    public void JungleShortcutRequiresEnablementAndRejectsConflicts()
+    {
+        var settings = new AssistantSettings();
+        Assert.DoesNotContain(QuickShoutHotkeyAction.EnemyJungleRoute, Bindings(settings).Values);
+        settings.EnemyJungleRouteEnabled = true;
+        Assert.Equal(QuickShoutHotkeyAction.EnemyJungleRoute, Bindings(settings)[Keys.F10]);
+        Assert.False(WindowHoldController.HasGameHotkeyConflict(settings));
+        settings.EnemyJungleRouteHotkey = "Ctrl+F10";
+        Assert.Equal(QuickShoutHotkeyAction.EnemyJungleRoute, Bindings(settings)[Keys.Control | Keys.F10]);
+        settings.EnemyJungleRouteHotkey = "F9";
+        Assert.True(WindowHoldController.HasGameHotkeyConflict(settings));
+        Assert.DoesNotContain(Keys.F9, Bindings(settings).Keys);
+        settings.EnemyJungleRouteHotkey = settings.BattleOverlayHotkey;
+        settings.BattleOverlayEnabled = true;
+        Assert.True(WindowHoldController.HasBattleOverlayHotkeyConflict(settings));
+    }
+    [Fact]
     public void HomePickerRequiresCoreButDoesNotRequireCyclingHotkeys()
     {
         var settings = new AssistantSettings { SkinCoreEnabled = false, SkinHotkeysEnabled = false };

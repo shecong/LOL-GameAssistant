@@ -202,6 +202,8 @@ namespace LOL_GameAssistant.Entity
 
         [JsonProperty("enemyJungleRouteEnabled")]
         public bool EnemyJungleRouteEnabled { get; set; }
+        [JsonProperty("enemyJungleRouteHotkey")]
+        public string EnemyJungleRouteHotkey { get; set; } = "F10";
 
         [JsonProperty("languageMode")]
         public string LanguageMode { get; set; } = "zh-CN";
@@ -227,6 +229,7 @@ namespace LOL_GameAssistant.Entity
             QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
             QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
             GameKdaHotkey = string.IsNullOrWhiteSpace(GameKdaHotkey) ? "F9" : GameKdaHotkey;
+            EnemyJungleRouteHotkey = string.IsNullOrWhiteSpace(EnemyJungleRouteHotkey) ? "F10" : EnemyJungleRouteHotkey;
             GameKdaCustomRemarks ??= new Dictionary<string, string>();
             RecentPerformanceMinimumGames = Math.Clamp(RecentPerformanceMinimumGames, 1, 50);
             QuickShoutSelectedPhrases ??= new List<string>();

@@ -48,6 +48,11 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
                 var checks = new List<(AntdUI.Checkbox Box, string Id)>();
                 foreach (var choice in grant.Choices.Count > 0 ? grant.Choices : grant.RewardIds.Select(id => new ClientRewardChoice(id, id, "未提供名称与说明")).ToArray())
                 {
+                    if (!grant.RequiresSelection)
+                    {
+                        group.Controls.Add(new AntdUI.Label { Text = $"{choice.Name} · {choice.Description}", Width = 610, Height = 48 });
+                        continue;
+                    }
                     var box = new AntdUI.Checkbox { Text = $"{choice.Name} · {choice.Description}", Width = 610, Height = 48, Checked = grant.RewardIds.Count == 1 };
                     checks.Add((box, choice.Id)); group.Controls.Add(box);
                 }
@@ -55,7 +60,7 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
                 claim.Click += async (_, _) =>
                 {
                     if (_busy) return; _busy = true; claim.Enabled = false;
-                    try { var result = await _features.ClaimRewardAsync(grant.GrantId, checks.Where(c => c.Box.Checked).Select(c => c.Id).ToArray(), _requests.Token); if (!IsDisposed) _status.Text = result.Message; }
+                    try { var result = await _features.ClaimRewardAsync(grant.GrantId, grant.RequiresSelection ? checks.Where(c => c.Box.Checked).Select(c => c.Id).ToArray() : grant.RewardIds, _requests.Token); if (!IsDisposed) _status.Text = result.Message; }
                     catch (OperationCanceledException) { }
                     catch (Exception e) { if (!IsDisposed) _status.Text = e.Message; }
                     finally { _busy = false; if (!claim.IsDisposed) claim.Enabled = true; }
@@ -77,7 +82,7 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
                     _content.Controls.Add(toggle); _content.Controls.Add(detail);
                 }
             }
-            _status.Text = grants.Count == 0 ? "暂无已确认可领取的奖励；各来源扫描状态见上方" : $"{grants.Count} 组可领取奖励，多选项目请自行选择"; UiTheme.Apply(_content);
+            _status.Text = grants.Count == 0 ? "暂无已确认可领取的奖励；各来源扫描状态见上方" : $"{grants.Count(g => !g.RequiresSelection)} 组可直接领取，{grants.Count(g => g.RequiresSelection)} 组需要自行选择"; UiTheme.Apply(_content);
             AntdContentTheme.Apply(_content, UiTheme.Palette);
         }
         catch (OperationCanceledException) { }

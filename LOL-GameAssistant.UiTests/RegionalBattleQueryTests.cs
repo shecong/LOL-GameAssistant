@@ -45,6 +45,11 @@ public sealed class RegionalBattleQueryTests
         Assert.Same(current.History, Read<IMatchHistoryService>(unaffected, "_matchHistoryService"));
         Pump(query.PerformSearchAsync("22222222-2222-2222-2222-222222222222"));
         Assert.Equal("黑色玫瑰", Read<PlayerProfile>(query, "_currentPlayer").GameName);
+        Pump((Task)typeof(BattleQueryForm).GetMethod("ShowGrowthAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(query, [true])!);
+        var growth = Read<PlayerGrowthControl>(query, "_growthView");
+        Assert.NotNull(Read<PlayerGrowthSnapshot>(growth, "_snapshot"));
+        Pump((Task)typeof(BattleQueryForm).GetMethod("ShowGrowthAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(query, [false])!);
+        Assert.False(Read<AntdUI.Button>(growth, "_replay").Visible);
         query.SelectQueryRegion(""); Assert.Null(Read<PlayerProfile?>(query, "_currentPlayer"));
         Assert.Same(current.History, Read<IMatchHistoryService>(query, "_matchHistoryService"));
     });

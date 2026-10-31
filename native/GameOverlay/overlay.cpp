@@ -27,6 +27,8 @@ struct Session {
     Auxiliary auxiliary{};
     uint32_t textureVersion = 0;
     ComPtr<ID3D11ShaderResourceView> battleTexture;
+    uint32_t jungleTextureVersion = 0;
+    ComPtr<ID3D11ShaderResourceView> jungleTexture;
     ComPtr<ID3D11Texture2D> captureTexture;
     LONG capturePending=0;
     ULONGLONG captureStarted=0, nextSnapshot=0;

@@ -19,9 +19,11 @@ internal sealed class LogToolsForm : UserControl, IThemeAware
         Padding = new Padding(12);
         _navigation.Items.Add(new AntdUI.SegmentedItem { Text = "运行日志" });
         _navigation.Items.Add(new AntdUI.SegmentedItem { Text = "运行诊断" });
+        _navigation.Items.Add(new AntdUI.SegmentedItem { Text = "流量监控" });
         messages.Dock = DockStyle.Fill;
         _content.Controls.Add(messages);
         Control? diagnosticPage = null;
+        Control? trafficPage = null;
         _navigation.SelectIndexChanged += (_, e) =>
         {
             if (e.Value == 1 && diagnosticPage == null)
@@ -29,6 +31,12 @@ internal sealed class LogToolsForm : UserControl, IThemeAware
                 diagnosticPage = new DeferredPageHost(diagnostics) { Dock = DockStyle.Fill };
                 _content.Controls.Add(diagnosticPage);
             }
+            if (e.Value == 2 && trafficPage == null)
+            {
+                trafficPage = new TrafficMonitorForm { Dock = DockStyle.Fill };
+                _content.Controls.Add(trafficPage);
+            }
+            if (trafficPage != null) trafficPage.Visible = e.Value == 2;
             messages.Visible = e.Value == 0;
             if (diagnosticPage != null) diagnosticPage.Visible = e.Value == 1;
         };

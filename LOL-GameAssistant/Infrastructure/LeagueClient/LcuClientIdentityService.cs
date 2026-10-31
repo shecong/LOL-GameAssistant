@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,7 +16,7 @@ public sealed class LcuClientIdentityService(ILcuRequestSender lcu, Action<strin
     private const string Preferences = "/lol-challenges/v1/update-player-preferences";
     private const string Regalia = "/lol-regalia/v2/current-summoner/regalia";
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private static readonly HttpClient PreviewClient = new() { Timeout = TimeSpan.FromSeconds(8), MaxResponseContentBufferSize = 4 * 1024 * 1024 };
+    private static readonly HttpClient PreviewClient = new(NetworkTrafficService.Handler(NetworkModule.Identity)) { Timeout = TimeSpan.FromSeconds(8), MaxResponseContentBufferSize = 4 * 1024 * 1024 };
     private string _owner = "", _session = "";
     private Snapshot? _baseline;
     private IReadOnlyList<ClientIdentityChoice> _choices = [];

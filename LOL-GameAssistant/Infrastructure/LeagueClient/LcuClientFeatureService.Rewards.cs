@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Application.ClientFeatures;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -7,7 +8,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 public sealed partial class LcuClientFeatureService
 {
     // 禁用自动重定向和持久 Cookie；登录态只在本次请求内发送至固定的腾讯服务。
-    private static readonly HttpClient RewardHttp = new(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
+    private static readonly HttpClient RewardHttp = new(NetworkTrafficService.Handler(NetworkModule.Rewards, new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false }))
     { Timeout = TimeSpan.FromSeconds(15) };
     private readonly HttpClient _rewardHttp;
     private const string DailyGoodsId = "338943";

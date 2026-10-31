@@ -291,7 +291,7 @@ public sealed class DenseBattleQueryTests
         var summaries = content.Controls.OfType<FlowLayoutPanel>().Single();
         Save(host, $"dense-query-stats-{width}");
         Assert.True(content.Width <= viewport.ClientSize.Width);
-        Assert.Equal(3, summaries.Controls.Count);
+          Assert.Equal(9, summaries.Controls.Count);
         foreach (Control tile in summaries.Controls)
         {
             Assert.True(summaries.ClientRectangle.Contains(tile.Bounds), $"Tile {tile.Bounds} clipped by {summaries.ClientRectangle}");

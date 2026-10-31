@@ -16,7 +16,7 @@ public interface IGameOverlayBridge : IDisposable
 public sealed record GameOverlayFrame(string Title, string Status, string Recommendations,
     string Offered, int Rarity, bool Collapsed, bool Scanning);
 
-public enum GameOverlayPanelKind { Battle = 1, Coaching = 2, SkinNotice = 4, SkinPicker = 8, Camera = 16 }
+public enum GameOverlayPanelKind { Battle = 1, Coaching = 2, SkinNotice = 4, SkinPicker = 8, Camera = 16, JungleRoute = 32 }
 
 /// <summary>Image 由调用者持有，PublishPanel 在返回前复制像素；Version 防止旧列表点击选中另一款皮肤。</summary>
 public sealed record GameOverlayPanel(GameOverlayPanelKind Kind, string Title = "", string Body = "", string Detail = "",

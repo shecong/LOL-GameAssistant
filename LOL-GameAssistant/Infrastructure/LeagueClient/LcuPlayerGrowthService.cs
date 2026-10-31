@@ -11,7 +11,7 @@ using System.Text.Json;
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
 public sealed class LcuPlayerGrowthService(IMatchHistoryService matches, IChampionCatalog champions, ILcuRequestSender lcu,
-    string? storage = null) : IPlayerGrowthService
+    string? storage = null, bool allowInventory = true) : IPlayerGrowthService
 {
     private readonly SemaphoreSlim _files = new(1, 1);
     private readonly string _storage = storage ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "training");
@@ -57,9 +57,9 @@ public sealed class LcuPlayerGrowthService(IMatchHistoryService matches, IChampi
         var batch = await repository.GetBatchAsync(puuid, token, refresh).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         var games = batch.Data?.Games?.Games.OrderByDescending(x => x.GameCreation).Take(100).ToArray() ?? [];
-        // 只为当前模式中摘要缺字段的最近 20 场补详情，共用现有全局并发与缓存。
+        // 为当前模式的完整分析窗口补齐缺字段的摘要，共用全局并发与缓存。
         var enrich = games.Where(x => x.IsCompletedGame() && (mode == "全部" || x.GetModeText() == mode) &&
-            (x.GetParticipant(puuid)?.stats is not { HasFarmResult: true, HasDamageResult: true, HasVisionResult: true })).Take(20);
+            (x.GetParticipant(puuid)?.stats is not { HasFarmResult: true, HasDamageResult: true, HasVisionResult: true })).Take(100);
         await Task.WhenAll(enrich.Select(async game =>
         {
             try
@@ -81,7 +81,7 @@ public sealed class LcuPlayerGrowthService(IMatchHistoryService matches, IChampi
         // 使用被查询者的身份，不把当前账号的 owned-champions 拼到他人档案上。
         try
         {
-            string? raw = await lcu.GetStringAsync($"/lol-summoner/v2/summoners/puuid/{Uri.EscapeDataString(puuid)}", token).ConfigureAwait(false);
+            string? raw = allowInventory ? await lcu.GetStringAsync($"/lol-summoner/v2/summoners/puuid/{Uri.EscapeDataString(puuid)}", token).ConfigureAwait(false) : null;
             var profile = string.IsNullOrWhiteSpace(raw) ? null : JObject.Parse(raw);
             long summonerId = profile?.Value<long?>("summonerId") ?? 0;
             if (summonerId > 0 && profile?.Value<string>("puuid") == puuid)

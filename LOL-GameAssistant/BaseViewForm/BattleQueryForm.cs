@@ -51,6 +51,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private List<FavoritePlayer> _favorites;
 
+        private LOL_GameAssistant.Domain.MatchAnalysis.GrowthReport? _detailedStats;
         private List<RawGameStat>? _rawGameStats;
         private bool _statsLoaded;
         private int _statsVersion;
@@ -231,12 +232,6 @@ namespace LOL_GameAssistant.BaseViewForm
             _viewSwitch.Items.Add(new AntdUI.SegmentedItem { Text = "个人复盘中心" });
             _viewSwitch.SelectIndexChanged += (_, e) =>
             {
-                if (e.Value >= 2 && _queryPlatform.Length > 0)
-                {
-                    _viewSwitch.SelectIndex = 0;
-                    lblStatus.Text = "指定大区查询支持战绩和数据统计；英雄档案及复盘请切回当前大区。";
-                    return;
-                }
                 if (e.Value == 0) BtnViewRecord_Click(null, EventArgs.Empty);
                 else if (e.Value == 1) BtnViewStats_Click(null, EventArgs.Empty);
                 else _ = ShowGrowthAsync(e.Value == 2);
@@ -343,7 +338,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 ? "点击一行加载本局详情 · 列表位置保持不变"
                 : "输入 Riot ID（名称#TAG）或 PUUID 查询；详情仅在选中时加载。";
             if (_selectedMode != "全部") _historyHint.Text = "按客户端可读取的最近记录筛选（最多 5000 场）";
-            if (_queryPlatform.Length > 0) _historyHint.Text = $"查询大区：{_queryPlatform} · 跨区请用 PUUID · 仅战绩与数据统计，不提供跨区排位/回放。";
+            if (_queryPlatform.Length > 0) _historyHint.Text = $"查询大区：{_queryPlatform} · 跨区请用 PUUID · 支持战绩、统计、英雄档案及复盘；跨区熟练度与回放不可用。";
         }
 
         /// <summary>
@@ -716,21 +711,18 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private async Task ShowGrowthAsync(bool pool)
         {
-            if (_queryPlatform.Length > 0)
-            {
-                lblStatus.Text = "指定大区查询支持战绩和数据统计；英雄档案及复盘请切回当前大区。";
-                return;
-            }
             _statsScope.Cancel(); CancelPageLoad();
             _matchWorkspace.Visible = false;
             _growthView ??= CreateGrowthView();
             panelHistory.Visible = panelStats.Visible = false; _growthView.Visible = true; _growthView.BringToFront();
             UpdateResponsiveLayout();
-            await _growthView.ShowAsync(_currentPlayer?.Puuid, pool, _selectedMode);
+            await _growthView.ShowAsync(_currentPlayer?.Puuid, pool, _selectedMode, _queryPlatform.Length == 0);
         }
         private PlayerGrowthControl CreateGrowthView()
         {
-            var view = new PlayerGrowthControl(_growthService, _matchHistoryService, AppCompositionRoot.ChampionCatalog);
+            var service = _queryPlatform.Length == 0 ? _growthService :
+                AppCompositionRoot.CreateRegionalGrowthService(_matchHistoryService, _queryPlatform);
+            var view = new PlayerGrowthControl(service, _matchHistoryService, AppCompositionRoot.ChampionCatalog);
             view.ModeChanged += mode => { _selectedMode = mode; _statsLoaded = false; _statsVersion++; _suppressModeEvents = true; try { _modeSelect.SelectedValue = new FilterChoice(mode); } finally { _suppressModeEvents = false; } UpdateHistoryHeader(); };
             panelContent.Controls.Add(view); return view;
         }
@@ -1170,6 +1162,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     await semaphore.WaitAsync(token);
                     try { return head.HasFullParticipants ? head.ToSummaryDetail() : await _matchHistoryService.GetDetailAsync(head.GameId, cancellationToken: token); }
+                    catch (OperationCanceledException) { throw; }
+                    catch { return head.ToSummaryDetail(); }
                     finally { semaphore.Release(); }
                 }).ToList();
                 var details = await Task.WhenAll(detailTasks);
@@ -1181,7 +1175,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     var detail = details[i];
                     if (detail == null || _currentPlayer == null) continue;
                     var gamer = detail.GetParticipant(puuid);
-                    if (gamer?.stats == null) continue;
+                    if (gamer?.stats == null || !recentGames[i].IsCompletedGame() || !gamer.stats.HasWinResult || !gamer.stats.HasKdaResult) continue;
 
                     totalGames++;
                     bool win = gamer.IsWin();
@@ -1199,6 +1193,18 @@ namespace LOL_GameAssistant.BaseViewForm
                         lblStatus.Text = $"正在计算统计数据... ({i + 1}/{recentGames.Count})";
                 }
 
+                _detailedStats = LOL_GameAssistant.Domain.MatchAnalysis.PlayerGrowthCalculator.Calculate(recentGames.Select((head, i) =>
+                {
+                    var detail = details[i];
+                    return detail == null ? head : new MatchHistoryGame
+                    {
+                        GameId = head.GameId, GameCreation = head.GameCreation, GameMode = head.GameMode,
+                        GameType = head.GameType, QueueId = head.QueueId, EndOfGameResult = head.EndOfGameResult,
+                        GameDuration = detail.gameDuration, Participants = detail.participants,
+                        ParticipantIdentities = detail.participantIdentities.Select(identity => new MatchIdentity
+                        { ParticipantId = identity.participantId, Player = identity.player }).ToList()
+                    };
+                }), puuid, requestedMode);
                 _statsLoaded = true;
                 _rawGameStats = rawStats;
                 RebuildStatsCharts(requestedMode);
@@ -1206,6 +1212,7 @@ namespace LOL_GameAssistant.BaseViewForm
             catch (Exception ex)
             {
                 if (!IsCurrentStats()) return;
+                _detailedStats = null;
                 _rawGameStats = new();
                 RebuildStatsCharts(requestedMode);
                 lblStatus.Text = $"统计加载失败：{ex.Message}";
@@ -1239,6 +1246,10 @@ namespace LOL_GameAssistant.BaseViewForm
 
             double overallKda = filtered.Count > 0 ? filtered.Average(s => s.Kda) : 0;
             double winRate = filtered.Count > 0 ? Math.Round((double)totalWins / filtered.Count * 100, 1) : 0;
+            var metricSample = _detailedStats?.Matches.Where(m => string.IsNullOrEmpty(filter) || filter == "全部" || m.Mode == filter).ToArray();
+            var knownResults = metricSample?.Where(m => m.Won.HasValue).ToArray();
+            string displayedWinRate = knownResults == null ? $"{winRate:F1}%" : knownResults.Length == 0 ? "—" : $"{knownResults.Count(m => m.Won == true) * 100d / knownResults.Length:F1}%";
+            string displayedKda = metricSample == null ? $"{overallKda:F2}" : LOL_GameAssistant.Domain.MatchAnalysis.GrowthInsights.Number(LOL_GameAssistant.Domain.MatchAnalysis.PlayerGrowthCalculator.Average(metricSample.Select(m => m.Kda)));
 
             foreach (Control old in panelStats.Controls.Cast<Control>().ToArray())
             {
@@ -1268,10 +1279,25 @@ namespace LOL_GameAssistant.BaseViewForm
             chartContainer.Resize += (_, _) => content.Width = Math.Max(100, chartContainer.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
 
             var summaries = new FlowLayoutPanel { Height = 90, WrapContents = true, Margin = new Padding(0, 0, 0, 10) };
-            summaries.Controls.Add(StatTile("有效场次", filtered.Count.ToString(), palette));
-            summaries.Controls.Add(StatTile("胜率", $"{winRate:F1}%", palette));
-            summaries.Controls.Add(StatTile("平均 KDA", $"{overallKda:F2}", palette));
+            summaries.Controls.Add(StatTile("有效场次", (metricSample?.Length ?? filtered.Count).ToString(), palette));
+            summaries.Controls.Add(StatTile("胜率", displayedWinRate, palette));
+            summaries.Controls.Add(StatTile("平均 KDA", displayedKda, palette));
             content.Controls.Add(summaries);
+            if (_detailedStats != null)
+            {
+                var sample = _detailedStats.Matches.Where(m => filter == "全部" || string.IsNullOrEmpty(filter) || m.Mode == filter).ToArray();
+                var report = new LOL_GameAssistant.Domain.MatchAnalysis.GrowthReport(sample, _detailedStats.Champions, _detailedStats.ExcludedGames, filter);
+                string Mean(Func<LOL_GameAssistant.Domain.MatchAnalysis.GrowthMatch, double?> metric) =>
+                    LOL_GameAssistant.Domain.MatchAnalysis.GrowthInsights.Number(LOL_GameAssistant.Domain.MatchAnalysis.PlayerGrowthCalculator.Average(sample.Select(metric)));
+                summaries.Controls.Add(StatTile("平均死亡", Mean(m => m.Deaths), palette));
+                summaries.Controls.Add(StatTile("补刀 / 分钟", Mean(m => m.CsPerMinute), palette));
+                summaries.Controls.Add(StatTile("伤害 / 分钟", Mean(m => m.DamagePerMinute), palette));
+                summaries.Controls.Add(StatTile("视野 / 分钟", Mean(m => m.VisionPerMinute), palette));
+                summaries.Controls.Add(StatTile("使用英雄", sample.Select(m => m.ChampionId).Distinct().Count().ToString(), palette));
+                summaries.Controls.Add(StatTile("平均时长 / 分钟", Mean(m => m.Duration > 0 ? m.Duration / 60d : null), palette));
+                content.Controls.Add(new AntdUI.Input { Name = "detailedStatistics", Height = 460, ReadOnly = true, Multiline = true,
+                    Text = LOL_GameAssistant.Domain.MatchAnalysis.GrowthInsights.Overview(report), Margin = new Padding(0, 0, 0, 12) });
+            }
 
             if (kdaList.Count > 1)
             {
@@ -1301,7 +1327,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 int columns = Math.Clamp((width + 9) / 189, 1, 3);
                 int tileWidth = (width - columns * 9) / columns;
                 foreach (Control tile in summaries.Controls) tile.Width = tileWidth;
-                summaries.Height = (3 + columns - 1) / columns * 82 + 8;
+                summaries.Height = (summaries.Controls.Count + columns - 1) / columns * 82 + 8;
                 foreach (Control chart in content.Controls.Cast<Control>().Where(control => control != summaries))
                     chart.Width = width;
             }

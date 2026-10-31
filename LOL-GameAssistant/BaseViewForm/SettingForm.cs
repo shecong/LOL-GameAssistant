@@ -130,7 +130,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Checkbox _autoApplyRuneBuild = new() { Text = "预选或选择英雄时自动替换符文和装备", AutoSize = true };
         private readonly AntdUI.Checkbox _mayhemOverlayEnabled = new() { Text = "海克斯大乱斗显示局内增幅侧边栏", AutoSize = true };
         private readonly AntdUI.Checkbox _champSelectCompanionEnabled = new() { Text = "选人时在客户端侧边显示队友伴随窗", AutoSize = true };
-        private readonly AntdUI.Checkbox _enemyJungleRouteEnabled = new() { Name = "enemyJungleRouteEnabled", Text = "自动分析敌方打野的历史路线", AutoSize = true };
+        private readonly AntdUI.Checkbox _enemyJungleRouteEnabled = new() { Name = "enemyJungleRouteEnabled", Text = "启用敌方打野路线快捷键分析", AutoSize = true };
+        private readonly AntdUI.Input _enemyJungleRouteHotkey = new() { Name = "enemyJungleRouteHotkey", ReadOnly = true, Width = 200, Text = "F10", TabStop = true };
         private readonly AntdUI.Checkbox _autoSwapAramBench = new() { Text = "按优先级自动交换备战席英雄", AutoSize = true };
         private readonly AntdUI.SelectMultiple _aramBenchPriority = new() { Dock = DockStyle.Fill };
         private readonly AntdUI.Checkbox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
@@ -624,6 +625,20 @@ namespace LOL_GameAssistant.BaseViewForm
             _battleOverlayHotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
             _battleOverlayHotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
 
+            _enemyJungleRouteHotkey.KeyDown += (_, e) =>
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                if (!WindowHoldController.TryParseGameHotkey(WindowHoldController.FormatGameHotkey(e.KeyData), out Keys key)) return;
+                string previous = _enemyJungleRouteHotkey.Text ?? "F10";
+                _enemyJungleRouteHotkey.Text = WindowHoldController.FormatGameHotkey(key);
+                if (!PersistValue(s => s.EnemyJungleRouteHotkey = WindowHoldController.FormatGameHotkey(key)))
+                    _enemyJungleRouteHotkey.Text = previous;
+            };
+            _enemyJungleRouteHotkey.Click += (_, _) => _enemyJungleRouteHotkey.Focus();
+            _enemyJungleRouteHotkey.Enter += (_, _) => Program.GameMain?.SetWindowHotkeyCapturePaused(true);
+            _enemyJungleRouteHotkey.Leave += (_, _) => Program.GameMain?.SetWindowHotkeyCapturePaused(false);
+
 
             _gameKdaAnnouncementEnabled.CheckedChanged += (_, _) =>
             {
@@ -700,11 +715,13 @@ namespace LOL_GameAssistant.BaseViewForm
 
             var jungle = CreateAiSettingsCard(content, "aiJungleRouteCard", "敌方打野路线分析");
             AddSegmentRow(jungle, 1, "路线预测：", _enemyJungleRouteEnabled,
-                "开启后自动识别敌方打野，读取近期打野对局前 8 分钟的位置和事件；无需配置 AI 密钥。");
+                "仅在游戏中按快捷键时识别敌方打野并分析历史路线，不自动分析或重试；无需配置 AI 密钥。");
             var openJungle = new AntdUI.Button { Name = "openJungleRoute", Text = "查看峡谷路线图", AutoSize = true };
             openJungle.Click += (_, _) => Program.GameMain?.ShowEnemyJungleRoute();
-            AddSegmentRow(jungle, 2, "峡谷地图：", openJungle);
-            AddSegmentRow(jungle, 3, "分析说明：", CreateAiNote("扫描最近 30 场，最多分析 8 场携带惩戒的常规峡谷对局。优先参考相同英雄，按双方阵营映射历史坐标。地图展示起始区域、时间点、样本一致性与可核对的历史事件；位置采样间连线为插值，不代表精确营地顺序或本局实时位置。客户端未确认打野时需手动选择；时间线不可用时显示数据不足。"));
+            AddSegmentRow(jungle, 2, "分析快捷键：", _enemyJungleRouteHotkey,
+                "默认 F10，可录入单键或组合键。游戏前台按一次分析并显示路线图，再按一次收起；切出游戏后隐藏。下次打开重新分析。");
+            AddSegmentRow(jungle, 3, "峡谷地图：", openJungle);
+            AddSegmentRow(jungle, 4, "分析说明：", CreateAiNote("扫描最近 30 场，最多分析 8 场携带惩戒的常规峡谷对局。优先参考相同英雄，按双方阵营映射历史坐标。地图展示起始区域、时间点、样本一致性与可核对的历史事件；位置采样间连线为插值，不代表精确营地顺序或本局实时位置。客户端未确认打野时需手动选择；时间线不可用时显示数据不足。"));
             jungle.ResumeLayout(true);
 
             var mayhem = CreateAiSettingsCard(content, "aiMayhemCard", "海克斯增幅助手");
@@ -768,7 +785,7 @@ namespace LOL_GameAssistant.BaseViewForm
             CreateCooldownPreviewCard(content);
 
             content.ResumeLayout(true);
-            return panel;
+            return AddAiSectionNavigation((AntdUI.Panel)panel, content);
         }
 
         // AntdUI.Panel 自身不提供滚动条；此处仅作为滚动内容承载容器，内部控件仍使用 AntdUI。
@@ -904,6 +921,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _mayhemOverlayEnabled.Checked = _config.MayhemOverlayEnabled;
             _champSelectCompanionEnabled.Checked = _config.ChampSelectCompanionEnabled;
             _enemyJungleRouteEnabled.Checked = _config.EnemyJungleRouteEnabled;
+            _enemyJungleRouteHotkey.Text = _config.EnemyJungleRouteHotkey;
             _champSelectKdaAnnouncementEnabled.Checked = _config.ChampSelectKdaAnnouncementEnabled;
             _gameKdaAnnouncementEnabled.Checked = _config.GameKdaAnnouncementEnabled;
             _gameKdaOnePlayerPerLine.Checked = _config.GameKdaOnePlayerPerLine;

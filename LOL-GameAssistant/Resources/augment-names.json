@@ -1546,11 +1546,13 @@
   },
   "1064": {
     "name": "坚韧",
-    "englishName": "Perseverance"
+    "englishName": "Perseverance",
+    "rarity": 1
   },
   "1066": {
     "name": "量子计算",
-    "englishName": "Quantum Computing"
+    "englishName": "Quantum Computing",
+    "rarity": 2
   },
   "1067": {
     "name": "活力焕发",
@@ -1896,7 +1898,8 @@
   },
   "1327": {
     "name": "坚若磐石",
-    "englishName": "Adamant"
+    "englishName": "Adamant",
+    "rarity": 0
   },
   "1328": {
     "name": "暴击律动",
@@ -1925,7 +1928,8 @@
   },
   "1334": {
     "name": "升级：雪球",
-    "englishName": "Snowball Upgrade"
+    "englishName": "Snowball Upgrade",
+    "rarity": 1
   },
   "1335": {
     "name": "夺金",
@@ -1943,10 +1947,12 @@
     "rarity": 2
   },
   "1339": {
-    "name": "激光治疗"
+    "name": "激光治疗",
+    "rarity": 2
   },
   "1342": {
-    "name": "雪球扭蛋机"
+    "name": "雪球扭蛋机",
+    "rarity": 1
   },
   "1343": {
     "name": "王中王，靴中靴",
@@ -1965,7 +1971,8 @@
   },
   "1346": {
     "name": "吸血习性",
-    "englishName": "Vampirism"
+    "englishName": "Vampirism",
+    "rarity": 1
   },
   "1347": {
     "name": "吵闹鬼",
@@ -2003,7 +2010,8 @@
     "rarity": 2
   },
   "1372": {
-    "name": "小猫咪找妈妈"
+    "name": "小猫咪找妈妈",
+    "rarity": 2
   },
   "1373": {
     "name": "缩小引擎",
@@ -2052,7 +2060,8 @@
   },
   "1400": {
     "name": "最终都市列车",
-    "englishName": "Final City Transit"
+    "englishName": "Final City Transit",
+    "rarity": 1
   },
   "1401": {
     "name": "生机迸发",
@@ -2075,10 +2084,12 @@
     "rarity": 0
   },
   "1406": {
-    "name": "祖母的辣椒油"
+    "name": "祖母的辣椒油",
+    "rarity": 1
   },
   "1409": {
-    "name": "魄罗爆破手"
+    "name": "魄罗爆破手",
+    "rarity": 1
   },
   "1413": {
     "name": "和我一起困在这里",
@@ -2087,7 +2098,8 @@
   },
   "1414": {
     "name": "卡皮巴拉空投",
-    "englishName": "Droppybara"
+    "englishName": "Droppybara",
+    "rarity": 2
   },
   "1415": {
     "name": "双生火焰",
@@ -2110,7 +2122,8 @@
     "rarity": 2
   },
   "1424": {
-    "name": "？？？"
+    "name": "？？？",
+    "rarity": 2
   },
   "1996": {
     "name": "升级：耀光",
@@ -2118,7 +2131,8 @@
     "rarity": 1
   },
   "2003": {
-    "name": "魄罗之王的弹跳"
+    "name": "魄罗之王的弹跳",
+    "rarity": 2
   },
   "2004": {
     "name": "信念者的强化",
@@ -2137,7 +2151,8 @@
   },
   "2007": {
     "name": "你肩上的恶魔",
-    "englishName": "Devil on Your Shoulder"
+    "englishName": "Devil on Your Shoulder",
+    "rarity": 2
   },
   "2009": {
     "name": "狂热者",
@@ -2301,7 +2316,8 @@
   },
   "2097": {
     "name": "虚空冲刺",
-    "englishName": "Void Dash"
+    "englishName": "Void Dash",
+    "rarity": 1
   },
   "2098": {
     "name": "吃过路兵",
@@ -2472,50 +2488,205 @@
     "name": "升级：死亡之舞",
     "rarity": 0
   },
+  "3004": {
+    "name": "罪恶快感！",
+    "rarity": 1
+  },
+  "3016": {
+    "name": "伤不过三",
+    "rarity": 2
+  },
+  "3018": {
+    "name": "大腕",
+    "rarity": 2
+  },
+  "3025": {
+    "name": "音之屏障",
+    "rarity": 0
+  },
+  "3036": {
+    "name": "翻倍时间",
+    "rarity": 1
+  },
+  "3039": {
+    "name": "拯救",
+    "rarity": 1
+  },
+  "3048": {
+    "name": "弹跳蜜蜂",
+    "rarity": 2
+  },
+  "3049": {
+    "name": "装甲冲击",
+    "rarity": 1
+  },
+  "3051": {
+    "name": "蓝色屏障",
+    "rarity": 0
+  },
+  "3052": {
+    "name": "远射天资",
+    "rarity": 0
+  },
+  "3053": {
+    "name": "热舞怪兽",
+    "rarity": 2
+  },
+  "3055": {
+    "name": "终极循环往复",
+    "rarity": 0
+  },
+  "3058": {
+    "name": "嗡嗡怪兽",
+    "rarity": 1
+  },
+  "3059": {
+    "name": "没法力，没问题",
+    "rarity": 0
+  },
+  "3063": {
+    "name": "溺水之赠礼",
+    "rarity": 0
+  },
+  "3071": {
+    "name": "黄铜爆音",
+    "rarity": 1
+  },
+  "3075": {
+    "name": "反冲",
+    "rarity": 1
+  },
+  "3078": {
+    "name": "鼓声暴起 低音轰鸣",
+    "rarity": 1
+  },
+  "3079": {
+    "name": "死之舞",
+    "rarity": 2
+  },
+  "3081": {
+    "name": "命运之武器",
+    "rarity": 1
+  },
+  "3085": {
+    "name": "灵魂乐流",
+    "rarity": 0
+  },
+  "3086": {
+    "name": "小蜜蜂！！！",
+    "rarity": 1
+  },
+  "3088": {
+    "name": "深红钴蓝闪光",
+    "rarity": 1
+  },
+  "3094": {
+    "name": "巫妖大脑",
+    "rarity": 0
+  },
+  "3116": {
+    "name": "将他们放倒倒倒",
+    "rarity": 1
+  },
+  "3118": {
+    "name": "奥术公理",
+    "rarity": 1
+  },
+  "3121": {
+    "name": "水果化",
+    "rarity": 0
+  },
+  "3123": {
+    "name": "珠光手镯",
+    "rarity": 1
+  },
+  "3129": {
+    "name": "吸元秘术",
+    "rarity": 1
+  },
+  "3131": {
+    "name": "屹立不倒",
+    "rarity": 1
+  },
+  "3132": {
+    "name": "王冠之重",
+    "rarity": 1
+  },
+  "3134": {
+    "name": "孤勇者",
+    "rarity": 0
+  },
+  "3149": {
+    "name": "一起抱抱",
+    "rarity": 2
+  },
+  "3150": {
+    "name": "升级：风暴狂涌",
+    "rarity": 1
+  },
+  "3163": {
+    "name": "迷人蝴蝶",
+    "rarity": 1
+  },
   "7001": {
-    "name": "升级：兹若特传送门"
+    "name": "升级：兹若特传送门",
+    "rarity": 0
   },
   "7002": {
-    "name": "黑切联盟"
+    "name": "黑切联盟",
+    "rarity": 1
   },
   "7003": {
-    "name": "或杀或死"
+    "name": "或杀或死",
+    "rarity": 2
   },
   "7004": {
-    "name": "一饮而尽"
+    "name": "一饮而尽",
+    "rarity": 0
   },
   "7005": {
-    "name": "欲速则不达"
+    "name": "欲速则不达",
+    "rarity": 2
   },
   "7006": {
-    "name": "又快又狠"
+    "name": "又快又狠",
+    "rarity": 0
   },
   "7007": {
-    "name": "升级：冥火之拥"
+    "name": "升级：冥火之拥",
+    "rarity": 1
   },
   "7008": {
-    "name": "多兰的最铁粉丝"
+    "name": "多兰的最铁粉丝",
+    "rarity": 2
   },
   "7009": {
-    "name": "升级：激发之匣"
+    "name": "升级：激发之匣",
+    "rarity": 1
   },
   "7010": {
-    "name": "时光发条：心之钢"
+    "name": "时光发条：心之钢",
+    "rarity": 1
   },
   "7011": {
-    "name": "真正的永恒"
+    "name": "真正的永恒",
+    "rarity": 2
   },
   "7012": {
-    "name": "海克斯核心"
+    "name": "海克斯核心",
+    "rarity": 2
   },
   "7013": {
-    "name": "主玩打野之精魄"
+    "name": "主玩打野之精魄",
+    "rarity": 1
   },
   "7014": {
-    "name": "拱火诱饵"
+    "name": "拱火诱饵",
+    "rarity": 0
   },
   "7015": {
-    "name": "召唤师的游猎"
+    "name": "召唤师的游猎",
+    "rarity": 0
   },
   "12317": {
     "name": "潘朵拉的盒子",

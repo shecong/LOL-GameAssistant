@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using System.Globalization;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
@@ -45,7 +46,7 @@ internal sealed class TencentClientRpc(Func<int?> lcuPort) : ITencentClientRpc
         return new(nonce, time, signature);
     }
 
-    private async Task<ClientWebSocket> ConnectAsync(CancellationToken token)
+    private async Task<TrafficWebSocket> ConnectAsync(CancellationToken token)
     {
         int current = lcuPort() ?? throw new InvalidOperationException("未连接英雄联盟客户端");
         if (current is < 1 or > 65535) throw new InvalidOperationException("客户端端口无效");
@@ -53,11 +54,12 @@ internal sealed class TencentClientRpc(Func<int?> lcuPort) : ITencentClientRpc
         if (_lastLcuPort == current && _lastPort.HasValue) candidates.Insert(0, _lastPort.Value);
         foreach (int port in candidates.Distinct())
         {
-            var socket = new ClientWebSocket();
+            var transport = new ClientWebSocket();
+            var socket = new TrafficWebSocket(NetworkModule.ClientRpc, transport);
             // 地址始终固定为 loopback；不对外部服务放宽证书校验，也不发送 LCU 密码。
-            socket.Options.Proxy = null;
-            socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
-            socket.Options.SetRequestHeader("Origin", $"https://127.0.0.1:{current}");
+            transport.Options.Proxy = null;
+            transport.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+            transport.Options.SetRequestHeader("Origin", $"https://127.0.0.1:{current}");
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(TimeSpan.FromMilliseconds(650));
             try
@@ -102,7 +104,7 @@ internal sealed class TencentClientRpc(Func<int?> lcuPort) : ITencentClientRpc
         return delimiter >= 0 && frame[2..delimiter] == callback ? frame[(delimiter + 1)..] : null;
     }
 
-    private static async Task<string> CallAsync(ClientWebSocket socket, int command, string value, string callback, CancellationToken token)
+    private static async Task<string> CallAsync(TrafficWebSocket socket, int command, string value, string callback, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(4));

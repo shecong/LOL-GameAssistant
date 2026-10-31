@@ -95,7 +95,8 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     private readonly MatchParticipant? _mine;
     private MatchHonors _honors = new(null, [], false);
     private readonly string _champion;
-    private readonly int? _lpDelta;
+    private readonly RankedLpStore _lpStore;
+    private readonly string _puuid;
     private readonly MatchRowImages _images;
     private readonly ToolTip _tip = new();
     private bool _hover;
@@ -108,7 +109,8 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     internal MatchHistoryListRow(MatchHistoryGame game, string puuid, IGameAssetService assets, IChampionCatalog champions, RankedLpStore? lpStore = null)
     {
         Game = game; _mine = game.GetParticipant(puuid);
-        _lpDelta = game.QueueId is 420 or 440 ? (lpStore ?? RankedLpStore.Shared).Get(game.PlatformId, puuid, game.GameId) : null;
+        _lpStore = lpStore ?? RankedLpStore.Shared; _puuid = puuid;
+        _lpStore.Changed += OnLpChanged;
         _champion = _mine == null ? "英雄未提供" : champions.GetDisplayName(_mine.championId);
         if (string.IsNullOrWhiteSpace(_champion)) _champion = _mine == null ? "英雄未提供" : $"英雄 {_mine.championId}";
         Font = new Font(UiMetrics.FontFamily, 10F);
@@ -122,7 +124,14 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     }
     private string ResultText => !Game.IsCompletedGame() ? "重开" : _mine?.stats is not { HasWinResult: true } ? "未知" : _mine.IsWin() ? "胜利" : "失败";
     private string KdaText => _mine?.stats is { HasKdaResult: true } ? _mine.GetKdaText() : "—";
-    internal string? LpText => Game.QueueId is not (420 or 440) ? null : _lpDelta is int delta ? $"{delta:+0;-0;0} LP" : "胜点 —";
+    internal string? LpText => Game.QueueId is not (420 or 440) ? null : _lpStore.Get(Game.PlatformId, _puuid, Game.GameId) is int delta ? $"{delta:+0;-0;0} LP" : "胜点 —";
+    private void OnLpChanged()
+    {
+        if (IsDisposed || Disposing) return;
+        if (!IsHandleCreated) return;
+        try { BeginInvoke(new Action(() => { if (!IsDisposed) SetHonors(_honors); })); }
+        catch (InvalidOperationException) { }
+    }
     internal MatchHonors Honors => _honors;
     internal void ApplyDetailHonors(MatchDetail detail, string puuid)
     {
@@ -135,8 +144,8 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
         AccessibleName = $"{ResultText} · {_champion} · {Game.GetModeText()} · {KdaText} · {honors.Text}" + (LpText == null ? "" : " · " + LpText);
         _tip.SetToolTip(this, $"{AccessibleName}\n{CreatedText}\n{MatchHonorCalculator.Explanation}" +
             (honors.MvpEvaluated ? "" : "\nMVP 暂无法评选，需完整双方数据与明确胜负。") +
-            (LpText == "胜点 —" ? "\n该场胜点变化不可用：未记录完整的赛前赛后数据或发生段位变化。"
-                : LpText != null ? "\n胜点为该局前后的已核对差值，期间其他排位调整也可能影响数值。" : "") + "\n点击加载本局详情，列表位置不变。");
+            (LpText == "胜点 —" ? "\n该场没有可核对的赛前赛后快照；结算同步后会自动更新，未采集的历史对局无法反推。"
+                : LpText != null ? "\n胜负场次已核对仅增加该局；数值为赛前赛后段位积分差（跨小段按100LP折算）。升降段重置、惩罚或补偿也可能影响该差值，不代表服务器单独发放的对局奖励。" : "") + "\n点击加载本局详情，列表位置不变。");
         Invalidate();
     }
     private string CreatedText
@@ -147,6 +156,7 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        SetHonors(_honors);
         if (IsDisposed || _mine == null) return;
         _ = _images.LoadAsync("champion", _mine.championId);
         _ = _images.LoadAsync("spell", _mine.Spell1Id); _ = _images.LoadAsync("spell", _mine.Spell2Id);
@@ -178,7 +188,7 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
                     if (LpText != null)
                     {
                         using var lpFont = new Font(UiMetrics.FontFamily, 7.5F);
-                        MatchListColumns.Text(e.Graphics, LpText, lpFont, _lpDelta.HasValue ? resultColor : p.TextSecondary, new(rect.X, S(26), rect.Width, S(20)));
+                        MatchListColumns.Text(e.Graphics, LpText, lpFont, _lpStore.Get(Game.PlatformId, _puuid, Game.GameId).HasValue ? resultColor : p.TextSecondary, new(rect.X, S(26), rect.Width, S(20)));
                     }
                     break;
                 case "英雄":
@@ -231,5 +241,5 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
         else { using var brush = new SolidBrush(UiTheme.Palette.SurfaceRaised); g.FillRectangle(brush, rect); }
     }
     public void ApplyTheme(ThemePalette palette) { BackColor = palette.Surface; ForeColor = palette.TextPrimary; Invalidate(); }
-    protected override void Dispose(bool disposing) { if (disposing) { _images.Dispose(); _tip.Dispose(); } base.Dispose(disposing); }
+    protected override void Dispose(bool disposing) { if (disposing) { _lpStore.Changed -= OnLpChanged; _images.Dispose(); _tip.Dispose(); } base.Dispose(disposing); }
 }

@@ -95,6 +95,12 @@ public sealed class SettingsAutoSaveAndCacheTests
         Field<AntdUI.InputNumber>(form, "_aiMinimumSeconds").Value = 45;
         Assert.Equal(42, latest.Ai.MatchRequestBudget);
         Assert.Equal(45, latest.Ai.MinimumRequestSeconds);
+        form.ShowAiRecommendationSettings();
+        var jungleHotkey = Field<AntdUI.Input>(form, "_enemyJungleRouteHotkey");
+        typeof(Control).GetMethod("OnKeyDown", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(jungleHotkey, [new KeyEventArgs(Keys.Control | Keys.F10)]);
+        Assert.Equal("Ctrl+F10", latest.EnemyJungleRouteHotkey);
+        Assert.Equal("Ctrl+F10", jungleHotkey.Text);
         Assert.Equal("", latest.Ai.BaseUrl);
         // 不在测试中改变 Windows 登录启动注册表；启动开关使用同一个保存绑定。
         Assert.DoesNotContain(Children(form).OfType<AntdUI.Button>(), button => button.Text is "保存客户端设置" or "保存窗口设置");

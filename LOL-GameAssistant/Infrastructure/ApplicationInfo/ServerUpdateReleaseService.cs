@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using System.Text.Json;
 using LOL_GameAssistant.Application.ApplicationInfo;
 using LOL_GameAssistant.Domain.ApplicationInfo;
@@ -7,7 +8,7 @@ namespace LOL_GameAssistant.Infrastructure.ApplicationInfo;
 /// <summary>可选静态服务器优先，检查失败时沿用 GitHub。下载地址固定到版本目录。</summary>
 internal sealed class ServerUpdateReleaseService : IUpdateReleaseService
 {
-    private static readonly HttpClient SharedClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private static readonly HttpClient SharedClient = new(NetworkTrafficService.Handler(NetworkModule.Updates)) { Timeout = TimeSpan.FromSeconds(10) };
     private readonly HttpClient _client;
     private readonly IUpdateReleaseService _github;
     private readonly string _configPath;

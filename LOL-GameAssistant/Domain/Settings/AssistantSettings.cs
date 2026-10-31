@@ -103,6 +103,7 @@ public sealed class AssistantSettings
     public bool MayhemOverlayEnabled { get; set; } = true;
     public bool ChampSelectCompanionEnabled { get; set; } = true;
     public bool EnemyJungleRouteEnabled { get; set; }
+    public string EnemyJungleRouteHotkey { get; set; } = "F10";
     public bool LaunchOnStartup { get; set; }
 
     /// <summary>统一修正旧配置缺失或异常时的安全默认值。</summary>
@@ -127,6 +128,7 @@ public sealed class AssistantSettings
         QuickShoutCustomHotkey = string.IsNullOrWhiteSpace(QuickShoutCustomHotkey) ? "F7" : QuickShoutCustomHotkey;
         QuickShoutBatchHotkey = string.IsNullOrWhiteSpace(QuickShoutBatchHotkey) ? "F8" : QuickShoutBatchHotkey;
         GameKdaHotkey = string.IsNullOrWhiteSpace(GameKdaHotkey) ? "F9" : GameKdaHotkey;
+        EnemyJungleRouteHotkey = string.IsNullOrWhiteSpace(EnemyJungleRouteHotkey) ? "F10" : EnemyJungleRouteHotkey;
         GameKdaCustomRemarks ??= new Dictionary<string, string>();
         RecentPerformanceMinimumGames = Math.Clamp(RecentPerformanceMinimumGames, 1, 50);
         QuickShoutSelectedPhrases ??= new List<string>();

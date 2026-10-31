@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using Newtonsoft.Json.Linq;
 using System.Net.Security;
 
@@ -80,7 +81,7 @@ internal static class LocalLiveClientDataReader
             ServerCertificateCustomValidationCallback = static (request, _, _, errors) =>
                 request.RequestUri?.Host == "127.0.0.1" || errors == SslPolicyErrors.None
         };
-        Client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(3) };
+        Client = new HttpClient(NetworkTrafficService.Handler(NetworkModule.LiveGame, handler)) { Timeout = TimeSpan.FromSeconds(3) };
     }
 
     /// <summary>读取当前玩家的金币、装备及游戏时间状态。</summary>

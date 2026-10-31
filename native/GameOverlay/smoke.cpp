@@ -207,6 +207,35 @@ int main(int argc, char** argv) {
     Check(frame->command==0 && movedPanel.left<headerPanel.left && movedPanel.top>headerPanel.top,
         "dragging header moves panel without collapsing");
     auto aux=reinterpret_cast<Auxiliary*>(reinterpret_cast<unsigned char*>(frame)+AuxOffset);
+    frame->mayhemEnabled = 0;
+    aux->flags = 1 | 32;
+    aux->battleWidth = aux->battleHeight = 2; aux->battleVersion = 1;
+    auto battlePixels = reinterpret_cast<uint32_t*>(reinterpret_cast<unsigned char*>(frame) + BattlePixelOffset);
+    std::fill_n(battlePixels, 4, 0xffff0000u);
+    aux->jungleWidth = 800; aux->jungleHeight = 500; aux->jungleVersion = 1;
+    auto junglePixels = reinterpret_cast<uint32_t*>(reinterpret_cast<unsigned char*>(frame) + JunglePixelOffset);
+    std::fill_n(junglePixels, 800 * 500, 0xff25ad63u);
+    auto checkCenterPixel = [&](unsigned r, unsigned g, unsigned b) {
+        ComPtr<ID3D11Texture2D> back, readback;
+        Check(SUCCEEDED(chain->GetBuffer(0, IID_PPV_ARGS(&back))), "bitmap panel backbuffer");
+        D3D11_TEXTURE2D_DESC d{}; back->GetDesc(&d);
+        d.Usage = D3D11_USAGE_STAGING; d.BindFlags = d.MiscFlags = 0; d.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        Check(SUCCEEDED(device->CreateTexture2D(&d, nullptr, &readback)), "bitmap panel staging");
+        context->CopyResource(readback.Get(), back.Get());
+        D3D11_MAPPED_SUBRESOURCE pixels{};
+        Check(SUCCEEDED(context->Map(readback.Get(), 0, D3D11_MAP_READ, 0, &pixels)), "bitmap panel readback");
+        auto pixel = static_cast<const unsigned char*>(pixels.pData) + size_t(d.Height / 2) * pixels.RowPitch + (d.Width / 2) * 4;
+        bool matches = pixel[0] == r && pixel[1] == g && pixel[2] == b;
+        if (!matches) printf("bitmap center: actual %u,%u,%u expected %u,%u,%u flags=%u\n", pixel[0], pixel[1], pixel[2], r, g, b, aux->flags);
+        context->Unmap(readback.Get(), 0);
+        Check(matches, "independent bitmap panel renders expected center pixel");
+    };
+    HWND originalForeground = GetForegroundWindow();
+    present(); present(); checkCenterPixel(37, 173, 99);
+    Check(GetForegroundWindow() == originalForeground && frame->hitRegionCount == 0, "jungle map keeps focus and passes input through");
+    aux->flags = 1; present(); present(); checkCenterPixel(255, 0, 0);
+    aux->flags = 0; present(); present(); checkCenterPixel(25, 51, 76);
+    puts("PASS: jungle route and battle bitmaps use independent textures, hide cleanly, and preserve focus");
     frame->mayhemEnabled=0; aux->flags=2|4|8;
     strcpy_s(aux->coachTitle,"当前建议"); strcpy_s(aux->coachBody,"独立于增幅侧栏显示");
     strcpy_s(aux->skinToast,"已切换皮肤"); strcpy_s(aux->skinTitle,"选择皮肤");

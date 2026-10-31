@@ -131,6 +131,14 @@ internal sealed class JungleRouteMap : Control
     }
     private static double Distance(PointF a, PointF b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
 
+    private bool _renderingOverlay;
+    internal void RenderOverlay(Graphics graphics)
+    {
+        _renderingOverlay = true;
+        try { OnPaint(new PaintEventArgs(graphics, ClientRectangle)); }
+        finally { _renderingOverlay = false; }
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
@@ -143,7 +151,7 @@ internal sealed class JungleRouteMap : Control
         using var small = new Font(UiMetrics.FontFamily, 8F);
         using var secondary = new SolidBrush(Color.FromArgb(138, 163, 174));
         g.DrawString("召唤师峡谷", title, Brushes.White, 13, 10);
-        g.DrawString("滚轮缩放 · 拖动平移 · 双击复位", small, secondary, 13, 33);
+        g.DrawString(_renderingOverlay ? "历史习惯预测 · 本局敌方阵营方向" : "滚轮缩放 · 拖动平移 · 双击复位", small, secondary, 13, 33);
         var state = g.Save();
         g.SetClip(Viewport);
         var map = MapBounds;

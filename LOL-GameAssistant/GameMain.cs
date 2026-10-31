@@ -118,6 +118,7 @@ namespace LOL_GameAssistant
                     QuickShoutHotkeyAction.SkinPrevious or QuickShoutHotkeyAction.SkinNext or QuickShoutHotkeyAction.SkinPicker => ApplySkinHotkeyAsync(action),
                     >= QuickShoutHotkeyAction.Player1 and <= QuickShoutHotkeyAction.Player10 => liveGameForm.SendGameKdaManuallyAsync((int)action - 100),
                     QuickShoutHotkeyAction.GameKda => liveGameForm.SendGameKdaManuallyAsync(),
+                    QuickShoutHotkeyAction.EnemyJungleRoute => ToggleEnemyJungleRouteAsync(),
                     QuickShoutHotkeyAction.SelectedBatch => settingForm.SendSelectedQuickShoutToGameAsync(),
                     _ => settingForm.SendRandomQuickShoutToGameAsync(action == QuickShoutHotkeyAction.RandomCustom)
                 });
@@ -794,11 +795,13 @@ namespace LOL_GameAssistant
             switch (phase)
             {
                 case "none":
+                    _ = CaptureRankedLpAsync(start: false);
                     StopPhaseDataLoad();
                     liveGameForm.ResetRosterCache();
                     break;
 
                 case "lobby":
+                    _ = CaptureRankedLpAsync(start: false);
                     StopPhaseDataLoad();
                     liveGameForm.ClearPartySnapshots();
                     //在大厅,如果有开启自动对局,则自动开启
@@ -825,6 +828,7 @@ namespace LOL_GameAssistant
                     break;
 
                 case "gamestart":
+                    _ = CaptureRankedLpAsync(start: true);
                     StopPhaseDataLoad();
                     break;
 
@@ -1404,6 +1408,7 @@ namespace LOL_GameAssistant
         /// <summary>将当前设置同步到海克斯增幅浮窗的显示与跟踪状态。</summary>
         public void RefreshMayhemOverlaySetting()
         {
+            if (gameFlowPhase != GameFlowPhase.InProgress) _jungleRoute?.HideForGame();
             RefreshBattleOverlaySetting(_settingsStore.Load());
             if (IsDisposed || _mayhemOverlay.IsDisposed) return;
             if (gameFlowPhase == GameFlowPhase.InProgress && _settingsStore.Load().MayhemOverlayEnabled)

@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
@@ -7,8 +8,24 @@ namespace LOL_GameAssistant.Infrastructure.GameData;
 internal static class AugmentCatalog
 {
     private const string ResourceName = "LOL_GameAssistant.Resources.AugmentNames.json";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private static readonly HttpClient Http = new(NetworkTrafficService.Handler(NetworkModule.Augments)) { Timeout = TimeSpan.FromSeconds(10) };
     private static readonly Lazy<IReadOnlyDictionary<int, AugmentDisplay>> Catalog = new(Load);
+    private static readonly Lazy<MayhemCatalogUpdater> Updates = new(() => new(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "mayhem-augments-cache.json")));
+    internal static Task RefreshAsync(CancellationToken token = default) => Updates.Value.RefreshAsync(token);
+
+    /// <summary>启动后后台检查，并持续检查版本；不阻塞主窗口。</summary>
+    internal static async Task RunUpdatesAsync(Action<string> diagnostic, CancellationToken token)
+    {
+        Updates.Value.Diagnostic = diagnostic;
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
+            do { await RefreshAsync(token).ConfigureAwait(false); }
+            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
     private static readonly Lazy<Dictionary<string, string>> Descriptions = new(() =>
     {
         using Stream? stream = typeof(AugmentCatalog).Assembly.GetManifestResourceStream("LOL_GameAssistant.Resources.AugmentDescriptions.json");
@@ -16,7 +33,8 @@ internal static class AugmentCatalog
     });
 
     /// <summary>按强化标识读取内置作用说明。</summary>
-    internal static string? GetDescription(int id) => Descriptions.Value.GetValueOrDefault(id.ToString());
+    internal static string? GetDescription(int id) => Updates.Value.Entries.TryGetValue(id, out var entry)
+        ? entry.Description : Descriptions.Value.GetValueOrDefault(id.ToString());
     private static readonly AsyncByteCache IconCache = new(LoadIconAsync);
     internal static (int Entries, long Bytes) MeasureIconCache() => IconCache.MeasureMemory();
     internal static void ClearIconCache() => IconCache.Clear();
@@ -27,7 +45,7 @@ internal static class AugmentCatalog
     /// <summary>解析给定标识对应的展示信息。</summary>
     public static Task<IReadOnlyList<AugmentDisplay>> ResolveAsync(IEnumerable<int> ids)
     {
-        IReadOnlyDictionary<int, AugmentDisplay> catalog = Catalog.Value;
+        IReadOnlyDictionary<int, AugmentDisplay> catalog = Current();
         IReadOnlyList<AugmentDisplay> result = ids.Where(id => id > 0)
             .Select(id => catalog.TryGetValue(id, out AugmentDisplay? display)
                 ? display
@@ -37,7 +55,18 @@ internal static class AugmentCatalog
     }
 
     /// <summary>返回当前目录中的全部条目。</summary>
-    public static IReadOnlyList<AugmentDisplay> GetAll() => Catalog.Value.Values.ToArray();
+    public static IReadOnlyList<AugmentDisplay> GetAll() => Current().Values.ToArray();
+
+    private static IReadOnlyDictionary<int, AugmentDisplay> Current()
+    {
+        var result = new Dictionary<int, AugmentDisplay>(Catalog.Value);
+        foreach (var (id, entry) in Updates.Value.Entries)
+        {
+            result.TryGetValue(id, out var existing);
+            result[id] = new(id, entry.Name, existing?.IconUrl, existing?.EnglishName, entry.Rarity);
+        }
+        return result;
+    }
 
     /// <summary>读取指定地址的图标并复用已缓存的下载任务。</summary>
     public static Task<byte[]?> GetIconAsync(string? url, CancellationToken cancellationToken = default) =>

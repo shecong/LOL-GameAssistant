@@ -1,4 +1,5 @@
-﻿using LOL_GameAssistant.Application.Builds;
+﻿using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Application.Builds;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.Builds;
@@ -320,7 +321,7 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
     /// <summary>创建外部数据服务使用的 HTTP 客户端。</summary>
     private static HttpClient CreateHttpClient()
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+        var http = new HttpClient(NetworkTrafficService.Handler(NetworkModule.Builds)) { Timeout = TimeSpan.FromSeconds(12) };
         http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("LOLGameAssistant", "1.0"));
         return http;
     }

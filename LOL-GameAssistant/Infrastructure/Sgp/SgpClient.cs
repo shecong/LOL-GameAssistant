@@ -1,3 +1,4 @@
+using LOL_GameAssistant.Helper;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -21,7 +22,7 @@ public sealed class SgpClient
     private readonly IReadOnlyDictionary<string, string> _servers;
     private readonly string? _targetPlatform;
     private readonly SemaphoreSlim _gate = new(6);
-    private static readonly HttpClient SharedHttp = new(new HttpClientHandler { AllowAutoRedirect = false })
+    private static readonly HttpClient SharedHttp = new(NetworkTrafficService.Handler(NetworkModule.Ranked, new HttpClientHandler { AllowAutoRedirect = false }))
         { Timeout = TimeSpan.FromSeconds(25) };
 
     // Only captured/verified addresses. Do not synthesize hosts from realm names.

@@ -6,6 +6,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\LOL-GameAssistant\Helper\NetworkTrafficService.cs" Link="Helper\NetworkTrafficService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Helper\TrafficWebSocket.cs" Link="Helper\TrafficWebSocket.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\MatchDataPolicy.cs" Link="Application\Matches\MatchDataPolicy.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\PlayerHistorySnapshot.cs" Link="Application\Matches\PlayerHistorySnapshot.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\PlayerHistoryRepository.cs" Link="Application\Matches\PlayerHistoryRepository.cs" />
@@ -75,6 +77,7 @@
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Ai\CloudRecommendationParser.cs" Link="Infrastructure\Ai\CloudRecommendationParser.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\LeagueClient\LegacyMatchReadModelMapper.cs" Link="Infrastructure\LeagueClient\LegacyMatchReadModelMapper.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\GameData\AugmentCatalog.cs" Link="Infrastructure\GameData\AugmentCatalog.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\GameData\MayhemCatalogUpdater.cs" Link="Infrastructure\GameData\MayhemCatalogUpdater.cs" />
     <EmbeddedResource Include="..\LOL-GameAssistant\Resources\augment-names.json" LogicalName="LOL_GameAssistant.Resources.AugmentNames.json" />
     <Compile Include="..\LOL-GameAssistant\Entity\GameDetailModel.cs" Link="Entity\GameDetailModel.cs" />
     <Compile Include="..\LOL-GameAssistant\Entity\GameHeadModel.cs" Link="Entity\GameHeadModel.cs" />

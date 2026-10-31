@@ -37,7 +37,7 @@ public class HttpClientHelper : IDisposable
         handler.AllowAutoRedirect = false;
         handler.MaxConnectionsPerServer = 50; // 增加连接数限制
 
-        _httpClient = new HttpClient(handler);
+        _httpClient = new HttpClient(NetworkTrafficService.Handler(inner: handler));
         _httpClient.Timeout = LOL_GameAssistant.Application.Matches.MatchDataPolicy.TransportTimeout;
         _httpClient.DefaultRequestHeaders.ConnectionClose = false; // 保持长连接
     }

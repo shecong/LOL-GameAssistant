@@ -6,7 +6,7 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
 internal sealed class TclsLoginSession
 {
-    internal bool EnteredQqLogin, Switched, Submitted, ExpandedRegion, RegionSelected, Launched;
+    internal bool EnteredQqLogin, Switched, CredentialsAttempted, Submitted, ExpandedRegion, RegionSelected, Launched;
 }
 
 internal sealed record TclsLoginStep(string Message, bool Pause = false);
@@ -28,6 +28,8 @@ internal static class TclsLoginAutomation
         if (labels.Any(HasVerification))
             return new("检测到验证码、安全验证或登录错误，自动登录已暂停，请在 TCLS 窗口处理后重新启动登录流程。", true);
         if (session.Launched) return new("已选择大区并请求进入游戏，等待客户端连接。");
+        if (session.CredentialsAttempted && !session.Submitted)
+            return new("密码输入尚未确认，已停止自动提交。请检查登录器密码框。", true);
 
         if (!session.Submitted)
         {
