@@ -15,10 +15,14 @@ public sealed class TrafficMonitorTests
         using var host = new Form { ClientSize = new Size(1420, 840), ShowInTaskbar = false, Opacity = 0 };
         host.Controls.Add(page); host.Show();
         System.Windows.Forms.Application.DoEvents();
-        var grid = Children(page).OfType<DataGridView>().Single();
-        Assert.Equal(NetworkTrafficService.Modules.Count, grid.Rows.Count);
-        var ai = grid.Rows.Cast<DataGridViewRow>().Single(r => r.Tag is NetworkModule.Ai);
-        ai.Cells[0].Value = false;
+        var grid = Children(page).OfType<AntdUI.Table>().Single();
+        var rows = Assert.IsAssignableFrom<Array>(grid.DataSource);
+        Assert.Equal(NetworkTrafficService.Modules.Count, rows.Length);
+        int aiIndex = NetworkTrafficService.Modules.ToList().FindIndex(m => m.Module == NetworkModule.Ai);
+        var cell = grid.CellRectangle(aiIndex + 1, 0);
+        var click = new MouseEventArgs(MouseButtons.Left, 1, cell.X + cell.Width / 2, cell.Y + cell.Height / 2, 0);
+        foreach (string method in new[] { "OnMouseDown", "OnMouseUp" })
+            typeof(AntdUI.Table).GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(grid, [click]);
         Assert.False(traffic.IsEnabled(NetworkModule.Ai));
         Assert.True(traffic.IsEnabled(NetworkModule.Builds));
         Children(page).OfType<AntdUI.Button>().Single(b => b.Text!.StartsWith("弱网模式")).PerformClick();
@@ -32,8 +36,8 @@ public sealed class TrafficMonitorTests
         {
             UiTheme.SetMode(mode); UiTheme.Apply(page);
             System.Windows.Forms.Application.DoEvents();
-            Assert.True(grid.Height > 500);
-            Assert.True(grid.Columns[0].Width >= 72);
+            Assert.True(grid.Height > 450);
+            Assert.IsType<AntdUI.ColumnSwitch>(grid.Columns[0]);
             string? directory = Environment.GetEnvironmentVariable("TRAFFIC_UI_PREVIEWS");
             if (directory != null)
             {

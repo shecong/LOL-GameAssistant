@@ -15,15 +15,15 @@ internal sealed class PartyHubForm : AntdUI.Window, IThemeAware
     private readonly AntdUI.Select _invitations = new() { Width = 280, Height = 38, ReadOnly = true };
     private readonly AntdUI.Select _first = new() { Width = 125, Height = 38, ReadOnly = true };
     private readonly AntdUI.Select _second = new() { Width = 125, Height = 38, ReadOnly = true };
-    private readonly AntdUI.Label _state = new() { Dock = DockStyle.Bottom, Height = 70, Padding = new Padding(14) };
-    private readonly AntdUI.Label _members = new() { Dock = DockStyle.Fill, Padding = new Padding(16), Text = "刷新后显示当前队伍" };
+    private readonly AntdUI.Label _state = new() { Dock = DockStyle.Bottom, Height = 70, TextMultiLine = true, Padding = new Padding(14) };
+    private readonly AntdUI.Label _members = new() { Dock = DockStyle.Fill, TextMultiLine = true, Padding = new Padding(16), Text = "刷新后显示当前队伍" };
     private readonly string? _suggestedName;
     private bool _busy;
     private sealed record Choice<T>(T Value, string Label) { public override string ToString() => Label; }
     internal PartyHubForm(IPartyService service, string? suggestedName = null)
     {
         _service = service; _suggestedName = suggestedName; Text = "开黑大厅"; Size = new Size(820, 620); MinimumSize = new Size(640, 530); StartPosition = FormStartPosition.CenterParent;
-        var body = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 275, Padding = new Padding(14), WrapContents = true, FlowDirection = FlowDirection.LeftToRight };
+        var body = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14), WrapContents = true, FlowDirection = FlowDirection.LeftToRight };
         var title = new AntdUI.Label { Text = "选择模式 → 创建大厅 → 邀请好友 → 设置位置 → 开始匹配", Width = 720, Height = 40 };
         body.SizeChanged += (_, _) => title.Width = Math.Max(300, body.ClientSize.Width - 34);
         body.Controls.Add(title); body.SetFlowBreak(title, true);

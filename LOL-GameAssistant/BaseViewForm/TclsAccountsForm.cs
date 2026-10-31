@@ -24,7 +24,7 @@ internal sealed class TclsAccountsForm : AntdUI.Window, IThemeAware
         ClientSize = new Size(620, 490);MinimumSize = Size;
         Font = new Font(UiMetrics.FontFamily, 10F);
         StartPosition = FormStartPosition.CenterParent;ShowInTaskbar = false;
-        AntdWindowChrome.Configure(this, fitWorkingArea: false);
+        AntdWindowChrome.Configure(this);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(22), ColumnCount = 2, RowCount = 8 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95));layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         void Row(int row, string label, Control control)
@@ -39,11 +39,11 @@ internal sealed class TclsAccountsForm : AntdUI.Window, IThemeAware
             "雷瑟守备", "裁决之地", "黑色玫瑰", "暗影岛", "钢铁烈阳", "均衡教派", "水晶之痕", "影流", "守望之海",
             "征服之海", "卡拉曼达", "皮城警备", "比尔吉沃特", "德玛西亚", "弗雷尔卓德", "无畏先锋", "恕瑞玛", "扭曲丛林", "巨龙之巢", "教育网专区", "男爵领域", "峡谷之巅" });
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var note = new AntdUI.Label { Text = "密码仅在当前 Windows 用户下加密保存。修改已有账号时，密码留空表示保留原密码。大区名称应与登录器显示一致，可手动输入。", Dock = DockStyle.Fill, TextMultiLine = true };
         layout.Controls.Add(note, 0, 5);layout.SetColumnSpan(note, 2);
-        var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 14, 0, 8) };
+        var actions = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill, Margin = new Padding(0, 6, 0, 6) };
         void Button(string text, Action action)
         {
             var button = new AntdUI.Button { Text = text, AutoSize = true, Height = 34 };

@@ -100,7 +100,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         _initialOrder = initiallySelectedOrder;
         _cache[(choices.Mode, _position)] = choices;
         Text = $"一键配置 · {choices.ChampionName} · {choices.PositionName}";
-        StartPosition = FormStartPosition.CenterScreen;
+        StartPosition = FormStartPosition.CenterParent;
         AntdWindowChrome.Configure(this);
         Icon = AppIcon.Shared;
         _windowHeader.Text = Text;

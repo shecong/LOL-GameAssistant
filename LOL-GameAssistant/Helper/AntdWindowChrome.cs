@@ -50,6 +50,7 @@ internal static class AntdWindowChrome
             UiTheme.Changed += ThemeChanged;
             if (fitWorkingArea)
             {
+                window.Load += PlaceWindow;
                 window.Shown += FitWindow;
                 window.DpiChanged += DpiChanged;
             }
@@ -77,6 +78,7 @@ internal static class AntdWindowChrome
             _window.HandleDestroyed -= HandleDestroyed;
             _window.Disposed -= WindowDisposed;
             _window.Shown -= FitWindow;
+            _window.Load -= PlaceWindow;
             _window.DpiChanged -= DpiChanged;
             ReleaseHandle();
         }
@@ -88,6 +90,8 @@ internal static class AntdWindowChrome
             void Apply() { if (!_window.IsDisposed) UiTheme.Apply(_window); }
             if (_window.InvokeRequired) _window.BeginInvoke(Apply); else Apply();
         }
+
+        private void PlaceWindow(object? sender, EventArgs args) => WindowLayout.PlaceForOpening(_window);
 
         private void FitWindow(object? sender, EventArgs args)
         {

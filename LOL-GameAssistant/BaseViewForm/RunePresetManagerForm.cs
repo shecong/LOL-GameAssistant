@@ -86,7 +86,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         library.Controls.Add(_list);
         library.Controls.Add(_categories);
         root.Controls.Add(library, 0, 0);
-        var editor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+        var editor = new FlowLayoutPanel { Name = "runePresetEditor", Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
         editor.Controls.Add(new AntdUI.Label { Text = "本地符文库 · 已应用的推荐会自动保存在这里", AutoSize = true });
         editor.Controls.Add(new AntdUI.Label { Text = "方案名称", AutoSize = true });
         editor.Controls.Add(_name);
@@ -99,7 +99,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         editor.Controls.Add(_auto);
         editor.Controls.Add(new AntdUI.Label { Text = "个人装备块（应用前可预览修改范围）", AutoSize = true });
         editor.Controls.Add(_items);
-        var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Width = 385 };
+        var actions = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Width = 385 };
         var capture = new AntdUI.Button { Text = "从当前选人捕获", AutoSize = true };
         var save = new AntdUI.Button { Text = "保存修改", AutoSize = true };
         var apply = new AntdUI.Button { Text = "立即应用", AutoSize = true };
@@ -110,12 +110,19 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         editor.Controls.Add(actions);
         editor.Controls.Add(_detail);
         editor.Controls.Add(_runePreview);
-        editor.SizeChanged += (_, _) =>
+        void ResizeEditor()
         {
-            _name.Width = _items.Width = actions.Width = Math.Max(220, editor.ClientSize.Width - 28);
-            _runePreview.Width = Math.Max(220, editor.ClientSize.Width - 28);
-        };
+            int width = Math.Max(120, editor.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 12);
+            foreach (Control child in editor.Controls)
+            {
+                if (child is AntdUI.Label label) { label.MaximumSize = new Size(width, 0); label.TextMultiLine = true; }
+            }
+            actions.MaximumSize = new Size(width, 0);
+            _name.Width = _items.Width = actions.Width = _runePreview.Width = width;
+        }
+        editor.ClientSizeChanged += (_, _) => ResizeEditor();
         root.Controls.Add(editor, 1, 0);
+        ResizeEditor();
         Controls.Add(root);
         Controls.Add(_status);
         AntdWindowChrome.AddHeader(this);

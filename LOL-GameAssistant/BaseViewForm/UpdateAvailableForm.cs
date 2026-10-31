@@ -74,7 +74,7 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
         {
             Text = UiLanguage.IsEnglish ? "Download source:" : "下载源：", AutoSize = true, Margin = new Padding(0, 6, 8, 0)
         });
-        var source = new ComboBox { Name = "UpdateDownloadSource", List = true, DropDownArrow = true, Width = 190 };
+        var source = new ComboBox { Name = "UpdateDownloadSource", List = true, DropDownArrow = true, Width = 190, Height = 36 };
         if (release.ServerManifestUrl != null) source.Items.Add(UiLanguage.IsEnglish ? "Server download" : "服务器下载");
         source.Items.Add(UiLanguage.IsEnglish ? "GitHub download" : "GitHub 下载");
         source.SelectedIndex = release.ServerManifestUrl != null && !release.PreferServerDownload ? 1 : 0;

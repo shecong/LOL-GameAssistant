@@ -10,13 +10,13 @@ internal sealed class PracticeGoalForm : AntdUI.Window, IThemeAware
     internal PracticeGoal? Goal { get; private set; }
     internal PracticeGoalForm(PlayerGrowthSnapshot snapshot, IChampionCatalog champions, PracticeGoal? existing)
     {
-        Text = "我的练习目标"; ClientSize = new(560, 410); StartPosition = FormStartPosition.CenterParent; Font = new Font(UiMetrics.FontFamily, 10);
+        Text = "我的练习目标"; ClientSize = new(560, 440); MinimumSize = new(480, 420); StartPosition = FormStartPosition.CenterParent; Font = new Font(UiMetrics.FontFamily, 10);
         var mode = new AntdUI.Select { Name = "goalMode", List = true, DropDownArrow = true, Width = 200, Height = 36 };
         mode.Items.AddRange(snapshot.Modes.Where(m => m != "全部").Cast<object>().ToArray());
         if (existing != null && !mode.Items.Contains(existing.Mode)) mode.Items.Add(existing.Mode);
         mode.SelectedIndex = 0; if (existing != null) mode.SelectedValue = existing.Mode;
         var hero = new AntdUI.Select { Name = "goalChampion", List = true, DropDownArrow = true, Width = 200, Height = 36 };
-        int[] ids = new[] { 0 }.Concat(snapshot.Report.Matches.Select(m => m.ChampionId).Distinct()).ToArray();
+        int[] ids = new[] { 0, existing?.ChampionId ?? 0 }.Concat(snapshot.Report.Matches.Select(m => m.ChampionId)).Distinct().ToArray();
         hero.Items.AddRange(ids.Select(id => (object)(id == 0 ? "不限英雄" : champions.GetDisplayName(id))).ToArray());
         hero.SelectedIndex = Math.Max(0, Array.IndexOf(ids, existing?.ChampionId ?? 0));
         var metric = new AntdUI.Select { Name = "goalMetric", List = true, DropDownArrow = true, Width = 200, Height = 36 };
@@ -38,7 +38,7 @@ internal sealed class PracticeGoalForm : AntdUI.Window, IThemeAware
         }
         mode.SelectedIndexChanged += (_, _) => Hint(); hero.SelectedIndexChanged += (_, _) => Hint(); metric.SelectedIndexChanged += (_, _) => Hint();
         rows.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); rows.Controls.Add(status, 0, row); rows.SetColumnSpan(status, 2);
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 46 };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(8) };
         var save = new AntdUI.Button { Name = "saveGoal", Text = "保存并开始新一轮", AutoSize = true };
         save.Click += (_, _) =>
         {

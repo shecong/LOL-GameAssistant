@@ -8,7 +8,7 @@ internal sealed class ReplayManagerForm : AntdUI.Window, IThemeAware
     private readonly IClientFeatureService _features;
     private readonly long _gameId;
     private readonly UiRequestScope _requests = new();
-    private readonly AntdUI.Label _status = new() { Dock = DockStyle.Fill, Padding = new Padding(22), Text = "正在读取回放元数据…" };
+    private readonly AntdUI.Label _status = new() { Dock = DockStyle.Fill, TextMultiLine = true, Padding = new Padding(22), Text = "正在读取回放元数据…" };
     private readonly AntdUI.Button _download = new() { Text = "请求下载", AutoSize = true };
     private readonly AntdUI.Button _watch = new() { Text = "观看回放", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _poll = new() { Interval = 2500 };
@@ -17,7 +17,7 @@ internal sealed class ReplayManagerForm : AntdUI.Window, IThemeAware
     internal ReplayManagerForm(long gameId, IClientFeatureService features)
     {
         _features = features; _gameId = gameId; Text = $"对局回放 · {gameId}"; Size = new Size(570, 300); MinimumSize = new Size(450, 250); StartPosition = FormStartPosition.CenterParent;
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 65, Padding = new Padding(16) };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(16) };
         var refresh = new AntdUI.Button { Text = "刷新状态", AutoSize = true }; buttons.Controls.AddRange([_download, _watch, refresh]); Controls.Add(_status); Controls.Add(buttons); AntdWindowChrome.AddHeader(this);
         refresh.Click += async (_, _) => { _pollUntil = DateTimeOffset.UtcNow.AddMinutes(3); await RefreshAsync(); };
         _download.Click += async (_, _) => await ExecuteAsync(false); _watch.Click += async (_, _) => await ExecuteAsync(true);

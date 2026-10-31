@@ -28,7 +28,7 @@ internal sealed class GameKdaRemarkEditor : AntdUI.Window, IThemeAware
         };
         _note = new AntdUI.Label
         {
-            Dock = DockStyle.Top, Height = 95, Padding = new Padding(16, 6, 16, 6),
+            Dock = DockStyle.Top, Height = 95, TextMultiLine = true, Padding = new Padding(16, 6, 16, 6),
             Text = "每行一条，每个档位分别随机选句；连续两次尽量不重复。填写后优先使用自定义，留空使用内置词库。姓名、KDA 和样本量会自动保留。\n支持：{name} 玩家名、{team} 队伍、{position} 位置、{kda} KDA、{samples} 场数、{score} 评分、{label} 档位、{winrate} 胜率。\n例如：{name}，KDA才{kda}，甩锅前先看一眼自己的成绩单。每条最多 200 字。"
         };
         var rows = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 4, Padding = new Padding(16, 4, 16, 8) };

@@ -8,7 +8,7 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
     private readonly IClientFeatureService _features;
     private readonly UiRequestScope _requests = new();
     private readonly FlowLayoutPanel _content = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(16) };
-    private readonly AntdUI.Label _status = new() { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(16) };
+    private readonly AntdUI.Label _status = new() { Dock = DockStyle.Bottom, Height = 60, TextMultiLine = true, Padding = new Padding(16) };
     private bool _busy;
     internal RewardSelectionForm(IClientFeatureService features)
     {

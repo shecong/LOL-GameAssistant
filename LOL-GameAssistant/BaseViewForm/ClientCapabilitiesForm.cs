@@ -11,8 +11,8 @@ internal sealed class ClientCapabilitiesForm : AntdUI.Window
         Text = "当前客户端接口能力"; Size = new Size(1100, 680); MinimumSize = new Size(700, 460); StartPosition = FormStartPosition.CenterParent;
         var table = new AntdUI.Table { Dock = DockStyle.Fill, Bordered = true };
         foreach (var (key, label) in new[] { ("Method", "方法"), ("Path", "路径"), ("State", "状态"), ("Reason", "说明") }) table.Columns.Add(new AntdUI.Column(key, label) { Width = key == "Path" ? "43%" : key == "Reason" ? "35%" : "11%" });
-        var status = new AntdUI.Label { Dock = DockStyle.Bottom, Height = 70, Padding = new Padding(12) };
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 60, Padding = new Padding(10) };
+        var status = new AntdUI.Label { Dock = DockStyle.Bottom, Height = 70, TextMultiLine = true, Padding = new Padding(12) };
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(10) };
         var search = new AntdUI.Input { Width = 370, Height = 38, PlaceholderText = "搜索方法、路径或状态" }; var refresh = new AntdUI.Button { Text = "只读刷新接口目录", AutoSize = true }; bar.Controls.AddRange([search, refresh]);
         ClientCapabilitySnapshot? snapshot = null;
         string State(ClientCapabilityState s) => s switch { ClientCapabilityState.Advertised => "目录已列出", ClientCapabilityState.Observed => "请求已接受", ClientCapabilityState.AuthenticationRequired => "需重新登录", ClientCapabilityState.Forbidden => "权限/阶段限制", ClientCapabilityState.ContextUnavailable => "当前资源不存在", ClientCapabilityState.MethodUnavailable => "方法不匹配", _ => "待核实" };

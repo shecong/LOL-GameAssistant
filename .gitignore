@@ -6,6 +6,9 @@
 # Generated AI advice layout previews
 /.artifacts/ai-advice/
 
+# Generated window audit screenshots
+/tmp/window-audit/
+
 # User-specific files
 *.rsuser
 *.suo

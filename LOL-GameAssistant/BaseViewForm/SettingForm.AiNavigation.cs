@@ -17,7 +17,9 @@ public partial class SettingForm
         };
         var heading = new AntdUI.Label { Text = "本页功能", Dock = DockStyle.Top, Height = 36,
             Padding = new Padding(12, 0, 0, 0), Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold) };
-        directory.Controls.Add(menu); directory.Controls.Add(heading);
+        var compactNavigation = new AntdUI.Select { Name = "aiCompactNavigation", AccessibleName = "AI 与推荐功能目录",
+            List = true, DropDownArrow = true, Dock = DockStyle.Fill, Visible = false };
+        directory.Controls.Add(menu); directory.Controls.Add(compactNavigation); directory.Controls.Add(heading);
         page.Dock = DockStyle.Fill;
         host.Controls.Add(page); host.Controls.Add(directory);
         var sections = content.Controls.Cast<Control>().Where(card => card.Name.EndsWith("Card", StringComparison.Ordinal)).ToArray();
@@ -28,10 +30,12 @@ public partial class SettingForm
             if (card.Name == "aiCooldownPreviewCard") title = "技能冷却预览";
             if (card.Name == "aiPerformanceCard") title = "战绩评估与发送";
             menu.Items.Add(new AntdUI.MenuItem { Name = card.Name, Text = title, Tag = card });
+            compactNavigation.Items.Add(title);
         }
         AntdUI.YScrollBar? observedScroll = null;
         Control? clickedSection = null;
         bool jumping = false;
+        bool selecting = false;
         void ScrollChanged(object sender, AntdUI.IntEventArgs e)
         {
             if (!jumping) clickedSection = null;
@@ -62,10 +66,13 @@ public partial class SettingForm
                 item.Select = selected; changed = true;
             }
             if (changed) menu.Invalidate();
+            selecting = true;
+            try { compactNavigation.SelectedIndex = Array.IndexOf(sections, active); }
+            finally { selecting = false; }
         }
-        menu.ItemClick += (_, e) =>
+        void Jump(Control card)
         {
-            if (e.Item.Tag is not Control card || card.IsDisposed) return;
+            if (card.IsDisposed) return;
             HideSettingTips();
             clickedSection = card; jumping = true;
             try
@@ -74,13 +81,28 @@ public partial class SettingForm
                 Synchronize();
             }
             finally { jumping = false; }
+        }
+        menu.ItemClick += (_, e) => { if (e.Item.Tag is Control card) Jump(card); };
+        compactNavigation.SelectedIndexChanged += (_, _) =>
+        {
+            if (!selecting && compactNavigation.SelectedIndex >= 0 && compactNavigation.SelectedIndex < sections.Length)
+                Jump(sections[compactNavigation.SelectedIndex]);
         };
         page.HandleCreated += (_, _) => Synchronize();
         page.Layout += (_, _) => Synchronize();
         page.VisibleChanged += (_, _) => Synchronize();
         void ResizeDirectory()
         {
-            directory.Width = (host.ClientSize.Width < 1100 * host.DeviceDpi / 96 ? 180 : 210) * host.DeviceDpi / 96;
+            int dpi = host.DeviceDpi;
+            bool compact = host.ClientSize.Width < 700 * dpi / 96;
+            directory.Dock = compact ? DockStyle.Top : DockStyle.Right;
+            if (compact) directory.Height = 64 * dpi / 96;
+            else directory.Width = (host.ClientSize.Width < 1100 * dpi / 96 ? 180 : 210) * dpi / 96;
+            heading.Dock = compact ? DockStyle.Left : DockStyle.Top;
+            if (compact) heading.Width = 100 * dpi / 96;
+            else heading.Height = 36 * dpi / 96;
+            menu.Visible = !compact;
+            compactNavigation.Visible = compact;
             Synchronize();
         }
         host.SizeChanged += (_, _) => ResizeDirectory();

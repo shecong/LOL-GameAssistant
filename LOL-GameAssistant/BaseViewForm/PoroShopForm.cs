@@ -28,7 +28,7 @@ internal sealed class PoroShopForm : AntdUI.Window, IThemeAware
     {
         _features = features; _exchanges = PoroShopExchangeCoordinator.For(features);
         Text = "魄罗商店 · 多选兑换"; Size = new Size(880, 760); MinimumSize = new Size(840, 600); StartPosition = FormStartPosition.CenterParent;
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 50, Padding = new Padding(12, 4, 12, 4) };
+        var actions = new FlowLayoutPanel { Name = "poroActions", Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(12, 4, 12, 4) };
         var refresh = new AntdUI.Button { Text = "刷新物品与余额", AutoSize = true };
         var all = new AntdUI.Button { Text = "全选可兑换", AutoSize = true };
         var clear = new AntdUI.Button { Text = "清空勾选", AutoSize = true };
@@ -47,13 +47,6 @@ internal sealed class PoroShopForm : AntdUI.Window, IThemeAware
         _exchanges.Changed += ExchangeChanged;
         Shown += async (_, _) => await RefreshShopAsync();
         Disposed += (_, _) => { _exchanges.Changed -= ExchangeChanged; _requests.Dispose(); };
-    }
-
-    protected override void OnLoad(EventArgs e)
-    {
-        base.OnLoad(e);
-        // Modeless Show(owner) does not apply CenterParent automatically.
-        if (Owner != null) CenterToParent();
     }
 
     private async Task RefreshShopAsync()

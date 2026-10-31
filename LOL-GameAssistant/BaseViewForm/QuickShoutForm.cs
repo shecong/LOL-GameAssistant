@@ -93,12 +93,12 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
 
         var left = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1, Padding = new Padding(0, 0, 10, 0) };
-        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        left.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         left.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
 
-        var randomButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
+        var randomButtons = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true };
         var randomBuiltIn = new AntdUI.Button { Text = "默认词库随机", AutoSize = true };
         var randomCustom = new AntdUI.Button { Text = "自定义词库随机", AutoSize = true };
         randomBuiltIn.Click += (_, _) => SelectRandom(false);

@@ -29,13 +29,19 @@ public sealed class SettingsDescriptionLayoutTests
             var tabs = (AntdUI.Segmented)typeof(SettingForm).GetField("_settingsSegmented", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
             tabs.SelectIndex = 4; System.Windows.Forms.Application.DoEvents();
             var menu = Children(settings).OfType<AntdUI.Menu>().Single(c => c.Name == "aiSectionNavigation");
+            var compact = Children(settings).OfType<AntdUI.Select>().Single(c => c.Name == "aiCompactNavigation");
             var page = Children(settings).OfType<AntdUI.Panel>().Single(c => c.Name == "aiSettingsDashboard");
             Assert.Equal(9, menu.Items.Count);
+            Assert.Equal(width == 760, compact.Visible);
+            Assert.Equal(!compact.Visible, menu.Visible);
+            Assert.Equal(menu.Items.Count, compact.Items.Count);
             Assert.NotNull(page.YScroll);
             int fixedTop = menu.PointToScreen(Point.Empty).Y;
             foreach (AntdUI.MenuItem item in menu.Items)
             {
-                menu.Select(item, false); System.Windows.Forms.Application.DoEvents();
+                if (compact.Visible) compact.SelectedIndex = menu.Items.IndexOf(item);
+                else menu.Select(item, false);
+                System.Windows.Forms.Application.DoEvents();
                 var card = Assert.IsAssignableFrom<Control>(item.Tag);
                 int relativeTop = card.PointToScreen(Point.Empty).Y - page.PointToScreen(Point.Empty).Y;
                 Assert.InRange(relativeTop, page.Padding.Top - 2, page.ClientSize.Height - 1);
@@ -45,6 +51,7 @@ public sealed class SettingsDescriptionLayoutTests
             page.YScroll!.Value = 0; System.Windows.Forms.Application.DoEvents();
             Assert.True(menu.Items[0].Select);
             Assert.False(menu.Items[^1].Select);
+            Assert.Equal(0, compact.SelectedIndex);
             if (Environment.GetEnvironmentVariable("ANTD_UI_PREVIEWS") is string folder)
             {
                 Directory.CreateDirectory(folder);
