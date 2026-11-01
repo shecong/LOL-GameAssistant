@@ -224,9 +224,55 @@ public sealed class OpggBuildPickerTests
         Assert.True(form.Visible);
         Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Name == "applyStatus" &&
             label.Visible && label.Text.Contains("已应用"));
-        Assert.False(row.Enabled);
+        Assert.True(row.Enabled);
         ((Button)form.AcceptButton!).PerformClick();
-        Assert.Equal(2, applications);
+        Assert.Equal(3, applications);
+        Assert.True(form.Visible);
+        form.Close();
+        Assert.Equal(DialogResult.OK, form.DialogResult);
+    });
+
+    [Fact]
+    public void SuccessfulApplyAllowsRepeatingAndSwitchingBuilds() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var applications = new List<(int Order, bool Replace)>();
+        var response = new TaskCompletionSource<OpggBuildApplyResult>();
+        using var form = CreateForm(applySelection: (option, _, replace) =>
+        {
+            applications.Add((option.Order, replace));
+            return applications.Count == 2 ? response.Task : Task.FromResult(OpggBuildApplyResult.Success("已应用"));
+        });
+        form.Show();
+        var first = Children(form).OfType<Button>().Single(button => button.Name == "applyRoute1");
+        var second = Children(form).OfType<Button>().Single(button => button.Name == "applyRoute2");
+        var apply = (Button)form.AcceptButton!;
+        var replace = Children(form).OfType<AntdUI.Checkbox>().Single();
+        first.PerformClick();
+        Assert.True(first.Enabled);
+        Assert.True(second.Enabled);
+        Assert.True(replace.Enabled);
+        replace.Checked = false;
+        first.PerformClick();
+        Assert.False(first.Enabled);
+        Assert.False(second.Enabled);
+        Assert.False(apply.Enabled);
+        Assert.False(replace.Enabled);
+        second.PerformClick();
+        apply.PerformClick();
+        Assert.Equal(2, applications.Count);
+        response.SetResult(OpggBuildApplyResult.Success("再次应用成功"));
+        System.Windows.Forms.Application.DoEvents();
+        Assert.True(apply.Enabled);
+        Assert.True(replace.Enabled);
+        foreach (string title in new[] { "峡谷", "全部", "中路", "上路" })
+            Assert.True(Children(form).OfType<Button>().Single(button => button.Text == title).Enabled);
+        Children(form).OfType<Button>().Single(button => button.Text == "峡谷").PerformClick();
+        Children(form).OfType<Button>().Single(button => button.Name == "applyRoute2").PerformClick();
+        apply.PerformClick();
+        Assert.Equal(new[] { (1, true), (1, false), (2, false), (2, false) }, applications);
+        Assert.True(form.Visible);
+        Assert.Equal(DialogResult.None, form.DialogResult);
+        form.Close();
         Assert.Equal(DialogResult.OK, form.DialogResult);
     });
 
@@ -247,8 +293,8 @@ public sealed class OpggBuildPickerTests
                 Children(form).OfType<Button>().Single(button => button.Name == "applyRoute2").PerformClick();
                 Assert.True(form.Visible);
                 Assert.Equal(DialogResult.None, form.DialogResult);
-                Assert.Equal("完成", ((Button)form.AcceptButton!).Text);
-                ((Button)form.AcceptButton!).PerformClick();
+                Assert.Equal("应用选中方案", ((Button)form.AcceptButton!).Text);
+                form.Close();
             }
             catch (Exception error)
             {
@@ -282,7 +328,7 @@ public sealed class OpggBuildPickerTests
         Assert.True(apply.Enabled);
         apply.PerformClick();
         Assert.Contains("符文和装备已配置", status.Text);
-        Assert.Equal("完成", apply.Text);
+        Assert.Equal("应用选中方案", apply.Text);
         form.Close();
         Assert.Equal(DialogResult.OK, form.DialogResult);
         Assert.Equal(2, applications);

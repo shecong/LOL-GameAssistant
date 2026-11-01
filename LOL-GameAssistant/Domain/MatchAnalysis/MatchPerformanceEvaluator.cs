@@ -143,7 +143,7 @@ public static class RecentModePerformanceEvaluator
     /// <summary>下等马档位的分数上限。</summary>
     public const int LowerTierMaxScore = 59;
 
-    public const double HumanKdaThreshold = 1.0;
+    public const double HumanKdaThreshold = 1.5;
     public const double LowerKdaThreshold = 2.2;
     public const double UpperKdaThreshold = 4.5;
 
@@ -206,7 +206,7 @@ public static class RecentModePerformanceEvaluator
     private static int GetStrictScore(double kda)
     {
         if (kda < HumanKdaThreshold)
-            return Math.Clamp((int)Math.Round(kda * 29), 0, 29);
+            return Math.Clamp((int)Math.Round(kda / HumanKdaThreshold * 29), 0, 29);
         if (kda < LowerKdaThreshold)
             return Math.Clamp(30 + (int)Math.Round((kda - HumanKdaThreshold) / (LowerKdaThreshold - HumanKdaThreshold) * 29), 30, LowerTierMaxScore);
         if (kda < UpperKdaThreshold)

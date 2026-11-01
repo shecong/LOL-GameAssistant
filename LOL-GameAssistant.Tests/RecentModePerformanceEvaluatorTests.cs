@@ -27,15 +27,32 @@ public sealed class RecentModePerformanceEvaluatorTests
         Assert.Equal(RecentPerformanceLabel.Lower, result.Label);
     }
 
-    [Fact]
-    public void KdaBelowOne_IsPureCowHorseTier()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(75)]
+    [InlineData(100)]
+    [InlineData(125)]
+    [InlineData(149)]
+    public void KdaBelowOnePointFive_IsPureCowHorseTier(int kills)
     {
-        RecentModePerformanceAssessment result = Evaluate(8, kills: 1, deaths: 4, assists: 2);
+        RecentModePerformanceAssessment result = Evaluate(8, kills: kills, deaths: 100, assists: 0);
 
         Assert.True(result.HasEnoughSample);
         Assert.Equal(MatchPerformanceTier.Lower, result.Tier);
         Assert.Equal(RecentPerformanceLabel.Human, result.Label);
         Assert.Equal("纯牛马", RecentPerformanceLabelFormatter.GetText(result));
+        Assert.InRange(result.Score, 0, 29);
+    }
+
+    [Theory]
+    [InlineData(150)]
+    [InlineData(151)]
+    public void KdaAtOrAboveOnePointFive_IsLowerTier(int kills)
+    {
+        var result = Evaluate(8, kills: kills, deaths: 100, assists: 0);
+
+        Assert.Equal(RecentPerformanceLabel.Lower, result.Label);
+        Assert.InRange(result.Score, 30, 59);
     }
 
     [Fact]

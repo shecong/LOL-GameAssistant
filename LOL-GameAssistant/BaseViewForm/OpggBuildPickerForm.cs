@@ -27,7 +27,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     private readonly bool _hasCurrentMatch;
     private readonly Func<OpggBuildOption, string, bool, Task<OpggBuildApplyResult>>? _applySelection;
     private bool _applyingSelection;
-    private bool _selectionApplied;
+    private bool _hasAppliedSelection;
     private string _availabilityMessage = "";
     private readonly Label _applyStatus = new()
     {
@@ -121,7 +121,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         UiTheme.Apply(this);
         FormClosing += (_, _) =>
         {
-            if (_selectionApplied) DialogResult = DialogResult.OK;
+            if (_hasAppliedSelection) DialogResult = DialogResult.OK;
         };
         Shown += async (_, _) =>
         {
@@ -558,7 +558,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     {
         RuntimeDiagnostics.Report("OP.GG 手动应用", "收到点击",
             $"方案 {card.Option.Order} · 分路 {card.Position} · 加载中 {_loading} · 应用中 {_applyingSelection}");
-        if (_applyingSelection || _selectionApplied) return;
+        if (_applyingSelection) return;
         _selectedCard = card;
         await ConfirmSelectionAsync();
     }
@@ -566,14 +566,14 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>更新当前选中的推荐卡片及其视觉状态。</summary>
     private void SelectCard(RouteCard card)
     {
-        if (_applyingSelection || _selectionApplied) return;
+        if (_applyingSelection) return;
         _selectedCard = card;
         _apply.Enabled = CanApply(card);
         ApplyTheme(UiTheme.Palette);
     }
 
     /// <summary>判断当前推荐是否具备应用到客户端的必要数据。</summary>
-    private bool CanApply(RouteCard card) => _allowApply && !_loading && !_applyingSelection && !_selectionApplied;
+    private bool CanApply(RouteCard card) => _allowApply && !_loading && !_applyingSelection;
 
     // 禁用正在处理的按钮会让 WinForms 移动焦点。保持滚动位置，避免下一焦点把
     // 列表自动滚到后面的方案；用户仍可通过滚轮和滚动条浏览。
@@ -911,12 +911,6 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     /// <summary>确认当前方案并将选择结果返回调用方。</summary>
     private async Task ConfirmSelectionAsync()
     {
-        if (_selectionApplied)
-        {
-            DialogResult = DialogResult.OK;
-            Close();
-            return;
-        }
         if (_selectedCard == null || !CanApply(_selectedCard))
         {
             _applyStatus.Text = _selectedCard == null ? "请先选择一套方案。"
@@ -954,8 +948,8 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                     _note.ForeColor = Color.Salmon;
                     return;
                 }
-                _selectionApplied = true;
-                _applyStatus.Text += " 点击“完成”关闭窗口。";
+                _hasAppliedSelection = true;
+                _applyStatus.Text += " 可继续应用当前方案或选择其他方案。";
             }
             catch (OperationCanceledException)
             {
@@ -986,9 +980,9 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                 _applyingSelection = false;
                 if (!IsDisposed)
                 {
-                    _apply.Text = _selectionApplied ? "完成" : "应用选中方案";
-                    _replaceCurrentRunePage.Enabled = !_selectionApplied;
-                    _apply.Enabled = _selectionApplied || (_selectedCard != null && CanApply(_selectedCard));
+                    _apply.Text = "应用选中方案";
+                    _replaceCurrentRunePage.Enabled = true;
+                    _apply.Enabled = _selectedCard != null && CanApply(_selectedCard);
                     ApplyTheme(UiTheme.Palette);
                 }
             }
@@ -1032,7 +1026,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
         foreach (Button tab in _tabs)
         {
-            tab.Enabled = !_applyingSelection && !_selectionApplied;
+            tab.Enabled = !_applyingSelection;
             bool active = Equals(tab.Tag, _filter);
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
             tab.ForeColor = active ? Color.FromArgb(239, 221, 166) : Gold;
@@ -1040,7 +1034,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
         }
         foreach (Button tab in _laneTabs)
         {
-            tab.Enabled = !_applyingSelection && !_selectionApplied && (_filter == "all" ? _choices.Mode : _filter) == "ranked";
+            tab.Enabled = !_applyingSelection && (_filter == "all" ? _choices.Mode : _filter) == "ranked";
             bool active = Equals(tab.Tag, _position);
             tab.BackColor = active ? Color.FromArgb(36, 57, 60) : Navy;
             tab.BorderWidth = active ? 1 : 0;
@@ -1051,7 +1045,7 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
     // and only clear our own message so application errors and results remain visible.
     private void UpdateAvailabilityStatus()
     {
-        if (_applyingSelection || _selectionApplied) return;
+        if (_applyingSelection) return;
         string reason = !_allowApply ? "当前窗口仅供预览，无法应用方案。"
             : _loading ? "推荐仍在加载，请稍后重试。"
             : _selectedCard == null ? "当前没有可应用的方案，请选择有推荐数据的模式或分路。"
