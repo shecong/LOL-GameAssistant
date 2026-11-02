@@ -64,7 +64,15 @@ public sealed class GameOverlayProtocolTests
             ItemStyles: [new("【终极】", gold)]));
         Assert.Equal(Encoding.UTF8.GetByteCount("【终极】"), view.ReadInt32(aux + 55936));
         Assert.Equal(0xff4ad3ffu, view.ReadUInt32(aux + 56960));
+        bridge.PublishPanel(new(GameOverlayPanelKind.SkinPicker, Items: ["皮肤"],
+            Submenu: new("炫彩", ["蓝色", "绿色"], 1, 0, 2, 3)));
+        Assert.Equal(2, view.ReadInt32(aux + 57984)); Assert.Equal(1, view.ReadInt32(aux + 57988));
+        Assert.Equal(0, view.ReadInt32(aux + 57992)); Assert.Equal(2, view.ReadInt32(aux + 57996));
+        Assert.Equal(3, view.ReadInt32(aux + 58000));
+        Assert.Equal("炫彩", ReadText(view, aux + 58004, 256));
+        Assert.Equal("绿色", ReadText(view, aux + 58260 + 192, 192));
         bridge.PublishPanel(new(GameOverlayPanelKind.SkinPicker, Items: ["眼位"]));
+        Assert.Equal(0, view.ReadInt32(aux + 57984));
         Assert.Equal(0u, view.ReadUInt32(aux + 55936));
         Assert.Equal(0u, view.ReadUInt32(aux + 56960));
         view.Write(aux+96, -240);

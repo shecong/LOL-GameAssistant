@@ -41,7 +41,42 @@ try {
         }
     }
     Write-Host 'PASS: all architectures reject old entry names, accept the current entry, and reject wrong architectures.'
+    # A complete app EXE is insufficient: an incomplete package would delete managed cores.
+    $dependencyRoot = Join-Path $testDirectory 'dependencies'
+    $hybridMarker = Join-Path $dependencyRoot 'LOL-GameAssistant/Tools/SkinCoreHybrid/league-skin-hybrid-host.exe'
+    New-Item -ItemType Directory -Path (Split-Path $hybridMarker -Parent) -Force | Out-Null
+    [IO.File]::WriteAllText($hybridMarker, 'fixture')
+    $dependencyFiles = @(
+        'Tools/SkinCore/league-skin-core-host.exe', 'Tools/SkinCore/league-skin-core.dll', 'Tools/SkinCore/SHA256SUMS.json',
+        'Tools/GameOverlay/sc-game-overlay-host.exe', 'Tools/GameOverlay/sc-game-overlay.dll',
+        'Tools/SkinCoreHybrid/league-skin-hybrid-host.exe', 'Tools/SkinCoreHybrid/league-skin-core.dll',
+        'Tools/SkinCoreHybrid/SHA256SUMS.json', 'Tools/SkinCoreHybrid/Driver/SkinCoreRelay.sys', 'Tools/SkinCoreHybrid/Driver/manage.ps1'
+    )
+    foreach ($relative in $dependencyFiles) {
+        $dependency = Join-Path $dependencyRoot $relative
+        New-Item -ItemType Directory -Path (Split-Path $dependency -Parent) -Force | Out-Null
+        [IO.File]::WriteAllText($dependency, 'fixture')
+    }
+    Assert-UpdateSkinDependencies -Repository $dependencyRoot -PublishDirectory $dependencyRoot
+    foreach ($relative in $dependencyFiles) {
+        $dependency = Join-Path $dependencyRoot $relative
+        Remove-Item -LiteralPath $dependency
+        Assert-Rejected { Assert-UpdateSkinDependencies -Repository $dependencyRoot -PublishDirectory $dependencyRoot } $relative
+        [IO.File]::WriteAllText($dependency, '')
+        Assert-Rejected { Assert-UpdateSkinDependencies -Repository $dependencyRoot -PublishDirectory $dependencyRoot } $relative
+        [IO.File]::WriteAllText($dependency, 'fixture')
+    }
+    Assert-UpdateSkinDependencies -Repository $repository -PublishDirectory (Join-Path $repository 'LOL-GameAssistant')
+    Write-Host 'PASS: complete skin dependencies accepted; every missing or empty dependency rejected.'
 } finally {
+    if ($dependencyRoot -and (Test-Path -LiteralPath $dependencyRoot)) {
+        $resolvedDependencies = [IO.Path]::GetFullPath($dependencyRoot)
+        $expectedDependencies = [IO.Path]::GetFullPath((Join-Path $testDirectory 'dependencies'))
+        if ($resolvedDependencies -ne $expectedDependencies -or -not $resolvedDependencies.StartsWith([IO.Path]::GetFullPath($testDirectory) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Unexpected dependency test cleanup path.'
+        }
+        Remove-Item -LiteralPath $resolvedDependencies -Recurse
+    }
     # Only the exact, uniquely created test files and their empty directory are removed.
     foreach ($runtime in @('win-x64', 'win-x86', 'win-arm64')) {
         $path = Join-Path $testDirectory "$runtime.exe"

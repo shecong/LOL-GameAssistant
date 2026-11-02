@@ -22,7 +22,8 @@ public sealed class LcuFriendSpectateService : IFriendSpectateService
     /// <summary>根据请求启动好友观战流程。</summary>
     public async Task<SpectateResult> LaunchAsync(SpectateRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.FriendPuuid) || request.GameId <= 0)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(request.FriendPuuid))
             return new SpectateResult(false, "该好友未提供可观战的对局信息。");
 
         bool succeeded = await _requestSender.PostAsync(

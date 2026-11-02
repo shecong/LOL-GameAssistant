@@ -77,6 +77,9 @@ public static class AppCompositionRoot
     public static LOL_GameAssistant.Application.Skins.IChampionSkinResourceService ChampionSkinResourceService { get; } =
         new LcuChampionSkinResourceService(LcuRequestSender, () => LOL_GameAssistant.LoLApi.Game_Api.gameversion);
 
+    public static LOL_GameAssistant.Application.Skins.ISkinPopularityService SkinPopularityService { get; } =
+        new LOL_GameAssistant.Infrastructure.Skins.OpggSkinPopularityService();
+
     public static Infrastructure.Lounge.LoungeClient CreateLoungeClient() =>
         new(new Infrastructure.Lounge.LoungeLcuReader(LcuRequestSender, MatchHistoryService, RankedStatsService));
 

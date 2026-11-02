@@ -94,6 +94,7 @@ std::atomic<LONG> testPointerX{0}, testPointerY{0};
 std::atomic<bool> testPointerEnabled{false};
 std::atomic<float> testSkinScroll{0};
 RECT testSkinCategories[3]{}, testSkinFirstEntry{}, testSkinPages[2]{}, testCameraToggle{};
+RECT testSkinChildWindow{},testSkinChildFirst{};
 #endif
 POINT ClientPointer(HWND window) {
 #ifdef SC_OVERLAY_TEST
@@ -531,6 +532,8 @@ extern "C" __declspec(dllexport) BOOL OverlayTestSkinControl(int kind,int index,
     else if(kind==1 && index==0) *rect=testSkinFirstEntry;
     else if(kind==2 && index>=0 && index<2) *rect=testSkinPages[index];
     else if(kind==3 && index==0) *rect=testCameraToggle;
+    else if(kind==4 && index==0) *rect=testSkinChildWindow;
+    else if(kind==5 && index==0) *rect=testSkinChildFirst;
     else return FALSE;
     return rect->right>rect->left && rect->bottom>rect->top;
 }

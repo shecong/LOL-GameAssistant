@@ -47,7 +47,7 @@ public sealed class LcuChampionSkinResourceService(ILcuRequestSender lcu, Func<s
                     if (chromaId < 0 || chromaId / 1000 != id) continue;
                     result.Add(new(chromaId % 1000, chroma.Value<string>("name") ?? skin.Value<string>("name") ?? model,
                         ReadPaths(chroma).Concat(paths).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                        quality, true));
+                        quality, true, fullId % 1000));
                 }
             }
             IReadOnlyList<ChampionSkinResource> catalog = result.DistinctBy(skin => skin.SkinNumber).ToArray();

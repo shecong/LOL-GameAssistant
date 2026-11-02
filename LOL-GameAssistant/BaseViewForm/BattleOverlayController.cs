@@ -264,7 +264,14 @@ internal sealed class BattleOverlayController : IDisposable
             RefreshOverlay();
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { RuntimeDiagnostics.Report("对局玩家资料", "等待数据", ex.Message); }
+        catch (Exception ex)
+        {
+            if (!token.IsCancellationRequested && generation == _generation && !IsDisposed)
+            {
+                _retryAt[MemberKey(member)] = DateTimeOffset.UtcNow.AddSeconds(30);
+                RuntimeDiagnostics.Report("对局玩家资料", "等待重试", ex.Message);
+            }
+        }
         finally { if (generation == _generation) _loading.Remove(MemberKey(member)); }
     }
 

@@ -105,12 +105,93 @@ public sealed class EnemyJungleRouteTests
         var result = await fixture.Service.AnalyzeAsync();
         Assert.Null(result.Prediction);
         Assert.Empty(result.Samples);
-        Assert.Equal(8, result.UnavailableGames);
+        Assert.Equal(10, result.UnavailableGames);
         Assert.Contains("数据不足", result.Status);
         fixture.Phase = "Lobby";
         Assert.Null((await fixture.Service.AnalyzeAsync()).Enemy);
-        Assert.Equal(8, fixture.TimelineReads);
+        Assert.Equal(10, fixture.TimelineReads);
     }
+
+    [Fact]
+    public async Task MissingAndLateOpeningTimelinesAreReplacedByLaterCandidates()
+    {
+        var fixture = new Fixture();
+        fixture.Timeline = (id, _) => id == 1 ? throw new IOException("missing") : Task.FromResult(id == 2
+            ? new JungleTimeline(id, new Dictionary<int, IReadOnlyList<JungleObservation>> { [1] = Points.Where(p => p.Seconds >= 240).ToArray() })
+            : Timeline(id));
+        var result = await fixture.Service.AnalyzeAsync();
+        Assert.Equal(10, fixture.TimelineReads);
+        Assert.Equal(8, result.Samples.Count);
+        Assert.Equal(2, result.UnavailableGames);
+        Assert.NotNull(result.Prediction);
+        Assert.DoesNotContain(result.Samples, sample => sample.GameId is 1 or 2);
+    }
+
+    [Fact]
+    public async Task SameChampionCandidatesAreReadBeforeMoreRecentOtherChampions()
+    {
+        var fixture = new Fixture();
+        foreach (var game in fixture.Games.Take(8)) game.Participants[0].championId = 99;
+        var ids = new List<long>();
+        fixture.Timeline = (id, _) => { ids.Add(id); return Task.FromResult(Timeline(id)); };
+        var result = await fixture.Service.AnalyzeAsync();
+        Assert.Equal(new long[] { 9, 10 }, ids.Take(2));
+        Assert.Equal(8, ids.Count);
+        Assert.True(result.Prediction!.SameChampion);
+        Assert.Equal(2, result.Prediction.TotalGames);
+    }
+
+    [Fact]
+    public void UnusableSameChampionOpeningsFallBackToOtherChampions()
+    {
+        var late = Points.Where(p => p.Seconds >= 240).ToArray();
+        var prediction = JungleRoutePredictor.Predict([
+            new(1, 64, 100, 1, late), new(2, 64, 100, 2, late), new(3, 99, 100, 3, Points)], 64, 100);
+        Assert.NotNull(prediction);
+        Assert.False(prediction.SameChampion);
+        Assert.Equal(3, prediction.RepresentativeGameId);
+        Assert.Contains("低", prediction.Confidence);
+    }
+
+    [Fact]
+    public void SameOpeningWithDifferentLaterPathsDoesNotReceiveMediumConfidence()
+    {
+        var samples = Enumerable.Range(1, 5).Select(id => new JungleRouteSample(id, 64, 100, id,
+            Points.Select((point, index) => index == 0 ? point : point with
+            { Position = new RiftPoint(2000 + id * 2000, id % 2 == 0 ? 12000 : 3000) }).ToArray())).ToArray();
+        var prediction = JungleRoutePredictor.Predict(samples, 64, 100)!;
+        Assert.Equal(5, prediction.SupportingGames);
+        Assert.True(prediction.RouteAgreementGames < 4);
+        Assert.Contains("低", prediction.Confidence);
+    }
+
+    [Fact]
+    public void DuplicateTimestampPrefersFrameAndDoesNotCountAsExtraCoverage()
+    {
+        var sample = new JungleRouteSample(1, 64, 100, 1, [
+            new(120, new(11000, 11000), "历史阵亡位置"), Points[0], Points[1], Points[1], Points[2],
+            new(400, new(500, 500), "基地")]);
+        var normalized = JungleRoutePredictor.Normalize(sample, 100);
+        Assert.Equal(3, normalized.Count);
+        Assert.Equal(Points[0].Position, normalized[0].Position);
+        var onlyOneTimestamp = sample with { Points = [Points[0], Points[0], Points[0]] };
+        Assert.Null(JungleRoutePredictor.Predict([onlyOneTimestamp], 64, 100));
+    }
+
+    [Fact]
+    public void MapNumbersEveryNodeAndSeparatesRepeatedPositions() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var map = new JungleRouteMap { Size = new(620, 680) };
+        var points = Enumerable.Range(1, 6).Select(i => new JungleObservation(i * 60, new(6500, 5500), "历史位置采样")).Reverse().ToArray();
+        map.SetRoute(points, true);
+        using var bitmap = new Bitmap(map.Width, map.Height);
+        using var graphics = Graphics.FromImage(bitmap); map.RenderOverlay(graphics);
+        Assert.Equal(Enumerable.Range(1, 6), map.RouteNodes.Select(n => n.Number));
+        Assert.Equal(Enumerable.Range(1, 6).Select(i => i * 60), map.RouteNodes.Select(n => n.Observation.Seconds));
+        Assert.All(map.RouteNodes, node => Assert.DoesNotContain(map.RouteNodes, other => other.Number != node.Number && other.Bounds.IntersectsWith(node.Bounds)));
+        if (Environment.GetEnvironmentVariable("JUNGLE_ROUTE_SCREENSHOTS") is string directory)
+        { Directory.CreateDirectory(directory); bitmap.Save(Path.Combine(directory, "Repeated-Nodes.png")); }
+    });
 
     [Fact]
     public async Task ExcludesNonJungleCustomRemakesAndUnsupportedMode()

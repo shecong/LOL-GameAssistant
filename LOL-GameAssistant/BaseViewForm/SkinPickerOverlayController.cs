@@ -26,6 +26,12 @@ internal sealed class SkinPickerOverlayController : IDisposable
     private string _scope = "";
     private const int PageSize = 240;
     private int _page;
+    private (string Id, string Name)[] _children = [];
+    private string? _childSelected, _childParent;
+    private string _childTitle = "";
+    private int _childPage;
+    private const int ChildPageSize = 32;
+    private int ChildPageCount => Math.Max(1, (_children.Length + ChildPageSize - 1) / ChildPageSize);
     private int PageCount => Math.Max(1, (_items.Length + PageSize - 1) / PageSize);
     internal bool OverlayVisible { get; private set; }
 
@@ -45,12 +51,18 @@ internal sealed class SkinPickerOverlayController : IDisposable
     internal void SetState((string Id, string Name)[] items, string? selected, string status, bool ready, bool canRefresh,
         SkinPickerCategory category = SkinPickerCategory.Hero, string scope = "", GameOverlayItemStyle[]? styles = null)
     {
+        bool selectionChanged = _selected != selected;
         if (!_items.SequenceEqual(items) || !_styles.SequenceEqual(styles ?? []) || category != _category || scope != _scope)
         {
             _items = items.ToArray(); ++_version;
             _styles = styles?.ToArray() ?? [];
             int selectedIndex = Array.FindIndex(_items, item => item.Id == selected);
             _page = Math.Max(0, selectedIndex) / PageSize;
+        }
+        else if (selectionChanged)
+        {
+            int selectedIndex = Array.FindIndex(_items, item => item.Id == selected);
+            if (selectedIndex >= 0 && _page != selectedIndex / PageSize) { _page = selectedIndex / PageSize; ++_version; }
         }
         _category = category; _scope = scope;
         _selected = selected; _status = status; _ready = ready; _canRefresh = canRefresh;
@@ -60,8 +72,23 @@ internal sealed class SkinPickerOverlayController : IDisposable
     {
         _cameraEnabled = enabled; _cameraReady = ready; PublishOverlay();
     }
+    internal void SetSubmenu((string Id, string Name)[] items, string? selected, string? parent, string title)
+    {
+        bool changed = !_children.SequenceEqual(items) || _childParent != parent || _childTitle != title;
+        int selectedIndex = Array.FindIndex(items, item => item.Id == selected);
+        if (changed || _childSelected != selected)
+        {
+            if (changed || selectedIndex >= 0 && selectedIndex / ChildPageSize != _childPage)
+            { _childPage = Math.Max(0, selectedIndex) / ChildPageSize; ++_version; }
+        }
+        _children = items.ToArray(); _childSelected = selected; _childParent = parent; _childTitle = title;
+        PublishOverlay();
+    }
     internal void ShowOverGame(Rectangle bounds)
     {
+        int selectedIndex = Array.FindIndex(_items, item => item.Id == _selected);
+        if (selectedIndex >= 0) _page = selectedIndex / PageSize;
+        ++_version;
         OverlayVisible = true; _watch.Start(); PublishOverlay();
     }
     internal void SetHotkey(string hotkey) { _title = $"{hotkey} 显示 / 隐藏"; PublishOverlay(); }
@@ -71,6 +98,13 @@ internal sealed class SkinPickerOverlayController : IDisposable
         if (command == null || !OverlayVisible || !_available() || command.Version != _version) return;
         switch (command.Action)
         {
+            case 8 when _ready && command.Argument >= 0 && command.Argument < Math.Min(ChildPageSize, _children.Length - _childPage * ChildPageSize):
+                _select(_children[_childPage * ChildPageSize + command.Argument].Id); break;
+            case 9 when _canRefresh: _select("group:back"); break;
+            case 10 when _canRefresh && command.Argument is -1 or 1:
+                int childPage = _childPage + command.Argument;
+                if (childPage >= 0 && childPage < ChildPageCount) { _childPage = childPage; ++_version; PublishOverlay(); }
+                break;
             case 7 when _cameraReady && command.Argument is 0 or 1: _changeCamera?.Invoke(command.Argument == 1); break;
             case 1 when _ready && command.Argument >= 0 && command.Argument < Math.Min(PageSize, _items.Length - _page * PageSize):
                 _select(_items[_page * PageSize + command.Argument].Id); break;
@@ -93,7 +127,11 @@ internal sealed class SkinPickerOverlayController : IDisposable
             Items: _items.Skip(_page * PageSize).Take(PageSize).Select(p => p.Name).ToArray(), Selected: Array.FindIndex(_items, p => p.Id == _selected) - _page * PageSize,
             Ready: _ready, CanRefresh: _canRefresh, Version: _version, Category: (int)_category, Page: _page, PageCount: PageCount,
             CameraEnabled: _cameraEnabled, CameraReady: _cameraReady,
-            ItemStyles: _styles.Skip(_page * PageSize).Take(PageSize).ToArray()));
+            ItemStyles: _styles.Skip(_page * PageSize).Take(PageSize).ToArray(),
+            Submenu: _children.Length == 0 ? null : new(_childTitle,
+                _children.Skip(_childPage * ChildPageSize).Take(ChildPageSize).Select(c => c.Name).ToArray(),
+                Array.FindIndex(_children, c => c.Id == _childSelected) - _childPage * ChildPageSize,
+                Array.FindIndex(_items, c => c.Id == _childParent) - _page * PageSize, _childPage, ChildPageCount)));
     }
     public void Hide()
     {

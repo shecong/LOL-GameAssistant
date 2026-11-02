@@ -20,6 +20,7 @@ internal sealed class LcuFriendDto
 /// <summary>好友协议数据中英雄联盟活动相关字段。</summary>
 internal sealed class LcuFriendLolDto
 {
+    [JsonProperty("gameStatus")] public string? GameStatus { get; set; }
     [JsonProperty("gameId")] public string? GameId { get; set; }
     [JsonProperty("gameQueueType")] public string? GameQueueType { get; set; }
     [JsonProperty("icon")] public int Icon { get; set; }

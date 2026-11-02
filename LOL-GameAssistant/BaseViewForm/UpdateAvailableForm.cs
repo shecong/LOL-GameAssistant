@@ -6,7 +6,6 @@ using System.Diagnostics;
 using LOL_GameAssistant.Domain.ApplicationInfo;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.ApplicationInfo;
-using LOL_GameAssistant.Domain.LeagueClient;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -146,11 +145,6 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
                     ShowPrepared();
                     return;
                 }
-                if (Owner is GameMain main && main.gameFlowPhase is GameFlowPhase.InProgress or GameFlowPhase.Reconnect or GameFlowPhase.ChampSelect)
-                {
-                    transferStatus.Text = "当前正在选人或对局，请结束后再安装更新。";
-                    return;
-                }
                 _installing = true;
                 autoUpdate.Enabled = later.Enabled = false;
                 transferStatus.Text = "正在启动更新器，请稍候…";
@@ -181,7 +175,7 @@ internal sealed class UpdateAvailableForm : AntdUI.Window
         void ShowPrepared()
         {
             transferStatus.Text = UiLanguage.IsEnglish ? "Update downloaded. Restart and install now, or close this window and install later."
-                : "更新包已下载并校验，可重启安装；关闭窗口或重启助手后仍可继续安装，无需重复下载。";
+                : "更新包已下载并校验，可随时重启助手并安装；关闭窗口或重启助手后仍可继续安装，无需重复下载。";
             transferProgress.Value = 1;
             autoUpdate.Text = UiLanguage.IsEnglish ? "Restart and install" : "重启并安装";
             source.Enabled = false;

@@ -16,6 +16,9 @@ internal sealed class JungleRouteMap : Control
     private readonly AntdUI.Button _zoomOut = new() { Text = "−", Size = new(28, 30), TabStop = false, WaveSize = 0 };
     private IReadOnlyList<JungleObservation> _points = [];
     private readonly List<RectangleF> _labels = [];
+    internal sealed record RouteNode(int Number, JungleObservation Observation, PointF Anchor, RectangleF Bounds);
+    private readonly List<RouteNode> _routeNodes = [];
+    internal IReadOnlyList<RouteNode> RouteNodes => _routeNodes;
     private bool _predicted, _dragging;
     private float _zoom = 1;
     private PointF _pan;
@@ -46,7 +49,8 @@ internal sealed class JungleRouteMap : Control
 
     internal void SetRoute(IReadOnlyList<JungleObservation> points, bool predicted)
     {
-        _points = points.Where(p => p.Position.IsValid).ToArray();
+        _points = points.Where(p => p.Position.IsValid).OrderBy(p => p.Seconds).ToArray();
+        _routeNodes.Clear();
         _predicted = predicted; _hoverText = ""; _tip.SetToolTip(this, ""); Invalidate();
     }
 
@@ -119,8 +123,8 @@ internal sealed class JungleRouteMap : Control
         string hover = "";
         if (Viewport.Contains(e.Location))
         {
-            var point = _points.FirstOrDefault(p => Distance(Project(p.Position), e.Location) < 12);
-            if (point != null) hover = $"{point.Seconds / 60}:{point.Seconds % 60:D2} · {point.Evidence}";
+            var node = _routeNodes.LastOrDefault(p => p.Bounds.Contains(e.Location) || Distance(p.Anchor, e.Location) < 12);
+            if (node != null) hover = $"节点 {node.Number} · {node.Observation.Seconds / 60}:{node.Observation.Seconds % 60:D2} · {node.Observation.Evidence}";
             else
             {
                 var camp = Camps.FirstOrDefault(p => Distance(Project(new(p.X, p.Y)), e.Location) < 14);
@@ -161,11 +165,12 @@ internal sealed class JungleRouteMap : Control
         using var frame = new Pen(Color.FromArgb(75, 102, 105), 1);
         g.DrawRectangle(frame, map.X, map.Y, map.Width, map.Height);
         _labels.Clear();
+        LayoutRouteNodes();
         DrawBuildings(g);
         foreach (var camp in Camps) DrawCamp(g, camp, small);
         DrawRoute(g, small);
         g.Restore(state);
-        string legend = _points.Count == 0 ? "等待历史时间线" : _predicted ? "虚线：预测路线" : "实线：历史采样连线";
+        string legend = _points.Count == 0 ? "等待历史时间线" : _predicted ? "数字：采样顺序 · 虚线：历史习惯预测" : "数字：采样顺序 · 实线：历史采样连线";
         using var route = new Pen(RouteColor, 2) { DashStyle = _predicted ? DashStyle.Dash : DashStyle.Solid };
         g.DrawLine(route, 14, Height - 24, 39, Height - 24);
         g.DrawString(legend + " · 地形与建筑为固定参考", small, secondary, 46, Height - 33);
@@ -221,19 +226,65 @@ internal sealed class JungleRouteMap : Control
         for (int i = 1; i < _points.Count; i++)
         {
             var a = Project(_points[i - 1].Position); var b = Project(_points[i].Position);
-            if (Distance(a, b) < 5) continue;
+            double distance = Distance(a, b);
+            if (distance < 30) continue;
+            float trim = 13f / (float)distance;
+            var delta = new PointF(b.X - a.X, b.Y - a.Y);
+            a = new(a.X + delta.X * trim, a.Y + delta.Y * trim);
+            b = new(b.X - delta.X * trim, b.Y - delta.Y * trim);
             g.DrawLine(shadow, a, b); g.DrawLine(line, a, b);
         }
         using var fill = new SolidBrush(RouteColor);
-        using var ring = new Pen(Color.FromArgb(8, 19, 24), 2);
+        using var ring = new Pen(Color.FromArgb(5, 13, 21), 2.5f);
+        using var leader = new Pen(Color.FromArgb(200, RouteColor), 1.4f);
+        using var number = new Font(UiMetrics.FontFamily, 10F, FontStyle.Bold);
+        using var centered = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        // Draw every leader first so later displaced markers cannot paint across earlier numbers.
+        foreach (var node in _routeNodes)
+        {
+            var center = new PointF(node.Bounds.Left + node.Bounds.Width / 2, node.Bounds.Top + node.Bounds.Height / 2);
+            if (Distance(center, node.Anchor) > 5)
+            {
+                g.DrawLine(leader, node.Anchor, center);
+                g.FillEllipse(fill, node.Anchor.X - 3, node.Anchor.Y - 3, 6, 6);
+            }
+        }
+        foreach (var node in _routeNodes)
+        {
+            var center = new PointF(node.Bounds.Left + node.Bounds.Width / 2, node.Bounds.Top + node.Bounds.Height / 2);
+            g.FillEllipse(Brushes.Black, RectangleF.Inflate(node.Bounds, 2, 2));
+            g.FillEllipse(fill, node.Bounds); g.DrawEllipse(ring, node.Bounds);
+            g.DrawString(node.Number.ToString(), number, Brushes.Black, node.Bounds, centered);
+            DrawLabel(g, $"{node.Observation.Seconds / 60}:{node.Observation.Seconds % 60:D2}", center, RouteColor, font, true);
+        }
+    }
+
+    private void LayoutRouteNodes()
+    {
+        _routeNodes.Clear();
         for (int i = 0; i < _points.Count; i++)
         {
-            var point = _points[i]; var p = Project(point.Position);
-            if (!Viewport.Contains(p)) continue;
-            g.FillEllipse(fill, p.X - 4.5f, p.Y - 4.5f, 9, 9);
-            g.DrawEllipse(ring, p.X - 4.5f, p.Y - 4.5f, 9, 9);
-            if (_points.Count <= 12 || i % 2 == 0 || i == _points.Count - 1)
-                DrawLabel(g, $"{point.Seconds / 60}:{point.Seconds % 60:D2}", p, RouteColor, font, true);
+            var anchor = Project(_points[i].Position);
+            if (!Viewport.Contains(anchor)) continue;
+            const float diameter = 28;
+            RectangleF? placement = null;
+            for (int ring = 0; ring <= 8 && placement == null; ring++)
+            {
+                int slots = ring == 0 ? 1 : ring * 8;
+                for (int slot = 0; slot < slots; slot++)
+                {
+                    double angle = slot * Math.PI * 2 / slots;
+                    float x = anchor.X + (float)Math.Cos(angle) * ring * 32 - diameter / 2;
+                    float y = anchor.Y + (float)Math.Sin(angle) * ring * 32 - diameter / 2;
+                    var bounds = new RectangleF(x, y, diameter, diameter);
+                    if (!Viewport.Contains(bounds) || _routeNodes.Any(n => RectangleF.Inflate(n.Bounds, 3, 3).IntersectsWith(bounds))) continue;
+                    placement = bounds; break;
+                }
+            }
+            var marker = placement ?? new RectangleF(Math.Clamp(anchor.X - diameter / 2, Viewport.Left, Math.Max(Viewport.Left, Viewport.Right - diameter)),
+                Math.Clamp(anchor.Y - diameter / 2, Viewport.Top, Math.Max(Viewport.Top, Viewport.Bottom - diameter)), diameter, diameter);
+            _routeNodes.Add(new(i + 1, _points[i], anchor, marker));
+            _labels.Add(RectangleF.Inflate(marker, 4, 4));
         }
     }
 
@@ -241,7 +292,7 @@ internal sealed class JungleRouteMap : Control
     {
         var size = g.MeasureString(text, font);
         float width = size.Width + 10, height = size.Height + 4;
-        PointF[] offsets = route ? [new(10, -height - 7), new(-width - 10, -height - 7), new(10, 9), new(-width - 10, 9), new(-width / 2, -height - 27)]
+        PointF[] offsets = route ? [new(19, -height - 7), new(-width - 19, -height - 7), new(19, 12), new(-width - 19, 12), new(-width / 2, -height - 27)]
             : [new(10, -height / 2), new(-width - 10, -height / 2), new(-width / 2, 11), new(-width / 2, -height - 11)];
         foreach (var offset in offsets)
         {

@@ -23,6 +23,7 @@ public sealed record JungleRoutePrediction(IReadOnlyList<JungleObservation> Poin
 {
     public long RepresentativeGameId { get; init; }
     public string ActivityHint { get; init; } = "历史样本未提供可靠的早期交战事件。";
+    public int RouteAgreementGames { get; init; }
 }
 
 /// <summary>仅从历史位置采样生成开局习惯；连线是采样点插值，不代表精确的清野顺序或本局位置。</summary>
@@ -31,7 +32,9 @@ public static class JungleRoutePredictor
     public static bool IsJungle(string? position) => (position ?? "").Trim().ToUpperInvariant() is "JUNGLE" or "JNG";
 
     public static IReadOnlyList<JungleObservation> Normalize(JungleRouteSample sample, int targetTeam) =>
-        sample.Points.Where(p => p.Seconds is >= 60 and <= 480 && p.Position.IsValid)
+        sample.Points.Where(p => p.Seconds is >= 60 and <= 480 && p.Position.IsValid &&
+                p.Position.Distance(new(500, 500)) > 2300 && p.Position.Distance(new(14500, 14500)) > 2300)
+            .GroupBy(p => p.Seconds).Select(g => g.OrderByDescending(p => p.Evidence.Contains("位置采样", StringComparison.Ordinal)).First())
             .OrderBy(p => p.Seconds).Select(p => sample.TeamId == targetTeam ? p : p with { Position = p.Position.Mirror() }).ToArray();
 
     public static JungleRoutePrediction? Predict(IReadOnlyList<JungleRouteSample> samples, int championId, int targetTeam)
@@ -39,32 +42,50 @@ public static class JungleRoutePredictor
         if (targetTeam is not (100 or 200)) return null;
         var valid = samples.Where(s => s.TeamId is 100 or 200 && Normalize(s, targetTeam).Count >= 3)
             .DistinctBy(s => s.GameId).ToArray();
-        var same = valid.Where(s => s.ChampionId == championId).ToArray();
-        var pool = same.Length >= 2 ? same : valid;
-        if (pool.Length == 0) return null;
         // 只使用前 3 分钟实际观察到的第一处野区位置，不把它称为“第一个营地”。
-        var routes = pool.Select(s => (Sample: s, Points: Normalize(s, targetTeam)))
+        var eligible = valid.Select(s => (Sample: s, Points: Normalize(s, targetTeam)))
             .Select(s => (s.Sample, s.Points, Opening: s.Points.FirstOrDefault(p => p.Seconds <= 180 && IsJungleArea(p.Position))))
             .Where(s => s.Opening != null).ToArray();
+        var same = eligible.Where(s => s.Sample.ChampionId == championId).ToArray();
+        var routes = same.Length >= 2 ? same : eligible;
         if (routes.Length == 0) return null;
-        var group = routes.GroupBy(s => Region(s.Opening!.Position)).OrderByDescending(g => g.Count()).First();
+        var group = routes.GroupBy(s => Region(s.Opening!.Position)).OrderByDescending(g => g.Count())
+            .ThenByDescending(g => g.Max(r => r.Sample.CreatedAt)).First();
         // 选择组内与其他历史路线距离最小的代表，避免平均坐标生成穿墙“路线”。
-        var representative = group.OrderBy(route => group.Sum(other => RouteDistance(route.Points, other.Points))).First();
+        var representative = group.OrderBy(route => group.Average(other => RouteDistance(route.Points, other.Points)))
+            .ThenByDescending(route => route.Points.Count).ThenByDescending(route => route.Sample.CreatedAt).First();
         int support = group.Count(), total = routes.Length;
-        string confidence = total < 3 ? "低（样本不足 3 场）" : support * 1d / total >= .7 && support >= 4 ? "中（历史起始区域较一致）" : "低（历史路线有分歧）";
-        var fights = pool.Select(sample => (Sample: sample, Event: sample.Events
-            .Where(ev => ev.Kind is "KILL" or "ASSIST" && ev.Position?.IsValid == true)
+        int agreement = group.Count(route => RouteDistance(route.Points, representative.Points) <= 1800);
+        string confidence = total < 3 ? "低（样本不足 3 场）" : agreement * 1d / total >= .7 && agreement >= 4
+            ? "中（开局区域与后续走向较一致）" : "低（历史路线有分歧）";
+        var fights = routes.Select(route => (Sample: route.Sample, Event: route.Sample.Events
+            .Where(ev => ev.Seconds is >= 60 and <= 480 && ev.Kind is "KILL" or "ASSIST" && ev.Position?.IsValid == true)
             .OrderBy(ev => ev.Seconds).FirstOrDefault())).Where(p => p.Event != null)
             .GroupBy(p => Region(p.Sample.TeamId == targetTeam ? p.Event!.Position! : p.Event!.Position!.Mirror()))
             .OrderByDescending(g => g.Count()).FirstOrDefault();
         string activity = fights == null ? "历史样本未提供可靠的早期交战事件。" :
-            $"历史首次参与击杀/助攻：{fights.Key}，{fights.Min(p => p.Event!.Seconds) / 60}:{fights.Min(p => p.Event!.Seconds) % 60:D2}–{fights.Max(p => p.Event!.Seconds) / 60}:{fights.Max(p => p.Event!.Seconds) % 60:D2}（{fights.Count()}/{pool.Length} 场）";
+            $"历史首次参与击杀/助攻：{fights.Key}，{fights.Min(p => p.Event!.Seconds) / 60}:{fights.Min(p => p.Event!.Seconds) % 60:D2}–{fights.Max(p => p.Event!.Seconds) / 60}:{fights.Max(p => p.Event!.Seconds) % 60:D2}（{fights.Count()}/{routes.Length} 场）";
         return new(representative.Points, support, total, same.Length >= 2, confidence, group.Key)
-            { RepresentativeGameId = representative.Sample.GameId, ActivityHint = activity };
+            { RepresentativeGameId = representative.Sample.GameId, ActivityHint = activity, RouteAgreementGames = agreement };
     }
 
     private static double RouteDistance(IReadOnlyList<JungleObservation> a, IReadOnlyList<JungleObservation> b) =>
-        a.Sum(p => b.Min(q => p.Position.Distance(q.Position) + Math.Abs(p.Seconds - q.Seconds) * 25));
+        (AlignedDistance(a, b) + AlignedDistance(b, a)) / 2;
+    private static double AlignedDistance(IReadOnlyList<JungleObservation> a, IReadOnlyList<JungleObservation> b)
+    {
+        // Compare positions at the same stage, rather than matching a later visit to the same place.
+        // Missing time coverage receives a penalty, and extra samples do not inflate route distance.
+        double sum = 0, weights = 0;
+        foreach (var point in a)
+        {
+            var nearest = b.MinBy(other => Math.Abs(other.Seconds - point.Seconds))!;
+            int delta = Math.Abs(nearest.Seconds - point.Seconds);
+            double weight = point.Seconds <= 240 ? 2 : 1;
+            sum += weight * (delta > 75 ? 6000 : point.Position.Distance(nearest.Position) + delta * 25);
+            weights += weight;
+        }
+        return sum / weights;
+    }
     public static bool IsJungleArea(RiftPoint p) =>
         p.Distance(new(500, 500)) > 2300 && p.Distance(new(14500, 14500)) > 2300 &&
         p.X is > 1800 and < 13200 && p.Y is > 1800 and < 13200 && Math.Abs(p.X - p.Y) > 1300;

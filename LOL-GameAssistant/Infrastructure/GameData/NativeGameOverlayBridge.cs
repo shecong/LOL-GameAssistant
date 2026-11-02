@@ -175,6 +175,14 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                 case GameOverlayPanelKind.SkinNotice:
                     view.Write(AuxOffset + 24, p.Deadline); WriteText(view, AuxOffset + 3456, 1024, p.Body); break;
                 case GameOverlayPanelKind.SkinPicker:
+                    view.Write(AuxOffset + 57984, Math.Min(32, p.Submenu?.Items.Count ?? 0));
+                    view.Write(AuxOffset + 57988, p.Submenu?.Selected ?? -1);
+                    view.Write(AuxOffset + 57992, p.Submenu?.Parent ?? -1);
+                    view.Write(AuxOffset + 57996, p.Submenu?.Page ?? 0);
+                    view.Write(AuxOffset + 58000, p.Submenu?.PageCount ?? 1);
+                    WriteText(view, AuxOffset + 58004, 256, p.Submenu?.Title ?? "");
+                    for (int i = 0; i < Math.Min(32, p.Submenu?.Items.Count ?? 0); i++)
+                        WriteText(view, AuxOffset + 58260 + i * 192, 192, p.Submenu!.Items[i]);
                     view.Write(AuxOffset + 44, p.Ready ? 1 : 0); view.Write(AuxOffset + 48, p.CanRefresh ? 1 : 0);
                     view.Write(AuxOffset + 52, p.Selected); view.Write(AuxOffset + 56, Math.Min(256, p.Items?.Count ?? 0)); view.Write(AuxOffset + 60, p.Version);
                     view.Write(AuxOffset + 76, Math.Clamp(p.Category, 0, 2));

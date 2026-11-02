@@ -291,6 +291,16 @@ int main(int argc, char** argv) {
     aux->skinPage=1; ++aux->skinVersion; aux->command=0; present();
     clickSkinControl(2,0); Check(aux->command==6 && aux->argument==-1,"previous page command");
     aux->skinPage=0; aux->skinPageCount=1; ++aux->skinVersion; present();
+    aux->skinChildCount=2; aux->skinChildSelected=1; aux->skinChildParent=0;
+    strcpy_s(aux->skinChildTitle,"皮肤 · 炫彩 / 形态");
+    strcpy_s(aux->skinChildNames[0],"默认配色"); strcpy_s(aux->skinChildNames[1],"蓝色炫彩");
+    present(); present();
+    RECT childWindow{},parentRow{};
+    Check(skinControl(4,0,&childWindow) && skinControl(1,0,&parentRow),"parent and secondary popup both rendered");
+    Check(childWindow.left>=parentRow.right,"secondary popup floats to the right of parent list");
+    aux->command=0; clickSkinControl(5,0);
+    Check(aux->command==8 && aux->argument==0 && aux->commandVersion==aux->skinVersion,"secondary popup emits versioned selection");
+    aux->skinChildCount=0; aux->command=0; present();
     RECT firstSkin{}; Check(skinControl(1,0,&firstSkin)!=FALSE,"first skin row remains available");
     setPointer((firstSkin.left+firstSkin.right)/2,(firstSkin.top+firstSkin.bottom)/2,TRUE); present();
     auto pendingWheel=reinterpret_cast<LONG(*)()>(GetProcAddress(module,"OverlayTestWheel"));
@@ -300,6 +310,10 @@ int main(int argc, char** argv) {
     Check(pendingWheel && skinScroll && maskRaw && maskBuffer,"wheel test fixtures");
     aux->skinCount=40;
     for(int i=0;i<40;++i) sprintf_s(aux->skinNames[i],"Skin %d",i);
+    aux->skinSelected=35; ++aux->skinVersion; present(); present();
+    Check(skinScroll()>500,"picker focuses current skin beyond initial clipped rows");
+    aux->skinSelected=0; present(); present();
+    Check(skinScroll()<40,"picker follows changed selection without rebuilding list");
     present(); present();
     const float initialScroll=skinScroll();
     Check(PostMessageW(window,WM_MOUSEWHEEL,MAKEWPARAM(0,WORD(-WHEEL_DELTA)),0)!=FALSE,"post picker wheel");

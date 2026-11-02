@@ -97,7 +97,7 @@ public sealed partial class SkinToolsForm
         return $"【{quality}】";
     }
 
-    private string GetSkinOptionText(SkinEntry entry) => GetSkinQualityPrefix(entry) + GetSkinDisplayName(entry);
+    private string GetSkinOptionText(SkinEntry entry) => GetSkinQualityPrefix(entry) + GetSkinListName(entry);
 
     private void UpdateSkinQualityColors(ThemePalette palette)
     {
@@ -113,13 +113,14 @@ public sealed partial class SkinToolsForm
         _entries.PrefixFore = selected == null ? palette.TextPrimary : SkinQualityStyle.Foreground(GetSkinQuality(selected), palette);
         _entries.Text = selected == null ? "" : GetSkinDisplayName(selected);
         _entries.Invalidate();
+        _skinVariants.ForeColor = palette.TextPrimary;
+        if (SelectedSkinEntry is { } variant) _skinVariants.Text = GetSkinDisplayName(variant);
     }
 
     private async Task UpdatePreviewAsync()
     {
-        if (_disposing || !Visible || _catalog == null) return;
-        var selected = _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count
-            ? _filtered[_entries.SelectedIndex] : null;
+        if (_disposing || _catalog == null) return;
+        var selected = SelectedSkinEntry;
         int skin = selected?.SkinNum ?? _catalog.Skin;
         string model = _catalog.Model;
         var catalog = _catalog;
@@ -140,6 +141,8 @@ public sealed partial class SkinToolsForm
             _clientSkins.Clear();
             foreach (var resource in resources) _clientSkins[resource.SkinNumber] = resource;
             FilterEntries();
+            SelectSkinInControls(CurrentSkinEntry());
+            if (!Visible) { _previewKey = ""; return; }
             var matching = _clientSkins.GetValueOrDefault(skin);
             var asset = matching == null ? null : await _skinResources.GetPosterAsync(matching, token);
             if (token.IsCancellationRequested || IsDisposed) return;

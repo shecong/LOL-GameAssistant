@@ -259,12 +259,20 @@ public sealed class BattleOverlayDataAccuracyTests
         int rankRequests = 0, historyRequests = 0;
         var overview = new RankedOverview(); overview.Queues[RankedQueues.Solo5x5] = new() { Tier = "DIAMOND" };
         var ranks = Proxy<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(++rankRequests == 1 ? overview : null));
-        var service = Service((_, _) => Task.FromResult<MatchHistoryResponse?>(++historyRequests == 1 ? null : Page(Sample())), ranks);
+        var service = Service((_, _) => Task.FromResult<MatchHistoryResponse?>(++historyRequests <= 3 ? null : Page(Sample())), ranks);
         using var overlay = Overlay(service, Proxy<ILiveClientGameStateService>((_, _) => Task.FromResult<IReadOnlyList<LiveScoreboardPlayer>?>([])));
         Start(overlay);
         var players = Field<Dictionary<string, BattleOverlayPlayer>>(overlay, "_players");
         var initial = Assert.Single(players).Value;
         var retries = Field<Dictionary<string, DateTimeOffset>>(overlay, "_retryAt");
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (retries.Count == 0 && DateTime.UtcNow < deadline)
+        {
+            System.Windows.Forms.Application.DoEvents();
+            Thread.Sleep(10);
+        }
+        Assert.Equal(3, historyRequests);
+        Assert.Single(retries);
         retries[players.Keys.Single()] = DateTimeOffset.UtcNow.AddSeconds(-1);
         var task = (Task)typeof(BattleOverlayController).GetMethod("RefreshAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(overlay, null)!;
         Assert.True(task.IsCompletedSuccessfully);

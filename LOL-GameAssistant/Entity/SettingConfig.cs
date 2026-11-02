@@ -18,6 +18,7 @@ namespace LOL_GameAssistant.Entity
         public bool TclsAutoLoginEnabled { get; set; }
         public string TclsSelectedAccountId { get; set; } = "";
         public bool SkinCoreEnabled { get; set; } = false;
+        public bool SkinCommunitySortEnabled { get; set; }
         public bool RankBorderAutoApplyEnabled { get; set; }
         public string PreferredRankBorderId { get; set; } = "";
         public string PreferredRankBorderProfile { get; set; } = "";

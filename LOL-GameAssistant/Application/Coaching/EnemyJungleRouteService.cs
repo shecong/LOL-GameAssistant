@@ -7,7 +7,7 @@ using LOL_GameAssistant.Domain.Matches;
 
 namespace LOL_GameAssistant.Application.Coaching;
 
-/// <summary>限定读取最近 30 场中的最多 8 场峡谷打野时间线，按历史习惯生成可溯源预测。</summary>
+/// <summary>从最近 30 场优先选取同英雄打野记录；最多尝试 12 场时间线，保留 8 场有效样本。</summary>
 public sealed class EnemyJungleRouteService(ILobbyService lobby, IPlayerProfileService profiles,
     IMatchHistoryService history, IMatchTimelineService timelines)
 {
@@ -22,7 +22,7 @@ public sealed class EnemyJungleRouteService(ILobbyService lobby, IPlayerProfileS
         if (phase is not ("InProgress" or "GameStart"))
         {
             _cached = null;
-            return new("等待峡谷对局开始后自动分析敌方打野。");
+            return new("等待峡谷对局开始后，按快捷键或点击重新分析。");
         }
         var session = await lobby.GetCurrentSessionAsync(cancellationToken).ConfigureAwait(false);
         if (session == null || !IsRift(session.GameMode, session.QueueId))
@@ -53,11 +53,13 @@ public sealed class EnemyJungleRouteService(ILobbyService lobby, IPlayerProfileS
             .Select(g => (Game: g, Player: g.GetParticipant(target.Puuid)))
             .Where(p => p.Player is { participantId: >= 1 and <= 10, teamId: 100 or 200 } &&
                 (p.Player.Spell1Id == 11 || p.Player.Spell2Id == 11))
-            .Take(8).ToArray();
+            .OrderByDescending(p => p.Player!.championId == target.ChampionId)
+            .ThenByDescending(p => p.Game.GameCreation).Take(12).ToArray();
         var samples = new List<JungleRouteSample>();
         int unavailable = 0;
         foreach (var candidate in candidates)
         {
+            if (samples.Count >= 8) break;
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
@@ -67,8 +69,12 @@ public sealed class EnemyJungleRouteService(ILobbyService lobby, IPlayerProfileS
                 var usable = points.Where(p => p.Seconds is >= 60 and <= 480 && p.Position.IsValid &&
                     p.Position.Distance(new(500, 500)) > 2300 && p.Position.Distance(new(14500, 14500)) > 2300).ToArray();
                 if (usable.Length < 3) { unavailable++; continue; }
-                samples.Add(new(candidate.Game.GameId, candidate.Player.championId, candidate.Player.teamId, candidate.Game.GameCreation, usable)
-                    { Events = timeline.Events.Where(ev => ev.Participants.Contains(candidate.Player.participantId)).ToArray() });
+                var sample = new JungleRouteSample(candidate.Game.GameId, candidate.Player.championId, candidate.Player.teamId, candidate.Game.GameCreation, usable)
+                    { Events = timeline.Events.Where(ev => ev.Participants.Contains(candidate.Player.participantId)).ToArray() };
+                var normalized = JungleRoutePredictor.Normalize(sample, sample.TeamId);
+                if (normalized.Count < 3 || !normalized.Any(p => p.Seconds <= 180 && JungleRoutePredictor.IsJungleArea(p.Position)))
+                { unavailable++; continue; }
+                samples.Add(sample with { Points = normalized });
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception error) when (error is IOException or HttpRequestException or NotSupportedException or Newtonsoft.Json.JsonException or OperationCanceledException)
@@ -82,7 +88,8 @@ public sealed class EnemyJungleRouteService(ILobbyService lobby, IPlayerProfileS
             await lobby.GetGameFlowPhaseAsync(cancellationToken).ConfigureAwait(false) is not ("InProgress" or "GameStart"))
             return new("对局已变化，等待重新识别敌方打野。");
         var prediction = JungleRoutePredictor.Predict(samples, target.ChampionId, team);
-        string status = prediction == null ? "数据不足：近期打野对局缺少可用开局位置时间线，暂不生成预测。"
+        string status = prediction == null ? candidates.Length == 0 ? "近期 30 场中没有符合条件的峡谷打野对局，请确认敌方玩家。"
+                : $"数据不足：已检查 {unavailable} 场时间线，缺少开局位置记录，暂不生成预测。"
             : $"已分析 {samples.Count} 场历史打野对局 · 前 8 分钟 · 预测可信度：{prediction.Confidence}";
         _cached = new(status) { ContextKey = key, Enemy = target, Enemies = enemies, TeamId = team,
             Samples = samples, Prediction = prediction, UnavailableGames = unavailable };

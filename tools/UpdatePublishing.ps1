@@ -54,6 +54,33 @@ function Get-UpdateExecutableRuntime {
     } finally { $reader.Dispose(); $binary.Dispose() }
 }
 
+function Assert-UpdateSkinDependencies {
+    param([Parameter(Mandatory)][string]$Repository, [Parameter(Mandatory)][string]$PublishDirectory)
+    # 更新器会删除旧清单中缺失的文件；不能把漏拷贝的换肤依赖当作有意移除。
+    $required = @(
+        'Tools/SkinCore/league-skin-core-host.exe',
+        'Tools/SkinCore/league-skin-core.dll',
+        'Tools/SkinCore/SHA256SUMS.json',
+        'Tools/GameOverlay/sc-game-overlay-host.exe',
+        'Tools/GameOverlay/sc-game-overlay.dll'
+    )
+    if (Test-Path -LiteralPath (Join-Path $Repository 'LOL-GameAssistant/Tools/SkinCoreHybrid/league-skin-hybrid-host.exe') -PathType Leaf) {
+        $required += @(
+            'Tools/SkinCoreHybrid/league-skin-hybrid-host.exe',
+            'Tools/SkinCoreHybrid/league-skin-core.dll',
+            'Tools/SkinCoreHybrid/SHA256SUMS.json',
+            'Tools/SkinCoreHybrid/Driver/SkinCoreRelay.sys',
+            'Tools/SkinCoreHybrid/Driver/manage.ps1'
+        )
+    }
+    foreach ($relative in $required) {
+        $dependency = Join-Path $PublishDirectory $relative
+        if (-not (Test-Path -LiteralPath $dependency -PathType Leaf) -or (Get-Item -LiteralPath $dependency).Length -eq 0) {
+            throw "更新包缺少或包含空的换肤依赖：$relative。请重新发布完整目录，不能只打包主程序；否则更新可能移除旧核心并导致换肤失效。"
+        }
+    }
+}
+
 function Resolve-UpdateUpdater {
     param(
         [Parameter(Mandatory)][string]$Repository,

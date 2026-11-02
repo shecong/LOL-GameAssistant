@@ -112,13 +112,16 @@ public sealed partial class SkinToolsForm
             var target = SkinEntryCycle.Choose(catalog, action == QuickShoutHotkeyAction.SkinPrevious ? -1 : 1);
             var result = await _core.ApplyAsync(catalog.Session, target.EntryId, token);
             if (_disposing || token.IsCancellationRequested) return;
-            _catalog = catalog; FilterEntries(); _entries.SelectedIndex = _filtered.FindIndex(e => e.EntryId == target.EntryId);
+            _catalog = result.StateVerified ? result with { Entries = catalog.Entries } : catalog;
+            SelectSkinInControls(CurrentSkinEntry(), clearSearch: true);
+            _ = LoadSkinPopularityAsync();
             _current.Text = $"{result.Model}  ·  #{result.Skin}  ·  {result.ActiveModel}  ·  {result.Gear}";
             _status.Text = UiLanguage.T(result.StateVerified ? "调用完成，实际状态已核验。画面、特效与技能仍需检查。" : "调用完成，但实际状态核验未通过。请刷新，勿连续重试。");
             if (!result.StateVerified) _catalog = null;
             else
             {
                 RememberSkin(catalog, target);
+                _ = UpdatePreviewAsync();
                 string name = GetSkinDisplayName(target);
                 HotkeySkinApplied?.Invoke(name);
                 (_skinNotice ??= new SkinChangeOverlayPresenter()).ShowSkin(name);

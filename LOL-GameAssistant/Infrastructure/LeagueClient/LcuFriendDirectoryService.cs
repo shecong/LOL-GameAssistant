@@ -37,7 +37,7 @@ public sealed class LcuFriendDirectoryService : IFriendDirectoryService
         return new FriendProfile(
             source.Puuid,
             displayName,
-            ToPresence(source.Availability),
+            ToPresence(source.Availability, source.Lol?.GameStatus),
             status,
             icon,
             source.Lol?.GameQueueType,
@@ -59,15 +59,29 @@ public sealed class LcuFriendDirectoryService : IFriendDirectoryService
     }
 
     /// <summary>将客户端在线状态映射为统一的好友状态。</summary>
-    private static FriendPresence ToPresence(string? availability) => availability?.Trim().ToLowerInvariant() switch
+    private static FriendPresence ToPresence(string? availability, string? gameStatus)
     {
-        "online" or "chat" => FriendPresence.Online,
-        "away" => FriendPresence.Away,
-        "dnd" => FriendPresence.DoNotDisturb,
-        "mobile" => FriendPresence.Mobile,
-        "ingame" or "ingameother" => FriendPresence.InGame,
-        "spectator" => FriendPresence.Spectating,
-        "offline" or "invisible" => FriendPresence.Offline,
-        _ => FriendPresence.Unknown
-    };
+        string? status = availability?.Trim().ToLowerInvariant();
+        if (status is "offline" or "invisible") return FriendPresence.Offline;
+
+        // 聊天可用性（chat/dnd）与 LOL 对局状态是不同字段。
+        string? activity = gameStatus?.Trim().ToLowerInvariant();
+        if (activity == "ingame") return FriendPresence.InGame;
+        if (activity is "spectating" or "spectator") return FriendPresence.Spectating;
+        // 有明确活动状态时，不使用可能滞后的顶层 inGame 状态。
+        if (!string.IsNullOrEmpty(activity) && status == "ingame") return FriendPresence.Online;
+
+        return status switch
+        {
+            "online" or "chat" => FriendPresence.Online,
+            "away" => FriendPresence.Away,
+            "dnd" => FriendPresence.DoNotDisturb,
+            "mobile" => FriendPresence.Mobile,
+            "ingame" => FriendPresence.InGame,
+            "ingameother" => FriendPresence.Online,
+            "spectator" => FriendPresence.Spectating,
+            "offline" or "invisible" => FriendPresence.Offline,
+            _ => FriendPresence.Unknown
+        };
+    }
 }

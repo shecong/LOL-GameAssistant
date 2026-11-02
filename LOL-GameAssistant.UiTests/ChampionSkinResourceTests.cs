@@ -35,6 +35,7 @@ public sealed class ChampionSkinResourceTests
         Assert.Equal(SkinQuality.Ultimate, catalog.Single(s => s.SkinNumber == 7).Quality);
         var chroma = catalog.Single(s => s.SkinNumber == 8);
         Assert.True(chroma.IsChroma); Assert.Equal(SkinQuality.Ultimate, chroma.Quality);
+        Assert.Equal(7, chroma.ParentSkinNumber);
         Assert.Equal(SkinQuality.Unknown, catalog.Single(s => s.SkinNumber == 9).Quality);
     }
 

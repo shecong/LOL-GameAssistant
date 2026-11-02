@@ -135,10 +135,43 @@ public sealed class BattleOverlayRefactorTests
             Assert.Equal("GetPageAsync", method.Name);
             return Task.FromResult<MatchHistoryResponse?>(++requests == 1 ? null : Page(Sample(1, true)));
         });
-        Assert.False((await service.GetPlayerAsync(Member, Session, CancellationToken.None)).HistoryComplete);
         Assert.True((await service.GetPlayerAsync(Member, Session, CancellationToken.None)).HistoryComplete);
         Assert.True((await service.GetPlayerAsync(Member, Session, CancellationToken.None)).HistoryComplete);
         Assert.Equal(2, requests);
+    }
+
+    [Fact]
+    public async Task SummaryExceptionsStopAfterThreeAttemptsAndCanRecoverLater()
+    {
+        int requests = 0;
+        var service = Service((method, _) =>
+        {
+            Assert.Equal("GetPageAsync", method.Name);
+            return ++requests <= 3
+                ? Task.FromException<MatchHistoryResponse?>(new IOException("temporary failure"))
+                : Task.FromResult<MatchHistoryResponse?>(Page(Sample(1, true)));
+        });
+        Assert.False((await service.GetPlayerAsync(Member, Session, CancellationToken.None)).HistoryLoaded);
+        Assert.Equal(3, requests);
+        Assert.True((await service.GetPlayerAsync(Member, Session, CancellationToken.None)).HistoryComplete);
+        Assert.Equal(4, requests);
+    }
+
+    [Fact]
+    public async Task CancellingDuringRetryDelayStopsFurtherRequests()
+    {
+        int requests = 0;
+        var loader = new BattleOverlayHistoryLoader(Proxy<IMatchHistoryService>((_, _) =>
+        {
+            requests++;
+            return Task.FromResult<MatchHistoryResponse?>(null);
+        }));
+        using var cancellation = new CancellationTokenSource();
+        var load = loader.LoadAsync(Member, Session, cancellation.Token);
+        Assert.Equal(1, requests);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => load);
+        Assert.Equal(1, requests);
     }
 
     [Fact]

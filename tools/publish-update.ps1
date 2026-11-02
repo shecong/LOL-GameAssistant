@@ -74,6 +74,7 @@ $updateFileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($updateEntry)
 if ($updateFileVersion.FileMajorPart -ne $updateVersion.Major -or $updateFileVersion.FileMinorPart -ne $updateVersion.Minor -or $updateFileVersion.FileBuildPart -ne $updateVersion.Build -or $updateFileVersion.FilePrivatePart -ne 0) {
     throw 'Published executable version does not match build/Version.props. Publish the application again after changing the configuration.'
 }
+Assert-UpdateSkinDependencies -Repository $updateRepository -PublishDirectory $updateSource
 $updateStage = Join-Path $updateWork 'package'
 New-Item -ItemType Directory -Path $updateStage | Out-Null
 foreach ($updateItem in Get-ChildItem -LiteralPath $updateSource -Recurse -Force) {

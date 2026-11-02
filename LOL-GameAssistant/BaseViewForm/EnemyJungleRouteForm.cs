@@ -16,7 +16,7 @@ internal sealed class EnemyJungleRouteForm : AntdUI.Window, IThemeAware
     private readonly Label _status = new() { Name = "jungleRouteStatus", TextMultiLine = true, TextAlign = ContentAlignment.TopLeft, Dock = DockStyle.Top, Height = 68, Padding = new Padding(12, 8, 12, 4) };
     private readonly Label _explanation = new() { TextMultiLine = true, TextAlign = ContentAlignment.TopLeft, Dock = DockStyle.Top, Height = 160, Padding = new Padding(8), AutoEllipsis = true };
     private readonly AntdUI.Table _events = new() { Name = "jungleRouteEvidence", Dock = DockStyle.Fill, Bordered = true, Radius = 8, EmptyHeader = true };
-    internal sealed record EvidenceRow(string Time, string Region, string Evidence);
+    internal sealed record EvidenceRow(string Node, string Time, string Region, string Evidence);
     private bool _updating;
     private string _renderedContext = "";
 
@@ -51,9 +51,10 @@ internal sealed class EnemyJungleRouteForm : AntdUI.Window, IThemeAware
         Controls.Add(_status);
         Controls.Add(toolbar);
         _header = AntdWindowChrome.AddHeader(this);
+        _events.Columns.Add(new AntdUI.Column(nameof(EvidenceRow.Node), "节点") { Width = "12%" });
         _events.Columns.Add(new AntdUI.Column(nameof(EvidenceRow.Time), "时间") { Width = "18%" });
-        _events.Columns.Add(new AntdUI.Column(nameof(EvidenceRow.Region), "区域") { Width = "34%", LineBreak = true });
-        _events.Columns.Add(new AntdUI.Column(nameof(EvidenceRow.Evidence), "历史依据") { Width = "48%", LineBreak = true });
+        _events.Columns.Add(new AntdUI.Column(nameof(EvidenceRow.Region), "区域") { Width = "28%", LineBreak = true });
+        _events.Columns.Add(new AntdUI.Column(nameof(EvidenceRow.Evidence), "历史依据") { Width = "42%", LineBreak = true });
         _enemy.SelectedIndexChanged += (_, _) =>
         {
             if (!_updating) controller.SelectEnemy(_enemy.SelectedIndex <= 0 ? null : controller.Current.Enemies.ElementAtOrDefault(_enemy.SelectedIndex - 1)?.Puuid);
@@ -100,16 +101,16 @@ internal sealed class EnemyJungleRouteForm : AntdUI.Window, IThemeAware
         var prediction = analysis.Prediction;
         _explanation.Text = sample != null ? $"历史对局 {sample.GameId}\n已映射到本局敌方阵营。下表为历史采样及事件依据。\n连线仅连接离散位置，不是精确行走轨迹。"
             : prediction == null ? "暂无可靠路线。可确认敌方打野后重试。\n仅使用已结束对局的时间线，不展示本局隐藏位置。"
-            : $"常见起始采样区：{prediction.OpeningRegion}\n历史起始区域一致：{prediction.SupportingGames}/{prediction.TotalGames} 场 · {(prediction.SameChampion ? "同英雄样本" : "跨英雄参考")}\n{prediction.ActivityHint}\n代表路线来源：对局 {prediction.RepresentativeGameId}\n另有 {analysis.UnavailableGames} 场时间线缺失或采样不足。\n虚线为历史习惯推测，不代表本局实时位置或营地顺序。";
-            var entries = points.Select(point => (point.Seconds, Region: JungleRoutePredictor.Region(point.Position), Evidence: point.Evidence)).ToList();
+            : $"常见起始采样区：{prediction.OpeningRegion}\n开局区域一致 {prediction.SupportingGames}/{prediction.TotalGames} 场；后续走向相近 {prediction.RouteAgreementGames}/{prediction.TotalGames} 场 · {(prediction.SameChampion ? "同英雄样本" : "跨英雄参考")}\n{prediction.ActivityHint}\n代表路线：对局 {prediction.RepresentativeGameId}；另 {analysis.UnavailableGames} 场数据不足。\n数字对应下表节点，连线不是精确清野顺序。";
+            var entries = points.Select((point, index) => (point.Seconds, Node: (index + 1).ToString(), Region: JungleRoutePredictor.Region(point.Position), Evidence: point.Evidence)).ToList();
             // 事件地点与角色站位分开列出，远程击杀/助攻不能用于绘制精确路线。
             foreach (var ev in sample?.Events ?? [])
             {
                 var position = ev.Position == null || sample!.TeamId == analysis.TeamId ? ev.Position : ev.Position.Mirror();
-                entries.Add((ev.Seconds, position == null ? "位置未知" : JungleRoutePredictor.Region(position), ev.Description));
+                entries.Add((ev.Seconds, "—", position == null ? "位置未知" : JungleRoutePredictor.Region(position), ev.Description));
             }
             _events.DataSource = entries.OrderBy(e => e.Seconds)
-                .Select(entry => new EvidenceRow($"{entry.Seconds / 60}:{entry.Seconds % 60:D2}", entry.Region, entry.Evidence)).ToArray();
+                .Select(entry => new EvidenceRow(entry.Node, $"{entry.Seconds / 60}:{entry.Seconds % 60:D2}", entry.Region, entry.Evidence)).ToArray();
     }
 
     public void ApplyTheme(ThemePalette palette)

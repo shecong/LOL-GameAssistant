@@ -205,7 +205,14 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
     if(aux.flags & 8) {
         ImVec2 size((std::min)(360.f,display.x),(std::min)(520.f,display.y));
         ImGui::SetNextWindowPos(ImVec2(24,(std::max)(0.f,(display.y-size.y)/2)),ImGuiCond_FirstUseEver); ImGui::SetNextWindowSize(size);
-        ImGui::Begin("SC.SkinPicker",nullptr,PanelFlags); ClampPanel(size); RegisterRegion(hits,sx,sy);
+        ImGui::Begin("SC.SkinPicker",nullptr,PanelFlags); ClampPanel(size);
+        const bool hasChildren=aux.skinCategory==0 && aux.skinChildCount>0 && aux.skinChildCount<=32;
+        const float childWidth=(std::min)(340.f,display.x*.48f);
+        if(hasChildren && ImGui::GetWindowPos().x+size.x+8+childWidth>display.x)
+            ImGui::SetWindowPos(ImVec2((std::max)(0.f,display.x-size.x-childWidth-8),ImGui::GetWindowPos().y));
+        ImVec2 parentPos=ImGui::GetWindowPos();
+        RegisterRegion(hits,sx,sy);
+        float childAnchorY=parentPos.y+130;
         auto command=[&](LONG action,LONG argument=0) { current.pendingAux=action;current.pendingArgument=argument;current.pendingVersion=aux.skinVersion; };
         ImGui::TextColored(ImVec4(.82f,.72f,1,1),"游戏换肤"); ImGui::SameLine(ImGui::GetWindowWidth()-72);
         if(ImGui::SmallButton("隐藏")) command(4);
@@ -233,15 +240,23 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         }
         ImGui::EndDisabled();
         ImGui::BeginChild("Skins",ImVec2(0,(std::max)(40.f,ImGui::GetContentRegionAvail().y-145)),ImGuiChildFlags_Borders);
-        static int previousSkinVersion=-1;
-        if(previousSkinVersion!=aux.skinVersion) { ImGui::SetScrollY(0); previousSkinVersion=aux.skinVersion; }
+        static int previousSkinVersion=-1,previousSkinSelected=-1;
+        bool focusSkin=previousSkinVersion!=aux.skinVersion || previousSkinSelected!=aux.skinSelected;
+        if(focusSkin && aux.skinSelected<0) ImGui::SetScrollY(0);
+        previousSkinVersion=aux.skinVersion; previousSkinSelected=aux.skinSelected;
         ImGui::BeginDisabled(!aux.skinReady);
         ImGui::PushID(aux.skinVersion); // A held mouse click cannot complete on a replacement list.
         ImGuiListClipper skins; skins.Begin(std::clamp(aux.skinCount,0,256));
+        if(focusSkin && aux.skinSelected>=0 && aux.skinSelected<aux.skinCount) skins.IncludeItemByIndex(aux.skinSelected);
         while(skins.Step()) for(int i=skins.DisplayStart;i<skins.DisplayEnd;++i) {
             aux.skinNames[i][191]=0; ImGui::PushID(i);
             auto textPos=ImGui::GetCursorScreenPos();
             if(ImGui::Selectable("##skin",aux.skinSelected==i,0,ImVec2(0,32))) command(1,i);
+            if(hasChildren && aux.skinChildParent==i) {
+                childAnchorY=ImGui::GetItemRectMin().y;
+                ImGui::GetWindowDrawList()->AddRect(ImGui::GetItemRectMin(),ImGui::GetItemRectMax(),ImGui::GetColorU32(ImGuiCol_HeaderActive),4.f);
+            }
+            if(focusSkin && aux.skinSelected==i) ImGui::SetScrollHereY(.5f);
             const char* name=aux.skinNames[i];size_t length=strlen(name);
             uint32_t prefix=aux.skinPrefixBytes[i];
             textPos.y+=(32-ImGui::GetTextLineHeight())*.5f;
@@ -278,6 +293,41 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         }
         ImGui::BeginChild("Status",ImVec2(0,0)); ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinStatus); ImGui::PopTextWrapPos(); ImGui::EndChild();
         ImGui::End();
+        if(hasChildren) {
+            float childHeight=(std::min)((std::min)(420.f,display.y),100.f+36.f*aux.skinChildCount);
+            ImGui::SetNextWindowPos(ImVec2(parentPos.x+size.x+8,(std::max)(0.f,(std::min)(childAnchorY,display.y-childHeight))));
+            ImGui::SetNextWindowSize(ImVec2(childWidth,childHeight));
+            ImGui::Begin("SC.SkinVariants",nullptr,PanelFlags|ImGuiWindowFlags_NoMove);
+            RegisterRegion(hits,sx,sy);
+#ifdef SC_OVERLAY_TEST
+            { auto p=ImGui::GetWindowPos(),s=ImGui::GetWindowSize(); testSkinChildWindow={LONG(p.x/sx),LONG(p.y/sy),LONG((p.x+s.x)/sx),LONG((p.y+s.y)/sy)}; }
+#endif
+            if(ImGui::SmallButton("关闭")) command(9);
+            ImGui::SameLine(); ImGui::TextUnformatted("炫彩 / 形态");
+            aux.skinChildTitle[255]=0;
+            ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinChildTitle); ImGui::PopTextWrapPos();
+            ImGui::BeginChild("Variants",ImVec2(0,aux.skinChildPageCount>1?-32.f:0),ImGuiChildFlags_Borders);
+            static int previousChildVersion=-1,previousChildSelected=-1;
+            bool focusChild=previousChildVersion!=aux.skinVersion || previousChildSelected!=aux.skinChildSelected;
+            previousChildVersion=aux.skinVersion; previousChildSelected=aux.skinChildSelected;
+            ImGui::BeginDisabled(!aux.skinReady); ImGui::PushID(aux.skinVersion);
+            for(int i=0;i<aux.skinChildCount;++i) {
+                aux.skinChildNames[i][191]=0; ImGui::PushID(i);
+                if(ImGui::Selectable(aux.skinChildNames[i],aux.skinChildSelected==i,0,ImVec2(0,32))) command(8,i);
+                if(focusChild && aux.skinChildSelected==i) ImGui::SetScrollHereY(.5f);
+#ifdef SC_OVERLAY_TEST
+                if(i==0) { auto a=ImGui::GetItemRectMin(),b=ImGui::GetItemRectMax(); testSkinChildFirst={LONG(a.x/sx),LONG(a.y/sy),LONG(b.x/sx),LONG(b.y/sy)}; }
+#endif
+                ImGui::PopID();
+            }
+            ImGui::PopID(); ImGui::EndDisabled(); ImGui::EndChild();
+            if(aux.skinChildPageCount>1) {
+                ImGui::BeginDisabled(!aux.skinCanRefresh || aux.skinChildPage<=0); if(ImGui::SmallButton("上一页")) command(10,-1); ImGui::EndDisabled();
+                ImGui::SameLine(); ImGui::Text("%d / %d",aux.skinChildPage+1,aux.skinChildPageCount); ImGui::SameLine();
+                ImGui::BeginDisabled(!aux.skinCanRefresh || aux.skinChildPage+1>=aux.skinChildPageCount); if(ImGui::SmallButton("下一页")) command(10,1); ImGui::EndDisabled();
+            }
+            ImGui::End();
+        }
     }
     regionCount=hits; acceptsMouse=hits>0; lastRender=GetTickCount64(); current.frame->hitRegionCount=hits;
 }

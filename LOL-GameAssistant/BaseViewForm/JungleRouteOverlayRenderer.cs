@@ -26,8 +26,8 @@ internal static class JungleRouteOverlayRenderer
         string enemy = analysis.Enemy == null ? "" : $"{analysis.Enemy.Name} · {(analysis.TeamId == 100 ? "蓝" : "红")}方打野\n\n";
         graphics.DrawString(enemy + analysis.Status, body, white, new RectangleF(682, 100, 410, 160));
         string detail = analysis.Prediction is { } prediction
-            ? $"常见起始区域：{prediction.OpeningRegion}\n历史一致：{prediction.SupportingGames}/{prediction.TotalGames} 场\n置信度：{prediction.Confidence}\n{(prediction.SameChampion ? "同英雄样本" : "跨英雄参考")}\n\n{prediction.ActivityHint}\n\n" +
-                string.Join("\n", prediction.Points.Take(8).Select(p => $"{p.Seconds / 60}:{p.Seconds % 60:D2}  {JungleRoutePredictor.Region(p.Position)}"))
+            ? $"常见起始区域：{prediction.OpeningRegion}\n开局区域一致：{prediction.SupportingGames}/{prediction.TotalGames} 场；走向相近：{prediction.RouteAgreementGames} 场\n置信度：{prediction.Confidence}\n{(prediction.SameChampion ? "同英雄样本" : "跨英雄参考")}\n\n{prediction.ActivityHint}\n\n" +
+                string.Join("\n", prediction.Points.Take(8).Select((p, index) => $"{index + 1}.  {p.Seconds / 60}:{p.Seconds % 60:D2}  {JungleRoutePredictor.Region(p.Position)}"))
             : "暂无可靠路线。若客户端无法识别打野，可在助手路线窗口中手动确认。";
         graphics.DrawString(detail, body, white, new RectangleF(682, 270, 410, 360));
         graphics.DrawString("仅参考已结束对局的历史采样；虚线不代表本局实时位置或精确清野顺序。", body, muted, new RectangleF(682, 650, 410, 74));

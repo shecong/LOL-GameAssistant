@@ -29,6 +29,6 @@ public sealed record FriendProfile(
     /// <summary>是否为可显示的在线状态。</summary>
     public bool IsOnline => Presence is not (FriendPresence.Offline or FriendPresence.Unknown);
 
-    /// <summary>LCU 返回有效对局 ID 且好友正在游戏中时，才允许出现观战操作。</summary>
-    public bool CanSpectate => Presence == FriendPresence.InGame && ActiveGameId is > 0;
+    /// <summary>有 PUUID 且好友正在 LOL 对局中时，可让客户端尝试观战；聊天数据不一定包含对局 ID。</summary>
+    public bool CanSpectate => Presence == FriendPresence.InGame && !string.IsNullOrWhiteSpace(Puuid);
 }

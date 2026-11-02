@@ -299,7 +299,6 @@ namespace LOL_GameAssistant.BaseViewForm
 
                 bool canQuery = !string.IsNullOrWhiteSpace(friend.Puuid);
                 bool canSpectate = friend.CanSpectate;
-                long gameId = friend.ActiveGameId ?? 0;
                 var actionLabel = new AntdUI.Label
                 {
                     AutoSize = false,
@@ -318,8 +317,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 var spectateButton = CreateActionButton(canSpectate ? "观战" : "无对局", canSpectate ? Color.FromArgb(123, 31, 162) : Color.FromArgb(144, 164, 174));
                 spectateButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
                 spectateButton.Location = new Point(Width - 92, 14);
-                spectateButton.Enabled = canQuery;
-                spectateButton.Click += async (_, _) => await StartSpectateAsync(gameId, spectateButton, actionLabel);
+                spectateButton.Enabled = canSpectate;
+                spectateButton.Click += async (_, _) => await StartSpectateAsync(spectateButton, actionLabel);
                 Controls.Add(spectateButton);
 
                 void LayoutCard()
@@ -388,10 +387,10 @@ namespace LOL_GameAssistant.BaseViewForm
             }
 
             /// <summary>用户点击观战按钮后才调用 LCU，不会自动观战任何好友。</summary>
-            private async Task StartSpectateAsync(long gameId, AntdUI.Button button, AntdUI.Label actionLabel)
+            private async Task StartSpectateAsync(AntdUI.Button button, AntdUI.Label actionLabel)
             {
                 if (_spectating || string.IsNullOrWhiteSpace(_friend.Puuid)) return;
-                if (gameId <= 0 || !_friend.CanSpectate)
+                if (!_friend.CanSpectate)
                 {
                     actionLabel.Text = "好友当前没有可观战对局";
                     LOL_GameAssistant.Helper.UiMessage.info(FindForm() ?? Program.GameMain, "好友当前没有正在进行的可观战对局。");
@@ -402,7 +401,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 actionLabel.Text = "正在向客户端发起观战...";
                 try
                 {
-                    SpectateResult result = await _spectateService.LaunchAsync(new SpectateRequest(_friend.Puuid, gameId), _lifetime.Token);
+                    SpectateResult result = await _spectateService.LaunchAsync(new SpectateRequest(_friend.Puuid), _lifetime.Token);
                     if (IsDisposed) return;
                     actionLabel.Text = result.Message;
                     if (result.Succeeded) LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain, result.Message);

@@ -35,10 +35,11 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
 
     public SkinToolsForm(ISkinCoreService core, IApplicationSettingsStore settings,
         IChampionSkinResourceService? skinResources = null, LOL_GameAssistant.Application.GameData.IGameOverlayBridge? cameraOverlay = null,
-        IClientRegaliaService? clientRegalia = null)
+        IClientRegaliaService? clientRegalia = null, ISkinPopularityService? skinPopularity = null)
     {
         _core = core; _settings = settings; _skinResources = skinResources ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ChampionSkinResourceService; Dock = DockStyle.Fill;
         _clientRegalia = clientRegalia ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ClientRegaliaService;
+        _skinPopularity = skinPopularity ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.SkinPopularityService;
         _cameraOverlay = cameraOverlay ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.GameOverlay;
         var viewport = new AntdUI.Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = Padding.Empty, Radius = 0 };
         var heading = new TableLayoutPanel { Dock = DockStyle.Top, Height = 56, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
@@ -51,17 +52,17 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 64, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Margin = Padding.Empty };
         buttons.Controls.AddRange([_refresh, _restore, _stop]);
         var gap = new AntdUI.Label { Dock = DockStyle.Top, Height = 8, Text = "" };
-        var selectionLabel = new AntdUI.Label { Dock = DockStyle.Top, Height = 28, Text = "选择皮肤与形态" };
+        var selectionLabel = new AntdUI.Label { Dock = DockStyle.Top, Height = 28, Text = "选择皮肤" };
         var stateGap = new AntdUI.Label { Dock = DockStyle.Top, Height = 16, Text = "" };
         var searchGap = new AntdUI.Label { Dock = DockStyle.Top, Height = 8, Text = "" };
         _card.Controls.Add(_status); _card.Controls.Add(buttons); _card.Controls.Add(gap);
-        _card.Controls.Add(_entries); _card.Controls.Add(selectionLabel); _card.Controls.Add(searchGap);
-        _card.Controls.Add(_search); _card.Controls.Add(stateGap); _card.Controls.Add(_current); _card.Controls.Add(CreateCoreModeRow()); _card.Controls.Add(heading);
+        _card.Controls.Add(_skinVariants); _card.Controls.Add(_entries); _card.Controls.Add(selectionLabel); _card.Controls.Add(searchGap);
+        _card.Controls.Add(_search); _card.Controls.Add(CreateSkinRatingRow()); _card.Controls.Add(_skinSort); _card.Controls.Add(stateGap); _card.Controls.Add(_current); _card.Controls.Add(CreateCoreModeRow()); _card.Controls.Add(heading);
         _surfaceRows.AddRange([heading, toggleRow, buttons, gap, selectionLabel, stateGap, searchGap]);
         var notice = new AntdUI.Label { Dock = DockStyle.Top, Height = 96, Padding = new Padding(8, 16, 8, 8), Text = "实验性功能：游戏更新后可能需要重新适配。第三方换肤存在账号处罚风险。\n关闭开关停止新的请求，不会卸载已加载的游戏模块或自动恢复皮肤。" };
         var content = new TableLayoutPanel { ColumnCount = 1, RowCount = 3, Margin = Padding.Empty, Padding = Padding.Empty };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 592));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 692));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 356));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
         _card.Dock = DockStyle.Fill; _card.Margin = Padding.Empty;
@@ -70,12 +71,13 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         void PositionContent()
         {
             int width = Math.Max(360, viewport.ClientSize.Width - 24);
-            int skinHeight = width < 560 ? 648 : 592;
+            int skinHeight = width < 560 ? 796 : 740;
             content.RowStyles[0].Height = skinHeight;
             content.SetBounds(12, 12, width, skinHeight + 456);
         }
         viewport.Controls.Add(content); viewport.Resize += (_, _) => PositionContent(); PositionContent(); BuildSkinNavigation(viewport);
         var initialSettings = settings.Load();
+        InitializeSkinSort(initialSettings.SkinCommunitySortEnabled);
         if (initialSettings.UnlimitedZoomEnabled && !initialSettings.SkinCoreEnabled)
         {
             initialSettings.SkinCoreEnabled = true;
@@ -89,9 +91,16 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _entries.DrawItem += (_, e) => { e.Fore = e.Item.Fore; e.ForeSub = UiTheme.Palette.TextPrimary; };
         _entries.SelectedIndexChanged += async (_, _) =>
         {
+            if (!_updatingSelection) UpdateVariantSelection();
             UpdateSkinQualityColors(UiTheme.Palette);
             UpdateButtons();
             if (!_updatingSelection) { await ChangeAsync(false); await UpdatePreviewAsync(); }
+        };
+        _skinVariants.SelectedIndexChanged += async (_, _) =>
+        {
+            if (_updatingSelection) return;
+            if (SelectedSkinEntry is { } selected) _skinVariants.Text = GetSkinDisplayName(selected);
+            await ChangeAsync(false); await UpdatePreviewAsync();
         };
         _refresh.Click += async (_, _) => await RefreshAsync();
         _restore.Click += async (_, _) => await ChangeAsync(true);
@@ -150,12 +159,15 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     private void ResetSession()
     {
+        ResetSkinPopularity();
         _previewCancellation?.Cancel();
         _previewKey = "";
         _clientSkins.Clear();
         _poster.Image?.Dispose(); _poster.Image = null;
         _posterCaption.Text = "连接游戏后显示当前英雄皮肤海报";
         Interlocked.Increment(ref _revision); _catalog = null; _filtered.Clear(); _entries.Items.Clear(); _entries.SelectedIndex = -1;
+        _variants.Clear(); _skinVariants.Items.Clear(); _skinVariants.SelectedIndex = -1;
+        _overlaySkinGroup = null; _overlaySelectedEntry = null;
         _objectCatalog = null;
         ResetRankBorder();
         ResetCameraSelection();
@@ -164,23 +176,25 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     }
     private void FilterEntries()
     {
-        string? previous = _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count ? _filtered[_entries.SelectedIndex].EntryId : null;
+        var previous = SelectedSkinEntry;
         string query = _search.Text.Trim();
-        _filtered = _catalog?.Entries.Where(e => $"{GetSkinOptionText(e)} {e.Name} {e.Model} {e.SkinNum} {e.GearName}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
+        _filtered = SortSkinEntries(SkinGroupRepresentatives()).Where(e => SkinGroupEntries(SkinGroupNumber(e)).Any(child =>
+            $"{GetSkinOptionText(child)} {child.Name} {child.Model} {child.SkinNum} {child.GearName}".Contains(query, StringComparison.OrdinalIgnoreCase))).ToList();
         bool wasUpdating = _updatingSelection;
         _updatingSelection = true;
         try
         {
             bool unchanged = _entries.Items.Count == _filtered.Count && _filtered.Select((entry, i) =>
                 _entries.Items[i] is AntdUI.SelectItem item && Equals(item.Tag, entry.EntryId)
-                && item.Text == GetSkinQualityPrefix(entry) && item.SubText == GetSkinDisplayName(entry)).All(match => match);
+                && item.Text == GetSkinQualityPrefix(entry) && item.SubText == GetSkinListName(entry)).All(match => match);
             if (!unchanged)
             {
                 _entries.Items.Clear();
                 foreach (var entry in _filtered) _entries.Items.Add(new AntdUI.SelectItem(GetSkinQualityPrefix(entry), entry.EntryId)
-                    { SubText = GetSkinDisplayName(entry), Fore = SkinQualityStyle.Foreground(GetSkinQuality(entry), UiTheme.Palette), ForeSub = UiTheme.Palette.TextPrimary });
-                _entries.SelectedIndex = previous == null ? -1 : _filtered.FindIndex(e => e.EntryId == previous);
+                    { SubText = GetSkinListName(entry), Fore = SkinQualityStyle.Foreground(GetSkinQuality(entry), UiTheme.Palette), ForeSub = UiTheme.Palette.TextPrimary });
+                _entries.SelectedIndex = previous == null ? -1 : _filtered.FindIndex(e => SkinGroupNumber(e) == SkinGroupNumber(previous));
             }
+            UpdateVariantSelection(previous?.EntryId);
         }
         finally { _updatingSelection = wasUpdating; }
         UpdateSkinQualityColors(UiTheme.Palette);
@@ -193,6 +207,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         bool ready = _inProgress && _core.Enabled && !_busy && Visible && _catalog != null;
         _refresh.Enabled = _inProgress && _core.Enabled && !_busy && !_refreshing && Visible;
         _search.Enabled = _core.Enabled; _entries.Enabled = ready;
+        _skinVariants.Enabled = ready && _variants.Count > 1;
         _restore.Enabled = ready && !_refreshing;
         _stop.Enabled = ready && !_refreshing;
         UpdateObjectButtons();
@@ -251,8 +266,10 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             bool changed = _catalog?.Session != result.Session;
             _catalog = result;
             _current.Text = $"{result.Model}  ·  {result.Entries.Count} {UiLanguage.T("个皮肤与形态")}\n{UiLanguage.T("当前状态")}: #{result.Skin}  ·  {result.ActiveModel}  ·  {UiLanguage.T("形态")} {result.Gear}";
-            if (changed) { _entries.SelectedIndex = -1; FilterEntries(); _status.Text = UiLanguage.T("已连接。请选择条目；状态核验不替代画面和技能验收。"); }
+            SelectSkinInControls(CurrentSkinEntry(), clearSearch: changed);
+            if (changed) _status.Text = UiLanguage.T("已连接。请选择条目；状态核验不替代画面和技能验收。");
             await ApplyRememberedSkinAsync(result, revision, token);
+            _ = LoadSkinPopularityAsync();
             _ = UpdatePreviewAsync();
         }
         catch (OperationCanceledException) { }
@@ -262,10 +279,10 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private async Task ChangeAsync(bool restore)
     {
         if (_disposing || !_inProgress || _busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
-        if (!restore && (_entries.SelectedIndex < 0 || _entries.SelectedIndex >= _filtered.Count)) return;
-        string session = _catalog.Session; string entry = restore ? "" : _filtered[_entries.SelectedIndex].EntryId;
+        if (!restore && SelectedSkinEntry == null) return;
+        string session = _catalog.Session; string entry = restore ? "" : SelectedSkinEntry!.EntryId;
         var catalog = _catalog;
-        SkinEntry? selected = restore ? null : _filtered[_entries.SelectedIndex];
+        SkinEntry? selected = restore ? null : SelectedSkinEntry;
         long revision = Interlocked.Read(ref _revision); CancellationToken token = _pageRequests.Token; _busy = true; UpdateButtons();
         _status.Text = UiLanguage.T("请求执行中…");
         try
@@ -278,12 +295,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             {
                 RememberSkin(catalog, selected);
                 _catalog = result with { Entries = catalog.Entries };
-                if (restore)
-                {
-                    _updatingSelection = true;
-                    try { _entries.SelectedIndex = -1; }
-                    finally { _updatingSelection = false; }
-                }
+                SelectSkinInControls(CurrentSkinEntry(), clearSearch: restore);
                 _ = UpdatePreviewAsync();
             }
             if (!result.StateVerified) { _catalog = null; _entries.SelectedIndex = -1; }
@@ -313,12 +325,16 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         // Entry indices may change between game versions. Match the actual skin and form instead.
         var entry = catalog.Entries.FirstOrDefault(e => e.Model == remembered.Model && e.SkinNum == remembered.SkinNum && e.Gear == remembered.Gear);
         if (entry == null) { _status.Text = "上次选择的皮肤已不在当前目录中，请重新选择。"; return; }
-        _updatingSelection = true;
-        try { _search.Text = ""; FilterEntries(); _entries.SelectedIndex = _filtered.FindIndex(e => e.EntryId == entry.EntryId); }
-        finally { _updatingSelection = false; }
+        SelectSkinInControls(entry, clearSearch: true);
         if (catalog.ActiveModel == entry.Model && catalog.Skin == entry.SkinNum && catalog.Gear == entry.Gear) return;
         var result = await _core.ApplyAsync(catalog.Session, entry.EntryId, token);
         if (_disposing || IsDisposed || token.IsCancellationRequested || revision != Interlocked.Read(ref _revision)) return;
+        if (result.StateVerified)
+        {
+            _catalog = result with { Entries = catalog.Entries };
+            SelectSkinInControls(CurrentSkinEntry(), clearSearch: true);
+        }
+        else SelectSkinInControls(CurrentSkinEntry());
         _current.Text = $"{result.Model}  ·  #{result.Skin}  ·  {result.ActiveModel}  ·  {result.Gear}";
         _status.Text = result.StateVerified ? $"已自动应用上次选择：{GetSkinDisplayName(entry)}" : "上次皮肤的应用状态未核验，请读取状态后检查。";
     }
@@ -383,6 +399,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             button.ForeColor = button.Type == AntdUI.TTypeMini.Primary ? Color.White : palette.TextPrimary;
         }
         _posterCaption.ForeColor = palette.TextSecondary;
+        _ratingStatus.ForeColor = palette.TextSecondary;
         _posterCaption.BackColor = _poster.BackColor = palette.SurfaceRaised;
         _card.Back = palette.SurfaceRaised; _card.BackColor = palette.SurfaceRaised; _card.ForeColor = palette.TextPrimary; _card.BorderColor = palette.Border;
         foreach (var row in _surfaceRows) row.BackColor = palette.SurfaceRaised;
@@ -417,6 +434,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (disposing && !_disposing)
         {
             _disposing = true;
+            ResetSkinPopularity();
             _clientRegaliaLifetime.Cancel();_clientRegaliaLifetime.Dispose();
             _borderLifetime.Cancel();_borderLifetime.Dispose();
             Interlocked.Increment(ref _revision);

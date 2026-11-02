@@ -12,6 +12,95 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SkinToolsTests
 {
     [Fact]
+    public void StatisticsFailureExplainsHttpAndTimeoutErrors()
+    {
+        Assert.Contains("403", SkinToolsForm.DescribeSkinStatisticsFailure(new HttpRequestException("Forbidden", null, System.Net.HttpStatusCode.Forbidden)));
+        Assert.Contains("429", SkinToolsForm.DescribeSkinStatisticsFailure(new HttpRequestException("Limited", null, System.Net.HttpStatusCode.TooManyRequests)));
+        Assert.Contains("超时", SkinToolsForm.DescribeSkinStatisticsFailure(new TaskCanceledException()));
+    }
+
+    [Fact]
+    public void CommunitySortPreservesSelectionAndNeverAppliesSkinWhileLoadingOrReordering() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var pending = new TaskCompletionSource<IReadOnlyList<SkinUsageStatistics>>();
+        int calls = 0;
+        var ratings = SecondPhaseRegressionTests.Service<ISkinPopularityService>((_, _) => { calls++; return pending.Task; });
+        var core = new Core(); var settings = new Settings(); settings.Load().SkinCoreEnabled = true;
+        using var host = new Form { ClientSize = new Size(1100, 900), ShowInTaskbar = false };
+        using var page = new SkinToolsForm(core, settings, EmptySkinResources(), skinPopularity: ratings);
+        host.Controls.Add(page); host.Show();
+        page.OnGamePhaseChanged(true);
+        var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries");
+        var sort = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "SkinSort");
+        Assert.Equal(0, calls);
+        select.SelectedIndex = 1;
+        Assert.Single(core.AppliedEntries);
+        sort.SelectedIndex = 1;
+        Assert.Equal(1, calls);
+        pending.SetResult([new(7, 658691, 17.6285)]);
+        SecondPhaseRegressionTests.PumpUntil(() => ((AntdUI.SelectItem)select.Items[0]!).Tag?.ToString() == "1:-1");
+        Assert.Equal(0, select.SelectedIndex);
+        Assert.Contains("17.63%", ((AntdUI.SelectItem)select.Items[0]!).SubText);
+        Assert.Contains("658,691场", ((AntdUI.SelectItem)select.Items[0]!).SubText);
+        Assert.Contains("暂无使用数据", ((AntdUI.SelectItem)select.Items[1]!).SubText);
+        Assert.Single(core.AppliedEntries);
+        Assert.True(settings.Load().SkinCommunitySortEnabled);
+        var legacy = LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToLegacy(settings.Load());
+        Assert.True(LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToDomain(legacy).SkinCommunitySortEnabled);
+        if (Environment.GetEnvironmentVariable("SKIN_SORT_UI_SNAPSHOT") is string snapshot && snapshot.Length > 0)
+        {
+            using var bitmap = new Bitmap(host.Width, host.Height);
+            host.DrawToBitmap(bitmap, new Rectangle(Point.Empty, host.Size));
+            bitmap.Save(snapshot, System.Drawing.Imaging.ImageFormat.Png);
+        }
+        sort.SelectedIndex = 0;
+        Assert.Equal(1, select.SelectedIndex);
+        Assert.Single(core.AppliedEntries);
+        Assert.False(settings.Load().SkinCommunitySortEnabled);
+    });
+
+    [Fact]
+    public void CommunitySortFailureFallsBackAndCanRetry() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int calls = 0;
+        var ratings = SecondPhaseRegressionTests.Service<ISkinPopularityService>((_, _) =>
+        {
+            calls++;
+            return calls == 1 ? Task.FromException<IReadOnlyList<SkinUsageStatistics>>(new HttpRequestException())
+                : Task.FromResult<IReadOnlyList<SkinUsageStatistics>>([new(7, 658691, 17.6285)]);
+        });
+        var core = new Core(); var settings = new Settings(); settings.Load().SkinCoreEnabled = true;
+        settings.Load().SkinCommunitySortEnabled = true;
+        using var page = new SkinToolsForm(core, settings, EmptySkinResources(), skinPopularity: ratings);
+        page.OnGamePhaseChanged(true);
+        var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries");
+        Assert.Equal("0:-1", ((AntdUI.SelectItem)select.Items[0]!).Tag);
+        Assert.Contains("暂不可用", Descendants(page).OfType<AntdUI.Label>().Single(c => c.Name == "SkinRatingStatus").Text);
+        var retry = Descendants(page).OfType<AntdUI.Button>().Single(c => c.Name == "RetrySkinStatistics");
+        typeof(Control).GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(retry, [EventArgs.Empty]);
+        Assert.Equal(2, calls);
+        Assert.Equal("1:-1", ((AntdUI.SelectItem)select.Items[0]!).Tag);
+        Assert.Empty(core.AppliedEntries);
+    });
+
+    [Fact]
+    public void LateCommunityReplyIsIgnoredAfterLeavingGame() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var pending = new TaskCompletionSource<IReadOnlyList<SkinUsageStatistics>>();
+        CancellationToken received = default;
+        var ratings = SecondPhaseRegressionTests.Service<ISkinPopularityService>((_, args) =>
+        { received = (CancellationToken)args[1]!; return pending.Task; });
+        var settings = new Settings(); settings.Load().SkinCoreEnabled = true; settings.Load().SkinCommunitySortEnabled = true;
+        using var page = new SkinToolsForm(new Core(), settings, EmptySkinResources(), skinPopularity: ratings);
+        page.OnGamePhaseChanged(true);
+        page.OnGamePhaseChanged(false);
+        Assert.True(received.IsCancellationRequested);
+        pending.SetResult([new(7, 658691, 17.6285)]);
+        System.Windows.Forms.Application.DoEvents();
+        Assert.Empty(Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries").Items);
+    });
+
+    [Fact]
     public void CoreModePersistsAndLocksDuringEnableOrGame() => MatchListScrollingTests.OnUiThread(() =>
     {
         var settings = new Settings(); var core = new Core();
@@ -332,9 +421,15 @@ public sealed class SkinToolsTests
         public Task<SkinCoreReply> ApplyAsync(string session, string entry, CancellationToken ct = default)
         {
             AppliedEntries.Add(entry); var target = LastCatalog!.Entries.Single(e => e.EntryId == entry);
-            return Task.FromResult(LastCatalog with { Invoked = true, StateVerified = VerifyApply, Skin = target.SkinNum, ActiveModel = target.Model, Gear = target.Gear });
+            var result = LastCatalog with { Invoked = true, StateVerified = VerifyApply, Skin = target.SkinNum, ActiveModel = target.Model, Gear = target.Gear };
+            if (VerifyApply) LastCatalog = result;
+            return Task.FromResult(result);
         }
-        public Task<SkinCoreReply> RestoreAsync(string session, CancellationToken ct = default) => Task.FromResult(LastCatalog! with { StateVerified = true });
+        public Task<SkinCoreReply> RestoreAsync(string session, CancellationToken ct = default)
+        {
+            LastCatalog = LastCatalog! with { StateVerified = true, Skin = 0, ActiveSkin = 0, ActiveModel = Model, Gear = -1 };
+            return Task.FromResult(LastCatalog);
+        }
         public bool StopFails { get; set; }
         public int Stops { get; private set; }
         public Task<SkinCoreReply> StopAsync(string session, CancellationToken ct = default) {
