@@ -273,7 +273,8 @@ namespace LOL_GameAssistant.Entity
                 try { if (File.Exists(path)) return LoadFromFile(path); }
                 catch { /* 损坏或不可读时尝试下一份。 */ }
             }
-            return new SettingConfig();
+            return LOL_GameAssistant.Infrastructure.Settings.LegacySettingsMapper.ToLegacy(
+                LOL_GameAssistant.Domain.Settings.AssistantDefaultSettings.Create());
         }
 
         /// <summary>从配置文件读取设置并构建配置对象。</summary>

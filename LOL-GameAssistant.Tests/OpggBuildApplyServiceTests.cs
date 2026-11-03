@@ -2,6 +2,7 @@
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Domain.Builds;
 using LOL_GameAssistant.Infrastructure.LeagueClient;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -429,6 +430,41 @@ public sealed class OpggBuildApplyServiceTests
         Assert.Contains("召唤师技能：客户端拒绝写入", result.Message);
     }
 
+    [Theory]
+    [InlineData(4, 7, 14, 4, 4, 14)]
+    [InlineData(7, 4, 4, 14, 14, 4)]
+    [InlineData(7, 4, 11, 4, 11, 4)]
+    [InlineData(4, 7, 14, 7, 14, 7)]
+    [InlineData(11, 12, 14, 4, 14, 4)]
+    public async Task RecommendedFlashUsesCurrentDOrFSlotWithoutChangingSpellPair(int currentD, int currentF, int recommendedD, int recommendedF, int expectedD, int expectedF)
+    {
+        var lcu = new FakeLcuRequestSender(2, 1, new JObject { ["id"] = 11, ["name"] = "用户符文页", ["current"] = true })
+        { MySelection = new JObject { ["spell1Id"] = currentD, ["spell2Id"] = currentF } };
+        var result = await new OpggBuildApplyService(lcu, new FakeChampionCatalog()).ApplyBuildAsync(1, "TOP",
+            CreateOption() with { SummonerSpellIds = [recommendedD, recommendedF] });
+        Assert.True(result.Succeeded);
+        Assert.Equal(expectedD, lcu.LastSpellPatch!.Value<int>("spell1Id"));
+        Assert.Equal(expectedF, lcu.LastSpellPatch.Value<int>("spell2Id"));
+    }
+
+    [Fact]
+    public async Task FlashFallbackUsesOnlyLocalPlayerAndPersonalPresetAlsoRespectsSlot()
+    {
+        var lcu = new FakeLcuRequestSender(2, 1, new JObject { ["id"] = 11, ["name"] = "用户符文页", ["current"] = true })
+        {
+            SelectionSession = new JObject { ["localPlayerCellId"] = 3, ["myTeam"] = new JArray(
+                new JObject { ["cellId"] = 1, ["spell1Id"] = 4, ["spell2Id"] = 14 },
+                new JObject { ["cellId"] = 3, ["spell1Id"] = 7, ["spell2Id"] = 4 }) }
+        };
+        var option = CreateOption();
+        var preset = new PersonalRunePreset { Name = "我的方案", ChampionId = 1, PrimaryStyleId = option.PrimaryStyleId,
+            SubStyleId = option.SubStyleId, RunePerkIds = option.RunePerkIds.ToList(), SummonerSpellIds = [4, 7] };
+        var result = await new OpggBuildApplyService(lcu, new FakeChampionCatalog()).ApplyPersonalRunePresetAsync(preset);
+        Assert.True(result.Succeeded);
+        Assert.Equal(7, lcu.LastSpellPatch!.Value<int>("spell1Id"));
+        Assert.Equal(4, lcu.LastSpellPatch.Value<int>("spell2Id"));
+    }
+
     [Fact]
     public async Task CapturePersonalPreset_ReadsCurrentRunesAndFallsBackToSessionForSpells()
     {
@@ -516,6 +552,7 @@ public sealed class OpggBuildApplyServiceTests
         public bool FailItemWrite { get; set; }
         public JObject? CurrentRunePage { get; set; }
         public JObject? MySelection { get; set; }
+        public JObject? LastSpellPatch { get; private set; }
         public JObject? SelectionSession { get; set; }
         public JObject ItemSets { get; } = new() { ["accountId"] = 1, ["itemSets"] = new JArray() };
 
@@ -601,6 +638,7 @@ public sealed class OpggBuildApplyServiceTests
         public Task<bool> PatchAsync(string endpoint, string jsonBody, CancellationToken cancellationToken = default)
         {
             PatchEndpoints.Add(endpoint);
+            if (endpoint == "/lol-champ-select/v1/session/my-selection") LastSpellPatch = JObject.Parse(jsonBody);
             return Task.FromResult(!FailSpellWrite);
         }
 

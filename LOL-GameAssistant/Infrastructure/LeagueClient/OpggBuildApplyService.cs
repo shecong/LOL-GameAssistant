@@ -543,11 +543,39 @@ public sealed partial class OpggBuildApplyService : IOpggBuildApplyService
         int[] spells = spellIds?.Where(id => id > 0).Distinct().Take(2).ToArray() ?? Array.Empty<int>();
         if (spells.Length < 2) return "该模式未提供可写入的召唤师技能，已保留当前技能";
 
+        // OP.GG 的技能数组顺序不是用户的 D/F 习惯。只调整闪现所在槽位，保留推荐技能组合。
+        int flashIndex = Array.IndexOf(spells, 4);
+        if (flashIndex >= 0 && await ReadCurrentFlashSlotAsync(cancellationToken).ConfigureAwait(false) is int preferredSlot && flashIndex != preferredSlot)
+            (spells[0], spells[1]) = (spells[1], spells[0]);
+
         bool updated = await _lcu.PatchAsync(
             "/lol-champ-select/v1/session/my-selection",
             JsonConvert.SerializeObject(new { spell1Id = spells[0], spell2Id = spells[1] }),
             cancellationToken).ConfigureAwait(false);
         return updated ? "召唤师技能已写入" : "客户端未写入召唤师技能，已保留当前技能";
+    }
+
+    private async Task<int?> ReadCurrentFlashSlotAsync(CancellationToken cancellationToken)
+    {
+        static int? FlashSlot(JObject? selection) => selection?.Value<int?>("spell1Id") == 4 ? 0
+            : selection?.Value<int?>("spell2Id") == 4 ? 1 : null;
+        try
+        {
+            var selection = await ReadObjectAsync("/lol-champ-select/v1/session/my-selection", cancellationToken).ConfigureAwait(false);
+            if (FlashSlot(selection) is int slot) return slot;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception error) when (error is HttpRequestException or IOException or JsonException or FormatException) { }
+        try
+        {
+            var session = await ReadObjectAsync("/lol-champ-select/v1/session", cancellationToken).ConfigureAwait(false);
+            int cellId = session?.Value<int?>("localPlayerCellId") ?? -1;
+            if (cellId < 0) return null;
+            return FlashSlot((session?["myTeam"] as JArray)?.OfType<JObject>()
+                .FirstOrDefault(member => member.Value<int?>("cellId") == cellId));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception error) when (error is HttpRequestException or IOException or JsonException or FormatException) { return null; }
     }
 
     /// <summary>写入推荐符文页并切换为当前页；失败时尝试恢复原页面。</summary>
