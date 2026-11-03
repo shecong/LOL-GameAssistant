@@ -300,6 +300,11 @@ int main(int argc, char** argv) {
     Check(childWindow.left>=parentRow.right,"secondary popup floats to the right of parent list");
     aux->command=0; clickSkinControl(5,0);
     Check(aux->command==8 && aux->argument==0 && aux->commandVersion==aux->skinVersion,"secondary popup emits versioned selection");
+    frame->mayhemEnabled=1; aux->command=0; present(); present();
+    Check(frame->hitRegionCount==3,"augment panel, skin picker and chroma popup all accept mouse input");
+    clickSkinControl(5,0);
+    Check(aux->command==8 && aux->argument==0 && aux->commandVersion==aux->skinVersion,"chroma selection still works with augment panel visible");
+    frame->mayhemEnabled=0;
     aux->skinChildCount=0; aux->command=0; present();
     RECT firstSkin{}; Check(skinControl(1,0,&firstSkin)!=FALSE,"first skin row remains available");
     setPointer((firstSkin.left+firstSkin.right)/2,(firstSkin.top+firstSkin.bottom)/2,TRUE); present();

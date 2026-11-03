@@ -93,6 +93,27 @@ public sealed class SkinSelectionHierarchyTests
     });
 
     [Fact]
+    public void HiddenMainPageAppliesChromaFromAnotherParentThroughSecondaryCommand() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var core = new Core(0); using var page = Create(core, new Settings()); page.Visible = false;
+        using var bridge = new RecordingGameOverlay();
+        using var picker = new SkinPickerOverlayController(() => true, id => page.SelectOverlayEntryAsync(id).GetAwaiter().GetResult(), () => { }, () => { }, bridge);
+        typeof(SkinToolsForm).GetField("_skinPicker", Private)!.SetValue(page, picker);
+        typeof(SkinToolsForm).GetMethod("UpdateSkinPicker", Private)!.Invoke(page, null);
+        picker.ShowOverGame(Rectangle.Empty);
+        var panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
+        Assert.Null(panel.Submenu);
+        bridge.Command = new(1, 1, panel.Version); picker.PollCommands();
+        panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
+        Assert.Equal(3, panel.Submenu!.Items.Count); Assert.Empty(core.Applied);
+        bridge.Command = new(8, 2, panel.Version); picker.PollCommands();
+        Assert.Equal("green", Assert.Single(core.Applied));
+        Assert.Equal(10, core.State.ActiveSkin);
+        panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
+        Assert.Contains("绿色", panel.Submenu!.Items[panel.Submenu.Selected]);
+    });
+
+    [Fact]
     public void SubmenuPagesIndependentlyAndRejectsClicksFromPreviousGroup() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var bridge = new RecordingGameOverlay(); var selected = new List<string>();

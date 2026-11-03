@@ -58,7 +58,9 @@ RawInputBuffer originalRawInputBuffer=nullptr;
 std::atomic<unsigned> consumedButtons{0};
 std::atomic<ULONGLONG> lastRender{0};
 struct HitRegion { std::atomic<LONG> left{0}, top{0}, right{0}, bottom{0}; };
-HitRegion regions[2];
+// Augment panel, primary skin picker and its chroma popup can all be visible.
+constexpr unsigned MaxHitRegions = 8;
+HitRegion regions[MaxHitRegions];
 std::atomic<unsigned> regionCount{0};
 std::mutex inputGate;
 std::vector<std::pair<int, bool>> mouseEvents;
@@ -106,7 +108,7 @@ POINT ClientPointer(HWND window) {
 bool PointerOverOverlay() {
     if (!acceptsMouse || GetTickCount64() - lastRender > 500 || GetForegroundWindow() != gameWindow) return false;
     POINT p=ClientPointer(gameWindow);
-    for (unsigned i = 0; i < regionCount && i < 2; ++i)
+    for (unsigned i = 0; i < regionCount && i < MaxHitRegions; ++i)
         if (p.x >= regions[i].left && p.x < regions[i].right && p.y >= regions[i].top && p.y < regions[i].bottom) return true;
     return false;
 }
@@ -521,7 +523,7 @@ extern "C" __declspec(dllexport) void OverlayTestPointer(LONG x,LONG y,BOOL enab
     testPointerX=x; testPointerY=y; testPointerEnabled=enabled!=FALSE;
 }
 extern "C" __declspec(dllexport) BOOL OverlayTestRegion(unsigned index, RECT* output) {
-    if (!output || index >= regionCount || index >= 2) return FALSE;
+    if (!output || index >= regionCount || index >= MaxHitRegions) return FALSE;
     *output = RECT{regions[index].left,regions[index].top,regions[index].right,regions[index].bottom}; return TRUE;
 }
 extern "C" __declspec(dllexport) LONG OverlayTestWheel() { return wheel.load(); }

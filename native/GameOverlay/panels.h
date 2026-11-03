@@ -3,7 +3,7 @@ constexpr auto PanelFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoRes
     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings;
 
 void RegisterRegion(unsigned& count, float sx, float sy) {
-    if (count >= 2) return;
+    if (count >= MaxHitRegions) return;
     auto p = ImGui::GetWindowPos(), s = ImGui::GetWindowSize();
     regions[count].left = LONG(p.x/sx); regions[count].top = LONG(p.y/sy);
     regions[count].right = LONG((p.x+s.x)/sx); regions[count].bottom = LONG((p.y+s.y)/sy);
