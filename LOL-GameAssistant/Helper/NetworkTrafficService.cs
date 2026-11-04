@@ -40,8 +40,12 @@ public sealed class NetworkTrafficService
     private readonly object _gate = new();
     private readonly Dictionary<NetworkModule, State> _states = Enum.GetValues<NetworkModule>().ToDictionary(m => m, _ => new State());
     private readonly string? _path;
-    public NetworkTrafficService(string? path = null)
+    private int _monitoringEnabled;
+    public bool MonitoringEnabled => Volatile.Read(ref _monitoringEnabled) != 0;
+    public void SetMonitoringEnabled(bool enabled) { lock (_gate) Interlocked.Exchange(ref _monitoringEnabled, enabled ? 1 : 0); }
+    public NetworkTrafficService(string? path = null, bool monitoringEnabled = false)
     {
+        SetMonitoringEnabled(monitoringEnabled);
         _path = path;
         if (path == null || !File.Exists(path)) return;
         try { foreach (var module in JsonSerializer.Deserialize<NetworkModule[]>(File.ReadAllText(path)) ?? []) if (_states.TryGetValue(module, out var state)) state.Enabled = false; }
@@ -73,16 +77,20 @@ public sealed class NetworkTrafficService
         lock (_gate) return Modules.Select(info => { var s = _states[info.Module]; return new TrafficSnapshot(info, s.Enabled, s.Requests, s.Blocked, s.Uploaded, s.Downloaded); }).ToArray();
     }
     public void ResetCounters() { lock (_gate) foreach (var s in _states.Values) s.Requests = s.Blocked = s.Uploaded = s.Downloaded = 0; }
-    internal void AddBytes(NetworkModule module, int count, bool upload) { lock (_gate) { if (upload) _states[module].Uploaded += count; else _states[module].Downloaded += count; } }
+    internal void AddBytes(NetworkModule module, int count, bool upload)
+    {
+        if (!MonitoringEnabled) return;
+        lock (_gate) { if (!MonitoringEnabled) return; if (upload) _states[module].Uploaded += count; else _states[module].Downloaded += count; }
+    }
     internal Lease Begin(NetworkModule module, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         lock (_gate)
         {
             var state = _states[module];
-            if (!state.Enabled) { state.Blocked++; throw new HttpRequestException("该模块的网络访问已在「日志 → 流量监控」中关闭。"); }
+            if (!state.Enabled) { if (MonitoringEnabled) state.Blocked++; throw new HttpRequestException("该模块的网络访问已在「日志 → 流量监控」中关闭。"); }
             var source = CancellationTokenSource.CreateLinkedTokenSource(token);
-            state.Active.Add(source); state.Requests++;
+            state.Active.Add(source); if (MonitoringEnabled) state.Requests++;
             return new Lease(this, module, source);
         }
     }

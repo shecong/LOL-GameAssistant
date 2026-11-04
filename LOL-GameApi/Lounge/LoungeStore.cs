@@ -34,6 +34,7 @@ public sealed class LoungeStore : IDisposable
             CREATE INDEX IF NOT EXISTS messages_sentAt ON messages(sentAt);
             CREATE INDEX IF NOT EXISTS victories_createdAt ON victories(createdAt);
             CREATE INDEX IF NOT EXISTS messages_kind ON messages(kind,id);
+            CREATE INDEX IF NOT EXISTS messages_day ON messages(sentAt,id);
             CREATE TABLE IF NOT EXISTS recruitments (messageId INTEGER PRIMARY KEY, state TEXT NOT NULL);
             """;
         command.ExecuteNonQuery();
@@ -74,6 +75,32 @@ public sealed class LoungeStore : IDisposable
             while (await reader.ReadAsync(token)) rows.Add(Read(reader));
             bool hasMore = rows.Count > LoungeRules.HistoryPageSize;
             return new(rows.Take(LoungeRules.HistoryPageSize).Reverse().ToArray(), hasMore);
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task<LoungeHistoryPage> ReadDayAsync(DateTimeOffset dayStart, long after = 0, CancellationToken token = default)
+    {
+        await _gate.WaitAsync(token);
+        try
+        {
+            await PruneAsync(token);
+            using var command = _db.CreateCommand();
+            command.CommandText = after == 0
+                ? "SELECT * FROM (SELECT * FROM messages WHERE sentAt >= $start AND sentAt < $end AND kind <> 'online' ORDER BY id DESC LIMIT 40) ORDER BY id"
+                : "SELECT * FROM messages WHERE sentAt >= $start AND sentAt < $end AND id > $after AND kind <> 'online' ORDER BY id LIMIT 200";
+            command.Parameters.AddWithValue("$start", dayStart.ToUniversalTime().ToString("O"));
+            command.Parameters.AddWithValue("$end", dayStart.AddDays(1).ToUniversalTime().ToString("O"));
+            command.Parameters.AddWithValue("$after", Math.Max(0, after));
+            var rows = new List<LoungeMessage>();
+            using (var reader = await command.ExecuteReaderAsync(token))
+                while (await reader.ReadAsync(token)) rows.Add(Read(reader));
+            long before = rows.Count > 0 ? rows[0].Id : long.MaxValue;
+            using var older = _db.CreateCommand();
+            older.CommandText = "SELECT EXISTS(SELECT 1 FROM messages WHERE id < $before AND kind <> 'online')";
+            older.Parameters.AddWithValue("$before", before);
+            bool hasOlder = Convert.ToInt64(await older.ExecuteScalarAsync(token)) != 0;
+            return new(rows.ToArray(), hasOlder, before);
         }
         finally { _gate.Release(); }
     }

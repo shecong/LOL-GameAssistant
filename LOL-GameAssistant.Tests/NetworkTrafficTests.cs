@@ -8,9 +8,30 @@ namespace LOL_GameAssistant.Tests;
 public sealed class NetworkTrafficTests
 {
     [Fact]
-    public async Task DisabledModuleNeverReachesTransportAndCanBeEnabledAgain()
+    public async Task MonitoringDefaultsOffAndDoesNotChangeAccessPolicy()
     {
         var service = new NetworkTrafficService();
+        Assert.False(service.MonitoringEnabled);
+        using var client = Client(service, NetworkModule.Ai, (_, _) => Task.FromResult(Reply("ok")));
+        Assert.Equal("ok", await client.GetStringAsync("https://example.test"));
+        Assert.Equal(0, Row(service, NetworkModule.Ai).Requests);
+        Assert.Equal(0, Row(service, NetworkModule.Ai).Downloaded);
+        service.SetMonitoringEnabled(true);
+        Assert.Equal("ok", await client.GetStringAsync("https://example.test"));
+        var recorded = Row(service, NetworkModule.Ai);
+        Assert.Equal(1, recorded.Requests); Assert.Equal(2, recorded.Downloaded);
+        service.SetMonitoringEnabled(false);
+        Assert.Equal("ok", await client.GetStringAsync("https://example.test"));
+        Assert.Equal(recorded, Row(service, NetworkModule.Ai));
+        service.SetEnabled(NetworkModule.Ai, false);
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("https://example.test"));
+        Assert.Equal(0, Row(service, NetworkModule.Ai).Blocked);
+    }
+
+    [Fact]
+    public async Task DisabledModuleNeverReachesTransportAndCanBeEnabledAgain()
+    {
+        var service = new NetworkTrafficService(monitoringEnabled: true);
         int calls = 0;
         using var client = Client(service, NetworkModule.Ai, (_, _) => { calls++; return Task.FromResult(Reply("ok")); });
         service.SetEnabled(NetworkModule.Ai, false);
@@ -26,7 +47,7 @@ public sealed class NetworkTrafficTests
     [Fact]
     public async Task CountsActualUtf8PayloadOnceIncludingUploadsAndErrorBodies()
     {
-        var service = new NetworkTrafficService();
+        var service = new NetworkTrafficService(monitoringEnabled: true);
         using var client = Client(service, NetworkModule.Ai, async (request, token) =>
         {
             await request.Content!.CopyToAsync(Stream.Null, token);
@@ -44,7 +65,7 @@ public sealed class NetworkTrafficTests
     [Fact]
     public async Task StreamingDownloadsAreNotBufferedAndCountOnlyReadBytes()
     {
-        var service = new NetworkTrafficService();
+        var service = new NetworkTrafficService(monitoringEnabled: true);
         using var client = Client(service, NetworkModule.Updates, (_, _) => Task.FromResult(Reply("1234567890")));
         using var response = await client.GetAsync("https://example.test", HttpCompletionOption.ResponseHeadersRead);
         Assert.Equal(0, Row(service, NetworkModule.Updates).Downloaded);
@@ -59,7 +80,7 @@ public sealed class NetworkTrafficTests
     [Fact]
     public async Task DisablingCancelsAnInFlightRequest()
     {
-        var service = new NetworkTrafficService();
+        var service = new NetworkTrafficService(monitoringEnabled: true);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var client = Client(service, NetworkModule.Builds, async (_, token) =>
         {
@@ -119,7 +140,7 @@ public sealed class NetworkTrafficTests
     [Fact]
     public async Task ConcurrentRequestsProduceConsistentTotals()
     {
-        var service = new NetworkTrafficService();
+        var service = new NetworkTrafficService(monitoringEnabled: true);
         using var client = Client(service, NetworkModule.Ranked, (_, _) => Task.FromResult(Reply("12345")));
         await Task.WhenAll(Enumerable.Range(0, 50).Select(_ => client.GetStringAsync("https://example.test")));
         Assert.Equal(250, Row(service, NetworkModule.Ranked).Downloaded);

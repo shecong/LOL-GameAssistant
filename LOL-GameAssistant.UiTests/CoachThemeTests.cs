@@ -220,10 +220,12 @@ public sealed class CoachThemeTests
         Assert.Contains(picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>(),
             button => button.Text == "正在应用…");
         applied.SetResult(OpggBuildApplyResult.Success("排位方案已配置"));
-        PumpUntil(() => picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>().Any(button => button.Text == "完成"));
+        PumpUntil(() => picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>()
+            .Any(button => button.Text == "应用选中方案" && button.Enabled));
+        Assert.False(picker.IsDisposed);
         // 返回入口的结果不能被教练页的后台刷新覆盖。
         ((AntdUI.Label)typeof(CoachForm).GetField("_status", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(coach)!).Text = "后台刷新";
-        picker.Controls.Cast<Control>().SelectMany(Descendants).OfType<Button>().Single(button => button.Text == "完成").PerformClick();
+        picker.Close();
         PumpUntil(() => opened.IsCompleted);
         Assert.True(fixture.Form.Visible);
         Assert.Contains(Descendants(fixture.Form).OfType<AntdUI.Label>(), label => label.Text == "排位方案已配置");
@@ -304,8 +306,7 @@ public sealed class CoachThemeTests
     public void AutomaticBuildsFollowChampionChangesAndUseSavedChoiceWithoutPopup(int queue, string mode, bool personalRunes) => MatchListScrollingTests.OnUiThread(() =>
     {
         var context = new AiGameContext { Phase = "ChampSelect", MyChampionId = 1, GameMode = "ARAM", QueueId = queue };
-        var settings = new AssistantSettings();
-        Assert.True(settings.AutoApplyRuneBuild);
+        var settings = new AssistantSettings { AutoApplyRuneBuild = true };
         settings.OpggManualBuildSelections[$"1:{mode}:none"] = 2;
         var personal = new PersonalRunePreset
         {

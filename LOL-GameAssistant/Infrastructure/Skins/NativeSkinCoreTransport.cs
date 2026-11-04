@@ -9,7 +9,7 @@ using LOL_GameAssistant.Domain.Skins;
 namespace LOL_GameAssistant.Infrastructure.Skins;
 
 public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay = false,
-    Action<SkinCoreException>? diagnostic = null) : ISkinCoreTransport
+    Action<SkinCoreException>? diagnostic = null, Func<bool>? diagnosticsEnabled = null) : ISkinCoreTransport
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
     // Keep validated locator RVAs alive while host processes come and go.
@@ -37,7 +37,9 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
     public async Task<SkinCoreReply> InvokeAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         var clock = Stopwatch.StartNew();
-        try { return await InvokeCoreAsync(arguments, cancellationToken).ConfigureAwait(false); }
+        // File checks, shared-memory setup and Process.Start can block before the first await,
+        // especially when another machine scans the core executable on launch.
+        try { return await Task.Run(() => InvokeCoreAsync(arguments, cancellationToken), cancellationToken).ConfigureAwait(false); }
         catch (System.ComponentModel.Win32Exception error)
         {
             var failure = new SkinCoreException("host_start_failed", details: new SkinCoreFailureDetails
@@ -59,6 +61,7 @@ public sealed class NativeSkinCoreTransport(string directory, bool kernelRelay =
             HostPath = Path.Combine(directory, kernelRelay ? "league-skin-hybrid-host.exe" : "league-skin-core-host.exe"),
             ElapsedMs = elapsedMs, ProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
             OsArchitecture = RuntimeInformation.OSArchitecture.ToString(), OsDescription = RuntimeInformation.OSDescription };
+        if (diagnosticsEnabled?.Invoke() == false) return;
         if (error.Code is "core_response_timeout" or "request_expired" or "request_outcome_unknown")
         {
             try { error.Details = error.Details with { TargetProbe = SkinCoreTargetDiagnostics.Capture(error.Details) }; }

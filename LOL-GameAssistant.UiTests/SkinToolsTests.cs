@@ -12,6 +12,93 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SkinToolsTests
 {
     [Fact]
+    public void LatePreviewCatalogKeepsRememberedChampionSelectChoice() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int reads = 0;
+        var pending = new TaskCompletionSource<IReadOnlyList<ChampionSkinResource>>();
+        ChampionSkinResource[] resources = [new(0, "基础", []), new(7, "大元素使", [])];
+        var assets = SecondPhaseRegressionTests.Service<IChampionSkinResourceService>((method, _) => method.Name switch {
+            "GetModelAsync" => Task.FromResult<string?>("Lux"),
+            "GetCatalogAsync" => ++reads == 1 ? Task.FromResult<IReadOnlyList<ChampionSkinResource>>(resources) : pending.Task,
+            _ => Task.FromResult<LOL_GameAssistant.Domain.GameData.GameAsset?>(null)
+        });
+        var settings = new Settings(); settings.Load().SkinCoreEnabled = true;
+        settings.Load().RememberedHeroSkins["Lux"] = new() { Model = "Lux", SkinNum = 7 };
+        var core = new Core(); using var page = new SkinToolsForm(core, settings, assets);
+        page.OnGamePhaseChanged(false, true);
+        page.ObserveChampionSelectionAsync(new() {
+            LocalPlayerCellId = 2, MyTeam = [new() { CellId = 2, ChampionId = 99 }],
+            Actions = [[new() { ActorCellId = 2, Type = "pick", Completed = true }]]
+        }).GetAwaiter().GetResult();
+        var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries");
+        Assert.Equal(1, select.SelectedIndex);
+        pending.SetResult([new(0, "基础", []), new(7, "大元素使 已更新", [])]);
+        SecondPhaseRegressionTests.PumpUntil(() => select.Items.OfType<AntdUI.SelectItem>()
+            .Any(item => item.SubText?.Contains("已更新") == true));
+        Assert.Equal(1, select.SelectedIndex);
+        Assert.Empty(core.AppliedEntries);
+        Assert.Equal(0, core.Reads);
+    });
+
+    [Fact]
+    public void LockedSelectionCanBeChosenBeforeGameAndAppliesAutomaticallyWhileHidden() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var assets = SecondPhaseRegressionTests.Service<IChampionSkinResourceService>((method, _) => method.Name switch {
+            "GetModelAsync" => Task.FromResult<string?>("Lux"),
+            "GetCatalogAsync" => Task.FromResult<IReadOnlyList<ChampionSkinResource>>([new(0, "基础", []), new(7, "大元素使", [])]),
+            _ => Task.FromResult<LOL_GameAssistant.Domain.GameData.GameAsset?>(null)
+        });
+        var settings = new Settings(); settings.Load().SkinCoreEnabled = true;
+        var core = new Core();
+        using var page = new SkinToolsForm(core, settings, assets);
+        page.OnGamePhaseChanged(false, true);
+        var selection = new LOL_GameAssistant.Domain.ChampionSelect.ChampionSelectionSnapshot {
+            LocalPlayerCellId = 2,
+            MyTeam = [new() { CellId = 2, ChampionId = 99 }],
+            Actions = [[new() { ActorCellId = 2, ChampionId = 99, Type = "pick", Completed = true }]]
+        };
+        page.ObserveChampionSelectionAsync(selection).GetAwaiter().GetResult();
+        var select = Descendants(page).OfType<AntdUI.Select>().Single(c => c.Name == "HeroSkinEntries");
+        Assert.Equal(2, select.Items.Count);
+        Assert.Equal(0, core.Reads);
+        select.SelectedIndex = 1;
+        Assert.Empty(core.AppliedEntries);
+        Assert.Equal(7, settings.Load().RememberedHeroSkins["Lux"].SkinNum);
+        page.Visible = false;
+        core.ReadFailures.Enqueue(new SkinCoreException("local_player_unavailable"));
+        page.OnGamePhaseChanged(true);
+        SecondPhaseRegressionTests.PumpUntil(() => core.AppliedEntries.Count == 1);
+        Assert.Equal(2, core.Reads);
+        Assert.Equal("1:-1", core.AppliedEntries[0]);
+        page.OnGamePhaseChanged(true);
+        Assert.Single(core.AppliedEntries);
+    });
+
+    [Fact]
+    public void UnlockedHoverDoesNotCountAsCurrentChampion()
+    {
+        var selection = new LOL_GameAssistant.Domain.ChampionSelect.ChampionSelectionSnapshot {
+            LocalPlayerCellId = 2, MyTeam = [new() { CellId = 2, ChampionId = 99 }],
+            Actions = [[new() { ActorCellId = 2, ChampionId = 99, Type = "pick", Completed = false }]]
+        };
+        Assert.Equal(0, SkinToolsForm.LockedChampionId(selection));
+    }
+
+    [Fact]
+    public void LeavingGameCancelsAutomaticReadRetry() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var settings = new Settings(); settings.Load().SkinCoreEnabled = true;
+        var core = new Core(); core.ReadFailures.Enqueue(new SkinCoreException("game_window_not_found"));
+        using var page = new SkinToolsForm(core, settings, EmptySkinResources());
+        page.OnGamePhaseChanged(true);
+        page.OnGamePhaseChanged(false);
+        var deadline = DateTime.UtcNow.AddMilliseconds(2200);
+        SecondPhaseRegressionTests.PumpUntil(() => DateTime.UtcNow >= deadline);
+        Assert.Equal(1, core.Reads);
+        Assert.Empty(core.AppliedEntries);
+    });
+
+    [Fact]
     public void StatisticsFailureExplainsHttpAndTimeoutErrors()
     {
         Assert.Contains("403", SkinToolsForm.DescribeSkinStatisticsFailure(new HttpRequestException("Forbidden", null, System.Net.HttpStatusCode.Forbidden)));
@@ -380,6 +467,7 @@ public sealed class SkinToolsTests
         public void SetMode(SkinCoreMode mode) => Mode = mode;
         public bool Enabled { get; private set; }
         public int Reads { get; private set; }
+        public Queue<Exception> ReadFailures { get; } = new();
         public TaskCompletionSource<SkinCoreReply>? PendingRead { get; set; }
         public SkinCoreReply? LastCatalog { get; private set; }
         public CancellationToken LastReadToken { get; private set; }
@@ -391,6 +479,7 @@ public sealed class SkinToolsTests
         {
             Reads++;
             LastReadToken = ct;
+            if (ReadFailures.TryDequeue(out var failure)) return Task.FromException<SkinCoreReply>(failure);
             if (PendingRead != null) return PendingRead.Task;
             LastCatalog = new SkinCoreReply { Ok = true, Independent = true, OriginalRequired = false,
                 Session = Session, Model = Model, ActiveModel = Model, Entries = [

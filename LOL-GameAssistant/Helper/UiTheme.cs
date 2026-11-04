@@ -49,11 +49,16 @@ public static class UiTheme
     private static readonly ConditionalWeakTable<AntdUI.Button, OriginalButtonColors> OriginalButtons = new();
     private static readonly ConditionalWeakTable<Control, object> DynamicControls = new();
     private static string _mode = "System";
+    private static readonly ThemePalette LightPalette = CreatePalette(false);
+    private static readonly ThemePalette DarkPalette = CreatePalette(true);
+    private static readonly object SystemThemeGate = new();
+    private static long _nextSystemThemeRead;
+    private static bool _systemDark;
 
     public static event EventHandler? Changed;
 
     /// <summary>根据当前主题模式返回语义配色。</summary>
-    public static ThemePalette Palette => CreatePalette(IsDark());
+    public static ThemePalette Palette => IsDark() ? DarkPalette : LightPalette;
     /// <summary>返回当前保存的主题模式。</summary>
     public static string Mode => _mode;
 
@@ -63,6 +68,7 @@ public static class UiTheme
         string normalized = mode is "Light" or "Dark" or "System" ? mode : "System";
         if (string.Equals(_mode, normalized, StringComparison.Ordinal)) return;
         _mode = normalized;
+        Interlocked.Exchange(ref _nextSystemThemeRead, 0);
         RuntimeDiagnostics.Report("界面主题", normalized, IsDark() ? "深色主题已生效" : "浅色主题已生效");
         Changed?.Invoke(null, EventArgs.Empty);
     }
@@ -229,6 +235,22 @@ public static class UiTheme
 
     /// <summary>读取 Windows 当前主题偏好。</summary>
     private static bool IsSystemDark()
+    {
+        // Paint and hover callbacks request the palette repeatedly. Never open the registry
+        // and allocate a palette for every control in every animation frame.
+        long now = Environment.TickCount64;
+        lock (SystemThemeGate)
+        {
+            if (now >= _nextSystemThemeRead)
+            {
+                _systemDark = ReadSystemDark();
+                _nextSystemThemeRead = now + 1000;
+            }
+            return _systemDark;
+        }
+    }
+
+    private static bool ReadSystemDark()
     {
         try
         {

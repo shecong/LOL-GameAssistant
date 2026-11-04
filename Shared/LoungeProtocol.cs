@@ -8,8 +8,8 @@ public sealed record LoungeOnlineNotice(string Name, string Region, string Rank 
 public sealed record LoungeMessage(long Id, string ClientId, string SenderId, string Name,
     string Region, string Kind, string Text, DateTimeOffset SentAt);
 public sealed record LoungeSnapshot(LoungeMessage[] Messages, LoungeMember[] Members, long[]? DeletedIds = null,
-    int ProtocolVersion = 1, LoungeRecruitmentState[]? Recruitments = null);
-public sealed record LoungeHistoryPage(LoungeMessage[] Messages, bool HasMore);
+    int ProtocolVersion = 1, LoungeRecruitmentState[]? Recruitments = null, long? OlderBefore = null, bool? HasOlder = null);
+public sealed record LoungeHistoryPage(LoungeMessage[] Messages, bool HasMore, long? Before = null);
 public sealed record LoungeSend(string ClientId, string Text, string Kind = "chat", string[]? Mentions = null,
     LoungeRecruitment? Recruitment = null);
 public sealed record LoungeRecruitment(string Region, int QueueId, string Rank, string Position, int Needed, string Note = "");
@@ -27,7 +27,9 @@ public sealed record LoungeVictory(long GameId, string Platform, string Puuid, i
 
 public static class LoungeRules
 {
-    public const int ProtocolVersion = 5;
+    public const int ProtocolVersion = 6;
+    public const string MessageReadersGroup = "lounge-message-readers";
+    public static DateTimeOffset StartOfDay(DateTimeOffset now) => new(now.Date, now.Offset);
     // Sync(0) requests the latest page; Sync(-1) replays an initially empty channel.
     public const long BeforeFirstMessage = -1;
     public const int HistoryPageSize = 40;

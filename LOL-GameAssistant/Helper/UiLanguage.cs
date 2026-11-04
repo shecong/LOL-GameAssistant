@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace LOL_GameAssistant.Helper;
 
@@ -28,8 +29,21 @@ internal static class UiLanguage
     private static readonly ConditionalWeakTable<AntdUI.SegmentedItem, TextState> SegmentOriginals = new();
     private static readonly string[] LocalizedProperties =
         ["PlaceholderText", "CheckedText", "UnCheckedText", "PrefixText", "SuffixText", "AccessibleName"];
+    private static readonly ConcurrentDictionary<Type, PropertyInfo[]> LocalizedPropertyCache = new();
+    private static PropertyInfo[] GetLocalizedProperties(Type type) => LocalizedPropertyCache.GetOrAdd(type, key =>
+        LocalizedProperties.Select(name => key.GetProperty(name))
+            .Where(property => property is { CanRead: true, CanWrite: true } && property.PropertyType == typeof(string))
+            .Cast<PropertyInfo>().ToArray());
     private static readonly Dictionary<string, string> Overrides = new(StringComparer.Ordinal)
     {
+        ["启用流量监控"] = "Enable traffic monitoring",
+        ["启用运行诊断"] = "Enable runtime diagnostics",
+        ["今天暂无消息，向上滚动可加载历史。"] = "No messages today. Scroll up to load history.",
+        ["已加载当天消息，向上滚动可查询更早记录。"] = "Today's messages loaded. Scroll up to view earlier messages.",
+        ["流量监控与网络管控\n流量监控默认关闭，仅统计开启期间的流量。表格中的“允许联网”开关独立控制访问权限。\n统计 HTTP / WebSocket 正文，不含协议开销；本机通信单独列出，不代表游戏客户端自身的公网流量。"] = "Traffic monitoring and network access\nMonitoring is off by default and counts traffic while enabled. Allow network access switches independently control permissions.\nCounts HTTP / WebSocket payloads, excluding protocol overhead. Local communication is listed separately from the game client's external traffic.",
+        ["流量监控已关闭，不统计流量；各模块联网权限仍然生效。"] = "Traffic monitoring is off. Network access permissions still apply.",
+        ["运行诊断已开启。状态与诊断日志仅在开启期间记录。"] = "Runtime diagnostics is on. Status and diagnostic logs are recorded while enabled.",
+        ["运行诊断默认关闭，不采集状态或写入诊断日志。需要排查问题时再开启。"] = "Runtime diagnostics is off by default. Enable it when troubleshooting to collect status and diagnostic logs.",
         ["对局"] = "Live Game", ["对局记录"] = "Match History", ["战绩查询"] = "Player Search",
         ["回到顶部"] = "Back to top", ["尝试观战"] = "Spectate", ["全部英雄"] = "All champions",
         ["全部结果"] = "All results", ["重置"] = "Reset", ["重开"] = "Remake",
@@ -42,7 +56,7 @@ internal static class UiLanguage
         ["外观与窗口"] = "Appearance & Window", ["AI 与推荐"] = "AI & Recommendations",
         ["预选或选择英雄时自动替换符文和装备"] = "Automatically update runes and items when hovering or picking a champion",
         ["符文装备自动配置："] = "Automatic runes and items:",
-        ["自动配置默认开启：预选或选择英雄后应用对应符文和装备，切换英雄后自动更新。优先复用助手符文页，页面已满时替换当前可编辑页。点击“一键选择符文装备”可手动调整方案；关闭自动配置后仅后台加载推荐。"] = "Automatic setup is enabled by default. Hovering, picking or changing a champion applies their runes and items. Reuse an assistant rune page first; if pages are full, replace the current editable page. Click Runes & Items to adjust the build manually. Turning automatic setup off only preloads recommendations.",
+        ["自动配置默认关闭，仅后台加载推荐。点击“一键选择符文装备”可手动配置；勾选后，在预选、选择或切换英雄时自动应用对应符文和装备。优先复用助手符文页，页面已满时替换当前可编辑页。"] = "Automatic setup is off by default and only preloads recommendations. Click Runes & Items to apply a build manually. Enable automatic setup to apply runes and items when hovering, picking or changing a champion. Reuse an assistant rune page first; if pages are full, replace the current editable page.",
         ["预选、选择或更换英雄时，按英雄、模式和分路自动应用个人方案或 OP.GG 推荐；个人方案未保存装备时补充推荐出装。同一英雄不重复写入，手动调整方案后保留选择。"] = "Apply a personal or OP.GG build for the champion, mode and role when hovering, picking or changing champions. Add recommended items when a personal preset has no items. Avoid repeated writes for the same champion and preserve manual choices.",
         ["选人阶段检测到已选英雄后后台加载 OP.GG 推荐；点击“一键配置”查看方案，不自动弹窗。"] = "Load OP.GG recommendations in the background after selecting a champion. Click Quick Setup to view builds; no automatic popup.",
         ["推荐方案已就绪，点击一键配置查看并应用。"] = "Recommendations are ready. Click Quick Setup to review and apply a build.",
@@ -98,6 +112,8 @@ internal static class UiLanguage
     public static string Mode => _mode;
     /// <summary>刷新当前对象展示的状态或数据。</summary>
     public static void Refresh() => ApplyOpenForms(true);
+
+    internal static void Refresh(Control root) => Attach(root, true);
 
     /// <summary>启动当前服务或组件的运行流程。</summary>
     public static void Start()
@@ -209,7 +225,7 @@ internal static class UiLanguage
         {
             Originals[control] = RecoverOriginal(control.Text);
             control.TextChanged += ControlTextChanged;
-            if (control is ComboBox or ListView || LocalizedProperties.Any(name => control.GetType().GetProperty(name) != null))
+            if (control is ComboBox or ListView || GetLocalizedProperties(control.GetType()).Length > 0)
             {
                 int threadId = Environment.CurrentManagedThreadId;
                 control.Invalidated += (_, _) =>
@@ -289,17 +305,17 @@ internal static class UiLanguage
                 {
                     var state = SegmentOriginals.GetValue(item, value => new TextState(RecoverOriginal(value.Text ?? ""), value.Text ?? ""));
                     if (item.Text != state.Applied) state.Source = RecoverOriginal(item.Text ?? "");
-                    item.Text = state.Applied = T(state.Source);
+                    string desired = T(state.Source);
+                    if (item.Text != desired) item.Text = desired;
+                    state.Applied = desired;
                 }
             }
             finally { _updating = false; }
         }
         Dictionary<string, TextState> originals = PropertyOriginals.GetOrCreateValue(control);
-        foreach (string name in LocalizedProperties)
+        foreach (var property in GetLocalizedProperties(control.GetType()))
         {
-            var property = control.GetType().GetProperty(name);
-            if (property is not { CanRead: true, CanWrite: true, PropertyType: { } propertyType } ||
-                propertyType != typeof(string)) continue;
+            string name = property.Name;
             string? current = property.GetValue(control) as string;
             if (!originals.TryGetValue(name, out TextState? state))
                 originals[name] = state = new TextState(RecoverOriginal(current ?? ""), current ?? "");
@@ -324,7 +340,9 @@ internal static class UiLanguage
             {
                 TextState state = states[index];
                 if (item.SubItems[index].Text != state.Applied) state.Source = RecoverOriginal(item.SubItems[index].Text);
-                item.SubItems[index].Text = state.Applied = T(state.Source);
+                string desired = T(state.Source);
+                if (item.SubItems[index].Text != desired) item.SubItems[index].Text = desired;
+                state.Applied = desired;
             }
         }
         foreach (ColumnHeader column in list.Columns)
@@ -332,7 +350,9 @@ internal static class UiLanguage
             TextState state = ColumnOriginals.GetValue(column,
                 value => new TextState(RecoverOriginal(value.Text), value.Text));
             if (column.Text != state.Applied) state.Source = RecoverOriginal(column.Text);
-            column.Text = state.Applied = T(state.Source);
+            string desired = T(state.Source);
+            if (column.Text != desired) column.Text = desired;
+            state.Applied = desired;
         }
     }
 

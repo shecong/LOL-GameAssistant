@@ -1,11 +1,15 @@
 using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Application.Settings;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>Read-only diagnostics view for LCU, client start, hotkeys and local automation.</summary>
 public sealed class DiagnosticsForm : UserControl, IThemeAware
 {
+    private readonly IApplicationSettingsStore _settings;
+    private readonly AntdUI.Switch _enabled = new() { Name = "RuntimeDiagnosticsEnabled", Width = 52, Height = 30 };
+    private bool _updatingEnabled;
     private readonly AntdUI.Table _list = new()
     {
         Dock = DockStyle.Fill,
@@ -15,7 +19,7 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
     private readonly AntdUI.Label _hint = new()
     {
         Dock = DockStyle.Top,
-        Height = 34,
+        Height = 60, TextMultiLine = true,
         Padding = new Padding(10, 8, 10, 0),
         Text = "本机运行状态；诊断日志不会记录 LCU Token、聊天内容或 API Key。悬停查看日志路径。"
     };
@@ -25,8 +29,12 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1500 };
 
     /// <summary>初始化 DiagnosticsForm 的实例状态。</summary>
-    public DiagnosticsForm()
+    public DiagnosticsForm() : this(null) { }
+    public DiagnosticsForm(IApplicationSettingsStore? settings)
     {
+        _settings = settings ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ApplicationSettingsStore;
+        _enabled.Checked = _settings.Load().RuntimeDiagnosticsEnabled;
+        RuntimeDiagnostics.SetEnabled(_enabled.Checked);
         _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Component), "组件") { Width = "150" });
         _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Status), "状态") { Width = "110" });
         _list.Columns.Add(new AntdUI.Column(nameof(DiagnosticRow.Detail), "详情") { Width = "620" });
@@ -44,9 +52,13 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
         Controls.Add(_list);
         Controls.Add(actions);
         Controls.Add(_hint);
+        var enabledRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 54, Padding = new Padding(8), WrapContents = false };
+        enabledRow.Controls.Add(new AntdUI.Label { Text = "启用运行诊断", Width = 140, Height = 30 });
+        enabledRow.Controls.Add(_enabled); Controls.Add(enabledRow);
+        _enabled.CheckedChanged += (_, _) => ToggleDiagnostics();
         _logTip.SetToolTip(_hint, RuntimeDiagnostics.GetLogPath());
-        _timer.Tick += (_, _) => RefreshSnapshot();
-        _timer.Start();
+        _timer.Tick += (_, _) => { if (RuntimeDiagnostics.Enabled && PageActivity.IsActive(this)) RefreshSnapshot(); };
+        VisibleChanged += (_, _) => UpdateDiagnosticsActivity();
         RuntimeDiagnostics.Changed += DiagnosticsChanged;
         Disposed += (_, _) =>
         {
@@ -54,6 +66,34 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
             _logTip.Dispose();
             RuntimeDiagnostics.Changed -= DiagnosticsChanged;
         };
+        UpdateDiagnosticsActivity();
+    }
+
+    private void ToggleDiagnostics()
+    {
+        if (_updatingEnabled) return;
+        try
+        {
+            var settings = _settings.Load(); settings.RuntimeDiagnosticsEnabled = _enabled.Checked;
+            _settings.Save(settings);
+            RuntimeDiagnostics.SetEnabled(_enabled.Checked);
+            if (_enabled.Checked) RuntimeDiagnostics.ReportStartup();
+            UpdateDiagnosticsActivity();
+        }
+        catch (Exception error)
+        {
+            _updatingEnabled = true;
+            try { _enabled.Checked = RuntimeDiagnostics.Enabled; } finally { _updatingEnabled = false; }
+            _hint.Text = "保存运行诊断设置失败：" + error.Message;
+        }
+    }
+
+    private void UpdateDiagnosticsActivity()
+    {
+        if (IsDisposed || Disposing) return;
+        _timer.Enabled = Visible && RuntimeDiagnostics.Enabled;
+        _hint.Text = RuntimeDiagnostics.Enabled ? "运行诊断已开启。状态与诊断日志仅在开启期间记录。"
+            : "运行诊断默认关闭，不采集状态或写入诊断日志。需要排查问题时再开启。";
         RefreshSnapshot();
     }
 
@@ -70,9 +110,9 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
     /// <summary>诊断记录变化后刷新诊断列表。</summary>
     private void DiagnosticsChanged(object? sender, EventArgs e)
     {
-        if (IsDisposed || !IsHandleCreated) return;
-        if (InvokeRequired) BeginInvoke(RefreshSnapshot);
-        else RefreshSnapshot();
+        if (!RuntimeDiagnostics.Enabled || IsDisposed || !IsHandleCreated) return;
+        if (InvokeRequired) BeginInvoke(() => { if (PageActivity.IsActive(this)) RefreshSnapshot(); });
+        else if (PageActivity.IsActive(this)) RefreshSnapshot();
     }
 
     /// <summary>将最新诊断快照同步到界面。</summary>

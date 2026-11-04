@@ -34,6 +34,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
     private int _battleVersion;
     private int _jungleVersion;
     public NativeGameOverlayBridge() : this(true) { }
+    internal Func<ProcessStartInfo, Process?> StartProcess { private get; init; } = Process.Start;
     internal NativeGameOverlayBridge(bool connectToGame) => _heartbeat = new(_ => Heartbeat(), null,
         connectToGame ? 250 : Timeout.Infinite, connectToGame ? 250 : Timeout.Infinite);
 
@@ -282,14 +283,8 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
             start.ArgumentList.Add(pid.ToString(System.Globalization.CultureInfo.InvariantCulture));
             start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             start.ArgumentList.Add(nonce.ToString("x16"));
-            Process process;
-            lock (_gate)
-            {
-                if (_disposed) return;
-                process = Process.Start(start) ?? throw new InvalidOperationException("无法启动游戏覆盖层加载器");
-                _loader = process;
-            }
-            using var loaderLease = process;
+            using var process = StartLoader(start);
+            if (process == null) return;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             timeout.CancelAfter(TimeSpan.FromSeconds(12));
             var output = process.StandardOutput.ReadToEndAsync(timeout.Token);
@@ -324,6 +319,21 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         {
             if (session != null && _session == session) { session.Failed = true; session.View.Write(8, 0); }
         }
+    }
+
+    internal Process? StartLoader(ProcessStartInfo start)
+    {
+        lock (_gate) { if (_disposed) return null; }
+        // Startup can wait on disk/antivirus. Do not hold the gate used by UI polling.
+        var process = StartProcess(start) ?? throw new InvalidOperationException("无法启动游戏覆盖层加载器");
+        lock (_gate)
+        {
+            if (!_disposed) { _loader = process; return process; }
+        }
+        // Disposal may have happened while Process.Start was still running.
+        try { if (!process.HasExited) process.Kill(); }
+        finally { process.Dispose(); }
+        return null;
     }
 
     private static Process? FindGame()

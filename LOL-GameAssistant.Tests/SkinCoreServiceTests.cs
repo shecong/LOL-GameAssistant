@@ -7,6 +7,28 @@ namespace LOL_GameAssistant.Tests;
 
 public sealed class SkinCoreServiceTests
 {
+    [Fact]
+    public async Task DiagnosticSwitchStopsCoreEventFileWrites()
+    {
+        string log = Path.Combine(Path.GetTempPath(), "skin-monitor-" + Guid.NewGuid().ToString("N") + ".jsonl");
+        bool logging = false;
+        var fake = new Fake((args, _) => Task.FromResult(args[0] == "catalog" ? Catalog() : Applied()));
+        var service = new NativeSkinCoreService(fake, log, () => logging); service.SetEnabled(true);
+        try
+        {
+            await service.ApplyAsync(Session, "1:-1");
+            Assert.False(File.Exists(log));
+            logging = true;
+            await service.ApplyAsync(Session, "1:-1");
+            Assert.True(File.Exists(log));
+            long bytes = new FileInfo(log).Length; Assert.True(bytes > 0);
+            logging = false;
+            await service.ApplyAsync(Session, "1:-1");
+            Assert.Equal(bytes, new FileInfo(log).Length);
+        }
+        finally { File.Delete(log); }
+    }
+
     private sealed class RefreshClock
     {
         private readonly System.Threading.Channels.Channel<TaskCompletionSource> _waits =

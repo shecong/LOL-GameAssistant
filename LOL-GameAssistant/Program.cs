@@ -16,7 +16,6 @@ namespace LOL_GameAssistant
             // Complete elevation before acquiring the instance lock or creating any windows.
             using (new StartupDiagnostics("权限检查"))
                 if (!AdminPermissionHelper.EnsureAdminPermission()) return;
-            RuntimeDiagnostics.Report("启动环境", "运行中", $"{System.Runtime.InteropServices.RuntimeInformation.OSDescription} | 进程 {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture} | .NET {Environment.Version}");
             using var processStartup = new StartupDiagnostics("主窗口就绪前");
             TaskbarApplicationIdentity.InitializeProcess();
             ApplicationConfiguration.Initialize();
@@ -44,7 +43,6 @@ namespace LOL_GameAssistant
                 return;
             }
             if (Volatile.Read(ref replaceRequested) != 0) return;
-            RuntimeDiagnostics.ReportStartup();
 
             // 设置全局异常处理
             System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
@@ -56,6 +54,10 @@ namespace LOL_GameAssistant
             Domain.Settings.AssistantSettings startupSettings;
             using (new StartupDiagnostics("服务与设置"))
                 startupSettings = Bootstrap.AppCompositionRoot.ApplicationSettingsStore.Load();
+            RuntimeDiagnostics.SetEnabled(startupSettings.RuntimeDiagnosticsEnabled);
+            NetworkTrafficService.Shared.SetMonitoringEnabled(startupSettings.TrafficMonitoringEnabled);
+            RuntimeDiagnostics.Report("启动环境", "运行中", $"{System.Runtime.InteropServices.RuntimeInformation.OSDescription} | 进程 {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture} | .NET {Environment.Version}");
+            RuntimeDiagnostics.ReportStartup();
             UiTheme.SetMode(startupSettings.ThemeMode);
             AntdUI.Config.IsDark = UiTheme.Palette.IsDark;
             UiLanguage.SetMode(startupSettings.LanguageMode);

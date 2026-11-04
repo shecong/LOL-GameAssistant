@@ -1,3 +1,4 @@
+using LOL.Lounge;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.SignalR;
@@ -41,7 +42,7 @@ public static class LoungeEndpoints
                 SHA256.HashData(Encoding.UTF8.GetBytes(expected)), SHA256.HashData(Encoding.UTF8.GetBytes(actual))))
                 return Results.Unauthorized();
             await store.DeleteAsync(id, context.RequestAborted);
-            await hub.Clients.All.SendAsync("Deleted", id, context.RequestAborted);
+            await hub.Clients.Group(LoungeRules.MessageReadersGroup).SendAsync("Deleted", id, context.RequestAborted);
             return Results.NoContent();
         }).RequireRateLimiting("lounge-connect");
     }

@@ -11,6 +11,7 @@ public enum QuickShoutHotkeyAction { RandomBuiltIn, RandomCustom, SelectedBatch,
 /// </summary>
 public sealed class WindowHoldController : IDisposable
 {
+    private static readonly ForegroundProcessNameCache ForegroundNames = new();
     public const int HotkeyMessage = 0x0312;
     private const int HoldHotkeyId = 0x4C47;
     private const uint ModNoRepeat = 0x4000;
@@ -467,12 +468,8 @@ public sealed class WindowHoldController : IDisposable
         if (foreground == IntPtr.Zero) return false;
         GetWindowThreadProcessId(foreground, out uint pid);
         if (pid == 0) return false;
-        try
-        {
-            using Process process = Process.GetProcessById((int)pid);
-            return names.Any(name => process.ProcessName.Equals(name, StringComparison.OrdinalIgnoreCase));
-        }
-        catch { return false; }
+        string? processName = ForegroundNames.Get((int)pid);
+        return processName != null && names.Any(name => processName.Equals(name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>释放当前对象持有的资源，结束相关事件订阅或后台任务。</summary>

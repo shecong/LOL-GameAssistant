@@ -14,6 +14,13 @@ public sealed class LcuChampionSkinResourceService(ILcuRequestSender lcu, Func<s
     private readonly Dictionary<string, GameAsset> _posters = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<string> _posterOrder = new();
 
+    public async Task<string?> GetModelAsync(int championId, CancellationToken cancellationToken = default)
+    {
+        if (championId <= 0) return null;
+        var champion = Parse(await lcu.GetStringAsync($"/lol-game-data/assets/v1/champions/{championId}.json", cancellationToken).ConfigureAwait(false));
+        return champion?.Value<string>("alias");
+    }
+
     public async Task<IReadOnlyList<ChampionSkinResource>> GetCatalogAsync(string model, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(model)) return [];

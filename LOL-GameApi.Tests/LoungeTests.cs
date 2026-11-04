@@ -18,6 +18,88 @@ namespace LOL_GameApi.Tests;
 public sealed class LoungeTests
 {
     [Fact]
+    public async Task TodayPageUsesClientDayBoundaryAndEmptyTodayStillHasHistoryCursor()
+    {
+        using var folder = new TemporaryFolder(); string path = Path.Combine(folder.Path, "day.db");
+        using var store = new LoungeStore(path);
+        var day = LoungeRules.StartOfDay(DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(8)));
+        var old = (await store.AppendAsync("old", "1", "a", "Alice", "region", "chat", "yesterday"))!;
+        await SetMessageTimeAsync(path, old.Id, day.AddTicks(-1));
+        var empty = await store.ReadDayAsync(day);
+        Assert.Empty(empty.Messages); Assert.True(empty.HasMore); Assert.Equal(long.MaxValue, empty.Before);
+        Assert.Equal(old.Id, Assert.Single((await store.ReadBeforeAsync(empty.Before!.Value)).Messages).Id);
+        var first = (await store.AppendAsync("start", "2", "a", "Alice", "region", "chat", "today"))!;
+        await SetMessageTimeAsync(path, first.Id, day);
+        var next = (await store.AppendAsync("next", "3", "a", "Alice", "region", "chat", "tomorrow"))!;
+        await SetMessageTimeAsync(path, next.Id, day.AddDays(1));
+        var today = await store.ReadDayAsync(day);
+        Assert.Equal(first.Id, Assert.Single(today.Messages).Id);
+        Assert.True(today.HasMore); Assert.Equal(first.Id, today.Before);
+        Assert.Empty((await store.ReadDayAsync(day, first.Id)).Messages);
+    }
+
+    [Fact]
+    public async Task TodayStartsWithBoundedLatestPageAndEarlierMessagesRequireHistoryRequest()
+    {
+        using var folder = new TemporaryFolder(); using var store = new LoungeStore(Path.Combine(folder.Path, "bounded.db"));
+        for (int i = 0; i < 70; i++) await store.AppendAsync($"day-{i}", $"c-{i}", "a", "Alice", "region", "chat", "message");
+        var page = await store.ReadDayAsync(LoungeRules.StartOfDay(DateTimeOffset.Now));
+        Assert.Equal(40, page.Messages.Length); Assert.Equal(31, page.Messages[0].Id); Assert.True(page.HasMore);
+        var older = await store.ReadBeforeAsync(page.Before!.Value);
+        Assert.Equal(30, older.Messages.Length); Assert.False(older.HasMore);
+    }
+
+    [Fact]
+    public async Task ConnectedIdleClientReceivesNoMessagesUntilOpenedAndStopsAgainAfterPause()
+    {
+        using var folder = new TemporaryFolder();
+        var builder = WebApplication.CreateBuilder(); builder.Logging.ClearProviders();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Lounge:DatabasePath"] = Path.Combine(folder.Path, "lazy.db") });
+        builder.AddLounge();
+        builder.Services.AddRateLimiter(o => o.AddPolicy("lounge-connect", _ =>
+            System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("test")));
+        await using var app = builder.Build();
+        app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapLounge(); await app.StartAsync();
+        string address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+        await using var viewer = Connect(address, Convert.ToHexString(RandomNumberGenerator.GetBytes(32)));
+        var received = System.Threading.Channels.Channel.CreateUnbounded<LoungeMessage>();
+        viewer.On<LoungeMessage>("Message", message => received.Writer.TryWrite(message));
+        await viewer.StartAsync();
+        Assert.Empty((await viewer.InvokeAsync<LoungeSnapshot>("ConnectOnly")).Messages);
+        var store = app.Services.GetRequiredService<LoungeStore>();
+        var hub = app.Services.GetRequiredService<IHubContext<LoungeHub>>();
+        async Task<LoungeMessage> Broadcast(string key)
+        {
+            var message = (await store.AppendAsync(key, key, "a", "Alice", "region", "chat", key))!;
+            await hub.Clients.Group(LoungeRules.MessageReadersGroup).SendAsync("Message", message);
+            return message;
+        }
+        await Broadcast("idle");
+        using (var idleTimeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(200)))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => received.Reader.ReadAsync(idleTimeout.Token).AsTask());
+        var opened = await viewer.InvokeAsync<LoungeSnapshot>("OpenMessages", LoungeRules.StartOfDay(DateTimeOffset.Now));
+        Assert.Equal("idle", Assert.Single(opened.Messages).Text);
+        var live = await Broadcast("active");
+        Assert.Equal(live.Id, (await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Id);
+        await viewer.InvokeAsync("PauseMessages");
+        await Broadcast("paused");
+        using (var pausedTimeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(200)))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => received.Reader.ReadAsync(pausedTimeout.Token).AsTask());
+        var reopened = await viewer.InvokeAsync<LoungeSnapshot>("OpenMessages", LoungeRules.StartOfDay(DateTimeOffset.Now));
+        Assert.Equal(3, reopened.Messages.Length);
+        await app.StopAsync();
+    }
+
+    private static async Task SetMessageTimeAsync(string path, long id, DateTimeOffset at)
+    {
+        using var db = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=" + path); await db.OpenAsync();
+        using var command = db.CreateCommand(); command.CommandText = "UPDATE messages SET sentAt=$at WHERE id=$id";
+        command.Parameters.AddWithValue("$at", at.ToUniversalTime().ToString("O")); command.Parameters.AddWithValue("$id", id);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    [Fact]
     public async Task OnlineNoticesAreNotStoredAndLegacyRowsDoNotConsumeHistoryPages()
     {
         using var folder = new TemporaryFolder();
@@ -131,6 +213,8 @@ public sealed class LoungeTests
         await using var bob = Connect(address, bobToken);
         await alice.StartAsync();
         await bob.StartAsync();
+        await alice.InvokeAsync<LoungeSnapshot>("Sync", 0L);
+        await bob.InvokeAsync<LoungeSnapshot>("Sync", 0L);
         var online = new TaskCompletionSource<LoungeOnlineNotice>(TaskCreationOptions.RunContinuationsAsynchronously);
         int onlineCount = 0;
         bob.On<LoungeOnlineNotice>("Online", notice => { Interlocked.Increment(ref onlineCount); online.TrySetResult(notice); });
@@ -262,6 +346,9 @@ public sealed class LoungeTests
         await using var carol = Connect(address, Convert.ToHexString(RandomNumberGenerator.GetBytes(32)));
         await using var invalid = Connect(address, Convert.ToHexString(RandomNumberGenerator.GetBytes(32)));
         await alice.StartAsync(); await bob.StartAsync(); await carol.StartAsync(); await invalid.StartAsync();
+        await alice.InvokeAsync<LoungeSnapshot>("Sync", 0L);
+        await bob.InvokeAsync<LoungeSnapshot>("Sync", 0L);
+        await carol.InvokeAsync<LoungeSnapshot>("Sync", 0L);
         var player = new LoungePresence("alice", "Alice#123", "HN1", "艾欧尼亚", "在线");
         var bobPlayer = player with { Puuid = "bob", Name = "Bob#456" };
         await alice.InvokeAsync("UpdatePresence", player);

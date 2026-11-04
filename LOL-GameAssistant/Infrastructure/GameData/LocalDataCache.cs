@@ -17,6 +17,7 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
     private readonly ConcurrentDictionary<string, Entry> _memory = new();
     private readonly ConcurrentDictionary<(int Generation, string Key, string? Context), Lazy<Task<T?>>> _pending = new();
     private readonly object _sync = new();
+    private readonly object _diskSync = new();
     private int _generation;
     private sealed class RequestOrder { public long Latest; public int Active; }
     private readonly Dictionary<(int Generation, string Key), RequestOrder> _orders = new();
@@ -100,11 +101,18 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
             }
             try
             {
-                await using var stream = File.OpenRead(file);
-                // 缓存是可重建数据；异常大的文件不参与反序列化，直接转入重新加载流程。
-                if (stream.Length <= 8 * 1024 * 1024)
+                // A fresh in-memory fallback already covers offline recovery. Avoid rereading
+                // the same JSON on every player refresh. Cold disk work never runs on the UI.
+                if (fallback == null)
                 {
-                    var entry = await JsonSerializer.DeserializeAsync<Entry>(stream).ConfigureAwait(false);
+                    var entry = await Task.Run(() =>
+                    {
+                        lock (_diskSync)
+                        {
+                            using var stream = File.OpenRead(file);
+                            return stream.Length <= 8 * 1024 * 1024 ? JsonSerializer.Deserialize<Entry>(stream) : null;
+                        }
+                    }).ConfigureAwait(false);
                     if (entry != null && Fresh(entry))
                     {
                         lock (_sync)
@@ -132,28 +140,32 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
             if (value == null || !_valid(value)) return fallback ?? value;
             var saved = new Entry(_clock.GetUtcNow(), value);
             lock (_sync) { if (CanRemember()) Remember(key, saved); }
-            string temporary = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
+            await Task.Run(async () =>
             {
-                Directory.CreateDirectory(_directory);
-                await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(saved)).ConfigureAwait(false);
-                // 内容完整写入临时文件后再替换正式缓存，减少进程中断留下半份 JSON 的风险。
-                lock (_sync)
+                string temporary = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
                 {
-                    // 清理前开始的下载可返回给原调用者，但不能把旧数据重新写回缓存。
-                    if (CanRemember())
+                    Directory.CreateDirectory(_directory);
+                    await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(saved)).ConfigureAwait(false);
+                    // 内容完整写入临时文件后再替换正式缓存，减少进程中断留下半份 JSON 的风险。
+                    lock (_diskSync)
+                    lock (_sync)
                     {
-                        File.Move(temporary, file, overwrite: true);
-                        Remember(key, saved);
+                        // 清理前开始的下载可返回给原调用者，但不能把旧数据重新写回缓存。
+                        if (CanRemember())
+                        {
+                            File.Move(temporary, file, overwrite: true);
+                            Remember(key, saved);
+                        }
                     }
                 }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-            finally
-            {
-                try { if (File.Exists(temporary)) File.Delete(temporary); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-            }
+                finally
+                {
+                    try { if (File.Exists(temporary)) File.Delete(temporary); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                }
+            }).ConfigureAwait(false);
             return value;
         }
         // 无论读取成功、失败还是抛出异常，都允许同一键后续重新发起加载。
@@ -170,17 +182,22 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
 
     public (int Entries, long Bytes) MeasureMemory()
     {
-        lock (_sync) return (_memory.Count, _memory.Values.Sum(entry => (long)JsonSerializer.SerializeToUtf8Bytes(entry.Value).Length));
+        Entry[] snapshot;
+        lock (_sync) snapshot = _memory.Values.ToArray();
+        return (snapshot.Length, snapshot.Sum(entry => (long)JsonSerializer.SerializeToUtf8Bytes(entry.Value).Length));
     }
     public void Clear()
     {
-        lock (_sync)
+        lock (_diskSync)
         {
             LOL_GameAssistant.Infrastructure.Files.CacheFiles.ValidateRoot(_directory);
-            _generation++;
-            _memory.Clear();
-            _pending.Clear();
-            _orders.Clear();
+            lock (_sync)
+            {
+                _generation++;
+                _memory.Clear();
+                _pending.Clear();
+                _orders.Clear();
+            }
             var result = LOL_GameAssistant.Infrastructure.Files.CacheFiles.Clear(_directory, CancellationToken.None);
             if (result.Errors > 0) throw new IOException($"{result.Errors} 个缓存文件无法清理。");
         }

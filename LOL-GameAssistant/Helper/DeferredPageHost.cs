@@ -115,7 +115,7 @@ internal sealed class DeferredPageHost : UserControl, IThemeAware
                 _loaded = true;
             }
             finally { ResumeLayout(true); }
-            UiLanguage.Refresh();
+            UiLanguage.Refresh(page);
         }
         catch (Exception ex)
         {

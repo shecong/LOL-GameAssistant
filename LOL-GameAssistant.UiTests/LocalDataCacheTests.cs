@@ -16,6 +16,45 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class LocalDataCacheTests
 {
     [Fact]
+    public async Task MeasuringLargeEntriesDoesNotBlockMemoryCacheHits()
+    {
+        using var folder = new CacheFolder();
+        using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+        var value = new MeasuredPayload();
+        var cache = new LocalDataCache<MeasuredPayload>(folder.Path, TimeSpan.FromHours(1), _ => true);
+        await cache.GetAsync("key", () => Task.FromResult<MeasuredPayload?>(value));
+        value.OnRead = () => { entered.Set(); if (!release.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException(); };
+        var measurement = Task.Run(cache.MeasureMemory);
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+            var hit = Task.Run(() => cache.GetAsync("key", () => throw new InvalidOperationException("must use memory")));
+            Assert.Same(value, await hit.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+        finally { release.Set(); }
+        Assert.Equal(1, (await measurement).Entries);
+    }
+
+    [Fact]
+    public void RefreshWithMemoryFallbackSerializesOutsideUiThread() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var folder = new CacheFolder();
+        var cache = new LocalDataCache<MeasuredPayload>(folder.Path, TimeSpan.FromHours(1), _ => true);
+        cache.GetAsync("key", () => Task.FromResult<MeasuredPayload?>(new())).GetAwaiter().GetResult();
+        int uiThread = Environment.CurrentManagedThreadId, serializerThread = 0;
+        var refreshed = new MeasuredPayload { OnRead = () => serializerThread = Environment.CurrentManagedThreadId };
+        cache.GetLatestOrCachedAsync("key", () => Task.FromResult<MeasuredPayload?>(refreshed)).GetAwaiter().GetResult();
+        Assert.NotEqual(0, serializerThread);
+        Assert.NotEqual(uiThread, serializerThread);
+    });
+
+    public sealed class MeasuredPayload
+    {
+        [System.Text.Json.Serialization.JsonIgnore] public Action? OnRead { get; set; }
+        public string Value { get { OnRead?.Invoke(); return "cached"; } set { } }
+    }
+
+    [Fact]
     public async Task RankedCachePreservesUnavailableRecordsAndRemembersCurrentPlayer()
     {
         using var folder = new CacheFolder();

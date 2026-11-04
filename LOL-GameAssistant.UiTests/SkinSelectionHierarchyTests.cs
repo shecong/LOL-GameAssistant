@@ -70,7 +70,7 @@ public sealed class SkinSelectionHierarchyTests
         using var bridge = new RecordingGameOverlay();
         using var picker = new SkinPickerOverlayController(() => true, id => page.SelectOverlayEntryAsync(id).GetAwaiter().GetResult(), () => { }, () => { }, bridge);
         typeof(SkinToolsForm).GetField("_skinPicker", Private)!.SetValue(page, picker);
-        void Update() => typeof(SkinToolsForm).GetMethod("UpdateSkinPicker", Private)!.Invoke(page, null);
+        void Update() => typeof(SkinToolsForm).GetMethod("UpdateSkinPicker", Private)!.Invoke(page, [true]);
         Update(); picker.ShowOverGame(Rectangle.Empty);
         var panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
         Assert.Equal(2, panel.Items!.Count);
@@ -99,7 +99,7 @@ public sealed class SkinSelectionHierarchyTests
         using var bridge = new RecordingGameOverlay();
         using var picker = new SkinPickerOverlayController(() => true, id => page.SelectOverlayEntryAsync(id).GetAwaiter().GetResult(), () => { }, () => { }, bridge);
         typeof(SkinToolsForm).GetField("_skinPicker", Private)!.SetValue(page, picker);
-        typeof(SkinToolsForm).GetMethod("UpdateSkinPicker", Private)!.Invoke(page, null);
+        typeof(SkinToolsForm).GetMethod("UpdateSkinPicker", Private)!.Invoke(page, [true]);
         picker.ShowOverGame(Rectangle.Empty);
         var panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
         Assert.Null(panel.Submenu);

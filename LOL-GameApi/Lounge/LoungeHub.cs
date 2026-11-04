@@ -36,16 +36,43 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
         {
             var player = room.Get(Context.ConnectionId);
             // Presence notices are live events, never part of the persisted message timeline.
-            await Clients.All.SendAsync("Online", new LoungeOnlineNotice(player.Name, player.Region, player.Rank), Context.ConnectionAborted);
+            await Clients.Group(LoungeRules.MessageReadersGroup).SendAsync("Online", new LoungeOnlineNotice(player.Name, player.Region, player.Rank), Context.ConnectionAborted);
         }
     }
 
     public async Task<LoungeSnapshot> Sync(long after)
     {
         room.Check(Session, "sync", 30, TimeSpan.FromMinutes(1));
+        // Older clients explicitly Sync on startup; preserve their live subscription.
+        await Groups.AddToGroupAsync(Context.ConnectionId, LoungeRules.MessageReadersGroup);
         return new(await store.ReadAsync(Math.Max(LoungeRules.BeforeFirstMessage, after), Context.ConnectionAborted), room.Members(),
             await store.ReadDeletedIdsAsync(Context.ConnectionAborted), LoungeRules.ProtocolVersion,
             await store.ReadRecruitmentsAsync(Context.ConnectionAborted));
+    }
+
+    public LoungeSnapshot ConnectOnly()
+    {
+        room.Check(Session, "sync", 30, TimeSpan.FromMinutes(1));
+        return new([], room.Members(), ProtocolVersion: LoungeRules.ProtocolVersion);
+    }
+
+    public async Task<LoungeSnapshot> OpenMessages(DateTimeOffset dayStart)
+    {
+        room.Check(Session, "sync", 30, TimeSpan.FromMinutes(1));
+        await Groups.AddToGroupAsync(Context.ConnectionId, LoungeRules.MessageReadersGroup);
+        var page = await store.ReadDayAsync(dayStart, token: Context.ConnectionAborted);
+        return new(page.Messages, room.Members(), await store.ReadDeletedIdsAsync(Context.ConnectionAborted),
+            LoungeRules.ProtocolVersion, await store.ReadRecruitmentsAsync(Context.ConnectionAborted), page.Before, page.HasMore);
+    }
+
+    public Task PauseMessages() => Groups.RemoveFromGroupAsync(Context.ConnectionId, LoungeRules.MessageReadersGroup);
+
+    public async Task<LoungeSnapshot> SyncToday(long after, DateTimeOffset dayStart)
+    {
+        room.Check(Session, "sync", 30, TimeSpan.FromMinutes(1));
+        var page = await store.ReadDayAsync(dayStart, after, Context.ConnectionAborted);
+        return new(page.Messages, room.Members(), await store.ReadDeletedIdsAsync(Context.ConnectionAborted),
+            LoungeRules.ProtocolVersion, await store.ReadRecruitmentsAsync(Context.ConnectionAborted));
     }
 
     public Task<LoungeHistoryPage> History(long before)
@@ -67,11 +94,11 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
             throw new HubException("提及的成员已离线，请重新选择。");
         var message = await store.AppendAsync($"chat:{Session}:{request.ClientId}", request.ClientId,
             Session, player.Name, player.Region, content.kind, content.text, Context.ConnectionAborted, LoungeRules.PlayerId(player));
-        await Clients.All.SendAsync("Message", message);
+        await Clients.Group(LoungeRules.MessageReadersGroup).SendAsync("Message", message);
         if (content.kind == "recruit")
         {
             var state = (await store.ReadRecruitmentsAsync(Context.ConnectionAborted)).FirstOrDefault(s => s.MessageId == message!.Id);
-            if (state != null) await Clients.All.SendAsync("Recruitment", state);
+            if (state != null) await Clients.Group(LoungeRules.MessageReadersGroup).SendAsync("Recruitment", state);
         }
         return message!;
     }
@@ -94,7 +121,7 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
                 new(LoungeRules.PlayerId(player), player.Name, player.Region, player.Status, player.Rank), action, Context.ConnectionAborted);
         }
         catch (ArgumentException ex) { throw new HubException(ex.Message); }
-        await Clients.All.SendAsync("Recruitment", state);
+        await Clients.Group(LoungeRules.MessageReadersGroup).SendAsync("Recruitment", state);
         return state;
     }
 
@@ -116,7 +143,7 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
         };
         var message = await store.AppendAsync($"highlight:{LoungeRules.PlayerId(player)}:{request.GameId}:{request.Kind}", "",
             Session, player.Name, player.Region, "highlight", $"🏆 【{player.Name}】（{player.Region}）在【{mode}】{achievement}", Context.ConnectionAborted);
-        if (message != null) await Clients.All.SendAsync("Message", message);
+        if (message != null) await Clients.Group(LoungeRules.MessageReadersGroup).SendAsync("Message", message);
     }
 
     public async Task ReportVictory(LoungeVictory request)
@@ -134,6 +161,6 @@ public sealed class LoungeHub(LoungeRoom room, LoungeStore store, ILogger<Lounge
         string together = party.Length == 0 ? "" : $"与【{string.Join("】、【", party)}】组队开黑，";
         var message = await store.AppendAsync(key, "", Session, player.Name, player.Region, "victory",
             $"🎉 【{player.Name}】（{player.Region}）{together}拿下了一场【{mode}】胜利！漂亮，下一把继续！", Context.ConnectionAborted);
-        if (message != null) await Clients.All.SendAsync("Message", message);
+        if (message != null) await Clients.Group(LoungeRules.MessageReadersGroup).SendAsync("Message", message);
     }
 }

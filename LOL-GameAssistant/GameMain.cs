@@ -321,7 +321,7 @@ namespace LOL_GameAssistant
             // 托盘与窗口事件先挂好：它们不依赖 LCU/网络，
             // 若放在 await 之后，客户端探测卡住时这段时间窗口既没有托盘图标也没有关闭拦截。
             InitializeTray();
-            VisibleChanged += (_, _) => UpdateTrayVisibility();
+            VisibleChanged += (_, _) => { UpdateTrayVisibility(); UpdateLoungeMessageActivity(); };
             FormClosing += GameMain_FormClosing;
             Resize += GameMain_Resize;
             tabs1.SelectedIndexChanged += Tabs1_SelectedIndexChanged;
@@ -393,6 +393,7 @@ namespace LOL_GameAssistant
         /// </summary>
         private void Tabs1_SelectedIndexChanged(object? sender, EventArgs e)
         {
+            UpdateLoungeMessageActivity();
             if (tabs1.SelectedIndex == LiveGameTabIndex)
             {
                 _ = liveGameForm.AddView(force: true);
@@ -403,6 +404,10 @@ namespace LOL_GameAssistant
                 _ = coachForm.RefreshRecommendationAsync(manual: false);
             }
         }
+
+        private void UpdateLoungeMessageActivity() => _lounge.SetMessagesActive(
+            !IsDisposed && Visible && WindowState != FormWindowState.Minimized &&
+            tabs1.SelectedIndex >= 0 && tabs1.SelectedIndex < tabs1.Pages.Count && tabs1.Pages[tabs1.SelectedIndex] == _loungeTab);
 
         /// <summary>
         /// 用 LCU 返回的阶段字符串更新全局阶段与表头显示。
@@ -423,7 +428,7 @@ namespace LOL_GameAssistant
             }
             if (expectedRevision.HasValue && expectedRevision.Value != GameFlowRevision) return;
             gameFlowPhase = parsed;
-            _skinTools.OnGamePhaseChanged(parsed == GameFlowPhase.InProgress);
+            _skinTools.OnGamePhaseChanged(parsed == GameFlowPhase.InProgress, parsed == GameFlowPhase.ChampSelect);
             Interlocked.Increment(ref _gameFlowRevision);
             gameFlowPhaseName.Text = parsed.GetChineseName();
         }
@@ -723,7 +728,11 @@ namespace LOL_GameAssistant
             else if (string.Equals(gameEvent.Uri, "/lol-champ-select/v1/session", StringComparison.Ordinal))
             {
                 var selection = Infrastructure.LeagueClient.ChampionSelectionSnapshotMapper.ParseEvent(gameEvent.Data);
-                if (selection != null) _champSelectCompanion.ObserveChampionSelection(selection);
+                if (selection != null)
+                {
+                    _champSelectCompanion.ObserveChampionSelection(selection);
+                    RunOnUiThread(() => _ = _skinTools.ObserveChampionSelectionAsync(selection));
+                }
             }
         }
 
@@ -768,7 +777,7 @@ namespace LOL_GameAssistant
             if (Enum.TryParse(statustype, true, out GameFlowPhase parsedPhase))
             {
                 gameFlowPhase = parsedPhase;
-                _skinTools.OnGamePhaseChanged(parsedPhase == GameFlowPhase.InProgress);
+                _skinTools.OnGamePhaseChanged(parsedPhase == GameFlowPhase.InProgress, parsedPhase == GameFlowPhase.ChampSelect);
                 // 离开结束状态后重置“已通知”标记，保证下一局还能再次提醒
                 if (parsedPhase != GameFlowPhase.WaitingForStats && parsedPhase != GameFlowPhase.EndOfGame)
                 {
@@ -1148,6 +1157,7 @@ namespace LOL_GameAssistant
                 // 再也不提示 OP.GG，而界面上没有任何反馈。
                 try
                 {
+                    await _skinTools.ObserveChampionSelectionAsync(await _championSelectService.GetSessionAsync(cancellationToken), cancellationToken);
                     AssistantSettings buildSettings = _settingsStore.Load();
                     if (buildSettings.OpggBuildAssistantEnabled || buildSettings.AutoApplyRuneBuild)
                         await coachForm.PromptOpggBuildIfNeededAsync(cancellationToken);
@@ -1447,6 +1457,7 @@ namespace LOL_GameAssistant
         /// </summary>
         private void GameMain_Resize(object? sender, EventArgs e)
         {
+            UpdateLoungeMessageActivity();
             // 从托盘恢复时会先改 WindowState 再 Show()，这一瞬间不能把窗口又藏回去
             if (!_startupCompleted || _restoringFromTray) return;
 

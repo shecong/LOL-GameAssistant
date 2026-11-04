@@ -14,6 +14,9 @@ namespace LOL_GameAssistant.Helper;
 /// </summary>
 public static class RuntimeDiagnostics
 {
+    private static int _enabled;
+    public static bool Enabled => Volatile.Read(ref _enabled) != 0;
+    public static void SetEnabled(bool enabled) => Interlocked.Exchange(ref _enabled, enabled ? 1 : 0);
     private static readonly ConcurrentDictionary<string, DiagnosticEntry> Entries = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object LogSync = new();
 
@@ -37,6 +40,7 @@ public static class RuntimeDiagnostics
 
     public static void ReportSkinCoreFailure(SkinCoreException error)
     {
+        if (!Enabled) return;
         string reason = error.Code switch
         {
             "message_post_failed" when error.Details?.Win32 == 5 => "发送消息被拒绝访问，请检查助手与游戏的权限级别及网吧管控策略。",
@@ -76,6 +80,7 @@ public static class RuntimeDiagnostics
     }
     public static void ReportStartup()
     {
+        if (!Enabled) return;
         var assembly = System.Reflection.Assembly.GetEntryAssembly() ?? typeof(RuntimeDiagnostics).Assembly;
         string version = assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
             .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion
@@ -88,6 +93,7 @@ public static class RuntimeDiagnostics
     /// <summary>记录一条运行诊断状态并通知订阅者。</summary>
     public static void Report(string component, string status, string detail)
     {
+        if (!Enabled) return;
         var entry = new DiagnosticEntry(component, status, detail, DateTimeOffset.Now);
         bool changed = !Entries.TryGetValue(component, out DiagnosticEntry? previous) ||
             previous.Status != status || previous.Detail != detail;
@@ -103,6 +109,7 @@ public static class RuntimeDiagnostics
     /// <summary>将异常信息写入运行日志。</summary>
     public static void WriteException(Exception exception)
     {
+        if (!Enabled) return;
         string native = "";
         if (exception is Win32Exception error)
         {
@@ -130,6 +137,7 @@ public static class RuntimeDiagnostics
             if (safe.Length > 4000) safe = safe[..4000] + "…";
             lock (LogSync)
             {
+                if (!Enabled) return;
                 Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
                 if (File.Exists(LogPath) && new FileInfo(LogPath).Length > 1024 * 1024)
                     File.Move(LogPath, LogPath + ".old", overwrite: true);
@@ -141,7 +149,7 @@ public static class RuntimeDiagnostics
 
     /// <summary>返回当前诊断记录的快照，供界面展示。</summary>
     public static IReadOnlyList<DiagnosticEntry> Snapshot() =>
-        Entries.Values.OrderBy(entry => entry.Component, StringComparer.OrdinalIgnoreCase).ToArray();
+        Enabled ? Entries.Values.OrderBy(entry => entry.Component, StringComparer.OrdinalIgnoreCase).ToArray() : [];
 }
 
 /// <summary>运行诊断中的一条状态记录。</summary>

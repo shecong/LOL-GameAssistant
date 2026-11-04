@@ -57,11 +57,12 @@ public static class AppCompositionRoot
         new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreService(
             new LOL_GameAssistant.Infrastructure.Skins.SelectableSkinCoreTransport(
                 new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCore"),
-                    diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure),
+                    diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure, diagnosticsEnabled: () => RuntimeDiagnostics.Enabled),
                 new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCoreHybrid"), kernelRelay: true,
-                    diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure),
+                    diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure, diagnosticsEnabled: () => RuntimeDiagnostics.Enabled),
                 new LegacyApplicationSettingsStore().Load().SkinCoreMode),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"));
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"),
+            loggingEnabled: () => RuntimeDiagnostics.Enabled);
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
     public static IPlayerGrowthService CreateRegionalGrowthService(IMatchHistoryService matches, string platform) =>
         new LcuPlayerGrowthService(matches, ChampionCatalog, LcuRequestSender,

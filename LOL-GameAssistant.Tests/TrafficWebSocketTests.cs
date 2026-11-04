@@ -13,7 +13,7 @@ public sealed class TrafficWebSocketTests
     [Fact]
     public async Task DisabledSocketNeverConnects()
     {
-        var traffic = new NetworkTrafficService();
+        var traffic = new NetworkTrafficService(monitoringEnabled: true);
         traffic.SetEnabled(NetworkModule.Lounge, false);
         using var socket = new TrafficWebSocket(NetworkModule.Lounge, new ClientWebSocket(), traffic);
         await Assert.ThrowsAsync<HttpRequestException>(() => socket.ConnectAsync(new Uri("ws://127.0.0.1:1/"), default));
@@ -24,7 +24,7 @@ public sealed class TrafficWebSocketTests
     [Fact]
     public async Task ConnectedSocketCountsPayloadAndDisablingAbortsAnIdleReceive()
     {
-        var traffic = new NetworkTrafficService();
+        var traffic = new NetworkTrafficService(monitoringEnabled: true);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();

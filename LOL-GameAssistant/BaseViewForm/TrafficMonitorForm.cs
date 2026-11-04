@@ -1,10 +1,14 @@
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Application.Settings;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
 public sealed class TrafficMonitorForm : UserControl, IThemeAware
 {
     private readonly NetworkTrafficService _traffic;
+    private readonly IApplicationSettingsStore _settings;
+    private readonly AntdUI.Switch _monitoring = new() { Name = "TrafficMonitoringEnabled", Width = 52, Height = 30 };
+    private bool _updatingMonitoring;
     private readonly AntdUI.Table _grid = new()
     {
         Name = "networkTrafficTable", Dock = DockStyle.Fill, Bordered = true,
@@ -18,16 +22,19 @@ public sealed class TrafficMonitorForm : UserControl, IThemeAware
     private bool _refreshing;
 
     public TrafficMonitorForm() : this(NetworkTrafficService.Shared) { }
-    public TrafficMonitorForm(NetworkTrafficService traffic)
+    public TrafficMonitorForm(NetworkTrafficService traffic, IApplicationSettingsStore? settings = null)
     {
         _traffic = traffic;
+        _settings = settings ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ApplicationSettingsStore;
+        _monitoring.Checked = _settings.Load().TrafficMonitoringEnabled;
+        _traffic.SetMonitoringEnabled(_monitoring.Checked);
         Dock = DockStyle.Fill;
         Font = new Font(UiMetrics.FontFamily, 9F);
         Padding = new Padding(8);
         var hint = new AntdUI.Label
         {
             Dock = DockStyle.Top, Height = 100, TextMultiLine = true, Padding = new Padding(8),
-            Text = "流量监控与网络管控\n关闭开关立即拦截新请求并取消进行中的访问；设置自动保存，本地缓存仍可读取。\n统计本次运行的 HTTP / WebSocket 正文，不含协议开销；本机通信单独列出，不代表游戏客户端自身的公网流量。"
+            Text = "流量监控与网络管控\n流量监控默认关闭，仅统计开启期间的流量。表格中的“允许联网”开关独立控制访问权限。\n统计 HTTP / WebSocket 正文，不含协议开销；本机通信单独列出，不代表游戏客户端自身的公网流量。"
         };
         var actions = new FlowLayoutPanel { Name = "networkTrafficActions", Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4), WrapContents = true };
         var weak = new AntdUI.Button { Text = "弱网模式（关闭可选公网）", AutoSize = true };
@@ -56,11 +63,40 @@ public sealed class TrafficMonitorForm : UserControl, IThemeAware
         Controls.Add(_summary);
         Controls.Add(actions);
         Controls.Add(hint);
+        var monitoringRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 54, Padding = new Padding(8), WrapContents = false };
+        monitoringRow.Controls.Add(new AntdUI.Label { Text = "启用流量监控", Width = 140, Height = 30 });
+        monitoringRow.Controls.Add(_monitoring);
+        Controls.Add(monitoringRow);
+        _monitoring.CheckedChanged += (_, _) => ToggleMonitoring();
         _timer.Tick += (_, _) => RefreshSnapshot();
-        VisibleChanged += (_, _) => { if (Visible) { RefreshSnapshot(); _timer.Start(); } else _timer.Stop(); };
+        VisibleChanged += (_, _) => UpdateMonitoringActivity();
         Disposed += (_, _) => _timer.Dispose();
-        RefreshSnapshot();
+        UpdateMonitoringActivity();
         UiTheme.Apply(this);
+    }
+    private void ToggleMonitoring()
+    {
+        if (_updatingMonitoring) return;
+        try
+        {
+            var settings = _settings.Load(); settings.TrafficMonitoringEnabled = _monitoring.Checked;
+            _settings.Save(settings);
+            _traffic.SetMonitoringEnabled(_monitoring.Checked);
+            UpdateMonitoringActivity();
+        }
+        catch (Exception error)
+        {
+            _updatingMonitoring = true;
+            try { _monitoring.Checked = _traffic.MonitoringEnabled; } finally { _updatingMonitoring = false; }
+            _summary.Text = "保存流量监控设置失败：" + error.Message;
+        }
+    }
+    private void UpdateMonitoringActivity()
+    {
+        if (IsDisposed || Disposing) return;
+        _timer.Enabled = Visible && _traffic.MonitoringEnabled;
+        _previous.Clear(); _lastTick = Environment.TickCount64;
+        RefreshSnapshot();
     }
     private void ChangeAll(bool enabled, bool publicOnly)
     {
@@ -91,6 +127,7 @@ public sealed class TrafficMonitorForm : UserControl, IThemeAware
             }
             var external = snapshots.Where(s => !s.Info.Local).ToArray();
             _summary.Text = $"公网：↑ {FormatBytes(external.Sum(s => s.Uploaded))}  ↓ {FormatBytes(external.Sum(s => s.Downloaded))}    本机：{FormatBytes(snapshots.Where(s => s.Info.Local).Sum(s => s.Uploaded + s.Downloaded))}    已关闭 {snapshots.Count(s => !s.Enabled)} 个模块    已拦截 {snapshots.Sum(s => s.Blocked):N0} 次";
+            if (!_traffic.MonitoringEnabled) _summary.Text = "流量监控已关闭，不统计流量；各模块联网权限仍然生效。";
         }
         finally { _refreshing = false; }
     }

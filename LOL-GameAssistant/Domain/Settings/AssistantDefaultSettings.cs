@@ -5,6 +5,8 @@ public static class AssistantDefaultSettings
 {
     public static AssistantSettings Create() => new()
     {
+        TrafficMonitoringEnabled = false,
+        RuntimeDiagnosticsEnabled = false,
         AutoLaunchGameClient = true,
         TclsAutoLoginEnabled = true,
         SkinCoreEnabled = true,
@@ -46,7 +48,7 @@ public static class AssistantDefaultSettings
         AutoReturnToLobby = false,
         AutoReturnStartMatchmaking = false,
         AutoHonor = false,
-        AutoApplyRuneBuild = true,
+        AutoApplyRuneBuild = false,
         MayhemOverlayEnabled = true,
         ChampSelectCompanionEnabled = true,
         EnemyJungleRouteEnabled = true,

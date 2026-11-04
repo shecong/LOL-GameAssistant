@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 namespace LOL_GameAssistant.Infrastructure.Lounge;
 
 /// <summary>Application-owned background lifetime; UI pages only observe a bounded snapshot.</summary>
-public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
+public sealed partial class LoungeClient(LoungeLcuReader local) : IDisposable
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _configuration = new(1, 1);
@@ -55,6 +55,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
         var hub = _hub;
         if (SupportsHistory && hub?.State == HubConnectionState.Connected)
         {
+            if (!MessagesActive) throw new OperationCanceledException("休息室已关闭，停止加载历史消息。", token);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(TimeSpan.FromSeconds(12));
             return await hub.InvokeAsync<LoungeHistoryPage>("History", before, timeout.Token);
@@ -103,7 +104,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
         {
             var current = _presence;
             var published = _publishedPresence;
-            return _hub?.State == HubConnectionState.Connected && current != null && published != null &&
+            return MessagesActive && _initialSync && _hub?.State == HubConnectionState.Connected && current != null && published != null &&
                 !string.IsNullOrEmpty(current.Puuid) && published.Puuid == current.Puuid && published.Platform == current.Platform;
         }
     }
@@ -143,6 +144,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
             if (serverChanged)
             {
                 lock (_gate) { _messages.Clear(); _onlineMessages.Clear(); _onlineNotice = null; _recruitments.Clear(); _members = []; _deleted.Clear(); _cursor = 0; _initialSync = false; _inbox.Clear(); }
+                ResetMessageWindow();
             }
             Start();
         }
@@ -174,8 +176,9 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
             throw new InvalidOperationException("服务器版本过旧，仅支持普通文字。请更新服务器上的 LOL-GameApi 后重新连接，才能发送表情包、招募和提及。");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(12));
+        long epoch = MessageEpoch;
         var message = await hub.InvokeAsync<LoungeMessage>(post.Kind == "recruit" ? "PublishRecruitment" : "SendMessage", post, timeout.Token);
-        Receive(message, false);
+        lock (_gate) if (MessagesActive && epoch == MessageEpoch) Receive(message, false);
     }
 
     public async Task ChangeRecruitmentAsync(long id, string action, CancellationToken token = default)
@@ -280,10 +283,11 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                     };
                 }).Build();
                 hub.ServerTimeout = TimeSpan.FromSeconds(45);
-                hub.On<LoungeMessage>("Message", message => Receive(message, _initialSync));
-                hub.On<LoungeOnlineNotice>("Online", ReceiveOnline);
+                hub.On<LoungeMessage>("Message", ReceiveLiveMessage);
+                hub.On<LoungeOnlineNotice>("Online", notice => { lock (_gate) if (MessagesActive) ReceiveOnline(notice); });
                 hub.On<LoungeRecruitmentState>("Recruitment", state =>
                 {
+                    if (!MessagesActive) return;
                     LoungeRecruitmentState? previous;
                     lock (_gate) _recruitments.TryGetValue(state.MessageId, out previous);
                     ReceiveRecruitment(state);
@@ -294,7 +298,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                     }
                 });
                 hub.On<LoungeMember[]>("Members", UpdateMembers);
-                hub.On<long>("Deleted", DeleteLocal);
+                hub.On<long>("Deleted", id => { lock (_gate) if (MessagesActive) DeleteLocal(id); });
                 _hub = hub;
                 SetStatus(failures == 0 ? "正在连接聊天室…" : "正在重新连接聊天室…");
                 using (var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -306,24 +310,42 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                 using (var syncTimeout = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
                     syncTimeout.CancelAfter(TimeSpan.FromSeconds(20));
-                    await SyncAsync(hub, syncTimeout.Token);
+                    try
+                    {
+                        var greeting = await hub.InvokeAsync<LoungeSnapshot>("ConnectOnly", syncTimeout.Token);
+                        _protocolVersion = greeting.ProtocolVersion;
+                        UpdateMembers(greeting.Members);
+                    }
+                    catch (Microsoft.AspNetCore.SignalR.HubException)
+                    {
+                        _protocolVersion = 1; // Keep the connection; never fall back to eager history loading.
+                    }
                 }
-                int ticks = 0;
+                bool subscribed = false;
+                long nextPresence = 0, nextSync = 0;
                 while (hub.State == HubConnectionState.Connected && !token.IsCancellationRequested)
                 {
                     using var tickTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
                     tickTimeout.CancelAfter(TimeSpan.FromSeconds(20));
-                    LoungePresence presence;
-                    lock (_gate) presence = _presence ?? new("", "未登录玩家", "", "未知大区", "状态未知", false);
-                    await hub.InvokeAsync("UpdatePresence", presence, tickTimeout.Token);
-                    _publishedPresence = presence;
-                    SetStatus(string.IsNullOrEmpty(presence.Puuid) ? "已连接 · 登录 LOL 后可以发言" :
-                        $"已连接 · {presence.Name} · {presence.Region} · {presence.Status}");
-                    if (!SupportsRichMessages) SetStatus("已连接旧版服务器 · 仅支持文字，请更新 LOL-GameApi 以启用表情包、招募和提及");
-                    await FlushVictoriesAsync(hub, presence, tickTimeout.Token);
-                    await FlushHighlightsAsync(hub, presence, tickTimeout.Token);
-                    if (++ticks % 6 == 0) await SyncAsync(hub, tickTimeout.Token);
-                    await Task.Delay(TimeSpan.FromSeconds(5), token);
+                    if (Environment.TickCount64 >= nextPresence)
+                    {
+                        nextPresence = Environment.TickCount64 + 5000;
+                        LoungePresence presence;
+                        lock (_gate) presence = _presence ?? new("", "未登录玩家", "", "未知大区", "状态未知", false);
+                        await hub.InvokeAsync("UpdatePresence", presence, tickTimeout.Token);
+                        _publishedPresence = presence;
+                        SetStatus(string.IsNullOrEmpty(presence.Puuid) ? "已连接 · 登录 LOL 后可以发言" :
+                            $"已连接 · {presence.Name} · {presence.Region} · {presence.Status}");
+                        if (!SupportsRichMessages) SetStatus("已连接旧版服务器 · 仅支持文字，请更新 LOL-GameApi 以启用表情包、招募和提及");
+                        await FlushVictoriesAsync(hub, presence, tickTimeout.Token);
+                        await FlushHighlightsAsync(hub, presence, tickTimeout.Token);
+                    }
+                    bool hadInitialSync = _initialSync;
+                    subscribed = await UpdateMessageSubscriptionAsync(hub, subscribed, tickTimeout.Token);
+                    if (!hadInitialSync && _initialSync) nextSync = Environment.TickCount64 + 30000;
+                    if (MessagesActive && _initialSync && Environment.TickCount64 >= nextSync)
+                    { nextSync = Environment.TickCount64 + 30000; await SyncAsync(hub, tickTimeout.Token); }
+                    await _messageWake.WaitAsync(TimeSpan.FromSeconds(5), token);
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
@@ -339,6 +361,7 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
                 _publishedPresence = null;
                 _protocolVersion = 1;
                 lock (_gate) { _members = []; _memberBaseline = false; _onlineNotice = null; }
+                ResetMessageWindow();
                 if (hub != null)
                 {
                     try { await hub.DisposeAsync(); }
@@ -351,24 +374,29 @@ public sealed class LoungeClient(LoungeLcuReader local) : IDisposable
         }
     }
 
-    private Task SyncAsync(HubConnection hub, CancellationToken token) =>
-        SynchronizeAsync((after, ct) => hub.InvokeAsync<LoungeSnapshot>("Sync", after, ct), token);
+    private Task SyncAsync(HubConnection hub, CancellationToken token) => !MessagesActive ? Task.CompletedTask :
+        SynchronizeAsync((after, ct) => hub.InvokeAsync<LoungeSnapshot>("SyncToday", after,
+            LoungeRules.StartOfDay(DateTimeOffset.Now), ct), token, MessageEpoch);
 
-    internal async Task SynchronizeAsync(Func<long, CancellationToken, Task<LoungeSnapshot>> read, CancellationToken token)
+    internal async Task SynchronizeAsync(Func<long, CancellationToken, Task<LoungeSnapshot>> read, CancellationToken token, long? epoch = null)
     {
         // Cursor advances only through ordered replay, never through live out-of-order broadcasts.
         long after = _initialSync ? _cursor : 0;
         while (true)
         {
             var snapshot = await read(after, token);
-            _protocolVersion = snapshot.ProtocolVersion;
-            foreach (long id in snapshot.DeletedIds ?? []) DeleteLocal(id);
-            foreach (var message in snapshot.Messages) Receive(message, _initialSync);
-            foreach (var state in snapshot.Recruitments ?? []) ReceiveRecruitment(state);
-            UpdateMembers(snapshot.Members);
-            if (snapshot.Messages.Length > 0) after = _cursor = snapshot.Messages[^1].Id;
-            else if (!_initialSync) _cursor = LoungeRules.BeforeFirstMessage;
-            _initialSync = true;
+            lock (_gate)
+            {
+                if (epoch.HasValue && (!MessagesActive || epoch != MessageEpoch)) return;
+                _protocolVersion = snapshot.ProtocolVersion;
+                foreach (long id in snapshot.DeletedIds ?? []) DeleteLocal(id);
+                foreach (var message in snapshot.Messages) Receive(message, _initialSync);
+                foreach (var state in snapshot.Recruitments ?? []) ReceiveRecruitment(state);
+                UpdateMembers(snapshot.Members);
+                if (snapshot.Messages.Length > 0) after = _cursor = snapshot.Messages[^1].Id;
+                else if (!_initialSync) _cursor = LoungeRules.BeforeFirstMessage;
+                _initialSync = true;
+            }
             Notify();
             if (snapshot.Messages.Length < 200) break;
         }

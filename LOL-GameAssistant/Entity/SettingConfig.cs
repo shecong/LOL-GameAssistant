@@ -7,6 +7,8 @@ namespace LOL_GameAssistant.Entity
     /// </summary>
     public class SettingConfig
     {
+        public bool TrafficMonitoringEnabled { get; set; }
+        public bool RuntimeDiagnosticsEnabled { get; set; }
         [JsonProperty("themeMode")]
         public string ThemeMode { get; set; } = "System";
         public LOL_GameAssistant.Domain.Settings.LiveGameLayout LiveGameLayout { get; set; } = LOL_GameAssistant.Domain.Settings.LiveGameLayout.Classic;
@@ -193,7 +195,7 @@ namespace LOL_GameAssistant.Entity
         public List<LOL_GameAssistant.Domain.Builds.PersonalRunePreset> PersonalRunePresets { get; set; } = new();
 
         [JsonProperty("autoApplyRuneBuild")]
-        public bool AutoApplyRuneBuild { get; set; } = true;
+        public bool AutoApplyRuneBuild { get; set; }
 
         [JsonProperty("mayhemOverlayEnabled")]
         public bool MayhemOverlayEnabled { get; set; } = true;

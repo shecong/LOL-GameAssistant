@@ -7,8 +7,11 @@ using Xunit;
 namespace LOL_GameAssistant.UiTests;
 
 [Collection("Window theme")]
-public sealed class SkinCoreLogTests
+public sealed class SkinCoreLogTests : IDisposable
 {
+    private readonly bool _previousEnabled = RuntimeDiagnostics.Enabled;
+    public SkinCoreLogTests() => RuntimeDiagnostics.SetEnabled(true);
+    public void Dispose() => RuntimeDiagnostics.SetEnabled(_previousEnabled);
     [Theory]
     [InlineData("no_verified_game_process", 0, "未检测到游戏对局进程")]
     [InlineData("no_verified_game_process", 1, "无法完成进程校验")]

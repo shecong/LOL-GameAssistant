@@ -26,7 +26,7 @@ public sealed partial class SkinToolsForm
             _objectStatus.TextChanged += (_, _) => UpdateSkinPicker();
         }
         FocusCurrentOverlaySkin();
-        UpdateSkinPicker();
+        UpdateSkinPicker(force: true);
         _skinPicker.ShowOverGame(bounds);
         await RefreshOverlayCategoryAsync();
     }
@@ -87,10 +87,11 @@ public sealed partial class SkinToolsForm
         _overlaySkinGroup = current != null && SkinGroupEntries(SkinGroupNumber(current)).Count > 1 ? SkinGroupNumber(current) : null;
     }
 
-    private void UpdateSkinPicker()
+    private void UpdateSkinPicker(bool force = false)
     {
         if (_skinPicker == null || _skinPicker.IsDisposed) return;
         if (!CanUseSkinPicker) { _skinPicker.Hide(); return; }
+        if (!force && !_skinPicker.OverlayVisible) return;
         _skinPicker.SetHotkey(_settings.Load().SkinPickerHotkey);
         _skinPicker.SetCameraState(_cameraEnabled.Checked, !_cameraBusy && !_busy && !_refreshing);
         bool available = !_busy && !_refreshing && !_objectsBusy;
@@ -110,6 +111,7 @@ public sealed partial class SkinToolsForm
         if (_overlaySelectedEntry != selected?.EntryId) FocusCurrentOverlaySkin();
         var itemsHero = new List<(string Id, string Name)>();
         var stylesHero = new List<LOL_GameAssistant.Application.GameData.GameOverlayItemStyle>();
+        var palette = UiTheme.Palette with { IsDark = true };
         string? selectedIdHero = null;
             foreach (var entry in SortSkinEntries(SkinGroupRepresentatives()))
             {
@@ -117,7 +119,7 @@ public sealed partial class SkinToolsForm
                 int variants = SkinGroupEntries(groupNumberRoot).Count;
                 string id = variants > 1 ? $"group:{groupNumberRoot}" : entry.EntryId;
                 itemsHero.Add((id, GetSkinOptionText(entry) + (variants > 1 ? $" · 炫彩 / 形态 ({variants}) ›" : "")));
-                stylesHero.Add(new(GetSkinQualityPrefix(entry), SkinQualityStyle.Foreground(GetSkinQuality(entry), UiTheme.Palette with { IsDark = true })));
+                stylesHero.Add(new(GetSkinQualityPrefix(entry), SkinQualityStyle.Foreground(GetSkinQuality(entry), palette)));
                 if (selected != null && SkinGroupNumber(selected) == groupNumberRoot) selectedIdHero = id;
             }
         _skinPicker.SetState(itemsHero.ToArray(), selectedIdHero, _status.Text ?? "", available && _catalog != null, available,

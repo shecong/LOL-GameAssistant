@@ -117,10 +117,16 @@ public sealed class StartupReliabilityTests
     [Fact]
     public void StartupLogRecordsBothEntryAndElapsedCompletion()
     {
+        bool previous = RuntimeDiagnostics.Enabled;
+        RuntimeDiagnostics.SetEnabled(true);
+        try
+        {
         using (new StartupDiagnostics("启动诊断测试"))
             Assert.Equal("开始", Assert.Single(RuntimeDiagnostics.Snapshot(), e => e.Component == "启动 · 启动诊断测试").Status);
         var complete = Assert.Single(RuntimeDiagnostics.Snapshot(), e => e.Component == "启动 · 启动诊断测试");
         Assert.Equal("结束", complete.Status);
         Assert.Contains("ms", complete.Detail);
+        }
+        finally { RuntimeDiagnostics.SetEnabled(previous); }
     }
 }

@@ -25,6 +25,8 @@ public sealed partial class LoungeForm
         TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0) };
     private string _timelineServer = "";
     private string? _timelineRegion;
+    private long _timelineEpoch = -1;
+    private bool _historyMetadataRead;
     private bool _windowInitialized, _loadingOlder, _hasOlder = true, _renderingHistory;
     private long _newestSeen;
     private string[] _renderedKeys = [];
@@ -136,16 +138,18 @@ public sealed partial class LoungeForm
     }
     private async Task LoadOlderMessagesAsync()
     {
-        long? before = _window.Count > 0 ? _window.Keys.First() : _client.Messages.FirstOrDefault()?.Id;
+        long? before = _window.Count > 0 ? _window.Keys.First() : _client.Messages.FirstOrDefault()?.Id ?? _client.HistoryBefore;
         if (_loadingOlder || !_hasOlder || before == null || IsDisposed) return;
         _loadingOlder = true; _older.Enabled = false; _older.Text = "正在加载…";
         using var request = _historyLoads.Begin(); string server = _client.Settings.ServerUrl; string? region = SelectedRegion;
+        long epoch = _client.MessageEpoch;
         try
         {
             var page = await _client.LoadOlderAsync(before.Value, request.Token);
-            if (!request.IsCurrent || IsDisposed || server != _client.Settings.ServerUrl || region != SelectedRegion) return;
+            if (!request.IsCurrent || IsDisposed || server != _client.Settings.ServerUrl || region != SelectedRegion || epoch != _client.MessageEpoch) return;
             var older = page.Messages.Where(m => m.Id < before).DistinctBy(m => m.Id).OrderBy(m => m.Id).ToArray();
             foreach (var message in older) _window[message.Id] = message;
+            if (older.Length > 0) { _windowInitialized = true; _newestSeen = Math.Max(_newestSeen, older[^1].Id); }
             _hasOlder = page.HasMore && older.Length > 0;
             while (_window.Count > MaximumVisibleMessages) _window.Remove(_window.Keys.Last());
             _historyKey = "\0"; RenderTimeline(preserveAnchor: true);
@@ -163,10 +167,17 @@ public sealed partial class LoungeForm
     {
         string server = _client.Settings.ServerUrl;
         string? region = SelectedRegion;
-        if (_timelineServer != server || _timelineRegion != region)
+        if (_timelineServer != server || _timelineRegion != region || _timelineEpoch != _client.MessageEpoch)
         {
+            _timelineEpoch = _client.MessageEpoch; _historyMetadataRead = false;
             _historyLoads.Cancel(); _timelineServer = server; _timelineRegion = region; _window.Clear(); _pendingMessages.Clear(); _windowInitialized = false;
             _newestSeen = 0; _hasOlder = true; _renderedKeys = []; _historyKey = "\0";
+        }
+        if (!_historyMetadataRead && _client.InitialHasOlder is bool hasOlder)
+        {
+            _hasOlder = hasOlder; _historyMetadataRead = true;
+            _feedback.Text = _client.Messages.Length == 0 ? "今天暂无消息，向上滚动可加载历史。"
+                : "已加载当天消息，向上滚动可查询更早记录。";
         }
         var latest = _client.Messages.Where(MatchesSelectedRegion).ToArray();
         if (!_windowInitialized && latest.Length > 0)
@@ -189,7 +200,7 @@ public sealed partial class LoungeForm
         _newMessages.Visible = _messageFilter.SelectedIndex != 4 && (_pendingMessages.Count > 0 || _window.Count > 0 && _window.Keys.Last() < _newestSeen);
         _newMessages.Text = _pendingMessages.Count > 0 ? $"{_pendingMessages.Count}{(_pendingMessages.Count == 1000 ? "+" : "")} 条新消息 ↓" : "返回最新消息 ↓";
         _older.Visible = _messageFilter.SelectedIndex != 4;
-        if (!_loadingOlder) { _older.Enabled = _hasOlder && (_window.Count > 0 || _client.Messages.Length > 0); _older.Text = _hasOlder ? "加载更早消息" : "已到最早消息"; }
+        if (!_loadingOlder) { _older.Enabled = _hasOlder && (_window.Count > 0 || _client.Messages.Length > 0 || _client.HistoryBefore.HasValue); _older.Text = _hasOlder ? "加载更早消息" : "已到最早消息"; }
         RenderTimeline(forceBottom: forceBottom);
     }
     private void RenderTimeline(bool preserveAnchor = false, bool forceBottom = false)

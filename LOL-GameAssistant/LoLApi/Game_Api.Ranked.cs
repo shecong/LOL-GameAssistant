@@ -72,6 +72,7 @@ namespace LOL_GameAssistant.LoLApi
         /// </summary>
         private static void WriteRankedDebugLog(string puuid, string json)
         {
+            if (!RuntimeDiagnostics.Enabled) return;
             try
             {
                 string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ranked_debug.log");

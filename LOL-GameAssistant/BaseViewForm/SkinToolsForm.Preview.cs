@@ -124,7 +124,7 @@ public sealed partial class SkinToolsForm
         int skin = selected?.SkinNum ?? _catalog.Skin;
         string model = _catalog.Model;
         var catalog = _catalog;
-        string key = $"{model}:{skin}";
+        string key = $"{catalog.Session}:{model}:{skin}";
         if (_previewKey == key) return;
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
@@ -141,7 +141,8 @@ public sealed partial class SkinToolsForm
             _clientSkins.Clear();
             foreach (var resource in resources) _clientSkins[resource.SkinNumber] = resource;
             FilterEntries();
-            SelectSkinInControls(CurrentSkinEntry());
+            // During champion select this is a pending choice, not the game's active skin.
+            SelectSkinInControls(_champSelect && !_inProgress ? selected : CurrentSkinEntry());
             if (!Visible) { _previewKey = ""; return; }
             var matching = _clientSkins.GetValueOrDefault(skin);
             var asset = matching == null ? null : await _skinResources.GetPosterAsync(matching, token);

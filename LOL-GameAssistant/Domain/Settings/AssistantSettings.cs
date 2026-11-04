@@ -13,6 +13,8 @@ public sealed class AssistantSettings
     public LiveGameLayout LiveGameLayout { get; set; } = LiveGameLayout.Classic;
     public LOL_GameAssistant.Domain.Matches.LiveHistoryFilter LiveHistoryFilter { get; set; }
     public string LanguageMode { get; set; } = "zh-CN";
+    public bool TrafficMonitoringEnabled { get; set; }
+    public bool RuntimeDiagnosticsEnabled { get; set; }
 
     public bool AutoLaunchGameClient { get; set; }
     public bool TclsAutoLoginEnabled { get; set; }
@@ -100,7 +102,7 @@ public sealed class AssistantSettings
     public int QuickLobbyQueueId { get; set; } = 430;
     public Dictionary<string, int> OpggManualBuildSelections { get; set; } = new();
     public List<PersonalRunePreset> PersonalRunePresets { get; set; } = new();
-    public bool AutoApplyRuneBuild { get; set; } = true;
+    public bool AutoApplyRuneBuild { get; set; }
     public bool MayhemOverlayEnabled { get; set; } = true;
     public bool ChampSelectCompanionEnabled { get; set; } = true;
     public bool EnemyJungleRouteEnabled { get; set; }

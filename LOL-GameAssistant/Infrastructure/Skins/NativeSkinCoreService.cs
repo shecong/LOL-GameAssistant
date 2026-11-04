@@ -7,7 +7,8 @@ using LOL_GameAssistant.Domain.Skins;
 namespace LOL_GameAssistant.Infrastructure.Skins;
 
 /// <summary>One queue for all native requests; lifecycle revisions invalidate queued selections.</summary>
-public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, string? logPath = null) : ISkinCoreService, ISkinCoreModeSelector
+public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, string? logPath = null,
+    Func<bool>? loggingEnabled = null) : ISkinCoreService, ISkinCoreModeSelector
 {
     public SkinCoreMode Mode => (transport as ISkinCoreModeSelector)?.Mode ?? SkinCoreMode.Classic;
     public void SetMode(SkinCoreMode mode)
@@ -296,7 +297,7 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
     }
     private void Log(object value)
     {
-        if (logPath == null) return;
+        if (logPath == null || loggingEnabled?.Invoke() == false) return;
         try { Directory.CreateDirectory(Path.GetDirectoryName(logPath)!); File.AppendAllText(logPath,
             JsonSerializer.Serialize(new { time = DateTimeOffset.UtcNow, value }) + Environment.NewLine); }
         catch (IOException) { } catch (UnauthorizedAccessException) { }

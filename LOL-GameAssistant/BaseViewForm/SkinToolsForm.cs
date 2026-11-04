@@ -5,7 +5,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-/// <summary>AntdUI manual skin selection. Merely creating this page never loads the game module.</summary>
+/// <summary>Champion selection previews and automatic in-game skin application.</summary>
 public sealed partial class SkinToolsForm : UserControl, IThemeAware
 {
     private readonly ISkinCoreService _core;
@@ -145,13 +145,15 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (_inProgress && _core.Enabled)
         {
             _pageRequests = new CancellationTokenSource();
-            _ = RefreshAsync();
+            _ = ReadUntilReadyAsync(_pageRequests.Token);
         }
         UpdateButtons();
     }
-    public void OnGamePhaseChanged(bool inProgress)
+    public void OnGamePhaseChanged(bool inProgress, bool champSelect = false)
     {
-        if (_inProgress == inProgress) return;
+        if (_inProgress == inProgress && _champSelect == champSelect) return;
+        _champSelect = champSelect;
+        _selectionChampion = 0;
         _inProgress = inProgress;
         if (!inProgress) { _skinNotice?.Hide(); ResetSession(); }
         UpdateActivity();
@@ -204,12 +206,12 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         if (_disposing || IsDisposed) return;
         UpdateSkinPicker();
-        bool ready = _inProgress && _core.Enabled && !_busy && Visible && _catalog != null;
+        bool ready = (_inProgress || _champSelect) && _core.Enabled && !_busy && Visible && _catalog != null;
         _refresh.Enabled = _inProgress && _core.Enabled && !_busy && !_refreshing && Visible;
         _search.Enabled = _core.Enabled; _entries.Enabled = ready;
         _skinVariants.Enabled = ready && _variants.Count > 1;
-        _restore.Enabled = ready && !_refreshing;
-        _stop.Enabled = ready && !_refreshing;
+        _restore.Enabled = ready && _inProgress && !_refreshing;
+        _stop.Enabled = ready && _inProgress && !_refreshing;
         UpdateObjectButtons();
         UpdateCameraButtons();
         UpdateCoreModeControls();
@@ -258,11 +260,14 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     private async Task RefreshAsync()
     {
         if (_disposing || !_inProgress || _busy || _refreshing || !_core.Enabled || _pageRequests == null) return;
+        _retryCatalogRead = false;
+        bool catalogRead = false;
         _refreshing = true; long revision = Interlocked.Read(ref _revision); CancellationToken token = _pageRequests.Token; UpdateButtons();
         try
         {
             var result = await _core.GetCatalogAsync(token);
             if (IsDisposed || revision != Interlocked.Read(ref _revision)) return;
+            catalogRead = true;
             bool changed = _catalog?.Session != result.Session;
             _catalog = result;
             _current.Text = $"{result.Model}  ·  {result.Entries.Count} {UiLanguage.T("个皮肤与形态")}\n{UiLanguage.T("当前状态")}: #{result.Skin}  ·  {result.ActiveModel}  ·  {UiLanguage.T("形态")} {result.Gear}";
@@ -273,11 +278,21 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             _ = UpdatePreviewAsync();
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { if (!IsDisposed && revision == Interlocked.Read(ref _revision)) { ResetSession(); ShowError(ex); } }
+        catch (Exception ex) { if (!IsDisposed && revision == Interlocked.Read(ref _revision)) {
+            _retryCatalogRead = !catalogRead && ex is SkinCoreException { OutcomeUnknown: false } error &&
+                error.Code is "game_window_not_found" or "local_player_unavailable" or "profile_code_not_ready";
+            ResetSession(); ShowError(ex);
+        } }
         finally { _refreshing = false; if (!IsDisposed) UpdateButtons(); }
     }
     private async Task ChangeAsync(bool restore)
     {
+        if (_champSelect && !_inProgress && !restore && !_disposing && _core.Enabled && _catalog != null && SelectedSkinEntry is { } pending)
+        {
+            RememberSkin(_catalog, pending);
+            _status.Text = "已保存选择，进入游戏后自动应用。";
+            return;
+        }
         if (_disposing || !_inProgress || _busy || _refreshing || _catalog == null || _pageRequests == null || !_core.Enabled) return;
         if (!restore && SelectedSkinEntry == null) return;
         string session = _catalog.Session; string entry = restore ? "" : SelectedSkinEntry!.EntryId;
@@ -324,6 +339,18 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         if (!_settings.Load().RememberedHeroSkins.TryGetValue(catalog.Model, out var remembered) || remembered == null) return;
         // Entry indices may change between game versions. Match the actual skin and form instead.
         var entry = catalog.Entries.FirstOrDefault(e => e.Model == remembered.Model && e.SkinNum == remembered.SkinNum && e.Gear == remembered.Gear);
+        // Client preselection uses the champion model; resolve special skin models from the live catalog.
+        if (entry == null && remembered.Model == catalog.Model && remembered.Gear == -1)
+        {
+            var matches = catalog.Entries.Where(e => e.SkinNum == remembered.SkinNum && e.Gear == -1).ToArray();
+            if (matches.Length == 1) entry = matches[0];
+        }
+        // Client preselection has the champion model; special skins may resolve to a different native model.
+        if (entry == null && remembered.Model == catalog.Model && remembered.Gear == -1)
+        {
+            var matches = catalog.Entries.Where(e => e.SkinNum == remembered.SkinNum && e.Gear == -1).ToArray();
+            if (matches.Length == 1) entry = matches[0];
+        }
         if (entry == null) { _status.Text = "上次选择的皮肤已不在当前目录中，请重新选择。"; return; }
         SelectSkinInControls(entry, clearSearch: true);
         if (catalog.ActiveModel == entry.Model && catalog.Skin == entry.SkinNum && catalog.Gear == entry.Gear) return;
@@ -381,7 +408,8 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             if (!string.IsNullOrEmpty(details.Stage)) message += $" · {details.Stage}";
             if (details.Win32 is int win32) message += $" · Win32={win32}";
             message += $" · {details.ElapsedMs}ms";
-            message += "\n详情已记录，请打开软件「日志 → 运行日志」，点击「复制日志」反馈。";
+            message += RuntimeDiagnostics.Enabled ? "\n详情已记录，请打开软件「日志 → 运行日志」，点击「复制日志」反馈。"
+                : "\n运行诊断已关闭。如需反馈，请先在「日志 → 运行诊断」中开启，再重现问题。";
         }
         _status.Text = UiLanguage.T(message);
     }
