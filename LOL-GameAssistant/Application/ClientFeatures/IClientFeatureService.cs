@@ -113,7 +113,10 @@ public sealed record ClientRewardGrant(
     public bool RequiresSelection { get; init; } = true;
 }
 
-public sealed record ClientRewardSourceStatus(string Source, string Message);
+public sealed record ClientRewardSourceStatus(string Source, string Message)
+{
+    public string? OfficialUrl { get; init; }
+}
 public sealed record ClientRewardScan(IReadOnlyList<ClientRewardGrant> Rewards, IReadOnlyList<ClientRewardSourceStatus> Sources);
 
 public enum PoroShopCurrency { Silver, Gold }

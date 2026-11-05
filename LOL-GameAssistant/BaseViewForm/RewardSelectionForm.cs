@@ -36,7 +36,7 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
         if (_busy || IsDisposed) return; _busy = true;
         try
         {
-            _status.Text = "正在扫描商城每日箱、战令、待选奖励，并同步好运魄罗签到…";
+            _status.Text = "正在扫描客户端奖励、魄罗签到与掌盟活动目录…";
             var scan = await _features.ScanRewardsAsync(_requests.Token); if (IsDisposed) return;
             var grants = scan.Rewards;
             ControlLifetime.ClearAndDispose(_content);
@@ -71,12 +71,22 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
             foreach (var source in scan.Sources)
             {
                 string[] lines = source.Message.Split('\n', 2);
-                _content.Controls.Add(new AntdUI.Label { Text = $"{source.Source}：{lines[0]}", Width = 650, Height = source.Source == "好运魄罗" ? 100 : 52 });
+                _content.Controls.Add(new AntdUI.Label { Text = $"{source.Source}：{lines[0]}", Width = 650, TextMultiLine = true, Height = source.Source is "好运魄罗" or "掌盟活动目录" ? 110 : 52 });
+                if (source.OfficialUrl == "https://jcc.qq.com/act/activityCenter2308/")
+                {
+                    var open = new AntdUI.Button { Text = "打开掌盟官方活动中心", AutoSize = true };
+                    open.Click += (_, _) =>
+                    {
+                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(source.OfficialUrl) { UseShellExecute = true }); }
+                        catch (Exception) { if (!IsDisposed) _status.Text = "无法打开浏览器，请从掌盟进入官方活动中心。"; }
+                    };
+                    _content.Controls.Add(open);
+                }
                 if (lines.Length > 1)
                 {
                     var detail = new AntdUI.Input { Text = lines[1].Replace("\n", Environment.NewLine), Width = 650, Height = 260,
                         Multiline = true, ReadOnly = true, AutoScroll = true, Visible = false };
-                    string expand = source.Source == "好运魄罗" ? "查看礼包状态" : "查看每级奖励";
+                    string expand = source.Source == "好运魄罗" ? "查看礼包状态" : source.Source == "掌盟活动目录" ? "查看掌盟活动清单" : "查看每级奖励";
                     var toggle = new AntdUI.Button { Text = expand, AutoSize = true };
                     toggle.Click += (_, _) => { detail.Visible = !detail.Visible; toggle.Text = detail.Visible ? "收起奖励明细" : expand; };
                     _content.Controls.Add(toggle); _content.Controls.Add(detail);

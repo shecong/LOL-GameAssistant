@@ -163,7 +163,12 @@ public sealed class PoroRewardTests
             Requests++;
             string path = request.RequestUri!.AbsolutePath;
             string body;
-            if (request.RequestUri.Host == "apps.game.qq.com")
+            if (request.RequestUri.Host == "mlol.qt.qq.com")
+            {
+                Assert.Equal(HttpMethod.Get, request.Method); Assert.False(request.Headers.Contains("Cookie"));
+                body = "{\"code\":0,\"data\":{\"result\":0,\"next\":\"0\",\"feedsInfo\":[]}}";
+            }
+            else if (request.RequestUri.Host == "apps.game.qq.com")
                 body = "{\"result\":0,\"data\":{\"goods\":[{\"userLeft\":0}]}}";
             else if (request.Method == HttpMethod.Get)
             {

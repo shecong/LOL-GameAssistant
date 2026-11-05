@@ -88,11 +88,16 @@ public sealed partial class LcuClientFeatureService
             return $"本月已签到 {scan.Days} 天，可领取 {scan.Gifts.Count(g => g.CanClaim)} 组礼包\n" +
                 string.Join("\n", scan.Gifts.Select(g => $"{(g.Stage == "0" ? "掌盟礼包" : g.Stage + " 天礼包")}：{g.Name}（{g.State}）"));
         });
+        await Scan("掌盟活动目录", async () =>
+        {
+            return (await ScanPalmDirectoryAsync(cancellationToken).ConfigureAwait(false)).Message;
+        });
         return new(rewards, sources);
 
         async Task Scan(string source, Func<Task<string>> read)
         {
-            try { sources.Add(new(source, await read().ConfigureAwait(false))); }
+            try { sources.Add(new(source, await read().ConfigureAwait(false))
+                { OfficialUrl = source == "掌盟活动目录" ? PalmActivityCenter : null }); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception e) when (e is HttpRequestException or JsonException or InvalidOperationException or OperationCanceledException
                 or System.Net.WebSockets.WebSocketException or FormatException or ArgumentException or OverflowException)

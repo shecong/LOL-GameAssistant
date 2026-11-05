@@ -147,6 +147,12 @@ public sealed class RewardCollectionTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests++;
+            if (request.RequestUri!.Host == "mlol.qt.qq.com")
+            {
+                Assert.Equal(HttpMethod.Get, request.Method); Assert.False(request.Headers.Contains("Cookie"));
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                    { Content = new StringContent("{\"code\":0,\"data\":{\"result\":0,\"next\":\"0\",\"feedsInfo\":[]}}") });
+            }
             Assert.Equal("apps.game.qq.com", request.RequestUri!.Host);
             Assert.Contains("skey=dummy", request.Headers.GetValues("Cookie").Single());
             var query = request.RequestUri.Query.TrimStart('?').Split('&').Select(s => s.Split('=', 2))
