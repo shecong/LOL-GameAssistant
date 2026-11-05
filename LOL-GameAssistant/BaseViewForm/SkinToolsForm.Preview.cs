@@ -114,7 +114,7 @@ public sealed partial class SkinToolsForm
         _entries.Text = selected == null ? "" : GetSkinDisplayName(selected);
         _entries.Invalidate();
         _skinVariants.ForeColor = palette.TextPrimary;
-        if (SelectedSkinEntry is { } variant) _skinVariants.Text = GetSkinDisplayName(variant);
+        if (SelectedSkinEntry is { } variant) _skinVariants.Text = GetSkinVariantDisplayName(variant);
     }
 
     private async Task UpdatePreviewAsync()

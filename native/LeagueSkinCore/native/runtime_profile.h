@@ -1,6 +1,6 @@
 #pragma once
 // Resolve the game's own executable code. No external DLL, service or game write.
-struct RuntimePattern {const char* name;unsigned key;const BYTE* bytes;const BYTE* mask;size_t size;};
+struct RuntimePattern {const char* name;unsigned key;const BYTE* bytes;const BYTE* mask;size_t size;unsigned operandOffset=0,schema=1;};
 #include "runtime_patterns.h"
 struct RuntimeMatch {uintptr_t rva=0;int pattern=-1;};
 struct RuntimeImage {BYTE* base=nullptr;DWORD timestamp=0,size=0;IMAGE_SECTION_HEADER* sections=nullptr;unsigned count=0;};
@@ -11,6 +11,7 @@ struct RuntimeProfile {
     uintptr_t camera_slot=0,camera_manager=0;
     RuntimeMatch matches[RuntimeRuleCount]{};
     bool ready=false,objects=false,camera=false,view=false,cacheHit=false;
+    unsigned skinCodec=1;
     char sha[65]{};const char* error="profile_not_resolved";char stage[96]{};ULONGLONG elapsed=0;
 };
 static RuntimeProfile runtimeGame;
@@ -138,20 +139,23 @@ static bool runtimeResolve(BYTE* base,RuntimeProfile* result) {
     result->base=base;result->timestamp=image.timestamp;result->image_size=image.size;result->ready=false;
     if(!runtimeGroup(image,result,0,8)){result->elapsed=GetTickCount64()-start;return false;}
     auto at=[&](unsigned key){return result->matches[key].rva;};
+    auto pattern=[&](unsigned key)->const RuntimePattern& {return RuntimePatterns[result->matches[key].pattern];};
     uintptr_t pushTarget=0,translatedTwice=0;
     bool valid=runtimeRelative(image,at(0),3,7,false,&result->player_slot) &&
         runtimeRelative(image,at(4),3,7,false,&result->champion_slot) &&
         runtimeRelative(image,at(5),1,5,true,&result->translate) &&
-        runtimeRelative(image,at(5)+0x31,1,5,true,&translatedTwice) && translatedTwice==result->translate &&
+        runtimeRelative(image,at(5)+(pattern(5).operandOffset?pattern(5).operandOffset:0x31),1,5,true,&translatedTwice) && translatedTwice==result->translate &&
         runtimeRelative(image,at(3),1,5,true,&pushTarget) && pushTarget==at(6);
     result->update=at(2);result->push=pushTarget;
     uint32_t stack=0,decode=0,encode=0;
-    memcpy(&stack,base+at(1)+3,4);memcpy(&decode,base+at(7)+2,4);memcpy(&encode,base+at(8)+33,4);
+    memcpy(&stack,base+at(1)+3,4);memcpy(&decode,base+at(7)+2,4);
+    memcpy(&encode,base+at(8)+(pattern(8).operandOffset?pattern(8).operandOffset:33),4);
+    valid=valid && pattern(7).schema==pattern(8).schema && (pattern(7).schema==1 || pattern(7).schema==2);
     // Supported schema: layer +0x18/+0x38 and 0xa0 stride remain constrained
     // in the update/push patterns; only the containing object offsets can move.
     valid=valid && stack>=0x100 && stack<=0x10000 && stack%8==0 && decode==encode && decode>=0x100 && decode<=0x10000 && decode%4==0;
     if(!valid){result->error="profile_schema_not_verified";strcpy_s(result->stage,"relative_targets_and_layout");return false;}
-    result->stack_offset=stack;result->skin_offset=decode;
+    result->stack_offset=stack;result->skin_offset=decode;result->skinCodec=pattern(7).schema;
     if(!runtimeHash(result)){result->error="profile_hash_failed";strcpy_s(result->stage,"identity");return false;}
     result->ready=true;result->error="";result->stage[0]=0;result->elapsed=GetTickCount64()-start;return true;
 }

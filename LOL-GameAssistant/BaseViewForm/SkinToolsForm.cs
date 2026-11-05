@@ -99,7 +99,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _skinVariants.SelectedIndexChanged += async (_, _) =>
         {
             if (_updatingSelection) return;
-            if (SelectedSkinEntry is { } selected) _skinVariants.Text = GetSkinDisplayName(selected);
+            if (SelectedSkinEntry is { } selected) _skinVariants.Text = GetSkinVariantDisplayName(selected);
             await ChangeAsync(false); await UpdatePreviewAsync();
         };
         _refresh.Click += async (_, _) => await RefreshAsync();

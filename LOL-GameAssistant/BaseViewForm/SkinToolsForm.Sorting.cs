@@ -49,7 +49,7 @@ public sealed partial class SkinToolsForm
             .ThenByDescending(e => _skinUsage.GetValueOrDefault(e.SkinNum)?.Plays ?? 0)
         : entries;
 
-    private string GetSkinListName(SkinEntry entry) => GetSkinDisplayName(entry) + (!CommunitySort ? ""
+    private string GetSkinListName(SkinEntry entry, string? displayName = null) => (displayName ?? GetSkinDisplayName(entry)) + (!CommunitySort ? ""
         : RatingsMatchChampion && _skinUsage.TryGetValue(entry.SkinNum, out var rating)
             ? $" · 选用率 {rating.PickRate:0.00}% / {rating.Plays:N0}场"
             : " · 暂无使用数据");

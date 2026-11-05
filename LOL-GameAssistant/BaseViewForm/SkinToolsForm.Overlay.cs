@@ -125,7 +125,7 @@ public sealed partial class SkinToolsForm
         _skinPicker.SetState(itemsHero.ToArray(), selectedIdHero, _status.Text ?? "", available && _catalog != null, available,
             _skinPickerCategory, _catalog?.Session ?? "", stylesHero.ToArray());
         var children = _overlaySkinGroup is int groupNumber ? SkinGroupEntries(groupNumber) : [];
-        _skinPicker.SetSubmenu(children.Count > 1 ? children.Select(e => (e.EntryId, GetSkinListName(e))).ToArray() : [],
+        _skinPicker.SetSubmenu(children.Count > 1 ? children.Select(e => (e.EntryId, GetSkinVariantListName(e))).ToArray() : [],
             selected?.EntryId, _overlaySkinGroup is int parent ? $"group:{parent}" : null,
             children.Count > 0 ? GetSkinDisplayName(children[0]) + " · 炫彩 / 形态" : "");
     }

@@ -31,6 +31,23 @@ int main(int argc,char** argv) {
         assert(p.timestamp==fixture.timestamp && p.image_size==fixture.size && strlen(p.sha)==64);
         assert(p.player_slot==fixture.player && p.champion_slot==fixture.champions && p.translate==fixture.translate);
         assert(p.update==fixture.update && p.push==fixture.push && p.stack_offset==fixture.stack && p.skin_offset==fixture.skin);
+        assert(p.skinCodec==(fixture.timestamp==1793650179 ? 2u : 1u));
+        runtimeGame=p;
+        for(int value=0;value<=10000;value++) {
+            uint32_t encoded=skinEncoded(value);int decoded=-1;
+            assert(skinValue((BYTE*)&encoded,&decoded) && decoded==value);
+        }
+        uint32_t invalid=skinEncoded(10001);int decoded=-1;
+        assert(!skinValue((BYTE*)&invalid,&decoded));
+        {
+            BYTE player[0x10020],stack[0xb0]{};memset(player,0xa5,sizeof(player));
+            BYTE* field=player+p.skin_offset;*(uint32_t*)field=skinEncoded(1);
+            IndependentContext context{};context.player=player;context.stack=stack;
+            assert(independentWriteSkin(&context,104));
+            assert(skinValue(field,&decoded) && decoded==104 && *(int*)(stack+0x38)==104);
+            for(int n=-8;n<12;n++)if(n<0 || n>=4)assert(field[n]==0xa5);
+            assert(independentWriteSkin(&context,1) && skinValue(field,&decoded) && decoded==1);
+        }
         char first[65];strcpy_s(first,p.sha);assert(runtimeResolve(image,&p) && !strcmp(first,p.sha));
         // A new build identifier must resolve rather than trip a date/size gate.
         auto nt=(IMAGE_NT_HEADERS64*)(image+0x100);nt->FileHeader.TimeDateStamp++;
@@ -38,6 +55,15 @@ int main(int argc,char** argv) {
         VirtualFree(image,0,MEM_RELEASE);
     }
     const auto& fixture=RuntimeFixtures[1];
+    {
+        const auto& current=RuntimeFixtures[3];
+        auto image=fixtureImage(current);RuntimeProfile p{};
+        // A valid old encoder cannot be paired with the new decoder.
+        memset(image+current.blocks[8].rva,0,current.blocks[8].size);
+        memcpy(image+fixture.blocks[8].rva,fixture.blocks[8].bytes,fixture.blocks[8].size);
+        assert(!runtimeResolve(image,&p) && !p.ready && !strcmp(p.error,"profile_schema_not_verified"));
+        VirtualFree(image,0,MEM_RELEASE);
+    }
     {
         auto image=fixtureImage(fixture);RuntimeProfile p{};
         // Duplicate a real player locator at another address: no selection and
@@ -106,5 +132,5 @@ int main(int argc,char** argv) {
         }
         assert(checked);VirtualFree(image,0,MEM_RELEASE);UnmapViewOfFile(cache);CloseHandle(owner);
     }
-    puts("Runtime resolver: both saved builds, synthetic relocated functions/globals/layouts, changed build ID, ambiguity, missing code, changed decoder, invalid targets, unreadable pages and feature isolation passed.");
+    puts("Runtime resolver: three saved builds (including 16.22), both codecs, isolated DWORD writes/restoration, mixed-codec rejection, synthetic relocation, ambiguity, missing code, invalid targets, unreadable pages and feature isolation passed.");
 }

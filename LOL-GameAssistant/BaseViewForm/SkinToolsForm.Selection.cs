@@ -20,6 +20,24 @@ public sealed partial class SkinToolsForm
     private List<SkinEntry> SkinGroupRepresentatives() => (_catalog?.Entries ?? []).GroupBy(SkinGroupNumber)
         .Select(group => group.OrderBy(e => e.SkinNum != group.Key).ThenBy(e => e.Gear >= 0).First()).ToList();
 
+    private string GetSkinVariantDisplayName(SkinEntry entry)
+    {
+        int group = SkinGroupNumber(entry);
+        var parent = SkinGroupEntries(group).FirstOrDefault();
+        string parentName = _clientSkins.GetValueOrDefault(group)?.Name ?? parent?.Name ?? "";
+        return ShortVariantName(GetSkinDisplayName(entry), parentName);
+    }
+
+    internal static string ShortVariantName(string name, string parentName)
+    {
+        name = name.Trim(); parentName = parentName.Trim();
+        if (parentName.Length == 0 || !name.StartsWith(parentName, StringComparison.OrdinalIgnoreCase)) return name;
+        string variant = name[parentName.Length..].Trim(' ', '·', '-', '—', '_', ':', '：', '/', '(', ')', '（', '）', '[', ']');
+        return variant.Length == 0 ? UiLanguage.T("默认") : variant;
+    }
+
+    private string GetSkinVariantListName(SkinEntry entry) => GetSkinListName(entry, GetSkinVariantDisplayName(entry));
+
     private SkinEntry? CurrentSkinEntry()
     {
         if (_catalog == null) return null;
@@ -37,15 +55,15 @@ public sealed partial class SkinToolsForm
             var parent = _entries.SelectedIndex >= 0 && _entries.SelectedIndex < _filtered.Count ? _filtered[_entries.SelectedIndex] : null;
             _variants = parent == null ? [] : SkinGroupEntries(SkinGroupNumber(parent));
             bool unchanged = _skinVariants.Items.Count == _variants.Count && _variants.Select((entry, i) =>
-                _skinVariants.Items[i] is AntdUI.SelectItem item && Equals(item.Tag, entry.EntryId) && item.Text == GetSkinListName(entry)).All(match => match);
+                _skinVariants.Items[i] is AntdUI.SelectItem item && Equals(item.Tag, entry.EntryId) && item.Text == GetSkinVariantListName(entry)).All(match => match);
             if (!unchanged)
             {
                 _skinVariants.Items.Clear();
-                foreach (var entry in _variants) _skinVariants.Items.Add(new AntdUI.SelectItem(GetSkinListName(entry), entry.EntryId));
+                foreach (var entry in _variants) _skinVariants.Items.Add(new AntdUI.SelectItem(GetSkinVariantListName(entry), entry.EntryId));
             }
             int selected = _variants.FindIndex(e => e.EntryId == (selectedId ?? parent?.EntryId));
             _skinVariants.SelectedIndex = selected;
-            _skinVariants.Text = selected >= 0 ? GetSkinDisplayName(_variants[selected]) : "";
+            _skinVariants.Text = selected >= 0 ? GetSkinVariantDisplayName(_variants[selected]) : "";
         }
         finally { _updatingSelection = updating; }
     }

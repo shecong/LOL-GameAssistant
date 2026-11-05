@@ -5,10 +5,10 @@
   "original_required": false,
   "runtime_adaptation": {
     "mode": "runtime_signatures",
-    "rules_sha256": "3158ffb8465919f0ed4aed056fa517dae7c43b868a35c2e4ed24ee02c199dced",
+    "rules_sha256": "7105300abe6111c9d6257e60702548b09d9056e6c21a0141e78e977a521e3c87",
     "runtime_source": "game executable code; no original assistant or remote DLL",
     "hero_timestamp_gate": false,
-    "layout_family": "CharacterDataStack 0xa0 layers; verified DWORD skin codec",
+    "layout_family": "CharacterDataStack 0xa0 layers; independently verified 16.21 and 16.22 DWORD skin codecs",
     "cache": "validated scalar RVAs, process identity, rule identity; 16 KiB anonymous shared memory"
   },
   "latest_adaptation": {
@@ -26,5 +26,15 @@
     "native-bridge\\standalone_core.h": "f0b963948616201ae1d9d48f2991e07a1ae877786010cf7c35216bebcbb5c14c",
     "native-bridge\\game_profile.h": "d8ed65b23447ae2b99efe624d5b73edff2815bdfb47f504dea5ca7774ede658a",
     "native-bridge\\variant_metadata.h": "cff60b55d99139b255587b091470f1d66d9882e2671234b1a1e4eb32201be5a5"
+  },
+  "latest_runtime_adaptation": {
+    "date": "2026-11-05",
+    "game_version": "16.22.834.9083",
+    "source": "read-only current game executable code and client game-data assets",
+    "profile": "profiles/2026-11-05.json",
+    "code_sha256": "fe50f4cdd2f9589d70878d770905f58d61b63c1498a9d12d49740f51ada15743",
+    "catalog_models_checked": 257,
+    "catalog_entries_checked": 11342,
+    "validation": "read-only live profile/catalog/object catalog/camera status; native offline tests; no live skin writes or visual acceptance"
   }
 }
