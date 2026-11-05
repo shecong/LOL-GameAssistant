@@ -22,7 +22,7 @@ public sealed class PalmRewardDirectoryTests
     public void DirectoryFiltersExpiredAndOtherGamesAndDoesNotImplyClaimEligibility()
     {
         var result = LcuClientFeatureService.ReadPalmDirectory(Directory(Activity(1), Activity(1), Activity(2, "lgame"), Activity(3, end: "2026-11-05 11:59:59")), Now);
-        Assert.Contains("发现 1 项", result.Message); Assert.Contains("尚未查询各活动资格", result.Message);
+        Assert.Contains("发现 1 项", result.Message); Assert.Contains("目录本身不包含账户领取状态", result.Message);
         Assert.Contains("https://lol.qq.com/act/example/", result.Message);
         Assert.DoesNotContain("活动 2", result.Message); Assert.DoesNotContain("活动 3", result.Message);
     }

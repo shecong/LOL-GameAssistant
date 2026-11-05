@@ -44,7 +44,7 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
             {
                 var group = new FlowLayoutPanel { Width = 650, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(12), Margin = new Padding(0, 0, 0, 15) };
                 group.Controls.Add(new AntdUI.Label { Text = $"[{grant.Source}] {grant.Title}" + (grant.RequiresSelection ? $" · 请选择 {grant.MinimumSelections}～{grant.AvailableChoices} 项" : ""), AutoSize = true });
-                if (grant.Description.Length > 0) group.Controls.Add(new AntdUI.Label { Text = grant.Description, Width = 610, Height = 50 });
+                if (grant.Description.Length > 0) group.Controls.Add(new AntdUI.Label { Text = grant.Description, Width = 610, Height = 72, TextMultiLine = true });
                 var checks = new List<(AntdUI.Checkbox Box, string Id)>();
                 foreach (var choice in grant.Choices.Count > 0 ? grant.Choices : grant.RewardIds.Select(id => new ClientRewardChoice(id, id, "未提供名称与说明")).ToArray())
                 {
@@ -71,10 +71,13 @@ internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
             foreach (var source in scan.Sources)
             {
                 string[] lines = source.Message.Split('\n', 2);
-                _content.Controls.Add(new AntdUI.Label { Text = $"{source.Source}：{lines[0]}", Width = 650, TextMultiLine = true, Height = source.Source is "好运魄罗" or "掌盟活动目录" ? 110 : 52 });
-                if (source.OfficialUrl == "https://jcc.qq.com/act/activityCenter2308/")
+                _content.Controls.Add(new AntdUI.Label { Text = $"{source.Source}：{lines[0]}", Width = 650, TextMultiLine = true, Height = source.Source == "好运魄罗" || source.OfficialUrl != null ? 110 : 52 });
+                if (source.OfficialUrl is "https://jcc.qq.com/act/activityCenter2308/"
+                    or "https://lol.qq.com/act/a20261015matchs16/index.html"
+                    or "https://lol.qq.com/act/a20261022musicseason/index.html"
+                    or "https://lol.qq.com/act/a20261014lplevent/index.html")
                 {
-                    var open = new AntdUI.Button { Text = "打开掌盟官方活动中心", AutoSize = true };
+                    var open = new AntdUI.Button { Text = source.Source == "掌盟活动目录" ? "打开掌盟官方活动中心" : "打开官方活动页核对", AutoSize = true };
                     open.Click += (_, _) =>
                     {
                         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(source.OfficialUrl) { UseShellExecute = true }); }

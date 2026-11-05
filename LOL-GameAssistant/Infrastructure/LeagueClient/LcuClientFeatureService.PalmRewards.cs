@@ -9,7 +9,9 @@ public sealed partial class LcuClientFeatureService
     private const string PalmActivityDirectory = "https://mlol.qt.qq.com/go/recommend/v2/platactivity?type=process&game_id=lol";
     private const string PalmActivityCenter = "https://jcc.qq.com/act/activityCenter2308/";
 
-    private async Task<ClientRewardSourceStatus> ScanPalmDirectoryAsync(CancellationToken token)
+    private sealed record PalmDirectory(ClientRewardSourceStatus Status, IReadOnlyList<Uri> Activities);
+
+    private async Task<PalmDirectory> ScanPalmDirectoryAsync(CancellationToken token)
     {
         // Reward scans require a connected account. Its credentials are never
         // attached to the public Palm directory request.
@@ -19,15 +21,18 @@ public sealed partial class LcuClientFeatureService
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException("掌盟活动目录暂不可用");
         string raw = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
         if (raw.Length > 2_097_152) throw new InvalidOperationException("掌盟活动目录超出预期大小");
-        return ReadPalmDirectory(JObject.Parse(raw), DateTimeOffset.UtcNow);
+        return ParsePalmDirectory(JObject.Parse(raw), DateTimeOffset.UtcNow);
     }
 
-    internal static ClientRewardSourceStatus ReadPalmDirectory(JObject root, DateTimeOffset now)
+    internal static ClientRewardSourceStatus ReadPalmDirectory(JObject root, DateTimeOffset now) => ParsePalmDirectory(root, now).Status;
+
+    private static PalmDirectory ParsePalmDirectory(JObject root, DateTimeOffset now)
     {
         if (root.Value<int?>("code") != 0 || root.SelectToken("data.result")?.Value<int?>() != 0
             || root.SelectToken("data.feedsInfo") is not JArray feeds)
             throw new InvalidOperationException("掌盟活动目录返回异常，未确认活动或领取状态");
         var activities = new Dictionary<string, string>(StringComparer.Ordinal);
+        var urls = new HashSet<Uri>();
         int unconfirmed = 0;
         foreach (var feed in feeds.OfType<JObject>())
         {
@@ -46,15 +51,18 @@ public sealed partial class LcuClientFeatureService
                 string entry = Uri.TryCreate(intent, UriKind.Absolute, out var uri) && uri.Scheme == "https"
                     && uri.IsDefaultPort && uri.UserInfo.Length == 0 && uri.Host.EndsWith(".qq.com", StringComparison.OrdinalIgnoreCase)
                     ? uri.AbsoluteUri : "需要在掌盟内打开";
-                activities.TryAdd(id, $"{title}（截止 {end:MM-dd HH:mm}）\n{entry}");
+                if (entry != "需要在掌盟内打开") urls.Add(uri!);
+                bool adapted = entry != "需要在掌盟内打开" && PalmEvents.Any(e => MatchesPalmEvent(uri!, e));
+                activities.TryAdd(id, $"{title}（截止 {end:MM-dd HH:mm}；{(adapted ? "已接入资格查询" : "尚未适配领取")}）\n{entry}");
             }
         }
         string? next = root.SelectToken("data.next")?.ToString();
         string coverage = next == "0" ? "当前目录读取完成" : "目录分页状态未确认，不能判定已扫描全部活动";
-        string message = $"发现 {activities.Count} 项当期 LOL 活动；{coverage}。活动清单不代表账号可领取奖励，尚未查询各活动资格。";
+        string message = $"发现 {activities.Count} 项当期 LOL 活动；{coverage}。目录本身不包含账户领取状态，已适配活动的资格查询见各来源。";
+        message += $" 当前目录中接入 {PalmEvents.Count(e => urls.Any(uri => MatchesPalmEvent(uri, e)))} 类活动的账户查询，其余活动尚未适配领取。";
         if (unconfirmed > 0) message += $"另有 {unconfirmed} 项活动资料未确认。";
         message += "\n" + (activities.Count == 0 ? "当前目录没有匹配的有效活动；未判定掌盟奖励已领完。" : string.Join("\n\n", activities.Values));
-        return new("掌盟活动目录", message) { OfficialUrl = PalmActivityCenter };
+        return new(new("掌盟活动目录", message) { OfficialUrl = PalmActivityCenter }, urls.ToArray());
     }
 
     private static bool PalmDate(string? text, out DateTimeOffset value)

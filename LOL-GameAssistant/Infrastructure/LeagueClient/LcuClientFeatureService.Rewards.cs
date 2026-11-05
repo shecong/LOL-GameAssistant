@@ -88,16 +88,25 @@ public sealed partial class LcuClientFeatureService
             return $"本月已签到 {scan.Days} 天，可领取 {scan.Gifts.Count(g => g.CanClaim)} 组礼包\n" +
                 string.Join("\n", scan.Gifts.Select(g => $"{(g.Stage == "0" ? "掌盟礼包" : g.Stage + " 天礼包")}：{g.Name}（{g.State}）"));
         });
+        PalmDirectory? palmDirectory = null;
         await Scan("掌盟活动目录", async () =>
         {
-            return (await ScanPalmDirectoryAsync(cancellationToken).ConfigureAwait(false)).Message;
+            palmDirectory = await ScanPalmDirectoryAsync(cancellationToken).ConfigureAwait(false);
+            return palmDirectory.Status.Message;
         });
+        foreach (var activity in PalmEvents.Where(e => palmDirectory?.Activities.Any(uri => MatchesPalmEvent(uri, e)) == true))
+            await Scan(activity.Name, async () =>
+            {
+                var scan = await ReadPalmEventAsync(activity, cancellationToken).ConfigureAwait(false);
+                rewards.AddRange(scan.Rewards);
+                return scan.Message;
+            });
         return new(rewards, sources);
 
         async Task Scan(string source, Func<Task<string>> read)
         {
             try { sources.Add(new(source, await read().ConfigureAwait(false))
-                { OfficialUrl = source == "掌盟活动目录" ? PalmActivityCenter : null }); }
+                { OfficialUrl = source == "掌盟活动目录" ? PalmActivityCenter : PalmEvents.FirstOrDefault(e => e.Name == source) is { } activity ? PalmEventUrl(activity) : null }); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception e) when (e is HttpRequestException or JsonException or InvalidOperationException or OperationCanceledException
                 or System.Net.WebSockets.WebSocketException or FormatException or ArgumentException or OverflowException)
