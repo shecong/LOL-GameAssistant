@@ -20,11 +20,14 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private readonly Func<bool> _gameRunning;
     private readonly FileSkinBrowserModel _model = new();
     private readonly CslolSkinNames _names = new();
+    private readonly CslolChampionSearch _championSearch = new();
+    private static readonly string[] HeroPositions = ["", "TOP", "MIDDLE", "JUNGLE", "BOTTOM", "SUPPORT"];
     private FileSkinPreferences _preferences = new();
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _cardsRequest, _heroesRequest, _applyRequest;
     private readonly AntdUI.Input _path = new() { Name = "FileSkinGamePath", Dock = DockStyle.Fill, PlaceholderText = "选择英雄联盟 Game 目录" };
-    private readonly AntdUI.Input _heroQuery = new() { Name = "FileSkinHeroSearch", Dock = DockStyle.Top, Height = 44, PlaceholderText = "搜索英雄 · 中文 / 英文" };
+    private readonly AntdUI.Input _heroQuery = new() { Name = "FileSkinHeroSearch", Dock = DockStyle.Top, Height = 44, PlaceholderText = "英雄 · 中文 / 拼音 / 首字母 / 英文" };
+    private readonly AntdUI.Select _heroLane = new() { Name = "FileSkinHeroLane", Dock = DockStyle.Top, Height = 38, List = true };
     private readonly AntdUI.Input _query = new() { Name = "FileSkinSearch", Dock = DockStyle.Fill, PlaceholderText = "在当前英雄中搜索皮肤…" };
     private readonly AntdUI.Select _filter = new() { Name = "FileSkinFilter", Width = 140, Height = 42, List = true };
     private readonly AntdUI.Label _status = new() { Name = "FileSkinStatus", Dock = DockStyle.Top, Height = 30, Text = "加载本地皮肤资源…", TextMultiLine = false };
@@ -44,6 +47,9 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private readonly AntdUI.Button _next = new() { Name = "FileSkinNextPage", Text = "下一页", Width = 90, Height = 36 };
     private readonly TableLayoutPanel _body = new() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
     private readonly System.Windows.Forms.Timer _watch = new() { Interval = 2000 };
+    private readonly System.Windows.Forms.Timer _heroSearchDelay = new() { Interval = 300 };
+    private readonly AntdUI.Switch _enabled = new() { Name = "FileSkinEnabled", Width = 52, Height = 30 };
+    private bool _syncingEnabled, _switching;
     private string? _champion;
     private IReadOnlyList<CslolSkinEntry> _filtered = [];
     private readonly Dictionary<FileSkinArtTile, CslolSkinEntry> _skinTiles = [];
@@ -58,7 +64,10 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         _gameRunning = gameRunning ?? CslolSkinService.IsGameRunning;
         Dock = DockStyle.Fill; Font = new Font(UiMetrics.FontFamily, 10); Name = "FileSkinBrowser";
         BuildLayout();
-        _heroQuery.TextChanged += (_, _) => RenderHeroes();
+        _heroQuery.TextChanged += (_, _) => { _heroSearchDelay.Stop(); _heroSearchDelay.Start(); };
+        _heroSearchDelay.Tick += (_, _) => { _heroSearchDelay.Stop(); FilterHeroes(); };
+        _heroLane.Items.AddRange(["全部分路", "上单", "中单", "打野", "下路", "辅助"]); _heroLane.SelectedIndex = 0;
+        _heroLane.SelectedIndexChanged += (_, _) => { _heroSearchDelay.Stop(); FilterHeroes(); };
         _query.TextChanged += (_, _) => FilterCards();
         _filter.Items.AddRange(["仅皮肤", "含炫彩 / 形态", "仅收藏", "仅已选择"]); _filter.SelectedIndex = 0;
         _filter.SelectedIndexChanged += (_, _) => FilterCards();
@@ -66,7 +75,9 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         _previous.Click += (_, _) => { _page--; RenderCards(); };
         _next.Click += (_, _) => { _page++; RenderCards(); };
         _apply.Click += async (_, _) => await ApplyAsync();
-        _stop.Click += async (_, _) => { _applyRequest?.Cancel(); var result = await _files.StopAsync(); if (!_disposing) { _status.Text = result.Message; UpdateControls(); } };
+        _stop.Click += async (_, _) => await ToggleEnabledAsync(false);
+        _enabled.CheckedChanged += async (_, _) => { if (!_syncingEnabled) await ToggleEnabledAsync(_enabled.Checked); };
+        _engines.Changed += EngineChanged;
         _save.Click += (_, _) => SavePreset();
         _presets.SelectedIndexChanged += (_, _) =>
         {
@@ -76,16 +87,23 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         };
         _files.StatusChanged += Progress;
         Load += async (_, _) => await LoadCatalogAsync();
-        _watch.Tick += (_, _) => UpdateControls(); _watch.Start();
+        _watch.Tick += (_, _) => { SyncEnabled(); UpdateControls(); }; _watch.Start();
+        VisibleChanged += (_, _) => { SyncEnabled(); UpdateControls(); };
         _cards.Resize += (_, _) => ResizeCards();
         Resize += (_, _) => _body.ColumnStyles[0].Width = Width >= 1200 ? 300 : Width < 850 ? 170 : 260;
-        UiTheme.Apply(this); UpdateControls();
+        UiTheme.Apply(this); SyncEnabled(); UpdateControls();
     }
 
     private void BuildLayout()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 122, Padding = new Padding(20, 12, 20, 8) };
-        var title = new AntdUI.Label { Dock = DockStyle.Top, Height = 30, Text = "游戏外换肤", Font = new Font(UiMetrics.FontFamily, 15, FontStyle.Bold) };
+        var header = new Panel { Dock = DockStyle.Top, Height = 136, Padding = new Padding(20, 12, 20, 8) };
+        var title = new TableLayoutPanel { Dock = DockStyle.Top, Height = 36, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        title.RowStyles.Add(new(SizeType.Percent, 100));
+        title.ColumnStyles.Add(new(SizeType.Percent, 100)); title.ColumnStyles.Add(new(SizeType.Absolute, 210));
+        title.Controls.Add(new AntdUI.Label { Dock = DockStyle.Fill, Text = "游戏外换肤", Font = new Font(UiMetrics.FontFamily, 15, FontStyle.Bold) }, 0, 0);
+        var toggleRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
+        toggleRow.Controls.Add(new AntdUI.Label { Text = "启用游戏外换肤", Width = 140, Height = 30, Margin = Padding.Empty }); toggleRow.Controls.Add(_enabled);
+        title.Controls.Add(toggleRow, 1, 0);
         var tools = new TableLayoutPanel { Dock = DockStyle.Top, Height = 46, ColumnCount = 3 };
         tools.ColumnStyles.Add(new(SizeType.Percent, 100)); tools.ColumnStyles.Add(new(SizeType.Absolute, 120)); tools.ColumnStyles.Add(new(SizeType.Absolute, 110));
         var browse = new AntdUI.Button { Text = "选择目录", Dock = DockStyle.Fill };
@@ -101,7 +119,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         var sidebar = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12), Name = "FileSkinSidebar" };
         var all = new AntdUI.Button { Name = "FileSkinAllHeroes", Dock = DockStyle.Top, Height = 38, Text = "全部英雄 · 跨英雄搜索" };
         all.Click += (_, _) => { _champion = null; _query.PlaceholderText = "在所有英雄中搜索皮肤…"; FilterCards(); HighlightHeroes(); };
-        sidebar.Controls.Add(_heroes); sidebar.Controls.Add(all); sidebar.Controls.Add(_heroQuery);
+        sidebar.Controls.Add(_heroes); sidebar.Controls.Add(all); sidebar.Controls.Add(_heroLane); sidebar.Controls.Add(_heroQuery);
         var gallery = new Panel { Dock = DockStyle.Fill };
         var filters = new TableLayoutPanel { Dock = DockStyle.Top, Height = 60, ColumnCount = 2, Padding = new Padding(16, 8, 16, 8) };
         filters.ColumnStyles.Add(new(SizeType.Percent, 100)); filters.ColumnStyles.Add(new(SizeType.Absolute, 150));
@@ -142,20 +160,43 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private void RenderHeroes()
     {
         if (_disposing) return;
+        _heroSearchDelay.Stop();
         _heroesRequest?.Cancel(); _heroesRequest?.Dispose(); _heroesRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        foreach (Control control in _heroes.Controls.Cast<Control>().ToArray()) control.Dispose();
-        _heroTiles.Clear();
-        var query = _heroQuery.Text.Trim();
-        foreach (var entry in _model.Catalog.DistinctBy(e => e.ChampionKey).Where(e => (_names.Champion(e.ChampionKey) + e.ChampionKey).Contains(query, StringComparison.OrdinalIgnoreCase)))
+        _heroes.SuspendLayout();
+        try
         {
-            var tile = new FileSkinArtTile { Name = "FileHero_" + entry.ChampionKey, Compact = true, Width = 56, Height = 84, Margin = new Padding(2),
-                Font = HeroFont,
-                Caption = _names.Champion(entry.ChampionKey), AccessibleName = _names.Champion(entry.ChampionKey), Selected = entry.ChampionKey == _champion };
-            tile.SelectedByUser += () => { _champion = entry.ChampionKey; _query.PlaceholderText = $"在{_names.Champion(_champion)}的皮肤中搜索…"; HighlightHeroes(); FilterCards(); };
-            tile.ApplyTheme(UiTheme.Palette); _heroTiles[tile] = entry.ChampionKey; _heroes.Controls.Add(tile);
-            _ = LoadArtAsync(tile, entry, true, _heroesRequest.Token);
+            foreach (Control control in _heroes.Controls.Cast<Control>().ToArray()) control.Dispose();
+            _heroTiles.Clear();
+            var query = _heroQuery.Text.Trim();
+            foreach (var entry in _model.Catalog.DistinctBy(e => e.ChampionKey))
+            {
+                var tile = new FileSkinArtTile { Name = "FileHero_" + entry.ChampionKey, Compact = true, Width = 56, Height = 84, Margin = new Padding(2),
+                    Font = HeroFont,
+                    Caption = _names.Champion(entry.ChampionKey), AccessibleName = _names.Champion(entry.ChampionKey), Selected = entry.ChampionKey == _champion,
+                    Visible = MatchesHero(entry.ChampionKey, query) };
+                tile.SelectedByUser += () => { _champion = entry.ChampionKey; _query.PlaceholderText = $"在{_names.Champion(_champion)}的皮肤中搜索…"; HighlightHeroes(); FilterCards(); };
+                tile.ApplyTheme(UiTheme.Palette); _heroTiles[tile] = entry.ChampionKey; _heroes.Controls.Add(tile);
+                _ = LoadArtAsync(tile, entry, true, _heroesRequest.Token);
+            }
         }
+        finally { _heroes.ResumeLayout(true); }
     }
+    private void FilterHeroes()
+    {
+        if (_disposing) return;
+        var query = _heroQuery.Text.Trim();
+        // Keep controls and decoded artwork alive while typing; only their visibility changes.
+        _heroes.SuspendLayout();
+        try
+        {
+            _heroes.AutoScrollPosition = Point.Empty;
+            foreach (var pair in _heroTiles)
+                pair.Key.Visible = MatchesHero(pair.Value, query);
+        }
+        finally { _heroes.ResumeLayout(true); }
+    }
+    private bool MatchesHero(string key, string query) => _championSearch.Matches(key, _names.Champion(key), query,
+        HeroPositions[Math.Clamp(_heroLane.SelectedIndex, 0, HeroPositions.Length - 1)]);
     private void HighlightHeroes() { foreach (var pair in _heroTiles) { pair.Key.Selected = pair.Value == _champion; pair.Key.Invalidate(); } }
     private void FilterCards()
     {
@@ -229,7 +270,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         _applyRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         try
         {
-            await _engines.SelectAsync(SkinEngineMode.File, _applyRequest.Token);
+            if (!_engines.IsEnabled(SkinEngineMode.File)) throw new InvalidOperationException("请先开启游戏外换肤开关");
             var config = _settings.Load(); config.CslolGamePath = _path.Text.Trim(); _settings.Save(config);
             var result = await _files.ApplyAsync(config.CslolGamePath, picks, cancellationToken: _applyRequest.Token);
             if (!_disposing) _status.Text = result.Ok ? "已准备完成，请进入游戏。" : $"应用失败（{result.Stage}）：{_names.TranslateStatus(result.Message, picks)}";
@@ -242,10 +283,35 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     {
         if (_disposing) return;
         bool running = _gameRunning();
-        _apply.Enabled = _loaded && !_busy && !running && _files.IsAvailable && _model.Selected.Count > 0;
+        _apply.Enabled = _engines.IsEnabled(SkinEngineMode.File) && _loaded && !_busy && !_switching && !running && _files.IsAvailable && _model.Selected.Count > 0;
+        _enabled.Enabled = !_switching;
         _stop.Enabled = _busy || _files.IsRunning; _clear.Enabled = _save.Enabled = _presets.Enabled = !_busy;
-        _heroes.Enabled = _cards.Enabled = _path.Enabled = _filter.Enabled = !_busy;
-        if (running && !_busy) _status.Text = _files.IsRunning ? "游戏正在运行 · 文件换肤进程运行中，新的选择需下局应用。" : "游戏正在运行：可以浏览和选择，退出对局后才能应用。";
+        _heroes.Enabled = _cards.Enabled = _path.Enabled = _filter.Enabled = _heroLane.Enabled = !_busy;
+        if (running && !_busy) _status.Text = !CslolSkinService.HasGameWindow()
+            ? "检测到游戏进程，但尚无游戏窗口。若持续无法进入，请点击停止 / 取消，退出游戏后重试。"
+            : _files.IsRunning ? "已检测到游戏窗口 · 文件换肤进程运行中，新的选择需下局应用。" : "已检测到游戏窗口：可以浏览和选择，退出对局后才能应用。";
+    }
+    private void SyncEnabled()
+    {
+        _syncingEnabled = true; try { _enabled.Checked = _engines.IsEnabled(SkinEngineMode.File); } finally { _syncingEnabled = false; }
+    }
+    private void EngineChanged()
+    {
+        if (_disposing || IsDisposed) return;
+        if (InvokeRequired) { try { BeginInvoke(EngineChanged); } catch (InvalidOperationException) { } return; }
+        SyncEnabled(); UpdateControls();
+    }
+    private async Task ToggleEnabledAsync(bool enabled)
+    {
+        if (_switching) return;
+        _switching = true; if (!enabled) _applyRequest?.Cancel(); UpdateControls();
+        try
+        {
+            await _engines.SetEnabledAsync(SkinEngineMode.File, enabled, _lifetime.Token);
+            if (!_disposing) _status.Text = enabled ? "游戏外换肤已启用，其他换肤功能已关闭。" : "游戏外换肤已关闭，覆盖进程已停止。";
+        }
+        catch (Exception error) { if (!_disposing) _status.Text = error.Message; }
+        finally { _switching = false; if (!_disposing) { SyncEnabled(); UpdateControls(); } }
     }
     private void Progress(string text)
     {
@@ -274,7 +340,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     {
         if (disposing && !_disposing)
         {
-            _disposing = true; _files.StatusChanged -= Progress; _watch.Dispose(); _lifetime.Cancel();
+            _disposing = true; _files.StatusChanged -= Progress; _engines.Changed -= EngineChanged; _watch.Dispose(); _heroSearchDelay.Dispose(); _lifetime.Cancel();
             _cardsRequest?.Cancel(); _cardsRequest?.Dispose(); _applyRequest?.Cancel(); _lifetime.Dispose();
             _heroesRequest?.Cancel(); _heroesRequest?.Dispose();
         }

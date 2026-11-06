@@ -51,7 +51,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         heading.Controls.Add(new AntdUI.Label { Text = "游戏内换肤", Anchor = AnchorStyles.Left, Height = 40, Width = 200, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(UiMetrics.FontFamily, 18, FontStyle.Bold), Margin = Padding.Empty }, 0, 0);
         var toggleRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 12, 0, 0), Margin = Padding.Empty };
-        toggleRow.Controls.Add(new AntdUI.Label { Text = "启用独立核心", Width = 120, Height = 32 }); toggleRow.Controls.Add(_enabled);
+        toggleRow.Controls.Add(new AntdUI.Label { Text = "启用游戏换肤", Width = 120, Height = 32 }); toggleRow.Controls.Add(_enabled);
         heading.Controls.Add(toggleRow, 1, 0);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 64, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Margin = Padding.Empty };
         buttons.Controls.AddRange([_refresh, _restore, _stop]);
@@ -91,6 +91,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _core.SetEnabled(_enabled.Checked);
         InitializeCameraAutomation();
         _enabled.CheckedChanged += async (_, _) => { if (!_syncingEnabled) await ToggleEnabledAsync(); };
+        _skinEngines.Changed += SkinEngineChanged;
         _search.TextChanged += (_, _) => FilterEntries();
         _entries.DrawItem += (_, e) => { e.Fore = e.Item.Fore; e.ForeSub = UiTheme.Palette.TextPrimary; };
         _entries.SelectedIndexChanged += async (_, _) =>
@@ -123,6 +124,14 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _syncingEnabled = true; try { _enabled.Checked = _core.Enabled; } finally { _syncingEnabled = false; }
         UpdateButtons(); if (Visible) _ = UpdatePreviewAsync();
     }
+    private void SkinEngineChanged()
+    {
+        if (_disposing || IsDisposed) return;
+        if (InvokeRequired) { try { BeginInvoke(SkinEngineChanged); } catch (InvalidOperationException) { } return; }
+        _syncingEnabled = true; try { _enabled.Checked = _skinEngines.IsEnabled(SkinEngineMode.Memory); } finally { _syncingEnabled = false; }
+        if (!_core.Enabled) { ResetSession(); UpdateActivity(); }
+        UpdateButtons();
+    }
     private void CancelPageRequests()
     {
         // Remove the owned reference before cancellation can trigger callbacks.
@@ -135,17 +144,16 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         try
         {
-            if (_enabled.Checked) await _skinEngines.SelectAsync(SkinEngineMode.Memory);
-            var settings = _settings.Load(); settings.SkinCoreEnabled = _enabled.Checked;
-            if (!_enabled.Checked) { settings.UnlimitedZoomEnabled = false; SetCameraToggle(false); }
-            _settings.Save(settings);
+            bool enabled = _enabled.Checked;
+            await _skinEngines.SetEnabledAsync(SkinEngineMode.Memory, enabled);
+            if (!enabled) SetCameraToggle(false);
         }
         catch (Exception ex)
         {
             _syncingEnabled = true; try { _enabled.Checked = _core.Enabled; } finally { _syncingEnabled = false; }
             _status.Text = ex.Message; return;
         }
-        _skinNotice?.Hide(); _core.SetEnabled(_enabled.Checked); ResetSession(); UpdateActivity();
+        _skinNotice?.Hide(); ResetSession(); UpdateActivity();
         HotkeySettingsChanged?.Invoke();
         _status.Text = UiLanguage.T(_enabled.Checked ? "功能已启用，等待读取当前对局。" : "功能已关闭；已开始的请求可能已执行，当前皮肤不会自动还原。");
     }
@@ -432,7 +440,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         BackColor = palette.Surface; ForeColor = palette.TextPrimary;
         _skinNavigation.BackColor = palette.SurfaceMuted;
         _skinNavigation.ForeColor = palette.TextPrimary;
-        foreach (var button in new[] { _heroSkinTab, _resourceSkinTab, _objectSkinTab, _rankBorderTab, _otherSettingsTab })
+        foreach (var button in new[] { _heroSkinTab, _resourceSkinTab, _fileSkinTab, _objectSkinTab, _rankBorderTab, _otherSettingsTab })
         {
             button.BackColor = palette.Accent;
             button.DefaultBack = palette.SurfaceRaised;
@@ -481,6 +489,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
             Interlocked.Increment(ref _revision);
             VisibleChanged -= PageVisibleChanged;
             UiLanguage.Changed -= LanguageChanged;
+            _skinEngines.Changed -= SkinEngineChanged;
             CancelPageRequests();
             CancelHotkeyRequests();
             _cameraWatch.Dispose();

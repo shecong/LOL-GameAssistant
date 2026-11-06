@@ -402,3 +402,6 @@ output/
 !/LOL-GameAssistant/Tools/Cslol/README.md
 /LOL-GameAssistant/Data/Skins/*
 !/LOL-GameAssistant/Data/Skins/README.md
+
+# User-supplied pinned resource loader; prepared by tools/prepare-resource-skins.ps1.
+/LOL-GameAssistant/Tools/ResourceSkins/HID.dll

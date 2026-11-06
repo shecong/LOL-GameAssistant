@@ -145,7 +145,14 @@ public sealed class ResourceSkinTests : IDisposable
         var button = page.Controls.Find("ResourceApply", true).Single();
         Assert.True(page.ClientRectangle.Contains(page.PointToClient(button.PointToScreen(new Point(button.Width / 2, button.Height / 2)))));
     });
-    private sealed class Engines : ISkinEngineCoordinator { public int Switches; public Task SelectAsync(SkinEngineMode mode, CancellationToken token = default) { Switches++; return Task.CompletedTask; } }
+    private sealed class Engines : ISkinEngineCoordinator
+    {
+        public int Switches; private SkinEngineMode _mode = SkinEngineMode.None;
+        public event Action? Changed;
+        public bool IsEnabled(SkinEngineMode mode) => _mode == mode;
+        public Task SetEnabledAsync(SkinEngineMode mode, bool enabled, CancellationToken token = default) => SelectAsync(enabled ? mode : SkinEngineMode.None, token);
+        public Task SelectAsync(SkinEngineMode mode, CancellationToken token = default) { Switches++; _mode = mode; Changed?.Invoke(); return Task.CompletedTask; }
+    }
     private sealed class Settings : IApplicationSettingsStore
     {
         public AssistantSettings Value = new(); public AssistantSettings Load() => Value;

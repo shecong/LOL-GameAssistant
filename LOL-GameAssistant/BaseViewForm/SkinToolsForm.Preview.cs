@@ -17,6 +17,8 @@ public sealed partial class SkinToolsForm
         Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold), Margin = new Padding(0, 0, 18, 0), BorderWidth = 1, Radius = 8 };
     private readonly AntdUI.Button _resourceSkinTab = new() { Name = "ResourceSkinTab", Text = "资源包换肤", Width = 156, Height = 48,
         Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold), Margin = new Padding(0, 0, 18, 0), BorderWidth = 1, Radius = 8 };
+    private readonly AntdUI.Button _fileSkinTab = new() { Name = "FileSkinTab", Text = "游戏外换肤", Width = 156, Height = 48,
+        Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold), Margin = new Padding(0, 0, 18, 0), BorderWidth = 1, Radius = 8 };
     private readonly AntdUI.Button _otherSettingsTab = new() { Name = "OtherSkinSettingsTab", Text = "其他设置", Width = 140, Height = 48,
         Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold), Margin = Padding.Empty, BorderWidth = 1, Radius = 8 };
     private readonly IChampionSkinResourceService _skinResources;
@@ -30,7 +32,7 @@ public sealed partial class SkinToolsForm
     {
         var navigation = _skinNavigation;
         navigation.AutoScroll = true;
-        navigation.Controls.AddRange([_heroSkinTab, _resourceSkinTab, _objectSkinTab, _rankBorderTab, _otherSettingsTab]);
+        navigation.Controls.AddRange([_heroSkinTab, _resourceSkinTab, _fileSkinTab, _objectSkinTab, _rankBorderTab, _otherSettingsTab]);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(0, 8, 12, 12) };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
@@ -56,16 +58,22 @@ public sealed partial class SkinToolsForm
         var resources = new DeferredPageHost(() => new ResourceSkinForm(
             LOL_GameAssistant.Bootstrap.AppCompositionRoot.ResourceSkins, _skinEngines, _settings)) { Dock = DockStyle.Fill, Visible = false };
         Controls.Add(resources);
+        var files = new DeferredPageHost(() => new FileSkinBrowserForm(
+            LOL_GameAssistant.Bootstrap.AppCompositionRoot.CslolSkins, _skinEngines, _settings,
+            LOL_GameAssistant.Bootstrap.AppCompositionRoot.FileSkinPreferences,
+            LOL_GameAssistant.Bootstrap.AppCompositionRoot.FileSkinArtwork)) { Dock = DockStyle.Fill, Visible = false };
+        Controls.Add(files);
         Controls.Add(navigation);
         void SelectPage(int index)
         {
-            layout.Visible = index != 4;
+            layout.Visible = index < 4;
             resources.Visible = index == 4;
+            files.Visible = index == 5;
             heroPage.Visible = index == 0;
             objects.Visible = index == 1;
             otherSettings.Visible = index == 2;
             rankBorders.Visible = index == 3;
-            var tabs = new[] { _heroSkinTab, _objectSkinTab, _otherSettingsTab, _rankBorderTab, _resourceSkinTab };
+            var tabs = new[] { _heroSkinTab, _objectSkinTab, _otherSettingsTab, _rankBorderTab, _resourceSkinTab, _fileSkinTab };
             for (int i = 0; i < tabs.Length; i++)
             {
                 tabs[i].Type = i == index ? AntdUI.TTypeMini.Primary : AntdUI.TTypeMini.Default;
@@ -75,6 +83,7 @@ public sealed partial class SkinToolsForm
         SelectPage(0);
         _heroSkinTab.Click += (_, _) => SelectPage(0);
         _resourceSkinTab.Click += (_, _) => SelectPage(4);
+        _fileSkinTab.Click += (_, _) => SelectPage(5);
         _objectSkinTab.Click += (_, _) => SelectPage(1);
         _otherSettingsTab.Click += (_, _) => SelectPage(2);
         _rankBorderTab.Click += (_, _) => SelectPage(3);

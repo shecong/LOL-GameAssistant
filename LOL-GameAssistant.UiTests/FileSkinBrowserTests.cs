@@ -79,6 +79,123 @@ public sealed class FileSkinBrowserTests
         files.StopOk = true; await coordinator.SelectAsync(SkinEngineMode.Memory);
         Assert.False(files.IsRunning); Assert.Equal(SkinEngineMode.Memory, settings.Value.SkinEngineMode);
     }
+    [Fact]
+    public async Task ThreeSwitchesAreExclusiveAndCanAllBeOff()
+    {
+        var memory = new Memory(); var files = new Files(); var resources = new Resources(); var settings = new Settings();
+        var coordinator = new SkinEngineCoordinator(memory, files, settings, () => false, resources);
+        void AssertOnly(SkinEngineMode active)
+        {
+            foreach (var mode in new[] { SkinEngineMode.Memory, SkinEngineMode.Resource, SkinEngineMode.File }) Assert.Equal(mode == active, coordinator.IsEnabled(mode));
+        }
+        AssertOnly(SkinEngineMode.None);
+        await coordinator.SetEnabledAsync(SkinEngineMode.Memory, true); AssertOnly(SkinEngineMode.Memory); Assert.True(settings.Value.SkinCoreEnabled);
+        await coordinator.SetEnabledAsync(SkinEngineMode.File, true); AssertOnly(SkinEngineMode.File); Assert.False(memory.Enabled);
+        files.Running = true;
+        await coordinator.SetEnabledAsync(SkinEngineMode.Resource, true); AssertOnly(SkinEngineMode.Resource); Assert.False(files.Running);
+        resources.Mounted = true;
+        await coordinator.SetEnabledAsync(SkinEngineMode.File, false); AssertOnly(SkinEngineMode.Resource); Assert.True(resources.Mounted);
+        await coordinator.SetEnabledAsync(SkinEngineMode.Resource, false); AssertOnly(SkinEngineMode.None); Assert.False(resources.Mounted);
+        Assert.Equal(SkinEngineMode.None, settings.Value.SkinEngineMode);
+    }
+    [Fact]
+    public async Task CleanupFailureRetainsExistingSwitchAndPreventsNewEngine()
+    {
+        var memory = new Memory(); var files = new Files(); var resources = new Resources { Mounted = true, FailClear = true };
+        var settings = new Settings(); settings.Value.SkinEngineMode = SkinEngineMode.Resource;
+        var coordinator = new SkinEngineCoordinator(memory, files, settings, () => false, resources);
+        await Assert.ThrowsAsync<IOException>(() => coordinator.SetEnabledAsync(SkinEngineMode.Memory, true));
+        Assert.True(coordinator.IsEnabled(SkinEngineMode.Resource)); Assert.False(memory.Enabled);
+        await Assert.ThrowsAsync<IOException>(() => coordinator.SetEnabledAsync(SkinEngineMode.Resource, false));
+        Assert.True(coordinator.IsEnabled(SkinEngineMode.Resource));
+    }
+    [Fact]
+    public async Task ConcurrentSwitchesWaitForCleanupAndNeverEnableTwoEngines()
+    {
+        var memory = new Memory(); var files = new Files(); var resources = new Resources { Mounted = true };
+        var settings = new Settings(); settings.Value.SkinEngineMode = SkinEngineMode.Resource;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        resources.BeforeClear = async () => { entered.TrySetResult(); await release.Task; };
+        var coordinator = new SkinEngineCoordinator(memory, files, settings, () => false, resources);
+        int violations = 0;
+        coordinator.Changed += () => { if (new[] { SkinEngineMode.Memory, SkinEngineMode.File, SkinEngineMode.Resource }.Count(coordinator.IsEnabled) > 1) Interlocked.Increment(ref violations); };
+        var first = coordinator.SetEnabledAsync(SkinEngineMode.Memory, true); await entered.Task;
+        var second = coordinator.SetEnabledAsync(SkinEngineMode.File, true);
+        Assert.False(first.IsCompleted); Assert.False(second.IsCompleted); Assert.True(coordinator.IsEnabled(SkinEngineMode.Resource));
+        release.SetResult(); await Task.WhenAll(first, second);
+        Assert.True(coordinator.IsEnabled(SkinEngineMode.File)); Assert.False(memory.Enabled); Assert.False(resources.Mounted); Assert.Equal(0, violations);
+    }
+    [Fact]
+    public async Task NativeSwitchCanBeReenabledAndFileOverlayCanBeStoppedDuringMatch()
+    {
+        var memory = new Memory(); var files = new Files(); var settings = new Settings();
+        var coordinator = new SkinEngineCoordinator(memory, files, settings, () => true);
+        await coordinator.SetEnabledAsync(SkinEngineMode.Memory, true);
+        await coordinator.SetEnabledAsync(SkinEngineMode.Memory, false); Assert.Equal(SkinEngineMode.None, settings.Value.SkinEngineMode);
+        await coordinator.SetEnabledAsync(SkinEngineMode.Memory, true); Assert.True(memory.Enabled);
+        settings.Value.SkinEngineMode = SkinEngineMode.File; memory.SetEnabled(false); files.Running = true;
+        await coordinator.SetEnabledAsync(SkinEngineMode.File, false);
+        Assert.False(coordinator.IsEnabled(SkinEngineMode.File)); Assert.False(files.Running);
+        Assert.Equal(SkinEngineMode.None, settings.Value.SkinEngineMode);
+    }
+    [Theory]
+    [InlineData(SkinEngineMode.None)]
+    [InlineData(SkinEngineMode.Memory)]
+    [InlineData(SkinEngineMode.File)]
+    public async Task LeavingResourceModeDisablesLoaderEvenAfterMountsWereCleared(SkinEngineMode target)
+    {
+        var settings = new Settings(); settings.Value.SkinEngineMode = SkinEngineMode.Resource;
+        settings.Value.CslolGamePath = "test-game";
+        var resources = new Resources { Mounted = true };
+        var loader = new Loader { BeforeDisable = () => Assert.False(resources.Mounted) };
+        var coordinator = new SkinEngineCoordinator(new Memory(), new Files(), settings, () => false, resources, loader);
+        if (target == SkinEngineMode.None) await coordinator.SetEnabledAsync(SkinEngineMode.Resource, false);
+        else await coordinator.SelectAsync(target);
+        Assert.Equal(new[] { "test", "test-game" }, loader.Disabled); Assert.Equal(target, settings.Value.SkinEngineMode);
+
+        // Clearing WADs earlier does not imply that the DLL is already inactive.
+        settings.Value.SkinEngineMode = SkinEngineMode.Resource;
+        await coordinator.SetEnabledAsync(SkinEngineMode.Resource, false);
+        Assert.Equal(4, loader.Disabled.Count);
+    }
+
+    [Fact]
+    public async Task LoaderDisableFailureRetainsModeAndActiveMatchNeverTouchesLoader()
+    {
+        var settings = new Settings(); settings.Value.SkinEngineMode = SkinEngineMode.Resource;
+        settings.Value.CslolGamePath = "test-game";
+        bool running = false;
+        var loader = new Loader { BeforeDisable = () => throw new IOException("loader busy") };
+        var coordinator = new SkinEngineCoordinator(new Memory(), new Files(), settings, () => running, new Resources(), loader);
+        await Assert.ThrowsAsync<IOException>(() => coordinator.SetEnabledAsync(SkinEngineMode.Resource, false));
+        Assert.Equal(SkinEngineMode.Resource, settings.Value.SkinEngineMode);
+        running = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.SetEnabledAsync(SkinEngineMode.Resource, false));
+        Assert.Single(loader.Disabled); Assert.Equal(SkinEngineMode.Resource, settings.Value.SkinEngineMode);
+    }
+
+    private sealed class Loader : IResourceSkinLoader
+    {
+        public List<string> Disabled = []; public Action? BeforeDisable;
+        public Task EnsureInstalledAsync(string gameDirectory, CancellationToken token = default) => throw new NotImplementedException();
+        public Task DisableAsync(string gameDirectory, CancellationToken token = default)
+        {
+            Disabled.Add(gameDirectory); BeforeDisable?.Invoke(); return Task.CompletedTask;
+        }
+    }
+
+    private sealed class Resources : IResourceSkinService
+    {
+        public bool Mounted, FailClear; public Func<Task>? BeforeClear;
+        public ResourceSkinState State => new("test", Mounted ? [new("owned.wad.client", "test", "", 305, 1)] : []);
+        public Task ApplyAsync(string gameDirectory, IReadOnlyList<string> packages, CancellationToken token = default) => throw new NotImplementedException();
+        public async Task ClearAsync(CancellationToken token = default)
+        {
+            if (FailClear) throw new IOException("资源占用");
+            if (BeforeClear != null) await BeforeClear(); Mounted = false;
+        }
+    }
     private sealed class Settings : IApplicationSettingsStore
     {
         public AssistantSettings Value = new(); public AssistantSettings Load() => Value;

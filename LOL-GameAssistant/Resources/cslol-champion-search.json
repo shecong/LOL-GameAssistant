@@ -1,0 +1,4524 @@
+{
+  "Aatrox": {
+    "keywords": [
+      "Aatrox",
+      "anyijianmo",
+      "ayjm",
+      "jianmo",
+      "jm",
+      "yatuokesi",
+      "ytks",
+      "亚托克斯",
+      "剑魔",
+      "暗裔剑魔"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Ahri": {
+    "keywords": [
+      "Ahri",
+      "ahri",
+      "al",
+      "ali",
+      "hl",
+      "huli",
+      "jiuwei",
+      "jiuweiyaohu",
+      "jw",
+      "jwyh",
+      "九尾",
+      "九尾妖狐",
+      "狐狸",
+      "阿狸"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Akali": {
+    "keywords": [
+      "Akali",
+      "akali",
+      "akl",
+      "liqunzhici",
+      "lqzc",
+      "离群之刺",
+      "阿卡丽"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Akshan": {
+    "keywords": [
+      "Akshan",
+      "a",
+      "ak",
+      "ake",
+      "akeshang",
+      "aks",
+      "yingshao",
+      "ys",
+      "影哨",
+      "阿",
+      "阿克",
+      "阿克尚"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Alistar": {
+    "keywords": [
+      "Alistar",
+      "alisita",
+      "alst",
+      "niutou",
+      "niutouqiuzhang",
+      "nt",
+      "ntqz",
+      "qiuzhang",
+      "qz",
+      "牛头",
+      "牛头酋长",
+      "酋长",
+      "阿利斯塔"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Ambessa": {
+    "keywords": [
+      "Ambessa",
+      "abs",
+      "anbeisa",
+      "tiexuelangmu",
+      "txlm",
+      "安蓓萨",
+      "铁血狼母"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Amumu": {
+    "keywords": [
+      "Amumu",
+      "amm",
+      "amumu",
+      "fentou",
+      "ft",
+      "mm",
+      "mny",
+      "mumu",
+      "munaiyi",
+      "shangzhimunaiyi",
+      "szmny",
+      "伤之木乃伊",
+      "分头",
+      "木乃伊",
+      "木木",
+      "殇之木乃伊",
+      "阿木木"
+    ],
+    "positions": [
+      "JUNGLE",
+      "SUPPORT"
+    ]
+  },
+  "Anivia": {
+    "keywords": [
+      "Anivia",
+      "ainiweiya",
+      "anwy",
+      "bingjingfenghuang",
+      "bjfh",
+      "fenghuang",
+      "fh",
+      "冰晶凤凰",
+      "凤凰",
+      "艾尼维亚"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Annie": {
+    "keywords": [
+      "Annie",
+      "an",
+      "anni",
+      "hazn",
+      "heianzhinv",
+      "hn",
+      "huonv",
+      "安妮",
+      "火女",
+      "黑暗之女"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Aphelios": {
+    "keywords": [
+      "Aphelios",
+      "canyuezhisu",
+      "cyzs",
+      "efeiliusi",
+      "efls",
+      "厄斐琉斯",
+      "残月之肃"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Ashe": {
+    "keywords": [
+      "Ashe",
+      "aishe",
+      "aixi",
+      "as",
+      "ax",
+      "bg",
+      "binggong",
+      "hanbing",
+      "hanbingsheshou",
+      "hb",
+      "hbss",
+      "冰弓",
+      "寒冰",
+      "寒冰射手",
+      "爱射",
+      "艾射",
+      "艾希"
+    ],
+    "positions": [
+      "BOTTOM",
+      "SUPPORT"
+    ]
+  },
+  "AurelionSol": {
+    "keywords": [
+      "AurelionSol",
+      "aoruiliansuoer",
+      "aoruilian·suoer",
+      "arlase",
+      "arlasr",
+      "arla·se",
+      "longwang",
+      "lw",
+      "se",
+      "suoer",
+      "zhuxinglongwang",
+      "zxlw",
+      "奥瑞利安·索尔",
+      "奥瑞利安索尔",
+      "索尔",
+      "铸星龙王",
+      "龙王"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Aurora": {
+    "keywords": [
+      "Aurora",
+      "all",
+      "aluola",
+      "shuangjielingtu",
+      "sjlt",
+      "双界灵兔",
+      "阿萝拉"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Azir": {
+    "keywords": [
+      "Azir",
+      "aze",
+      "azier",
+      "sh",
+      "shahuang",
+      "shamohuangdi",
+      "smhd",
+      "沙漠皇帝",
+      "沙皇",
+      "阿兹尔"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Bard": {
+    "keywords": [
+      "Bard",
+      "bade",
+      "bd",
+      "xingjieyoushen",
+      "xjys",
+      "巴德",
+      "星界游神"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Belveth": {
+    "keywords": [
+      "Belveth",
+      "beierweisi",
+      "bews",
+      "xknh",
+      "xukongnvhuang",
+      "卑尔维斯",
+      "虚空女皇"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Blitzcrank": {
+    "keywords": [
+      "Blitzcrank",
+      "blc",
+      "bulici",
+      "jiqiren",
+      "jqr",
+      "zhengqijiqiren",
+      "zqjqr",
+      "布里茨",
+      "机器人",
+      "蒸汽机器人"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Brand": {
+    "keywords": [
+      "Brand",
+      "bld",
+      "bulande",
+      "cfyh",
+      "fcyh",
+      "fuchouyanhun",
+      "hn",
+      "huonan",
+      "复仇焰魂",
+      "布兰德",
+      "火男"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Braum": {
+    "keywords": [
+      "Braum",
+      "bl",
+      "bulong",
+      "flezdzx",
+      "fuleierzhuodezhixin",
+      "布隆",
+      "弗雷尔卓德之心"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Briar": {
+    "keywords": [
+      "Briar",
+      "beileiya",
+      "bly",
+      "k",
+      "keqw",
+      "kuang",
+      "kuangeqiangwei",
+      "qiangwei",
+      "qw",
+      "狂",
+      "狂厄蔷薇",
+      "蔷薇",
+      "贝蕾亚"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Caitlyn": {
+    "keywords": [
+      "Caitlyn",
+      "ctl",
+      "kaitelin",
+      "ktl",
+      "nj",
+      "nvjing",
+      "pc",
+      "pcnj",
+      "picheng",
+      "pichengnvjing",
+      "凯特琳",
+      "女警",
+      "皮城",
+      "皮城女警"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Camille": {
+    "keywords": [
+      "Camille",
+      "kamier",
+      "kme",
+      "qgy",
+      "qinggangying",
+      "tn",
+      "tuinv",
+      "卡密尔",
+      "卡蜜尔",
+      "腿女",
+      "青钢影"
+    ],
+    "positions": [
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Cassiopeia": {
+    "keywords": [
+      "Cassiopeia",
+      "kaxiaopeiya",
+      "kxapy",
+      "moshezhiyong",
+      "mszy",
+      "shenv",
+      "sn",
+      "卡西奥佩娅",
+      "蛇女",
+      "魔蛇之拥"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Chogath": {
+    "keywords": [
+      "Chogath",
+      "chongzi",
+      "cz",
+      "dachongzi",
+      "dcz",
+      "kejiasi",
+      "kjs",
+      "xkkj",
+      "xukongkongju",
+      "大虫子",
+      "科加斯",
+      "虚空恐惧",
+      "虫子"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Corki": {
+    "keywords": [
+      "Corki",
+      "feiji",
+      "fj",
+      "kq",
+      "kuqi",
+      "yingyongtoudanshou",
+      "yytds",
+      "库奇",
+      "英勇投弹手",
+      "飞机"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Darius": {
+    "keywords": [
+      "Darius",
+      "delaiesi",
+      "dles",
+      "nksszs",
+      "ns",
+      "nuokesasizhishou",
+      "nuoshou",
+      "德莱厄斯",
+      "诺克萨斯之手",
+      "诺手"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Diana": {
+    "keywords": [
+      "Diana",
+      "daianna",
+      "dan",
+      "jiaoyue",
+      "jiaoyuenvshen",
+      "jy",
+      "jyns",
+      "皎月",
+      "皎月女神",
+      "黛安娜"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE"
+    ]
+  },
+  "DrMundo": {
+    "keywords": [
+      "DrMundo",
+      "md",
+      "mdys",
+      "mengduo",
+      "mengduoyisheng",
+      "zakr",
+      "zuankuangren",
+      "祖安狂人",
+      "蒙多",
+      "蒙多医生"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Draven": {
+    "keywords": [
+      "Draven",
+      "delaiwen",
+      "dlw",
+      "rongyaoxingxingguan",
+      "ryxxg",
+      "德莱文",
+      "荣耀行刑官"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Ekko": {
+    "keywords": [
+      "Ekko",
+      "aike",
+      "ak",
+      "shijiancike",
+      "sjck",
+      "时间刺客",
+      "艾克"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE"
+    ]
+  },
+  "Elise": {
+    "keywords": [
+      "Elise",
+      "yilisi",
+      "yls",
+      "zhizhu",
+      "zhizhunvhuang",
+      "zz",
+      "zznh",
+      "伊莉丝",
+      "蜘蛛",
+      "蜘蛛女皇"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Evelynn": {
+    "keywords": [
+      "Evelynn",
+      "gf",
+      "guafu",
+      "tkzy",
+      "tongkuzhiyong",
+      "yfl",
+      "yifulin",
+      "伊芙琳",
+      "寡妇",
+      "痛苦之拥"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Ezreal": {
+    "keywords": [
+      "Ezreal",
+      "ez",
+      "tanxianjia",
+      "txj",
+      "yizeruier",
+      "yzre",
+      "yzrr",
+      "伊泽瑞尔",
+      "探险家"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "FiddleSticks": {
+    "keywords": [
+      "FiddleSticks",
+      "daocaoren",
+      "dcr",
+      "fdtk",
+      "feidetike",
+      "ygkj",
+      "yuangukongju",
+      "稻草人",
+      "费德提克",
+      "远古恐惧"
+    ],
+    "positions": []
+  },
+  "Fiora": {
+    "keywords": [
+      "Fiora",
+      "fan",
+      "feiaona",
+      "jianji",
+      "jj",
+      "wsjj",
+      "wushuangjianji",
+      "剑姬",
+      "无双剑姬",
+      "菲奥娜"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Fizz": {
+    "keywords": [
+      "Fizz",
+      "chaoxihailing",
+      "cxhl",
+      "feizi",
+      "fz",
+      "xiaoyuren",
+      "xyr",
+      "小鱼人",
+      "潮汐海灵",
+      "菲兹"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Galio": {
+    "keywords": [
+      "Galio",
+      "jialiao",
+      "jla",
+      "zhengyijuxiang",
+      "zyjx",
+      "加里奥",
+      "正义巨像"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Gangplank": {
+    "keywords": [
+      "Gangplank",
+      "chuanzhang",
+      "cz",
+      "haiyangzhizai",
+      "hyzz",
+      "plk",
+      "pulangke",
+      "普朗克",
+      "海洋之灾",
+      "船长"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Garen": {
+    "keywords": [
+      "Garen",
+      "dabaojian",
+      "dbj",
+      "demaxiyazhili",
+      "dmxyzl",
+      "gailun",
+      "gl",
+      "大宝剑",
+      "德玛西亚之力",
+      "盖伦"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Gnar": {
+    "keywords": [
+      "Gnar",
+      "mishizhiya",
+      "mszy",
+      "naer",
+      "ne",
+      "纳尔",
+      "迷失之牙"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Gragas": {
+    "keywords": [
+      "Gragas",
+      "gljs",
+      "gulajiasi",
+      "jiutong",
+      "jt",
+      "pijiuren",
+      "pjr",
+      "rdcj",
+      "roudancongji",
+      "古拉加斯",
+      "啤酒人",
+      "肉蛋葱鸡",
+      "酒桶"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Graves": {
+    "keywords": [
+      "Graves",
+      "fawaikuangtu",
+      "fwkt",
+      "geleifusi",
+      "glfs",
+      "nanqiang",
+      "nq",
+      "格雷福斯",
+      "法外狂徒",
+      "男枪"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Gwen": {
+    "keywords": [
+      "Gw",
+      "Gwen",
+      "gewen",
+      "gw",
+      "l",
+      "ling",
+      "lingluowawa",
+      "llww",
+      "wa",
+      "wawa",
+      "wwa",
+      "娃wa",
+      "格温",
+      "灵",
+      "灵罗娃娃"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Hecarim": {
+    "keywords": [
+      "Hecarim",
+      "hekalimu",
+      "hklm",
+      "hlkm",
+      "renma",
+      "rm",
+      "zhanzhengzhiying",
+      "zzzy",
+      "人马",
+      "战争之影",
+      "赫卡里姆"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Heimerdinger": {
+    "keywords": [
+      "Heimerdinger",
+      "dafamingjia",
+      "datou",
+      "dfmj",
+      "dt",
+      "heimodingge",
+      "hmdg",
+      "大发明家",
+      "大头",
+      "黑默丁格"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Hwei": {
+    "keywords": [
+      "Hwei",
+      "h",
+      "hui",
+      "yhs",
+      "yihuashi",
+      "异画师",
+      "彗"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Illaoi": {
+    "keywords": [
+      "Illaoi",
+      "chushouma",
+      "csm",
+      "eluoyi",
+      "ely",
+      "haishoujisi",
+      "hsjs",
+      "俄洛伊",
+      "海兽祭司",
+      "触手妈"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Irelia": {
+    "keywords": [
+      "Irelia",
+      "airuiliya",
+      "arly",
+      "daofengwuzhe",
+      "dfwz",
+      "nd",
+      "ndf",
+      "nvdao",
+      "nvdaofeng",
+      "刀锋舞者",
+      "女刀",
+      "女刀锋",
+      "艾瑞莉娅"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Ivern": {
+    "keywords": [
+      "Ivern",
+      "aiweng",
+      "aw",
+      "cs",
+      "cuishen",
+      "xiaoju",
+      "xj",
+      "小菊",
+      "翠神",
+      "艾翁"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Aatrox": {
+    "keywords": [
+      "Aatrox",
+      "Jade_Aatrox",
+      "anyijianmo",
+      "ayjm",
+      "jianmo",
+      "jm",
+      "yatuokesi",
+      "ytks",
+      "亚托克斯",
+      "剑魔",
+      "暗裔剑魔"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Ahri": {
+    "keywords": [
+      "Ahri",
+      "Jade_Ahri",
+      "ahri",
+      "al",
+      "ali",
+      "hl",
+      "huli",
+      "jiuwei",
+      "jiuweiyaohu",
+      "jw",
+      "jwyh",
+      "九尾",
+      "九尾妖狐",
+      "狐狸",
+      "阿狸"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_Akali": {
+    "keywords": [
+      "Akali",
+      "Jade_Akali",
+      "akali",
+      "akl",
+      "liqunzhici",
+      "lqzc",
+      "离群之刺",
+      "阿卡丽"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Jade_Alistar": {
+    "keywords": [
+      "Alistar",
+      "Jade_Alistar",
+      "alisita",
+      "alst",
+      "niutou",
+      "niutouqiuzhang",
+      "nt",
+      "ntqz",
+      "qiuzhang",
+      "qz",
+      "牛头",
+      "牛头酋长",
+      "酋长",
+      "阿利斯塔"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Amumu": {
+    "keywords": [
+      "Amumu",
+      "Jade_Amumu",
+      "amm",
+      "amumu",
+      "fentou",
+      "ft",
+      "mm",
+      "mny",
+      "mumu",
+      "munaiyi",
+      "shangzhimunaiyi",
+      "szmny",
+      "伤之木乃伊",
+      "分头",
+      "木乃伊",
+      "木木",
+      "殇之木乃伊",
+      "阿木木"
+    ],
+    "positions": [
+      "JUNGLE",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Anivia": {
+    "keywords": [
+      "Anivia",
+      "Jade_Anivia",
+      "ainiweiya",
+      "anwy",
+      "bingjingfenghuang",
+      "bjfh",
+      "fenghuang",
+      "fh",
+      "冰晶凤凰",
+      "凤凰",
+      "艾尼维亚"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_Annie": {
+    "keywords": [
+      "Annie",
+      "Jade_Annie",
+      "an",
+      "anni",
+      "hazn",
+      "heianzhinv",
+      "hn",
+      "huonv",
+      "安妮",
+      "火女",
+      "黑暗之女"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_Ashe": {
+    "keywords": [
+      "Ashe",
+      "Jade_Ashe",
+      "aishe",
+      "aixi",
+      "as",
+      "ax",
+      "bg",
+      "binggong",
+      "hanbing",
+      "hanbingsheshou",
+      "hb",
+      "hbss",
+      "冰弓",
+      "寒冰",
+      "寒冰射手",
+      "爱射",
+      "艾射",
+      "艾希"
+    ],
+    "positions": [
+      "BOTTOM",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Blitzcrank": {
+    "keywords": [
+      "Blitzcrank",
+      "Jade_Blitzcrank",
+      "blc",
+      "bulici",
+      "jiqiren",
+      "jqr",
+      "zhengqijiqiren",
+      "zqjqr",
+      "布里茨",
+      "机器人",
+      "蒸汽机器人"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Brand": {
+    "keywords": [
+      "Brand",
+      "Jade_Brand",
+      "bld",
+      "bulande",
+      "cfyh",
+      "fcyh",
+      "fuchouyanhun",
+      "hn",
+      "huonan",
+      "复仇焰魂",
+      "布兰德",
+      "火男"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Caitlyn": {
+    "keywords": [
+      "Caitlyn",
+      "Jade_Caitlyn",
+      "ctl",
+      "kaitelin",
+      "ktl",
+      "nj",
+      "nvjing",
+      "pc",
+      "pcnj",
+      "picheng",
+      "pichengnvjing",
+      "凯特琳",
+      "女警",
+      "皮城",
+      "皮城女警"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Jade_Chogath": {
+    "keywords": [
+      "Chogath",
+      "Jade_Chogath",
+      "chongzi",
+      "cz",
+      "dachongzi",
+      "dcz",
+      "kejiasi",
+      "kjs",
+      "xkkj",
+      "xukongkongju",
+      "大虫子",
+      "科加斯",
+      "虚空恐惧",
+      "虫子"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Corki": {
+    "keywords": [
+      "Corki",
+      "Jade_Corki",
+      "feiji",
+      "fj",
+      "kq",
+      "kuqi",
+      "yingyongtoudanshou",
+      "yytds",
+      "库奇",
+      "英勇投弹手",
+      "飞机"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_DrMundo": {
+    "keywords": [
+      "DrMundo",
+      "Jade_DrMundo",
+      "md",
+      "mdys",
+      "mengduo",
+      "mengduoyisheng",
+      "zakr",
+      "zuankuangren",
+      "祖安狂人",
+      "蒙多",
+      "蒙多医生"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Elise": {
+    "keywords": [
+      "Elise",
+      "Jade_Elise",
+      "yilisi",
+      "yls",
+      "zhizhu",
+      "zhizhunvhuang",
+      "zz",
+      "zznh",
+      "伊莉丝",
+      "蜘蛛",
+      "蜘蛛女皇"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Evelynn": {
+    "keywords": [
+      "Evelynn",
+      "Jade_Evelynn",
+      "gf",
+      "guafu",
+      "tkzy",
+      "tongkuzhiyong",
+      "yfl",
+      "yifulin",
+      "伊芙琳",
+      "寡妇",
+      "痛苦之拥"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Ezreal": {
+    "keywords": [
+      "Ezreal",
+      "Jade_Ezreal",
+      "ez",
+      "tanxianjia",
+      "txj",
+      "yizeruier",
+      "yzre",
+      "yzrr",
+      "伊泽瑞尔",
+      "探险家"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Jade_Fiddlesticks": {
+    "keywords": [
+      "Fiddlesticks",
+      "Jade_Fiddlesticks",
+      "fdtk",
+      "feidetike",
+      "费德提克"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Fiora": {
+    "keywords": [
+      "Fiora",
+      "Jade_Fiora",
+      "fan",
+      "feiaona",
+      "jianji",
+      "jj",
+      "wsjj",
+      "wushuangjianji",
+      "剑姬",
+      "无双剑姬",
+      "菲奥娜"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Fizz": {
+    "keywords": [
+      "Fizz",
+      "Jade_Fizz",
+      "chaoxihailing",
+      "cxhl",
+      "feizi",
+      "fz",
+      "xiaoyuren",
+      "xyr",
+      "小鱼人",
+      "潮汐海灵",
+      "菲兹"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_Galio": {
+    "keywords": [
+      "Galio",
+      "Jade_Galio",
+      "jialiao",
+      "jla",
+      "zhengyijuxiang",
+      "zyjx",
+      "加里奥",
+      "正义巨像"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Gangplank": {
+    "keywords": [
+      "Gangplank",
+      "Jade_Gangplank",
+      "chuanzhang",
+      "cz",
+      "haiyangzhizai",
+      "hyzz",
+      "plk",
+      "pulangke",
+      "普朗克",
+      "海洋之灾",
+      "船长"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Garen": {
+    "keywords": [
+      "Garen",
+      "Jade_Garen",
+      "dabaojian",
+      "dbj",
+      "demaxiyazhili",
+      "dmxyzl",
+      "gailun",
+      "gl",
+      "大宝剑",
+      "德玛西亚之力",
+      "盖伦"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Gragas": {
+    "keywords": [
+      "Gragas",
+      "Jade_Gragas",
+      "gljs",
+      "gulajiasi",
+      "jiutong",
+      "jt",
+      "pijiuren",
+      "pjr",
+      "rdcj",
+      "roudancongji",
+      "古拉加斯",
+      "啤酒人",
+      "肉蛋葱鸡",
+      "酒桶"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Jade_Graves": {
+    "keywords": [
+      "Graves",
+      "Jade_Graves",
+      "fawaikuangtu",
+      "fwkt",
+      "geleifusi",
+      "glfs",
+      "nanqiang",
+      "nq",
+      "格雷福斯",
+      "法外狂徒",
+      "男枪"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Hecarim": {
+    "keywords": [
+      "Hecarim",
+      "Jade_Hecarim",
+      "hekalimu",
+      "hklm",
+      "hlkm",
+      "renma",
+      "rm",
+      "zhanzhengzhiying",
+      "zzzy",
+      "人马",
+      "战争之影",
+      "赫卡里姆"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Heimerdinger": {
+    "keywords": [
+      "Heimerdinger",
+      "Jade_Heimerdinger",
+      "dafamingjia",
+      "datou",
+      "dfmj",
+      "dt",
+      "heimodingge",
+      "hmdg",
+      "大发明家",
+      "大头",
+      "黑默丁格"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Jade_Irelia": {
+    "keywords": [
+      "Irelia",
+      "Jade_Irelia",
+      "airuiliya",
+      "arly",
+      "daofengwuzhe",
+      "dfwz",
+      "nd",
+      "ndf",
+      "nvdao",
+      "nvdaofeng",
+      "刀锋舞者",
+      "女刀",
+      "女刀锋",
+      "艾瑞莉娅"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Jade_Janna": {
+    "keywords": [
+      "Jade_Janna",
+      "Janna",
+      "fbzn",
+      "fengbaozhinu",
+      "fengnv",
+      "fn",
+      "jiana",
+      "jn",
+      "迦娜",
+      "风女",
+      "风暴之怒"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_JarvanIV": {
+    "keywords": [
+      "Jade_JarvanIV",
+      "JarvanIV",
+      "demaxiyahuangzi",
+      "dmxyhz",
+      "huangzi",
+      "hz",
+      "jiawen",
+      "jiawensishi",
+      "jw",
+      "jwss",
+      "嘉文",
+      "嘉文四世",
+      "德玛西亚皇子",
+      "皇子"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Jax": {
+    "keywords": [
+      "Jade_Jax",
+      "Jax",
+      "jiakesi",
+      "jks",
+      "wq",
+      "wqds",
+      "wuqi",
+      "wuqidashi",
+      "武器",
+      "武器大师",
+      "贾克斯"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Jade_Karma": {
+    "keywords": [
+      "Jade_Karma",
+      "Karma",
+      "kaerma",
+      "kem",
+      "shanzima",
+      "szm",
+      "tianqizhe",
+      "tqz",
+      "卡尔玛",
+      "天启者",
+      "扇子妈"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Jade_Karthus": {
+    "keywords": [
+      "Jade_Karthus",
+      "Karthus",
+      "kaersasi",
+      "kess",
+      "sg",
+      "sige",
+      "siwangsongchangzhe",
+      "swscz",
+      "卡尔萨斯",
+      "死亡颂唱者",
+      "死歌"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Kassadin": {
+    "keywords": [
+      "Jade_Kassadin",
+      "Kassadin",
+      "kasading",
+      "ksd",
+      "xkxz",
+      "xukongxingzhe",
+      "卡萨丁",
+      "虚空行者"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_Katarina": {
+    "keywords": [
+      "Jade_Katarina",
+      "Katarina",
+      "buxiang",
+      "buxiangzhiren",
+      "bx",
+      "bxzr",
+      "kate",
+      "katelinna",
+      "kt",
+      "ktln",
+      "不祥之刃",
+      "不详",
+      "卡特",
+      "卡特琳娜"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_Kayle": {
+    "keywords": [
+      "Jade_Kayle",
+      "Kayle",
+      "kaier",
+      "ke",
+      "tianshi",
+      "ts",
+      "zhengyitianshi",
+      "zyts",
+      "凯尔",
+      "天使",
+      "正义天使"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Kennen": {
+    "keywords": [
+      "Jade_Kennen",
+      "Kennen",
+      "kainan",
+      "kbzx",
+      "kn",
+      "kuangbaozhixin",
+      "凯南",
+      "狂暴之心"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_KogMaw": {
+    "keywords": [
+      "Jade_KogMaw",
+      "KogMaw",
+      "dazui",
+      "dz",
+      "kegemo",
+      "kgm",
+      "shenyuanjukou",
+      "syjk",
+      "克格莫",
+      "大嘴",
+      "深渊巨口"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Jade_LeeSin": {
+    "keywords": [
+      "Jade_LeeSin",
+      "LeeSin",
+      "liqing",
+      "lq",
+      "mangseng",
+      "ms",
+      "xiazi",
+      "xz",
+      "李青",
+      "盲僧",
+      "瞎子"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Leona": {
+    "keywords": [
+      "Jade_Leona",
+      "Leona",
+      "leiouna",
+      "lon",
+      "nt",
+      "nvtan",
+      "rinv",
+      "rn",
+      "sg",
+      "sgns",
+      "shuguang",
+      "shuguangnvshen",
+      "女坦",
+      "日女",
+      "曙光",
+      "曙光女神",
+      "蕾欧娜"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Lucian": {
+    "keywords": [
+      "Jade_Lucian",
+      "Lucian",
+      "abm",
+      "aobama",
+      "luxian",
+      "lxa",
+      "shengqiangyouxia",
+      "sqyx",
+      "卢锡安",
+      "圣枪游侠",
+      "奥巴马"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Jade_Lulu": {
+    "keywords": [
+      "Jade_Lulu",
+      "Lulu",
+      "ll",
+      "lulu",
+      "xianlingnvwu",
+      "xlnw",
+      "仙灵女巫",
+      "璐璐"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Lux": {
+    "keywords": [
+      "Jade_Lux",
+      "Lux",
+      "gh",
+      "ghnl",
+      "guanghui",
+      "guanghuinvlang",
+      "lakesi",
+      "lks",
+      "lux",
+      "光辉",
+      "光辉女郎",
+      "拉克丝"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Malphite": {
+    "keywords": [
+      "Jade_Malphite",
+      "Malphite",
+      "mft",
+      "mofeite",
+      "rongyanjushou",
+      "ryjs",
+      "shitouren",
+      "str",
+      "墨菲特",
+      "熔岩巨兽",
+      "石头人"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Jade_Malzahar": {
+    "keywords": [
+      "Jade_Malzahar",
+      "Malzahar",
+      "maerzhaha",
+      "mazha",
+      "mezh",
+      "mz",
+      "xkxz",
+      "xukongxianzhi",
+      "玛尔扎哈",
+      "虚空先知",
+      "蚂蚱",
+      "马尔扎哈"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_MasterYi": {
+    "keywords": [
+      "Jade_MasterYi",
+      "MasterYi",
+      "jiansheng",
+      "js",
+      "wjjs",
+      "wujijiansheng",
+      "y",
+      "yi",
+      "剑圣",
+      "无极剑圣",
+      "易"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_MissFortune": {
+    "keywords": [
+      "Jade_MissFortune",
+      "MF",
+      "MissFortune",
+      "eyunxiaojie",
+      "eyxj",
+      "shangjin",
+      "shangjinlieren",
+      "sj",
+      "sjlr",
+      "厄运小姐",
+      "赏金",
+      "赏金猎人"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Jade_Mordekaiser": {
+    "keywords": [
+      "Jade_Mordekaiser",
+      "Mordekaiser",
+      "mdks",
+      "modekaisa",
+      "tiekaiminghun",
+      "tienan",
+      "tkmh",
+      "tn",
+      "莫德凯撒",
+      "铁男",
+      "铁铠冥魂"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Morgana": {
+    "keywords": [
+      "Jade_Morgana",
+      "MGN",
+      "Morgana",
+      "dlts",
+      "duoluotianshi",
+      "mgn",
+      "moganna",
+      "堕落天使",
+      "莫甘娜"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Nami": {
+    "keywords": [
+      "Jade_Nami",
+      "Nami",
+      "hcjj",
+      "huanchaojiaoji",
+      "jiaoji",
+      "jj",
+      "namei",
+      "nm",
+      "唤潮鲛姬",
+      "娜美",
+      "鲛姬"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Nasus": {
+    "keywords": [
+      "Jade_Nasus",
+      "Nasus",
+      "goutou",
+      "gt",
+      "neisesi",
+      "nss",
+      "shamosishen",
+      "smss",
+      "内瑟斯",
+      "沙漠死神",
+      "狗头"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Nautilus": {
+    "keywords": [
+      "Jade_Nautilus",
+      "Nautilus",
+      "ntls",
+      "nuotileisi",
+      "shenhaitaitan",
+      "shtt",
+      "taitan",
+      "tt",
+      "泰坦",
+      "深海泰坦",
+      "诺提勒斯"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Nidalee": {
+    "keywords": [
+      "Jade_Nidalee",
+      "Nidalee",
+      "baonv",
+      "bn",
+      "kuangyenvlieshou",
+      "kynls",
+      "naideli",
+      "ndl",
+      "奈德丽",
+      "狂野女猎手",
+      "豹女"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Nunu": {
+    "keywords": [
+      "Jade_Nunu",
+      "Nunu",
+      "mmhwlp",
+      "nn",
+      "nnhwlp",
+      "nunu",
+      "nunuheweilangpu",
+      "xr",
+      "xueren",
+      "xueyuanshuangzi",
+      "xysz",
+      "努努",
+      "努努和威朗普",
+      "雪人",
+      "雪原双子"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Olaf": {
+    "keywords": [
+      "Jade_Olaf",
+      "Olaf",
+      "alf",
+      "aolafu",
+      "kuangzhanshi",
+      "kzs",
+      "奥拉夫",
+      "狂战士"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Pantheon": {
+    "keywords": [
+      "Jade_Pantheon",
+      "PS",
+      "Pantheon",
+      "bqzq",
+      "buquzhiqiang",
+      "pansen",
+      "ps",
+      "不屈之枪",
+      "潘森"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Jade_Poppy": {
+    "keywords": [
+      "Jade_Poppy",
+      "Poppy",
+      "bb",
+      "bobi",
+      "sczy",
+      "shengchuizhiyi",
+      "圣锤之毅",
+      "波比"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Jade_Quinn": {
+    "keywords": [
+      "Jade_Quinn",
+      "Quinn",
+      "demaxiyazhiyi",
+      "dmxyzy",
+      "dmxyzz",
+      "kuiyin",
+      "ky",
+      "niaoren",
+      "nr",
+      "奎因",
+      "德玛西亚之翼",
+      "鸟人"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Rammus": {
+    "keywords": [
+      "Jade_Rammus",
+      "Rammus",
+      "lamosi",
+      "lg",
+      "lms",
+      "longgui",
+      "pijialonggui",
+      "pjlg",
+      "披甲龙龟",
+      "拉莫斯",
+      "龙龟"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Ryze": {
+    "keywords": [
+      "Jade_Ryze",
+      "Ryze",
+      "fuwenfashi",
+      "fwfs",
+      "gt",
+      "guangtou",
+      "ruizi",
+      "rz",
+      "光头",
+      "瑞兹",
+      "符文法师"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Jade_Shaco": {
+    "keywords": [
+      "Jade_Shaco",
+      "Shaco",
+      "emoxiaochou",
+      "emxc",
+      "sake",
+      "shakou",
+      "sk",
+      "xc",
+      "xiaochou",
+      "小丑",
+      "恶魔小丑",
+      "沙口",
+      "沙扣",
+      "萨科"
+    ],
+    "positions": [
+      "JUNGLE",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Shen": {
+    "keywords": [
+      "Jade_Shen",
+      "Shen",
+      "mgzy",
+      "muguangzhiyan",
+      "s",
+      "shen",
+      "yaozi",
+      "慎",
+      "暮光之眼"
+    ],
+    "positions": [
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Jade_Shyvana": {
+    "keywords": [
+      "Jade_Shyvana",
+      "Shyvana",
+      "ln",
+      "longnv",
+      "longxuewuji",
+      "lxwj",
+      "xiwana",
+      "xwn",
+      "希瓦娜",
+      "龙女",
+      "龙血武姬"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Singed": {
+    "keywords": [
+      "Jade_Singed",
+      "Singed",
+      "lianjin",
+      "lianjinshushi",
+      "lj",
+      "ljss",
+      "xinjide",
+      "xjd",
+      "炼金",
+      "炼金术士",
+      "辛吉德"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Sion": {
+    "keywords": [
+      "Jade_Sion",
+      "Sion",
+      "saien",
+      "se",
+      "wanglingzhanshen",
+      "wlzs",
+      "亡灵战神",
+      "塞恩",
+      "赛恩"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Sivir": {
+    "keywords": [
+      "Jade_Sivir",
+      "Sivir",
+      "lunzima",
+      "lzm",
+      "xiweier",
+      "xwe",
+      "zhanzhengnvshen",
+      "zzns",
+      "希维尔",
+      "战争女神",
+      "轮子妈"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Jade_Skarner": {
+    "keywords": [
+      "Jade_Skarner",
+      "Skarner",
+      "sglz",
+      "shanggulingzhu",
+      "shuijingxianfeng",
+      "sikana",
+      "sjxf",
+      "skn",
+      "xiezi",
+      "xz",
+      "上古领主",
+      "斯卡纳",
+      "水晶先锋",
+      "蝎子"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Jade_Sona": {
+    "keywords": [
+      "Jade_Sona",
+      "Sona",
+      "qinnv",
+      "qinsexiannv",
+      "qn",
+      "qsxn",
+      "sn",
+      "suona",
+      "娑娜",
+      "琴女",
+      "琴瑟仙女"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Soraka": {
+    "keywords": [
+      "Jade_Soraka",
+      "Soraka",
+      "naima",
+      "nm",
+      "slk",
+      "suolaka",
+      "xingma",
+      "xm",
+      "zhongxingzhizi",
+      "zxzz",
+      "众星之子",
+      "奶妈",
+      "星妈",
+      "索拉卡"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Jade_Swain": {
+    "keywords": [
+      "Jade_Swain",
+      "Swain",
+      "nksstl",
+      "nuokesasitongling",
+      "siweiyin",
+      "swy",
+      "wuya",
+      "wy",
+      "乌鸦",
+      "斯维因",
+      "诺克萨斯统领"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Taric": {
+    "keywords": [
+      "Jade_Taric",
+      "Taric",
+      "baoshi",
+      "bs",
+      "talike",
+      "tlk",
+      "waluolanzhidun",
+      "wllzd",
+      "塔里克",
+      "宝石",
+      "瓦洛兰之盾"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Teemo": {
+    "keywords": [
+      "Jade_Teemo",
+      "Teemo",
+      "timo",
+      "tm",
+      "xjch",
+      "xunjiechihou",
+      "提莫",
+      "迅捷斥候"
+    ],
+    "positions": [
+      "JUNGLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Jade_Tristana": {
+    "keywords": [
+      "Jade_Tristana",
+      "Tristana",
+      "cstn",
+      "cuisitana",
+      "mailinpaoshou",
+      "mlps",
+      "xiaopao",
+      "xp",
+      "小炮",
+      "崔丝塔娜",
+      "麦林炮手"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE"
+    ]
+  },
+  "Jade_Tryndamere": {
+    "keywords": [
+      "Jade_Tryndamere",
+      "Tryndamere",
+      "manwang",
+      "manzuzhiwang",
+      "mw",
+      "mzzw",
+      "taidamier",
+      "tdme",
+      "泰达米尔",
+      "蛮族之王",
+      "蛮王"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_TwistedFate": {
+    "keywords": [
+      "Jade_TwistedFate",
+      "TwistedFate",
+      "cst",
+      "cuisite",
+      "kapai",
+      "kapaidashi",
+      "kp",
+      "kpds",
+      "卡牌",
+      "卡牌大师",
+      "崔斯特"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Jade_Twitch": {
+    "keywords": [
+      "Jade_Twitch",
+      "Twitch",
+      "laoshu",
+      "ls",
+      "tq",
+      "tuqi",
+      "wenyizhiyuan",
+      "wyzy",
+      "图奇",
+      "瘟疫之源",
+      "老鼠"
+    ],
+    "positions": [
+      "BOTTOM",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Vayne": {
+    "keywords": [
+      "Jade_Vayne",
+      "Vayne",
+      "anyelieshou",
+      "ayls",
+      "ve",
+      "vn",
+      "we",
+      "weien",
+      "暗夜猎手",
+      "薇恩"
+    ],
+    "positions": [
+      "BOTTOM",
+      "TOP"
+    ]
+  },
+  "Jade_Veigar": {
+    "keywords": [
+      "Jade_Veigar",
+      "Veigar",
+      "weijia",
+      "wj",
+      "xexfs",
+      "xfs",
+      "xiaofashi",
+      "xieexiaofashi",
+      "小法师",
+      "维迦",
+      "邪恶小法师"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Jade_Volibear": {
+    "keywords": [
+      "Jade_Volibear",
+      "Volibear",
+      "bmkl",
+      "bumiekuanglei",
+      "gouxiong",
+      "gx",
+      "wlbe",
+      "wolibeier",
+      "不灭狂雷",
+      "沃利贝尔",
+      "狗熊"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Jade_Warwick": {
+    "keywords": [
+      "Jade_Warwick",
+      "Warwick",
+      "langren",
+      "lr",
+      "wlk",
+      "wolike",
+      "zans",
+      "zuannushou",
+      "沃里克",
+      "狼人",
+      "祖安怒兽"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Jade_Wukong": {
+    "keywords": [
+      "Jade_Wukong",
+      "MonkeyKing",
+      "houzi",
+      "hz",
+      "qitiandasheng",
+      "qtds",
+      "sunwukong",
+      "swk",
+      "孙悟空",
+      "猴子",
+      "齐天大圣"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Jade_XinZhao": {
+    "keywords": [
+      "Jade_XinZhao",
+      "XinZhao",
+      "db",
+      "dbzg",
+      "debang",
+      "debangzongguan",
+      "zhaoxin",
+      "zx",
+      "德邦",
+      "德邦总管",
+      "赵信"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jade_Yorick": {
+    "keywords": [
+      "Jade_Yorick",
+      "Yorick",
+      "jmr",
+      "juemuren",
+      "mhr",
+      "muhunren",
+      "ylk",
+      "yuelike",
+      "掘墓人",
+      "牧魂人",
+      "约里克"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Jade_Zilean": {
+    "keywords": [
+      "Jade_Zilean",
+      "Zilean",
+      "jilan",
+      "jl",
+      "sglr",
+      "sglt",
+      "sgshz",
+      "shiguanglaoren",
+      "shiguanglaotou",
+      "shiguangshouhuzhe",
+      "基兰",
+      "时光守护者",
+      "时光老人",
+      "时光老头"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Janna": {
+    "keywords": [
+      "Janna",
+      "fbzn",
+      "fengbaozhinu",
+      "fengnv",
+      "fn",
+      "jiana",
+      "jn",
+      "迦娜",
+      "风女",
+      "风暴之怒"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "JarvanIV": {
+    "keywords": [
+      "JarvanIV",
+      "demaxiyahuangzi",
+      "dmxyhz",
+      "huangzi",
+      "hz",
+      "jiawen",
+      "jiawensishi",
+      "jw",
+      "jwss",
+      "嘉文",
+      "嘉文四世",
+      "德玛西亚皇子",
+      "皇子"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Jax": {
+    "keywords": [
+      "Jax",
+      "jiakesi",
+      "jks",
+      "wq",
+      "wqds",
+      "wuqi",
+      "wuqidashi",
+      "武器",
+      "武器大师",
+      "贾克斯"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Jayce": {
+    "keywords": [
+      "Jayce",
+      "jiesi",
+      "js",
+      "weilaishouhuzhe",
+      "wlshz",
+      "未来守护者",
+      "杰斯"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Jhin": {
+    "keywords": [
+      "Jhin",
+      "j",
+      "jin",
+      "ximingshi",
+      "xms",
+      "戏命师",
+      "烬"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Jinx": {
+    "keywords": [
+      "Jinx",
+      "baozouluoli",
+      "bzll",
+      "jinkesi",
+      "jks",
+      "ll",
+      "luoli",
+      "暴走萝莉",
+      "萝莉",
+      "金克丝"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "KSante": {
+    "keywords": [
+      "KSante",
+      "kst",
+      "kuisangti",
+      "nazumangrongyao",
+      "nzmry",
+      "奎桑提",
+      "纳祖芒荣耀"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Kaisa": {
+    "keywords": [
+      "Kaisa",
+      "kasha",
+      "ks",
+      "xkzn",
+      "xukongzhinv",
+      "卡莎",
+      "虚空之女"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Kalista": {
+    "keywords": [
+      "Kalista",
+      "fczm",
+      "fuchouzhimao",
+      "kalisita",
+      "klst",
+      "卡莉丝塔",
+      "复仇之矛"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Karma": {
+    "keywords": [
+      "Karma",
+      "kaerma",
+      "kem",
+      "shanzima",
+      "szm",
+      "tianqizhe",
+      "tqz",
+      "卡尔玛",
+      "天启者",
+      "扇子妈"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Karthus": {
+    "keywords": [
+      "Karthus",
+      "kaersasi",
+      "kess",
+      "sg",
+      "sige",
+      "siwangsongchangzhe",
+      "swscz",
+      "卡尔萨斯",
+      "死亡颂唱者",
+      "死歌"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Kassadin": {
+    "keywords": [
+      "Kassadin",
+      "kasading",
+      "ksd",
+      "xkxz",
+      "xukongxingzhe",
+      "卡萨丁",
+      "虚空行者"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Katarina": {
+    "keywords": [
+      "Katarina",
+      "buxiang",
+      "buxiangzhiren",
+      "bx",
+      "bxzr",
+      "kate",
+      "katelinna",
+      "kt",
+      "ktln",
+      "不祥之刃",
+      "不详",
+      "卡特",
+      "卡特琳娜"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Kayle": {
+    "keywords": [
+      "Kayle",
+      "kaier",
+      "ke",
+      "tianshi",
+      "ts",
+      "zhengyitianshi",
+      "zyts",
+      "凯尔",
+      "天使",
+      "正义天使"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Kayn": {
+    "keywords": [
+      "Kayn",
+      "kaiyin",
+      "ky",
+      "yingliuzhilian",
+      "ylzl",
+      "凯隐",
+      "影流之镰"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Kennen": {
+    "keywords": [
+      "Kennen",
+      "kainan",
+      "kbzx",
+      "kn",
+      "kuangbaozhixin",
+      "凯南",
+      "狂暴之心"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Khazix": {
+    "keywords": [
+      "Khazix",
+      "kazike",
+      "kzk",
+      "tanglang",
+      "tl",
+      "xkldz",
+      "xukonglueduozhe",
+      "xukonglveduozhe",
+      "卡兹克",
+      "虚空掠夺者",
+      "螳螂"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Kindred": {
+    "keywords": [
+      "Kindred",
+      "qianjue",
+      "qj",
+      "ylsz",
+      "yonglieshuangzi",
+      "千珏",
+      "永猎双子"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Kled": {
+    "keywords": [
+      "Kled",
+      "baonuqishi",
+      "bnqs",
+      "kelie",
+      "kl",
+      "克烈",
+      "暴怒骑士"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "KogMaw": {
+    "keywords": [
+      "KogMaw",
+      "dazui",
+      "dz",
+      "kegemo",
+      "kgm",
+      "shenyuanjukou",
+      "syjk",
+      "克格莫",
+      "大嘴",
+      "深渊巨口"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Leblanc": {
+    "keywords": [
+      "Leblanc",
+      "gsyj",
+      "guishuyaoji",
+      "lefulan",
+      "lfl",
+      "yaoji",
+      "yj",
+      "乐芙兰",
+      "妖姬",
+      "诡术妖姬"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "LeeSin": {
+    "keywords": [
+      "LeeSin",
+      "liqing",
+      "lq",
+      "mangseng",
+      "ms",
+      "xiazi",
+      "xz",
+      "李青",
+      "盲僧",
+      "瞎子"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Leona": {
+    "keywords": [
+      "Leona",
+      "leiouna",
+      "lon",
+      "nt",
+      "nvtan",
+      "rinv",
+      "rn",
+      "sg",
+      "sgns",
+      "shuguang",
+      "shuguangnvshen",
+      "女坦",
+      "日女",
+      "曙光",
+      "曙光女神",
+      "蕾欧娜"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Lillia": {
+    "keywords": [
+      "Lillia",
+      "hanxiubeilei",
+      "hxbl",
+      "liliya",
+      "lly",
+      "xiaolu",
+      "xl",
+      "含羞蓓蕾",
+      "小鹿",
+      "莉莉娅"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Lissandra": {
+    "keywords": [
+      "Lissandra",
+      "bingnv",
+      "bingshuangnvwu",
+      "bn",
+      "bsnw",
+      "lisangzhuo",
+      "lsz",
+      "丽桑卓",
+      "冰女",
+      "冰霜女巫"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Locke": {
+    "keywords": [
+      "Locke",
+      "hjqmr",
+      "huijinqumoren",
+      "lk",
+      "luoke",
+      "洛克",
+      "灰烬驱魔人"
+    ],
+    "positions": []
+  },
+  "Lucian": {
+    "keywords": [
+      "Lucian",
+      "abm",
+      "aobama",
+      "luxian",
+      "lxa",
+      "shengqiangyouxia",
+      "sqyx",
+      "卢锡安",
+      "圣枪游侠",
+      "奥巴马"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Lulu": {
+    "keywords": [
+      "Lulu",
+      "ll",
+      "lulu",
+      "xianlingnvwu",
+      "xlnw",
+      "仙灵女巫",
+      "璐璐"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Lux": {
+    "keywords": [
+      "Lux",
+      "gh",
+      "ghnl",
+      "guanghui",
+      "guanghuinvlang",
+      "lakesi",
+      "lks",
+      "lux",
+      "光辉",
+      "光辉女郎",
+      "拉克丝"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Malphite": {
+    "keywords": [
+      "Malphite",
+      "mft",
+      "mofeite",
+      "rongyanjushou",
+      "ryjs",
+      "shitouren",
+      "str",
+      "墨菲特",
+      "熔岩巨兽",
+      "石头人"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Malzahar": {
+    "keywords": [
+      "Malzahar",
+      "maerzhaha",
+      "mazha",
+      "mezh",
+      "mz",
+      "xkxz",
+      "xukongxianzhi",
+      "玛尔扎哈",
+      "虚空先知",
+      "蚂蚱",
+      "马尔扎哈"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Maokai": {
+    "keywords": [
+      "Maokai",
+      "dashu",
+      "ds",
+      "maokai",
+      "mk",
+      "niuqushujing",
+      "nqsj",
+      "大树",
+      "扭曲树精",
+      "茂凯"
+    ],
+    "positions": [
+      "JUNGLE",
+      "SUPPORT"
+    ]
+  },
+  "MasterYi": {
+    "keywords": [
+      "MasterYi",
+      "jiansheng",
+      "js",
+      "wjjs",
+      "wujijiansheng",
+      "y",
+      "yi",
+      "剑圣",
+      "无极剑圣",
+      "易"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Mel": {
+    "keywords": [
+      "Mel",
+      "lgjy",
+      "liuguangjingying",
+      "me",
+      "meier",
+      "梅尔",
+      "流光镜影"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Milio": {
+    "keywords": [
+      "Milio",
+      "miliou",
+      "mingzhu",
+      "mlo",
+      "mz",
+      "明烛",
+      "米利欧"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "MissFortune": {
+    "keywords": [
+      "MF",
+      "MissFortune",
+      "eyunxiaojie",
+      "eyxj",
+      "shangjin",
+      "shangjinlieren",
+      "sj",
+      "sjlr",
+      "厄运小姐",
+      "赏金",
+      "赏金猎人"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "MonkeyKing": {
+    "keywords": [
+      "MonkeyKing",
+      "houzi",
+      "hz",
+      "qitiandasheng",
+      "qtds",
+      "sunwukong",
+      "swk",
+      "孙悟空",
+      "猴子",
+      "齐天大圣"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Mordekaiser": {
+    "keywords": [
+      "Mordekaiser",
+      "mdks",
+      "modekaisa",
+      "tiekaiminghun",
+      "tienan",
+      "tkmh",
+      "tn",
+      "莫德凯撒",
+      "铁男",
+      "铁铠冥魂"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Morgana": {
+    "keywords": [
+      "MGN",
+      "Morgana",
+      "dlts",
+      "duoluotianshi",
+      "mgn",
+      "moganna",
+      "堕落天使",
+      "莫甘娜"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Naafiri": {
+    "keywords": [
+      "Naafiri",
+      "bailiemingquan",
+      "blmq",
+      "nayafeili",
+      "nyfl",
+      "百裂冥犬",
+      "纳亚菲利"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Nami": {
+    "keywords": [
+      "Nami",
+      "hcjj",
+      "huanchaojiaoji",
+      "jiaoji",
+      "jj",
+      "namei",
+      "nm",
+      "唤潮鲛姬",
+      "娜美",
+      "鲛姬"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Nasus": {
+    "keywords": [
+      "Nasus",
+      "goutou",
+      "gt",
+      "neisesi",
+      "nss",
+      "shamosishen",
+      "smss",
+      "内瑟斯",
+      "沙漠死神",
+      "狗头"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Nautilus": {
+    "keywords": [
+      "Nautilus",
+      "ntls",
+      "nuotileisi",
+      "shenhaitaitan",
+      "shtt",
+      "taitan",
+      "tt",
+      "泰坦",
+      "深海泰坦",
+      "诺提勒斯"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Neeko": {
+    "keywords": [
+      "Neeko",
+      "neeko",
+      "nikou",
+      "nk",
+      "wanhuatongling",
+      "whtl",
+      "万花通灵",
+      "妮蔻"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Nidalee": {
+    "keywords": [
+      "Nidalee",
+      "baonv",
+      "bn",
+      "kuangyenvlieshou",
+      "kynls",
+      "naideli",
+      "ndl",
+      "奈德丽",
+      "狂野女猎手",
+      "豹女"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Nilah": {
+    "keywords": [
+      "Nilah",
+      "bjzy",
+      "bujizhiyue",
+      "nila",
+      "nl",
+      "不羁之悦",
+      "尼菈"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Nocturne": {
+    "keywords": [
+      "Nocturne",
+      "mengyan",
+      "moteng",
+      "mt",
+      "my",
+      "noc",
+      "yhmy",
+      "yonghengmengyan",
+      "梦魇",
+      "永恒梦魇",
+      "魔腾"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Nunu": {
+    "keywords": [
+      "Nunu",
+      "mmhwlp",
+      "nn",
+      "nnhwlp",
+      "nunu",
+      "nunuheweilangpu",
+      "xr",
+      "xueren",
+      "xueyuanshuangzi",
+      "xysz",
+      "努努",
+      "努努和威朗普",
+      "雪人",
+      "雪原双子"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Olaf": {
+    "keywords": [
+      "Olaf",
+      "alf",
+      "aolafu",
+      "kuangzhanshi",
+      "kzs",
+      "奥拉夫",
+      "狂战士"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Orianna": {
+    "keywords": [
+      "Orianna",
+      "alan",
+      "aolianna",
+      "fatiao",
+      "fatiaomoling",
+      "ft",
+      "ftml",
+      "发条",
+      "发条魔灵",
+      "奥莉安娜"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Ornn": {
+    "keywords": [
+      "Ornn",
+      "ae",
+      "an",
+      "aoen",
+      "shanyinzhiyan",
+      "syzy",
+      "奥恩",
+      "山隐之焰"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Pantheon": {
+    "keywords": [
+      "PS",
+      "Pantheon",
+      "bqzq",
+      "buquzhiqiang",
+      "pansen",
+      "ps",
+      "不屈之枪",
+      "潘森"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Poppy": {
+    "keywords": [
+      "Poppy",
+      "bb",
+      "bobi",
+      "sczy",
+      "shengchuizhiyi",
+      "圣锤之毅",
+      "波比"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Pyke": {
+    "keywords": [
+      "Pyke",
+      "paike",
+      "pk",
+      "xggy",
+      "xuegangguiying",
+      "派克",
+      "血港鬼影"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Qiyana": {
+    "keywords": [
+      "Qiyana",
+      "qiyana",
+      "qyn",
+      "ysnh",
+      "yuansunvhuang",
+      "元素女皇",
+      "奇亚娜"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Quinn": {
+    "keywords": [
+      "Quinn",
+      "demaxiyazhiyi",
+      "dmxyzy",
+      "dmxyzz",
+      "kuiyin",
+      "ky",
+      "niaoren",
+      "nr",
+      "奎因",
+      "德玛西亚之翼",
+      "鸟人"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Rakan": {
+    "keywords": [
+      "Rakan",
+      "hl",
+      "huanling",
+      "l",
+      "luo",
+      "幻翎",
+      "洛"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Rammus": {
+    "keywords": [
+      "Rammus",
+      "lamosi",
+      "lg",
+      "lms",
+      "longgui",
+      "pijialonggui",
+      "pjlg",
+      "披甲龙龟",
+      "拉莫斯",
+      "龙龟"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "RekSai": {
+    "keywords": [
+      "RekSai",
+      "leikesai",
+      "lks",
+      "wajueji",
+      "wjj",
+      "xkdds",
+      "xukongdundishou",
+      "挖掘机",
+      "虚空遁地兽",
+      "雷克塞",
+      "雷克赛"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Rell": {
+    "keywords": [
+      "Rell",
+      "re",
+      "rongtie",
+      "rongtieshaonv",
+      "rt",
+      "rtsn",
+      "ruier",
+      "芮尔",
+      "镕铁",
+      "镕铁少女"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Renata": {
+    "keywords": [
+      "Renata",
+      "lianjinnanjue",
+      "lienata",
+      "lienata · gelasike",
+      "lienatagelasike",
+      "ljnj",
+      "lnt",
+      "lnt · glsk",
+      "lntglsk",
+      "renata",
+      "炼金男爵",
+      "烈娜塔",
+      "烈娜塔 · 戈拉斯克",
+      "烈娜塔戈拉斯克"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Renekton": {
+    "keywords": [
+      "Renekton",
+      "ey",
+      "eyu",
+      "hmtf",
+      "huangmotufu",
+      "leikedun",
+      "lkd",
+      "mmtf",
+      "荒漠屠夫",
+      "雷克顿",
+      "鳄鱼"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Rengar": {
+    "keywords": [
+      "Rengar",
+      "aozhizhuiliezhe",
+      "azzlz",
+      "leienjiaer",
+      "leje",
+      "shizigou",
+      "szg",
+      "傲之追猎者",
+      "狮子狗",
+      "雷恩加尔"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Riven": {
+    "keywords": [
+      "Riven",
+      "fangzhuzhiren",
+      "fzzr",
+      "ruiwen",
+      "rw",
+      "放逐之刃",
+      "锐雯"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Rumble": {
+    "keywords": [
+      "Rumble",
+      "jixiegongdi",
+      "jxgd",
+      "lanbo",
+      "lb",
+      "兰博",
+      "机械公敌"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Ryze": {
+    "keywords": [
+      "Ryze",
+      "fuwenfashi",
+      "fwfs",
+      "gt",
+      "guangtou",
+      "ruizi",
+      "rz",
+      "光头",
+      "瑞兹",
+      "符文法师"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Samira": {
+    "keywords": [
+      "Samira",
+      "shamila",
+      "shamomeigui",
+      "sml",
+      "smmg",
+      "沙漠玫瑰",
+      "莎弥拉"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Sejuani": {
+    "keywords": [
+      "Sejuani",
+      "bdzn",
+      "beidizhinu",
+      "sezhuangni",
+      "szn",
+      "zhumei",
+      "zm",
+      "北地之怒",
+      "猪妹",
+      "瑟庄妮"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Senna": {
+    "keywords": [
+      "Senna",
+      "dhsq",
+      "dihunshengqiang",
+      "naiqiang",
+      "nq",
+      "qhsq",
+      "saina",
+      "sn",
+      "奶枪",
+      "涤魂圣枪",
+      "赛娜"
+    ],
+    "positions": [
+      "BOTTOM",
+      "SUPPORT"
+    ]
+  },
+  "Seraphine": {
+    "keywords": [
+      "Seraphine",
+      "saleifenni",
+      "slfn",
+      "xinglaigeji",
+      "xlgj",
+      "星籁歌姬",
+      "萨勒芬妮"
+    ],
+    "positions": [
+      "BOTTOM",
+      "SUPPORT"
+    ]
+  },
+  "Sett": {
+    "keywords": [
+      "Sett",
+      "jf",
+      "jinfu",
+      "seti",
+      "st",
+      "wanhao",
+      "wh",
+      "瑟提",
+      "腕豪"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Shaco": {
+    "keywords": [
+      "Shaco",
+      "emoxiaochou",
+      "emxc",
+      "sake",
+      "shakou",
+      "sk",
+      "xc",
+      "xiaochou",
+      "小丑",
+      "恶魔小丑",
+      "沙口",
+      "沙扣",
+      "萨科"
+    ],
+    "positions": [
+      "JUNGLE",
+      "SUPPORT"
+    ]
+  },
+  "Shen": {
+    "keywords": [
+      "Shen",
+      "mgzy",
+      "muguangzhiyan",
+      "s",
+      "shen",
+      "yaozi",
+      "慎",
+      "暮光之眼"
+    ],
+    "positions": [
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Shyvana": {
+    "keywords": [
+      "Shyvana",
+      "ln",
+      "longnv",
+      "longxuewuji",
+      "lxwj",
+      "xiwana",
+      "xwn",
+      "希瓦娜",
+      "龙女",
+      "龙血武姬"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Singed": {
+    "keywords": [
+      "Singed",
+      "lianjin",
+      "lianjinshushi",
+      "lj",
+      "ljss",
+      "xinjide",
+      "xjd",
+      "炼金",
+      "炼金术士",
+      "辛吉德"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Sion": {
+    "keywords": [
+      "Sion",
+      "saien",
+      "se",
+      "wanglingzhanshen",
+      "wlzs",
+      "亡灵战神",
+      "塞恩",
+      "赛恩"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Sivir": {
+    "keywords": [
+      "Sivir",
+      "lunzima",
+      "lzm",
+      "xiweier",
+      "xwe",
+      "zhanzhengnvshen",
+      "zzns",
+      "希维尔",
+      "战争女神",
+      "轮子妈"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Skarner": {
+    "keywords": [
+      "Skarner",
+      "sglz",
+      "shanggulingzhu",
+      "shuijingxianfeng",
+      "sikana",
+      "sjxf",
+      "skn",
+      "xiezi",
+      "xz",
+      "上古领主",
+      "斯卡纳",
+      "水晶先锋",
+      "蝎子"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Smolder": {
+    "keywords": [
+      "Smolder",
+      "chiyanchulong",
+      "cycl",
+      "simode",
+      "smd",
+      "斯莫德",
+      "炽炎雏龙"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Sona": {
+    "keywords": [
+      "Sona",
+      "qinnv",
+      "qinsexiannv",
+      "qn",
+      "qsxn",
+      "sn",
+      "suona",
+      "娑娜",
+      "琴女",
+      "琴瑟仙女"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Soraka": {
+    "keywords": [
+      "Soraka",
+      "naima",
+      "nm",
+      "slk",
+      "suolaka",
+      "xingma",
+      "xm",
+      "zhongxingzhizi",
+      "zxzz",
+      "众星之子",
+      "奶妈",
+      "星妈",
+      "索拉卡"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Swain": {
+    "keywords": [
+      "Swain",
+      "nksstl",
+      "nuokesasitongling",
+      "siweiyin",
+      "swy",
+      "wuya",
+      "wy",
+      "乌鸦",
+      "斯维因",
+      "诺克萨斯统领"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Sylas": {
+    "keywords": [
+      "Sylas",
+      "jietuozhe",
+      "jtz",
+      "sailasi",
+      "sls",
+      "sn",
+      "suannan",
+      "塞拉斯",
+      "解脱者"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Syndra": {
+    "keywords": [
+      "Syndra",
+      "ahys",
+      "ahyy",
+      "anheiyuanshou",
+      "qiunv",
+      "qn",
+      "xdl",
+      "xindela",
+      "暗黑元首",
+      "球女",
+      "辛德拉"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "TahmKench": {
+    "keywords": [
+      "TahmKench",
+      "hama",
+      "heliuzhiwang",
+      "hlzw",
+      "tamu",
+      "tm",
+      "塔姆",
+      "河流之王"
+    ],
+    "positions": [
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Taliyah": {
+    "keywords": [
+      "Taliyah",
+      "taliya",
+      "tly",
+      "xiaoniao",
+      "xn",
+      "yanque",
+      "yq",
+      "塔莉垭",
+      "小鸟",
+      "岩雀"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE"
+    ]
+  },
+  "Talon": {
+    "keywords": [
+      "Talon",
+      "daofengzhiying",
+      "dfzy",
+      "nandao",
+      "nd",
+      "tailong",
+      "tl",
+      "刀锋之影",
+      "泰隆",
+      "男刀"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Taric": {
+    "keywords": [
+      "Taric",
+      "baoshi",
+      "bs",
+      "talike",
+      "tlk",
+      "waluolanzhidun",
+      "wllzd",
+      "塔里克",
+      "宝石",
+      "瓦洛兰之盾"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Teemo": {
+    "keywords": [
+      "Teemo",
+      "timo",
+      "tm",
+      "xjch",
+      "xunjiechihou",
+      "提莫",
+      "迅捷斥候"
+    ],
+    "positions": [
+      "JUNGLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Thresh": {
+    "keywords": [
+      "Thresh",
+      "chuishi",
+      "cs",
+      "hsdyz",
+      "hunsuodianyuzhang",
+      "锤石",
+      "魂锁典狱长"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Tristana": {
+    "keywords": [
+      "Tristana",
+      "cstn",
+      "cuisitana",
+      "mailinpaoshou",
+      "mlps",
+      "xiaopao",
+      "xp",
+      "小炮",
+      "崔丝塔娜",
+      "麦林炮手"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE"
+    ]
+  },
+  "Trundle": {
+    "keywords": [
+      "Trundle",
+      "jm",
+      "jmzw",
+      "jumo",
+      "jumozhiwang",
+      "telangdeer",
+      "tlde",
+      "巨魔",
+      "巨魔之王",
+      "特朗德尔"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Tryndamere": {
+    "keywords": [
+      "Tryndamere",
+      "manwang",
+      "manzuzhiwang",
+      "mw",
+      "mzzw",
+      "taidamier",
+      "tdme",
+      "泰达米尔",
+      "蛮族之王",
+      "蛮王"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "TwistedFate": {
+    "keywords": [
+      "TwistedFate",
+      "cst",
+      "cuisite",
+      "kapai",
+      "kapaidashi",
+      "kp",
+      "kpds",
+      "卡牌",
+      "卡牌大师",
+      "崔斯特"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Twitch": {
+    "keywords": [
+      "Twitch",
+      "laoshu",
+      "ls",
+      "tq",
+      "tuqi",
+      "wenyizhiyuan",
+      "wyzy",
+      "图奇",
+      "瘟疫之源",
+      "老鼠"
+    ],
+    "positions": [
+      "BOTTOM",
+      "SUPPORT"
+    ]
+  },
+  "Udyr": {
+    "keywords": [
+      "UD",
+      "Udyr",
+      "shoulingxingzhe",
+      "slxz",
+      "wde",
+      "wudier",
+      "乌迪尔",
+      "兽灵行者"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Urgot": {
+    "keywords": [
+      "Urgot",
+      "ejiate",
+      "ejt",
+      "wuweizhanche",
+      "wwzc",
+      "厄加特",
+      "无畏战车"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Varus": {
+    "keywords": [
+      "Varus",
+      "chengjiezhijian",
+      "cjzj",
+      "weilusi",
+      "wls",
+      "惩戒之箭",
+      "维鲁斯",
+      "韦鲁斯"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Vayne": {
+    "keywords": [
+      "Vayne",
+      "anyelieshou",
+      "ayls",
+      "ve",
+      "vn",
+      "we",
+      "weien",
+      "暗夜猎手",
+      "薇恩"
+    ],
+    "positions": [
+      "BOTTOM",
+      "TOP"
+    ]
+  },
+  "Veigar": {
+    "keywords": [
+      "Veigar",
+      "weijia",
+      "wj",
+      "xexfs",
+      "xfs",
+      "xiaofashi",
+      "xieexiaofashi",
+      "小法师",
+      "维迦",
+      "邪恶小法师"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Velkoz": {
+    "keywords": [
+      "Velkoz",
+      "dayan",
+      "dy",
+      "weikezi",
+      "wkz",
+      "xkzy",
+      "xukongzhiyan",
+      "大眼",
+      "维克兹",
+      "虚空之眼"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "Vex": {
+    "keywords": [
+      "Vex",
+      "aoyebobi",
+      "aybb",
+      "chouyunshizhe",
+      "cysz",
+      "weigusi",
+      "wgs",
+      "愁云使者",
+      "熬夜波比",
+      "薇古丝"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Vi": {
+    "keywords": [
+      "Vi",
+      "pczfg",
+      "pichengzhifaguan",
+      "qn",
+      "quannv",
+      "qv",
+      "v",
+      "w",
+      "wei",
+      "拳女",
+      "皮城执法官",
+      "蔚"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Viego": {
+    "keywords": [
+      "Viego",
+      "f",
+      "fu",
+      "fuyege",
+      "fyg",
+      "pb",
+      "pbzw",
+      "pobai",
+      "pobaizhiwang",
+      "佛",
+      "佛耶戈",
+      "破败",
+      "破败之王"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Viktor": {
+    "keywords": [
+      "Viktor",
+      "aoshuxianqu",
+      "asxq",
+      "jixiexianqu",
+      "jxxq",
+      "sanzhishou",
+      "szs",
+      "weiketuo",
+      "wkt",
+      "三只手",
+      "奥术先驱",
+      "机械先驱",
+      "维克托"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Vladimir": {
+    "keywords": [
+      "Vladimir",
+      "fljme",
+      "fulajimier",
+      "xhsgz",
+      "xinghongshougezhe",
+      "xixiegui",
+      "xixuegui",
+      "xxg",
+      "吸血鬼",
+      "弗拉基米尔",
+      "猩红收割者"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Volibear": {
+    "keywords": [
+      "Volibear",
+      "bmkl",
+      "bumiekuanglei",
+      "gouxiong",
+      "gx",
+      "wlbe",
+      "wolibeier",
+      "不灭狂雷",
+      "沃利贝尔",
+      "狗熊"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Warwick": {
+    "keywords": [
+      "Warwick",
+      "langren",
+      "lr",
+      "wlk",
+      "wolike",
+      "zans",
+      "zuannushou",
+      "沃里克",
+      "狼人",
+      "祖安怒兽"
+    ],
+    "positions": [
+      "JUNGLE",
+      "TOP"
+    ]
+  },
+  "Xayah": {
+    "keywords": [
+      "Xayah",
+      "niyu",
+      "ny",
+      "x",
+      "xia",
+      "逆羽",
+      "霞"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Xerath": {
+    "keywords": [
+      "Xerath",
+      "gbc",
+      "guancaiban",
+      "ygwl",
+      "yuanguwuling",
+      "zelasi",
+      "zls",
+      "泽拉斯",
+      "远古巫灵"
+    ],
+    "positions": [
+      "MIDDLE",
+      "SUPPORT"
+    ]
+  },
+  "XinZhao": {
+    "keywords": [
+      "XinZhao",
+      "db",
+      "dbzg",
+      "debang",
+      "debangzongguan",
+      "zhaoxin",
+      "zx",
+      "德邦",
+      "德邦总管",
+      "赵信"
+    ],
+    "positions": [
+      "JUNGLE"
+    ]
+  },
+  "Yasuo": {
+    "keywords": [
+      "Yasuo",
+      "jfjh",
+      "jh",
+      "jianhao",
+      "jifengjianhao",
+      "yasuo",
+      "ys",
+      "亚索",
+      "剑豪",
+      "疾风剑豪"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Yone": {
+    "keywords": [
+      "Yone",
+      "fengmojianhun",
+      "fmjh",
+      "ye",
+      "yongen",
+      "封魔剑魂",
+      "永恩"
+    ],
+    "positions": [
+      "MIDDLE",
+      "TOP"
+    ]
+  },
+  "Yorick": {
+    "keywords": [
+      "Yorick",
+      "jmr",
+      "juemuren",
+      "mhr",
+      "muhunren",
+      "ylk",
+      "yuelike",
+      "掘墓人",
+      "牧魂人",
+      "约里克"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Yunara": {
+    "keywords": [
+      "Yunara",
+      "bpzs",
+      "bupozhishi",
+      "yan",
+      "yunana",
+      "不破之誓",
+      "芸阿娜"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Yuumi": {
+    "keywords": [
+      "Yuumi",
+      "cat",
+      "m",
+      "mao",
+      "maomi",
+      "mfmm",
+      "mm",
+      "mofamaomi",
+      "ym",
+      "youmi",
+      "悠米",
+      "猫",
+      "猫咪",
+      "魔法猫咪"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Zaahen": {
+    "keywords": [
+      "Zaahen",
+      "blmf",
+      "bulamofeng",
+      "buluomofeng",
+      "yaheng",
+      "yh",
+      "不落魔锋",
+      "亚恒"
+    ],
+    "positions": [
+      "TOP"
+    ]
+  },
+  "Zac": {
+    "keywords": [
+      "Zac",
+      "shenghuamoren",
+      "shmr",
+      "zhake",
+      "zk",
+      "扎克",
+      "生化魔人"
+    ],
+    "positions": [
+      "JUNGLE",
+      "SUPPORT",
+      "TOP"
+    ]
+  },
+  "Zed": {
+    "keywords": [
+      "Zed",
+      "j",
+      "jie",
+      "yingliuzhizhu",
+      "ylzz",
+      "劫",
+      "影流之主"
+    ],
+    "positions": [
+      "JUNGLE",
+      "MIDDLE"
+    ]
+  },
+  "Zeri": {
+    "keywords": [
+      "Zeri",
+      "zahh",
+      "zeli",
+      "zeri",
+      "zl",
+      "zuanhuahuo",
+      "泽丽",
+      "祖安花火"
+    ],
+    "positions": [
+      "BOTTOM"
+    ]
+  },
+  "Ziggs": {
+    "keywords": [
+      "Ziggs",
+      "baopoguicai",
+      "bpgc",
+      "jgs",
+      "jigesi",
+      "zdr",
+      "zhadanren",
+      "吉格斯",
+      "炸弹人",
+      "爆破鬼才"
+    ],
+    "positions": [
+      "BOTTOM",
+      "MIDDLE"
+    ]
+  },
+  "Zilean": {
+    "keywords": [
+      "Zilean",
+      "jilan",
+      "jl",
+      "sglr",
+      "sglt",
+      "sgshz",
+      "shiguanglaoren",
+      "shiguanglaotou",
+      "shiguangshouhuzhe",
+      "基兰",
+      "时光守护者",
+      "时光老人",
+      "时光老头"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  },
+  "Zoe": {
+    "keywords": [
+      "Zoe",
+      "mgxl",
+      "muguangxingling",
+      "zuoyi",
+      "zy",
+      "佐伊",
+      "暮光星灵"
+    ],
+    "positions": [
+      "MIDDLE"
+    ]
+  },
+  "Zyra": {
+    "keywords": [
+      "Zyra",
+      "jiela",
+      "jingjizhixing",
+      "jjzx",
+      "jl",
+      "婕拉",
+      "荆棘之兴"
+    ],
+    "positions": [
+      "SUPPORT"
+    ]
+  }
+}

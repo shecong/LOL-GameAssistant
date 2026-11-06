@@ -80,7 +80,6 @@ namespace LOL_GameAssistant
         private const int CoachTabIndex = 5;
         private readonly AntdUI.TabPage _coachTab;
         private readonly AntdUI.TabPage _skinTab;
-        private readonly AntdUI.TabPage _fileSkinTab;
         private readonly AntdUI.TabPage _loungeTab;
         private readonly Infrastructure.Lounge.LoungeClient _lounge = AppCompositionRoot.CreateLoungeClient();
         private readonly SkinToolsForm _skinTools;
@@ -201,18 +200,13 @@ namespace LOL_GameAssistant
             tabs1.ItemSize = 112;
             tabs1.Gap = 12;
             _coachTab = new AntdUI.TabPage { Text = "智能建议", Dock = DockStyle.Fill };
-            _skinTab = new AntdUI.TabPage { Text = "游戏内换肤", Dock = DockStyle.Fill };
+            _skinTab = new AntdUI.TabPage { Text = "高级功能", Dock = DockStyle.Fill };
             _skinTools = new SkinToolsForm(AppCompositionRoot.SkinCoreService, _settingsStore, engines: AppCompositionRoot.SkinEngines);
             _skinTab.Controls.Add(_skinTools);
             tabs1.Controls.Add(_coachTab);
             tabs1.Pages.Add(_coachTab);
             tabs1.Controls.Add(_skinTab);
             tabs1.Pages.Add(_skinTab);
-            _fileSkinTab = new AntdUI.TabPage { Text = "游戏外换肤", Name = "tabPageFileSkins", Dock = DockStyle.Fill };
-            _fileSkinTab.Controls.Add(new DeferredPageHost(() => new FileSkinBrowserForm(AppCompositionRoot.CslolSkins,
-                AppCompositionRoot.SkinEngines, _settingsStore, AppCompositionRoot.FileSkinPreferences, AppCompositionRoot.FileSkinArtwork)));
-            tabs1.Controls.Add(_fileSkinTab);
-            tabs1.Pages.Add(_fileSkinTab);
             _loungeTab = new AntdUI.TabPage { Text = "lol休息室", Name = "tabPageLounge", Dock = DockStyle.Fill };
             tabs1.Controls.Add(_loungeTab);
             tabs1.Pages.Add(_loungeTab);

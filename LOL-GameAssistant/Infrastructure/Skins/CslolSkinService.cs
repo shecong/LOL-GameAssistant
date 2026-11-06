@@ -88,6 +88,12 @@ public sealed class CslolSkinService : ICslolSkinService, IDisposable
             if (selected.Any(e => !_catalog.Contains(e))) return Fail("catalog", "所选皮肤不属于当前目录，请重新加载");
             var conflict = selected.GroupBy(e => e.ConflictKey, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
             if (!ignoreConflict && conflict is not null) return Fail("conflict", $"同一英雄只能选择一个皮肤：{conflict.Key}");
+            try
+            {
+                if (await GameSkinLoaderIsolation.DisableResourceLoaderAsync(gamePath, _gameRunning, token).ConfigureAwait(false))
+                    Status("已备份并停用资源包 HID.dll，避免与游戏外换肤同时加载；再次挂载资源包时恢复。");
+            }
+            catch (IOException error) { return Fail("loader-conflict", error.Message); }
             StopOverlay();
             var preset = Path.Combine(_workRoot, "profiles", Guid.NewGuid().ToString("N"));
             var installed = Path.Combine(preset, "installed");
@@ -189,6 +195,12 @@ public sealed class CslolSkinService : ICslolSkinService, IDisposable
     {
         var processes = Process.GetProcessesByName("League of Legends");
         try { return processes.Length != 0; } finally { foreach (var p in processes) p.Dispose(); }
+    }
+    public static bool HasGameWindow()
+    {
+        var processes = Process.GetProcessesByName("League of Legends");
+        try { return processes.Any(p => { try { return p.MainWindowHandle != IntPtr.Zero; } catch (InvalidOperationException) { return false; } }); }
+        finally { foreach (var process in processes) process.Dispose(); }
     }
     public void Dispose() { lock (_sync) { _disposed = true; _revision++; _operation?.Cancel(); } StopOverlay(); }
 }

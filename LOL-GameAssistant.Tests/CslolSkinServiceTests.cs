@@ -48,6 +48,18 @@ public sealed class CslolSkinServiceTests
     }
 
     [Fact]
+    public async Task ForeignResourceLoaderRejectsBeforeToolsAndIsPreserved()
+    {
+        using var fixture = new Fixture(); using var service = fixture.Service();
+        var loader = Path.Combine(fixture.Game, "HID.dll");
+        await File.WriteAllTextAsync(loader, "foreign-loader");
+        var result = await service.ApplyAsync(fixture.Game, await service.LoadCatalogAsync());
+        Assert.Equal("loader-conflict", result.Stage); Assert.Empty(fixture.Runner.Calls);
+        Assert.Equal("foreign-loader", await File.ReadAllTextAsync(loader));
+        Assert.False(service.IsRunning);
+    }
+
+    [Fact]
     public async Task RunningGameRejectsBeforeAnyToolAndDoesNotStopExistingOverlay()
     {
         using var fixture = new Fixture(); bool running = false;

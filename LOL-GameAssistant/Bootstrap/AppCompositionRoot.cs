@@ -42,6 +42,7 @@ public static class AppCompositionRoot
         System.Windows.Forms.Application.ApplicationExit += (_, _) => RankBorderLoading.Dispose();
         System.Windows.Forms.Application.ApplicationExit += (_, _) => (CslolSkins as IDisposable)?.Dispose();
         System.Windows.Forms.Application.ApplicationExit += (_, _) => (ResourceSkins as IDisposable)?.Dispose();
+        System.Windows.Forms.Application.ApplicationExit += (_, _) => (ResourceSkinRepository as IDisposable)?.Dispose();
         RankBorderLoading.Changed += update => LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("加载边框", update.Status, update.Message);
         MatchAnalysisSettings.Policy = () =>
         {
@@ -75,12 +76,16 @@ public static class AppCompositionRoot
             ? Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "skinlib") : null,
         memoryEnabled: () => SkinCoreService.Enabled || new LegacyApplicationSettingsStore().Load().SkinEngineMode != LOL_GameAssistant.Domain.Skins.SkinEngineMode.File);
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
+    public static IResourceSkinLoader ResourceSkinLoader { get; } = new LOL_GameAssistant.Infrastructure.Skins.ResourceSkinLoader(
+        Path.Combine(AppContext.BaseDirectory, "Tools", "ResourceSkins", "HID.dll"), LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning);
+    public static IResourceSkinRepository ResourceSkinRepository { get; } = new LOL_GameAssistant.Infrastructure.Skins.GiteeResourceSkinRepository(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "ResourceSkins", "downloads"));
     public static IResourceSkinService ResourceSkins { get; } = new LOL_GameAssistant.Infrastructure.Skins.ResourceSkinService(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "ResourceSkins", "mounts.json"),
         LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning,
         () => !SkinCoreService.Enabled && !CslolSkins.IsRunning && new LegacyApplicationSettingsStore().Load().SkinEngineMode == LOL_GameAssistant.Domain.Skins.SkinEngineMode.Resource);
     public static ISkinEngineCoordinator SkinEngines { get; } = new SkinEngineCoordinator(SkinCoreService, CslolSkins,
-        new LegacyApplicationSettingsStore(), LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning, ResourceSkins);
+        new LegacyApplicationSettingsStore(), LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning, ResourceSkins, ResourceSkinLoader);
     public static IFileSkinPreferencesStore FileSkinPreferences { get; } = new LOL_GameAssistant.Infrastructure.Skins.FileSkinPreferencesStore(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "Cslol", "browser.json"));
     public static IFileSkinArtworkService FileSkinArtwork { get; } = new LOL_GameAssistant.Infrastructure.Skins.FileSkinArtworkService(

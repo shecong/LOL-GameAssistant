@@ -10,8 +10,11 @@
     <Compile Include="..\LOL-GameAssistant\Application\Skins\FileSkinBrowserModel.cs" Link="Application\Skins\FileSkinBrowserModel.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\FileSkinPreferencesStore.cs" Link="Infrastructure\Skins\FileSkinPreferencesStore.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolSkinNames.cs" Link="Infrastructure\Skins\CslolSkinNames.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolChampionSearch.cs" Link="Infrastructure\Skins\CslolChampionSearch.cs" />
+    <EmbeddedResource Include="..\LOL-GameAssistant\Resources\cslol-champion-search.json" LogicalName="LOL_GameAssistant.Resources.CslolChampionSearch.json" WithCulture="false" />
     <EmbeddedResource Include="..\LOL-GameAssistant\Resources\cslol-names.zh-CN.json" LogicalName="LOL_GameAssistant.Resources.CslolNamesZhCN.json" WithCulture="false" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolSkinService.cs" Link="Infrastructure\Skins\CslolSkinService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\GameSkinLoaderIsolation.cs" Link="Infrastructure\Skins\GameSkinLoaderIsolation.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolToolRunner.cs" Link="Infrastructure\Skins\CslolToolRunner.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\SkinPackageStore.cs" Link="Infrastructure\Skins\SkinPackageStore.cs" />
     <Compile Include="..\LOL-GameAssistant\Helper\NetworkTrafficService.cs" Link="Helper\NetworkTrafficService.cs" />
