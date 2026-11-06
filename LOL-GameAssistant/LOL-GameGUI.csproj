@@ -42,6 +42,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Tools\Cslol\**\*" Condition="Exists('Tools\Cslol\mod-tools.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="Data\Skins\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
     <Content Include="Tools\SkinCoreHybrid\**\*" Condition="Exists('Tools\SkinCoreHybrid\league-skin-hybrid-host.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -101,6 +111,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\augment-names.json" LogicalName="LOL_GameAssistant.Resources.AugmentNames.json" />
+    <EmbeddedResource Include="Resources\cslol-names.zh-CN.json" LogicalName="LOL_GameAssistant.Resources.CslolNamesZhCN.json" WithCulture="false" />
     <EmbeddedResource Include="Resources\Maps\summoners-rift-base.png" LogicalName="LOL_GameAssistant.Resources.Maps.SummonersRift.png" />
     <EmbeddedResource Include="Resources\augment-descriptions.json" LogicalName="LOL_GameAssistant.Resources.AugmentDescriptions.json" />
     <EmbeddedResource Update="Properties\Resources.resx">

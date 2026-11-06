@@ -25,6 +25,8 @@ public sealed class AssistantSettings
     public string PreferredRankBorderId { get; set; } = "";
     public string PreferredRankBorderProfile { get; set; } = "";
     public LOL_GameAssistant.Domain.Skins.SkinCoreMode SkinCoreMode { get; set; }
+    public LOL_GameAssistant.Domain.Skins.SkinEngineMode SkinEngineMode { get; set; }
+    public string CslolGamePath { get; set; } = "";
     public bool UnlimitedZoomEnabled { get; set; }
     public float? RememberedCameraDistance { get; set; }
     public Dictionary<string, LOL_GameAssistant.Domain.Skins.SkinEntry> RememberedHeroSkins { get; set; } = new();
@@ -121,6 +123,9 @@ public sealed class AssistantSettings
         GameClientPath ??= "";
         RememberedHeroSkins ??= new();
         if (!Enum.IsDefined(SkinCoreMode)) SkinCoreMode = LOL_GameAssistant.Domain.Skins.SkinCoreMode.Classic;
+        if (!Enum.IsDefined(SkinEngineMode)) SkinEngineMode = LOL_GameAssistant.Domain.Skins.SkinEngineMode.Memory;
+        CslolGamePath ??= "";
+        if (SkinEngineMode != LOL_GameAssistant.Domain.Skins.SkinEngineMode.Memory) { SkinCoreEnabled = false; UnlimitedZoomEnabled = false; RankBorderAutoApplyEnabled = false; }
         if (RememberedCameraDistance is float distance && (!float.IsFinite(distance) || distance is < 600 or > 1700)) RememberedCameraDistance = null;
         SkinPickerHotkey = string.IsNullOrWhiteSpace(SkinPickerHotkey) ? "Home" : SkinPickerHotkey;
         WindowOpacityPercent = Math.Clamp(WindowOpacityPercent, 40, 100);

@@ -396,3 +396,9 @@ output/
 *.exe
 /.artifacts/live-density-20261027
 /.artifacts
+
+# Optional local file-skin runtime and large skin library; prepared separately.
+/LOL-GameAssistant/Tools/Cslol/*
+!/LOL-GameAssistant/Tools/Cslol/README.md
+/LOL-GameAssistant/Data/Skins/*
+!/LOL-GameAssistant/Data/Skins/README.md

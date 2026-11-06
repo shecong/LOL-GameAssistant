@@ -417,6 +417,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _config.RememberedHeroSkins = latest.RememberedHeroSkins;
             _config.SkinCoreEnabled = latest.SkinCoreEnabled;
             _config.SkinCoreMode = latest.SkinCoreMode;
+            _config.SkinEngineMode = latest.SkinEngineMode;
+            _config.CslolGamePath = latest.CslolGamePath;
             _config.SkinHotkeysEnabled = latest.SkinHotkeysEnabled;
             _config.SkinPickerHotkey = latest.SkinPickerHotkey;
             _config.SkinPreviousHotkey = latest.SkinPreviousHotkey;

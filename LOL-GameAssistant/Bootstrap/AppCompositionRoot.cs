@@ -40,6 +40,8 @@ public static class AppCompositionRoot
     {
         System.Windows.Forms.Application.ApplicationExit += (_, _) => TclsLoginLauncher.Cancel();
         System.Windows.Forms.Application.ApplicationExit += (_, _) => RankBorderLoading.Dispose();
+        System.Windows.Forms.Application.ApplicationExit += (_, _) => (CslolSkins as IDisposable)?.Dispose();
+        System.Windows.Forms.Application.ApplicationExit += (_, _) => (ResourceSkins as IDisposable)?.Dispose();
         RankBorderLoading.Changed += update => LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("加载边框", update.Status, update.Message);
         MatchAnalysisSettings.Policy = () =>
         {
@@ -62,8 +64,27 @@ public static class AppCompositionRoot
                     diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure, diagnosticsEnabled: () => RuntimeDiagnostics.Enabled),
                 new LegacyApplicationSettingsStore().Load().SkinCoreMode),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"),
-            loggingEnabled: () => RuntimeDiagnostics.Enabled);
+            loggingEnabled: () => RuntimeDiagnostics.Enabled,
+            memoryAllowed: () => new LegacyApplicationSettingsStore().Load().SkinEngineMode == LOL_GameAssistant.Domain.Skins.SkinEngineMode.Memory && CslolSkins?.IsRunning != true);
+    public static ICslolSkinService CslolSkins { get; } = new LOL_GameAssistant.Infrastructure.Skins.CslolSkinService(
+        Path.Combine(AppContext.BaseDirectory, "Tools", "Cslol"),
+        Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "skins.plskin"),
+        Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "manifest.json"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "Cslol"),
+        localLibraryDir: Directory.Exists(Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "skinlib"))
+            ? Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "skinlib") : null,
+        memoryEnabled: () => SkinCoreService.Enabled || new LegacyApplicationSettingsStore().Load().SkinEngineMode != LOL_GameAssistant.Domain.Skins.SkinEngineMode.File);
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
+    public static IResourceSkinService ResourceSkins { get; } = new LOL_GameAssistant.Infrastructure.Skins.ResourceSkinService(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "ResourceSkins", "mounts.json"),
+        LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning,
+        () => !SkinCoreService.Enabled && !CslolSkins.IsRunning && new LegacyApplicationSettingsStore().Load().SkinEngineMode == LOL_GameAssistant.Domain.Skins.SkinEngineMode.Resource);
+    public static ISkinEngineCoordinator SkinEngines { get; } = new SkinEngineCoordinator(SkinCoreService, CslolSkins,
+        new LegacyApplicationSettingsStore(), LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning, ResourceSkins);
+    public static IFileSkinPreferencesStore FileSkinPreferences { get; } = new LOL_GameAssistant.Infrastructure.Skins.FileSkinPreferencesStore(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "Cslol", "browser.json"));
+    public static IFileSkinArtworkService FileSkinArtwork { get; } = new LOL_GameAssistant.Infrastructure.Skins.FileSkinArtworkService(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "Cslol", "artwork"));
     public static IPlayerGrowthService CreateRegionalGrowthService(IMatchHistoryService matches, string platform) =>
         new LcuPlayerGrowthService(matches, ChampionCatalog, LcuRequestSender,
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "training", string.Concat(platform.Where(char.IsLetterOrDigit))), allowInventory: false);

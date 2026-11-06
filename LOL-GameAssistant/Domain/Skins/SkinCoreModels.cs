@@ -1,6 +1,7 @@
 namespace LOL_GameAssistant.Domain.Skins;
 
 public enum SkinCoreMode { Classic, KernelRelay }
+public enum SkinEngineMode { Memory, File, Resource }
 
 public enum SkinPickerCategory { Hero, Ward, Minion }
 

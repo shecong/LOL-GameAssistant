@@ -7,6 +7,7 @@ public interface ISkinCoreService
     bool Enabled { get; }
     void SetEnabled(bool enabled);
     void InvalidateSession();
+    Task SuspendAsync(CancellationToken cancellationToken = default) { SetEnabled(false); return Task.CompletedTask; }
     Task<SkinCoreReply> GetCatalogAsync(CancellationToken cancellationToken = default);
     Task<SkinCoreReply> ApplyAsync(string session, string entryId, CancellationToken cancellationToken = default);
     Task<SkinCoreReply> RestoreAsync(string session, CancellationToken cancellationToken = default);

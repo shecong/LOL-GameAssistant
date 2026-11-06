@@ -8,7 +8,7 @@ namespace LOL_GameAssistant.Infrastructure.Skins;
 
 /// <summary>One queue for all native requests; lifecycle revisions invalidate queued selections.</summary>
 public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, string? logPath = null,
-    Func<bool>? loggingEnabled = null) : ISkinCoreService, ISkinCoreModeSelector
+    Func<bool>? loggingEnabled = null, Func<bool>? memoryAllowed = null) : ISkinCoreService, ISkinCoreModeSelector
 {
     public SkinCoreMode Mode => (transport as ISkinCoreModeSelector)?.Mode ?? SkinCoreMode.Classic;
     public void SetMode(SkinCoreMode mode)
@@ -38,8 +38,15 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
         token => Task.Delay(TimeSpan.FromSeconds(2), token);
     public bool Enabled => Volatile.Read(ref _enabled) == 1;
     public void SetEnabled(bool enabled) {
+        if (enabled && memoryAllowed?.Invoke() == false) throw new SkinCoreException("skin_engine_file_selected");
         if (enabled && Volatile.Read(ref _stopping) != 0) throw new SkinCoreException("core_stopping");
         Interlocked.Exchange(ref _enabled, enabled ? 1 : 0); InvalidateSession();
+    }
+    public async Task SuspendAsync(CancellationToken cancellationToken = default)
+    {
+        SetEnabled(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _gate.Release();
     }
     public void InvalidateSession()
     {
@@ -238,6 +245,7 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
 
     private void Check(long revision)
     {
+        if (memoryAllowed?.Invoke() == false) throw new SkinCoreException("skin_engine_file_selected");
         if (!Enabled) throw new SkinCoreException("core_disabled");
         if (revision != Interlocked.Read(ref _revision)) throw new SkinCoreException("stale_session");
     }

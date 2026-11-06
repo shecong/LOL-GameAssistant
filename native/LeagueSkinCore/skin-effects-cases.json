@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "vayne-project-r-hud",
+      "model": "Vayne",
+      "skin": 11,
+      "name": "源计划：净化 薇恩 — R 座舱画面",
+      "category": "screen_overlay",
+      "steps": [
+        { "id": "before-r", "target_skin": true, "expect": "切换皮肤后、未开启 R：没有座舱残留" },
+        { "id": "r-active", "target_skin": true, "expect": "开启 R 后：座舱画面出现，并在大招持续期间保持正常" },
+        { "id": "r-ended", "target_skin": true, "expect": "R 结束后：座舱画面消失" },
+        { "id": "r-repeat", "target_skin": true, "expect": "再次开启 R：座舱画面可以再次出现，无重复叠加" },
+        { "id": "switched-away", "target_skin": false, "expect": "切回原皮后再开启 R：没有源计划座舱画面残留" }
+      ]
+    }
+  ]
+}

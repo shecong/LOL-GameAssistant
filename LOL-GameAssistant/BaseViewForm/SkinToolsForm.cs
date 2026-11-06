@@ -10,6 +10,8 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
 {
     private readonly ISkinCoreService _core;
     private readonly IApplicationSettingsStore _settings;
+    private readonly ISkinEngineCoordinator _skinEngines;
+    private bool _syncingEnabled;
     private readonly AntdUI.Switch _enabled = new() { Name = "SkinCoreEnabled", Width = 52, Height = 30 };
     private readonly AntdUI.Input _search = new() { Name = "SkinSearch", Dock = DockStyle.Top, Height = 48, PlaceholderText = "搜索皮肤、品质或模型" };
     private readonly AntdUI.Select _entries = new() { Name = "HeroSkinEntries", Dock = DockStyle.Top, Height = 56, List = true, MaxCount = 12,
@@ -35,9 +37,11 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
 
     public SkinToolsForm(ISkinCoreService core, IApplicationSettingsStore settings,
         IChampionSkinResourceService? skinResources = null, LOL_GameAssistant.Application.GameData.IGameOverlayBridge? cameraOverlay = null,
-        IClientRegaliaService? clientRegalia = null, ISkinPopularityService? skinPopularity = null)
+        IClientRegaliaService? clientRegalia = null, ISkinPopularityService? skinPopularity = null, ISkinEngineCoordinator? engines = null)
     {
         _core = core; _settings = settings; _skinResources = skinResources ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ChampionSkinResourceService; Dock = DockStyle.Fill;
+        _skinEngines = engines ?? new SkinEngineCoordinator(core, LOL_GameAssistant.Bootstrap.AppCompositionRoot.CslolSkins,
+            settings, LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning, LOL_GameAssistant.Bootstrap.AppCompositionRoot.ResourceSkins);
         _clientRegalia = clientRegalia ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.ClientRegaliaService;
         _skinPopularity = skinPopularity ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.SkinPopularityService;
         _cameraOverlay = cameraOverlay ?? LOL_GameAssistant.Bootstrap.AppCompositionRoot.GameOverlay;
@@ -45,7 +49,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         var heading = new TableLayoutPanel { Dock = DockStyle.Top, Height = 56, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
         heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
-        heading.Controls.Add(new AntdUI.Label { Text = "游戏换肤", Anchor = AnchorStyles.Left, Height = 40, Width = 200, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(UiMetrics.FontFamily, 18, FontStyle.Bold), Margin = Padding.Empty }, 0, 0);
+        heading.Controls.Add(new AntdUI.Label { Text = "游戏内换肤", Anchor = AnchorStyles.Left, Height = 40, Width = 200, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(UiMetrics.FontFamily, 18, FontStyle.Bold), Margin = Padding.Empty }, 0, 0);
         var toggleRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 12, 0, 0), Margin = Padding.Empty };
         toggleRow.Controls.Add(new AntdUI.Label { Text = "启用独立核心", Width = 120, Height = 32 }); toggleRow.Controls.Add(_enabled);
         heading.Controls.Add(toggleRow, 1, 0);
@@ -78,15 +82,15 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         viewport.Controls.Add(content); viewport.Resize += (_, _) => PositionContent(); PositionContent(); BuildSkinNavigation(viewport);
         var initialSettings = settings.Load();
         InitializeSkinSort(initialSettings.SkinCommunitySortEnabled);
-        if (initialSettings.UnlimitedZoomEnabled && !initialSettings.SkinCoreEnabled)
+        if (initialSettings.SkinEngineMode == SkinEngineMode.Memory && initialSettings.UnlimitedZoomEnabled && !initialSettings.SkinCoreEnabled)
         {
             initialSettings.SkinCoreEnabled = true;
             settings.Save(initialSettings);
         }
-        _enabled.Checked = initialSettings.SkinCoreEnabled;
+        _enabled.Checked = initialSettings.SkinEngineMode == SkinEngineMode.Memory && initialSettings.SkinCoreEnabled;
         _core.SetEnabled(_enabled.Checked);
         InitializeCameraAutomation();
-        _enabled.CheckedChanged += (_, _) => ToggleEnabled();
+        _enabled.CheckedChanged += async (_, _) => { if (!_syncingEnabled) await ToggleEnabledAsync(); };
         _search.TextChanged += (_, _) => FilterEntries();
         _entries.DrawItem += (_, e) => { e.Fore = e.Item.Fore; e.ForeSub = UiTheme.Palette.TextPrimary; };
         _entries.SelectedIndexChanged += async (_, _) =>
@@ -114,7 +118,11 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
     {
         if (!_disposing && !IsDisposed) FilterEntries();
     }
-    private void PageVisibleChanged(object? sender, EventArgs e) { UpdateButtons(); if (Visible) _ = UpdatePreviewAsync(); }
+    private void PageVisibleChanged(object? sender, EventArgs e)
+    {
+        _syncingEnabled = true; try { _enabled.Checked = _core.Enabled; } finally { _syncingEnabled = false; }
+        UpdateButtons(); if (Visible) _ = UpdatePreviewAsync();
+    }
     private void CancelPageRequests()
     {
         // Remove the owned reference before cancellation can trigger callbacks.
@@ -123,15 +131,20 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         try { requests.Cancel(); }
         finally { requests.Dispose(); }
     }
-    private void ToggleEnabled()
+    private async Task ToggleEnabledAsync()
     {
         try
         {
+            if (_enabled.Checked) await _skinEngines.SelectAsync(SkinEngineMode.Memory);
             var settings = _settings.Load(); settings.SkinCoreEnabled = _enabled.Checked;
             if (!_enabled.Checked) { settings.UnlimitedZoomEnabled = false; SetCameraToggle(false); }
             _settings.Save(settings);
         }
-        catch (Exception ex) { _status.Text = $"设置保存失败：{ex.Message}"; }
+        catch (Exception ex)
+        {
+            _syncingEnabled = true; try { _enabled.Checked = _core.Enabled; } finally { _syncingEnabled = false; }
+            _status.Text = ex.Message; return;
+        }
         _skinNotice?.Hide(); _core.SetEnabled(_enabled.Checked); ResetSession(); UpdateActivity();
         HotkeySettingsChanged?.Invoke();
         _status.Text = UiLanguage.T(_enabled.Checked ? "功能已启用，等待读取当前对局。" : "功能已关闭；已开始的请求可能已执行，当前皮肤不会自动还原。");
@@ -419,7 +432,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         BackColor = palette.Surface; ForeColor = palette.TextPrimary;
         _skinNavigation.BackColor = palette.SurfaceMuted;
         _skinNavigation.ForeColor = palette.TextPrimary;
-        foreach (var button in new[] { _heroSkinTab, _objectSkinTab, _rankBorderTab, _otherSettingsTab })
+        foreach (var button in new[] { _heroSkinTab, _resourceSkinTab, _objectSkinTab, _rankBorderTab, _otherSettingsTab })
         {
             button.BackColor = palette.Accent;
             button.DefaultBack = palette.SurfaceRaised;

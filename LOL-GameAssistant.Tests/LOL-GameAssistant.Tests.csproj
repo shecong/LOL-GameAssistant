@@ -6,6 +6,14 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\LOL-GameAssistant\Application\Skins\ICslolSkinService.cs" Link="Application\Skins\ICslolSkinService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\Skins\FileSkinBrowserModel.cs" Link="Application\Skins\FileSkinBrowserModel.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\FileSkinPreferencesStore.cs" Link="Infrastructure\Skins\FileSkinPreferencesStore.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolSkinNames.cs" Link="Infrastructure\Skins\CslolSkinNames.cs" />
+    <EmbeddedResource Include="..\LOL-GameAssistant\Resources\cslol-names.zh-CN.json" LogicalName="LOL_GameAssistant.Resources.CslolNamesZhCN.json" WithCulture="false" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolSkinService.cs" Link="Infrastructure\Skins\CslolSkinService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolToolRunner.cs" Link="Infrastructure\Skins\CslolToolRunner.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\SkinPackageStore.cs" Link="Infrastructure\Skins\SkinPackageStore.cs" />
     <Compile Include="..\LOL-GameAssistant\Helper\NetworkTrafficService.cs" Link="Helper\NetworkTrafficService.cs" />
     <Compile Include="..\LOL-GameAssistant\Helper\TrafficWebSocket.cs" Link="Helper\TrafficWebSocket.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\MatchDataPolicy.cs" Link="Application\Matches\MatchDataPolicy.cs" />

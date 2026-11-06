@@ -440,7 +440,22 @@ public sealed class SkinToolsTests
         Assert.Single(core.AppliedEntries); // Updating client names must not apply another skin.
         var tabs = Descendants(page).OfType<AntdUI.Button>();
         var heroTab = tabs.Single(b => b.Name == "HeroSkinTab");
+        var resourceTab = tabs.Single(b => b.Name == "ResourceSkinTab");
         var objectTab = tabs.Single(b => b.Name == "ObjectSkinTab");
+        Assert.True(resourceTab.Left > heroTab.Left && resourceTab.Left < objectTab.Left);
+        resourceTab.PerformClick();
+        Assert.Equal(AntdUI.TTypeMini.Primary, resourceTab.Type);
+        Assert.False(selector.Visible);
+        SecondPhaseRegressionTests.PumpUntil(() => Descendants(page).OfType<ResourceSkinForm>().Any());
+        var resourcePage = Descendants(page).OfType<ResourceSkinForm>().Single();
+        Assert.True(resourcePage.Visible);
+        Assert.True(resourcePage.Width > page.Width * .9);
+        Assert.True(page.PointToClient(resourcePage.PointToScreen(Point.Empty)).Y >= resourceTab.Parent!.Bottom);
+        if (Environment.GetEnvironmentVariable("RESOURCE_SKIN_CAPTURE") is { Length: > 0 } capture)
+        {
+            using var bitmap = new Bitmap(host.Width, host.Height);
+            host.DrawToBitmap(bitmap, new Rectangle(0, 0, host.Width, host.Height)); bitmap.Save(capture);
+        }
         Assert.True(objectTab.Left - heroTab.Right >= 16);
         objectTab.PerformClick();
         Assert.Equal(AntdUI.TTypeMini.Primary, objectTab.Type);
