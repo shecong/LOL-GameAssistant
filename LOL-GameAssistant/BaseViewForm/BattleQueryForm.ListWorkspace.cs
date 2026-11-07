@@ -228,7 +228,13 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         var confirmed = games.Where(g => g.IsCompletedGame()).Select(g => g.GetParticipant(puuid)?.stats).Where(s => s?.HasWinResult == true).ToArray();
         int wins = confirmed.Count(s => s!.Win);
         _recentSummary.Text = confirmed.Length == 0 ? "本页胜负未提供" : $"本页有效 {confirmed.Length} 场\n{wins} 胜 {confirmed.Length - wins} 负 · 胜率 {wins * 100d / confirmed.Length:0}%";
-        _sourceLabel.Text = $"{_matchHistory?.Games?.Source ?? "接口"} · {DateTime.Now:HH:mm} 更新 ↻";
+        string source = _matchHistory?.Games?.Source ?? "接口";
+        _sourceLabel.Text = _matchHistory?.IsCached == true
+            ? $"{source} · 缓存 · 刷新失败 ↻"
+            : $"{source} · {DateTime.Now:HH:mm} 读取 ↻";
+        _playerIdentityTip.SetToolTip(_sourceLabel, _matchHistory?.IsCached == true
+            ? $"本次未取得新数据，显示缓存（保存于 {_matchHistory.AcquiredAt?.ToLocalTime():MM-dd HH:mm}）。点击重试。"
+            : "本次接口读取时间；对局时间请看列表右侧。点击刷新。");
         _suppressListFilters = true;
         try
         {

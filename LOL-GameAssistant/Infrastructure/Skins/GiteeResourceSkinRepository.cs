@@ -67,7 +67,7 @@ public sealed class GiteeResourceSkinRepository : IResourceSkinRepository, IDisp
                 await CopyLimitedAsync(input, output, MaxBytes, bytes => progress?.Report(new(entry.Name, bytes, length)), token).ConfigureAwait(false);
             long received = new FileInfo(temporary).Length;
             if ((length.HasValue && received != length) || (entry.Size > 0 && received != entry.Size)) throw new InvalidDataException("下载未完成：资源长度与目录记录不符");
-            try { ResourceSkinService.ValidateWad(temporary); }
+            try { ResourceSkinService.ValidatePackage(temporary, entry.Name); }
             catch (EndOfStreamException) { throw new InvalidDataException("下载资源已截断或不是有效的 WAD 文件"); }
             if (Regex.IsMatch(entry.Sha, "\\A[0-9a-fA-F]{40}\\z"))
             {

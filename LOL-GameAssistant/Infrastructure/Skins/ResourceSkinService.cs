@@ -69,12 +69,13 @@ public sealed class ResourceSkinService : IResourceSkinService, IDisposable
             Directory.CreateDirectory(staging);
             var prepared = new List<ResourceSkinFile>();
             long total = 0;
-            async Task AddAsync(Stream source, string display, long length)
+            async Task AddAsync(Stream source, string display, string packageName, long length)
             {
-                if (length < 272 || length > MaxBytes || total + length > MaxBytes || prepared.Count >= MaxFiles)
+                if (length < 1 || length > MaxBytes || total + length > MaxBytes || prepared.Count >= MaxFiles)
                     throw new InvalidDataException("资源包超过限制：最多 128 个 WAD，总计不超过 2 GB");
                 total += length;
-                string name = Prefix + Guid.NewGuid().ToString("N") + ".wad.client";
+                // HID chooses the encrypted-package reader by suffix. Never rename it to a plain WAD.
+                string name = Prefix + Guid.NewGuid().ToString("N") + PackageExtension(packageName);
                 string path = Path.Combine(staging, name);
                 await using (var dest = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
@@ -87,7 +88,7 @@ public sealed class ResourceSkinService : IResourceSkinService, IDisposable
                     }
                     if (copied != length) throw new InvalidDataException("资源包已截断");
                 }
-                uint entries = ValidateWad(path);
+                uint entries = ValidatePackage(path, packageName);
                 prepared.Add(new(name, display, Hash(path), length, entries));
             }
             foreach (string path in packages)
@@ -96,7 +97,7 @@ public sealed class ResourceSkinService : IResourceSkinService, IDisposable
                 if (IsWad(path))
                 {
                     await using var source = File.OpenRead(path);
-                    await AddAsync(source, Path.GetFileName(path), source.Length).ConfigureAwait(false);
+                    await AddAsync(source, Path.GetFileName(path), path, source.Length).ConfigureAwait(false);
                 }
                 else if (path.EndsWith(".fantome", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
                 {
@@ -106,7 +107,7 @@ public sealed class ResourceSkinService : IResourceSkinService, IDisposable
                     {
                         // Archive names are display text only, never extraction paths.
                         await using var source = entry.Open();
-                        await AddAsync(source, Path.GetFileName(path) + " / " + entry.FullName, entry.Length).ConfigureAwait(false);
+                        await AddAsync(source, Path.GetFileName(path) + " / " + entry.FullName, entry.FullName, entry.Length).ConfigureAwait(false);
                     }
                     if (before == prepared.Count) throw new InvalidDataException(Path.GetFileName(path) + " 中没有 WAD 资源");
                 }
@@ -210,15 +211,43 @@ public sealed class ResourceSkinService : IResourceSkinService, IDisposable
         if (File.Exists(full)) full = Path.GetDirectoryName(full)!;
         if (!File.Exists(Path.Combine(full, "League of Legends.exe"))) full = Path.Combine(full, "Game");
         if (!File.Exists(Path.Combine(full, "League of Legends.exe"))) throw new DirectoryNotFoundException("请选择包含 League of Legends.exe 的 Game 目录");
+        full = ResolveDirectoryAliases(full);
+        if (!File.Exists(Path.Combine(full, "League of Legends.exe"))) throw new DirectoryNotFoundException("游戏路径别名的目标无效");
         return Path.TrimEndingDirectorySeparator(full);
+    }
+    private static string ResolveDirectoryAliases(string path)
+    {
+        // Accept Wind's ASCII Game aliases, then perform all writes and ownership
+        // checks on the real directory. Links inside DATA/FINAL remain forbidden.
+        for (int pass = 0; pass < 32; pass++)
+        {
+            string root = Path.GetPathRoot(path)!;
+            string[] parts = Path.GetRelativePath(root, path).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string current = root;
+            bool resolved = false;
+            for (int i = 0; i < parts.Length; i++)
+            {
+                current = Path.Combine(current, parts[i]);
+                var directory = new DirectoryInfo(current);
+                if ((directory.Attributes & FileAttributes.ReparsePoint) == 0) continue;
+                var target = directory.ResolveLinkTarget(true) ?? throw new IOException("无法解析游戏路径别名：" + current);
+                path = Path.GetFullPath(Path.Combine(new[] { target.FullName }.Concat(parts.Skip(i + 1)).ToArray()));
+                resolved = true;
+                break;
+            }
+            if (!resolved) return path;
+        }
+        throw new IOException("游戏路径别名层级过多，无法安全解析");
     }
     private void CheckIdle() { if (_gameRunning()) throw new InvalidOperationException("请先退出对局，再挂载或清理资源包"); }
     private void CheckJournal() { if (_journalError != null) throw new InvalidDataException(_journalError); }
     private static string Mount(string game) => Path.Combine(game, "DATA", "FINAL", "jinju2");
     private static bool IsWad(string path) => path.EndsWith(".wad.client", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".riftmod.client", StringComparison.OrdinalIgnoreCase);
+    private static string PackageExtension(string path) => path.EndsWith(".riftmod.client", StringComparison.OrdinalIgnoreCase) ? ".riftmod.client" : ".wad.client";
     private static void ValidateOwnedName(string name)
     {
-        if (string.IsNullOrEmpty(name) || name.Length != Prefix.Length + 32 + 11 || name != Path.GetFileName(name) || !name.StartsWith(Prefix, StringComparison.Ordinal) || !name.EndsWith(".wad.client", StringComparison.Ordinal) || !Guid.TryParseExact(name[Prefix.Length..^11], "N", out _))
+        string extension = PackageExtension(name ?? "");
+        if (string.IsNullOrEmpty(name) || name.Length != Prefix.Length + 32 + extension.Length || name != Path.GetFileName(name) || !name.StartsWith(Prefix, StringComparison.Ordinal) || !name.EndsWith(extension, StringComparison.Ordinal) || !Guid.TryParseExact(name[Prefix.Length..^extension.Length], "N", out _))
             throw new InvalidDataException("挂载清单包含无效的文件名");
     }
     private static void EnsureNoLinks(string game, string target)
@@ -236,9 +265,25 @@ public sealed class ResourceSkinService : IResourceSkinService, IDisposable
         try { File.WriteAllText(temp, JsonSerializer.Serialize(state)); File.Move(temp, _journal, true); }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
+    internal static uint ValidatePackage(string path, string packageName)
+    {
+        if (!packageName.EndsWith(".riftmod.client", StringComparison.OrdinalIgnoreCase)) return ValidateWad(path);
+        // Wind accepts nonempty encrypted packages without parsing their opaque payload.
+        // Zero entries means unknown, not that an encrypted package has no assets.
+        using (var stream = File.OpenRead(path))
+        {
+            if (stream.Length == 0 || stream.Length > MaxBytes) throw new InvalidDataException("加密资源包为空或超过 2 GB");
+            Span<byte> magic = stackalloc byte[3];
+            int read = stream.ReadAtLeast(magic, 3, throwOnEndOfStream: false);
+            if (read != 3 || magic[0] != 'R' || magic[1] != 'W' || magic[2] != 3) return 0;
+        }
+        // A plaintext WAD carrying this suffix still has to pass normal structural checks.
+        return ValidateWad(path);
+    }
     internal static uint ValidateWad(string path)
     {
         using var stream = File.OpenRead(path);
+        if (stream.Length < 272) throw new InvalidDataException("WAD 头部已截断：" + Path.GetFileName(path));
         Span<byte> header = stackalloc byte[272]; stream.ReadExactly(header);
         if (header[0] != 'R' || header[1] != 'W' || header[2] != 3) throw new InvalidDataException("不是有效的 WAD v3：" + Path.GetFileName(path));
         uint count = BinaryPrimitives.ReadUInt32LittleEndian(header[268..]);

@@ -69,6 +69,26 @@ public sealed class ResourceDownloadTests : IDisposable
         await Assert.ThrowsAsync<InvalidDataException>(() => repo.DownloadAsync(Options, Entry(new string('0', 40))));
         Assert.Empty(Directory.GetFiles(_root, "*", SearchOption.AllDirectories));
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EncryptedRiftmodDownloadUsesBlobIntegrityWithoutPlainWadParsing(bool wrongHash)
+    {
+        byte[] payload = [0x91, 0x42, 0x17, 0x86, 0xFF, 0xAB];
+        string sha = Convert.ToHexString(SHA1.HashData(Encoding.ASCII.GetBytes("blob 6\0").Concat(payload).ToArray()));
+        using var repo = Repo(_ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
+        var entry = new ResourceRepositoryEntry("effects.riftmod.client", "effects.riftmod.client", false, payload.Length, wrongHash ? new string('0', 40) : sha);
+        if (wrongHash)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => repo.DownloadAsync(Options, entry));
+            Assert.Empty(Directory.GetFiles(_root, "*", SearchOption.AllDirectories));
+        }
+        else
+        {
+            var file = await repo.DownloadAsync(Options, entry);
+            Assert.EndsWith(".riftmod.client", file); Assert.Equal(payload, File.ReadAllBytes(file));
+        }
+    }
     [Fact]
     public async Task AuthFailureHasActionableMessageAndDoesNotExposeToken()
     {
@@ -166,6 +186,42 @@ public sealed class ResourceDownloadTests : IDisposable
         File.Delete(target);
         await Assert.ThrowsAsync<IOException>(() => new ResourceSkinLoader(source, () => false).EnsureInstalledAsync(game));
         Assert.False(File.Exists(target)); Assert.Equal("previous-backup", File.ReadAllText(backup));
+    }
+
+    [Fact]
+    public async Task CompatibleLoaderDeploysThisWindowsHidApiAndPreservesForeignCompanions()
+    {
+        string game = Path.Combine(_root, "Game"); Directory.CreateDirectory(game); File.WriteAllText(Path.Combine(game, "League of Legends.exe"), "fixture");
+        string source = Path.Combine(AppContext.BaseDirectory, "Tools", "ResourceSkins", "HID.dll");
+        string companion = Path.Combine(game, ResourceSkinLoader.SystemCompanionName);
+        File.WriteAllText(companion, "foreign-component");
+        var loader = new ResourceSkinLoader(source, () => false);
+        await Assert.ThrowsAsync<IOException>(() => loader.EnsureInstalledAsync(game));
+        Assert.Equal("foreign-component", File.ReadAllText(companion)); Assert.False(File.Exists(Path.Combine(game, "HID.dll")));
+        Assert.Empty(Directory.GetFiles(game, "*.tmp")); File.Delete(companion);
+        await loader.EnsureInstalledAsync(game);
+        var system = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "hid.dll");
+        Assert.Equal(SHA256.HashData(File.ReadAllBytes(system)), SHA256.HashData(File.ReadAllBytes(companion)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyLoaderIsArchivedAndUpgradedInsteadOfRestored(bool active)
+    {
+        if (Environment.GetEnvironmentVariable("RESOURCE_SKIN_LEGACY_LOADER") is not { Length: > 0 } legacy) return;
+        Assert.Equal(GameSkinLoaderIsolation.LegacyResourceLoaderSha256, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(legacy))));
+        string game = Path.Combine(_root, "Game"); Directory.CreateDirectory(game); File.WriteAllText(Path.Combine(game, "League of Legends.exe"), "fixture");
+        string target = Path.Combine(game, "HID.dll"), backup = Path.Combine(game, GameSkinLoaderIsolation.DisabledLoaderName);
+        File.Copy(legacy, active ? target : backup);
+        var loader = new ResourceSkinLoader(Path.Combine(AppContext.BaseDirectory, "Tools", "ResourceSkins", "HID.dll"), () => false);
+        await loader.EnsureInstalledAsync(game);
+        Assert.Equal(ResourceSkinLoader.Sha256, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(target))));
+        var archived = Assert.Single(Directory.GetFiles(game, "*.legacy-*.bak"));
+        Assert.Equal(GameSkinLoaderIsolation.LegacyResourceLoaderSha256, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(archived))));
+        Assert.False(File.Exists(backup));
+        await loader.DisableAsync(game); await new ResourceSkinLoader("no-source", () => false).EnsureInstalledAsync(game);
+        Assert.Equal(ResourceSkinLoader.Sha256, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(target))));
     }
 
     [Fact]

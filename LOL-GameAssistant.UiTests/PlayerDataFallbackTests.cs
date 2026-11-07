@@ -136,10 +136,12 @@ public sealed class PlayerDataFallbackTests
                 [new MatchParticipant { championId = 22, stats = new MatchParticipantStats { kills = 8 } }] }]
         } };
         var inner = Service<IMatchHistoryService>((_, _) => Task.FromResult(response));
-        await new CachedMatchHistoryService(inner, folder.Path).GetPageAsync("alice", 0, 199);
+        var fresh = (await new CachedMatchHistoryService(inner, folder.Path).GetPageAsync("alice", 0, 199))!;
+        Assert.False(fresh.IsCached); Assert.NotNull(fresh.AcquiredAt);
         response = new MatchHistoryResponse { Games = new MatchHistoryGames() };
         var restarted = new CachedMatchHistoryService(inner, folder.Path);
         var restored = await restarted.GetPageAsync("alice", 0, 199);
+        Assert.True(restored!.IsCached); Assert.Equal(fresh.AcquiredAt, restored.AcquiredAt);
         Assert.Equal(8, restored!.Games!.Games[0].Participants[0].stats!.kills);
         response.Games.Games = null!;
         Assert.Equal(42, (await restarted.GetPageAsync("alice", 0, 199))!.Games!.Games[0].GameId);
@@ -201,7 +203,10 @@ public sealed class PlayerDataFallbackTests
         Assert.False(sourceToken.IsCancellationRequested);
         var expected = new MatchHistoryResponse { Games = new() { Games = [new() { GameId = 123 }] } };
         response.SetResult(expected);
-        Assert.Same(expected, await second);
+        var actual = (await second)!;
+        Assert.Same(expected.Games, actual.Games);
+        Assert.False(actual.IsCached); Assert.NotNull(actual.AcquiredAt);
+        Assert.Null(expected.AcquiredAt); // 展示元数据不能写回共享的源响应。
         Assert.Equal(1, requests);
     }
 

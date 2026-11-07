@@ -71,6 +71,55 @@ public sealed class ResourceSkinTests : IDisposable
         Assert.False(File.Exists(Path.Combine(Mount, first))); Assert.Single(Directory.GetFiles(Mount));
         Assert.Single(service.State.Files); Assert.False(File.Exists(Path.Combine(_root, "escape.wad.client")));
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RiftmodSuffixAndBytesSurviveMountRestartAndCleanup(bool encrypted)
+    {
+        byte[] bytes = encrypted ? [0x91, 0x42, 0x17, 0x86, 0xFF, 0xAB] : Wad();
+        Directory.CreateDirectory(Mount);
+        string foreign = Path.Combine(Mount, "user.riftmod.client"); File.WriteAllBytes(foreign, bytes);
+        string name;
+        using (var service = new ResourceSkinService(Journal, () => false, monitor: false))
+        {
+            await service.ApplyAsync(Game, [Package("测试.RIFTMOD.CLIENT", bytes)]);
+            var file = Assert.Single(service.State.Files); name = file.Name;
+            Assert.EndsWith(".riftmod.client", name);
+            Assert.Equal(encrypted ? 0u : 1u, file.Entries);
+            Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(Mount, name)));
+        }
+        using var restored = new ResourceSkinService(Journal, () => false, monitor: false);
+        Assert.Null(restored.CleanupError); Assert.Equal(name, Assert.Single(restored.State.Files).Name);
+        await restored.ClearAsync(); Assert.Equal([foreign], Directory.GetFiles(Mount));
+    }
+    [Fact]
+    public async Task ArchivePreservesReaderSuffixForEachPackage()
+    {
+        string archive = Path.Combine(_root, "mixed.fantome");
+        using (var zip = ZipFile.Open(archive, ZipArchiveMode.Create))
+        {
+            using (var plain = zip.CreateEntry("WAD/model.wad.client").Open()) plain.Write(Wad());
+            using (var opaque = zip.CreateEntry("WAD/effects.riftmod.client").Open()) opaque.Write([0x91, 0x42, 0x17]);
+        }
+        using var service = new ResourceSkinService(Journal, () => false, monitor: false);
+        await service.ApplyAsync(Game, [archive]);
+        Assert.Equal(2, service.State.Files.Count);
+        Assert.Contains(service.State.Files, f => f.Name.EndsWith(".wad.client") && f.Entries == 1);
+        Assert.Contains(service.State.Files, f => f.Name.EndsWith(".riftmod.client") && f.Entries == 0);
+        await service.ClearAsync(); Assert.Empty(Directory.GetFiles(Mount));
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InvalidRiftmodDoesNotReplacePreviousMount(bool empty)
+    {
+        using var service = new ResourceSkinService(Journal, () => false, monitor: false);
+        await service.ApplyAsync(Game, [Package("working.wad.client")]);
+        var previous = Assert.Single(service.State.Files);
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.ApplyAsync(Game,
+            [Package("broken.riftmod.client", empty ? [] : [(byte)'R', (byte)'W', 3])]));
+        Assert.Equal(previous, Assert.Single(service.State.Files)); Assert.Single(Directory.GetFiles(Mount));
+    }
     [Fact]
     public async Task CorruptArchiveFailsBeforeChangingExistingMount()
     {
@@ -79,6 +128,22 @@ public sealed class ResourceSkinTests : IDisposable
         var corrupt = Wad(); BinaryPrimitives.WriteUInt32LittleEndian(corrupt.AsSpan(280), 99999);
         await Assert.ThrowsAsync<InvalidDataException>(() => service.ApplyAsync(Game, [Package("bad.wad.client", corrupt)]));
         Assert.Equal(first, Assert.Single(service.State.Files)); Assert.Single(Directory.GetFiles(Mount));
+    }
+    [Fact]
+    public async Task GameAliasUsesCanonicalOwnershipButNestedMountLinksAreRejected()
+    {
+        string alias = Path.Combine(_root, "Alias");
+        Directory.CreateSymbolicLink(alias, Game);
+        using var service = new ResourceSkinService(Journal, () => false, monitor: false);
+        await service.ApplyAsync(alias, [Package("test.wad.client")]);
+        Assert.Equal(Game, service.State.GameDirectory);
+        Assert.Equal(Game, ResourceSkinService.ResolveGame(Path.Combine(alias, "League of Legends.exe")));
+        await service.ClearAsync();
+        Directory.Delete(Mount);
+        string outside = Path.Combine(_root, "Unrelated"); Directory.CreateDirectory(outside);
+        Directory.CreateSymbolicLink(Mount, outside);
+        await Assert.ThrowsAsync<IOException>(() => service.ApplyAsync(alias, [Package("second.wad.client")]));
+        Assert.Empty(Directory.GetFiles(outside)); Assert.Empty(service.State.Files);
     }
     [Fact]
     public async Task ModifiedOwnedFileIsPreservedAndRetainsOwnership()
@@ -144,6 +209,9 @@ public sealed class ResourceSkinTests : IDisposable
         System.Windows.Forms.Application.DoEvents(); Assert.Equal(0, engines.Switches);
         var button = page.Controls.Find("ResourceApply", true).Single();
         Assert.True(page.ClientRectangle.Contains(page.PointToClient(button.PointToScreen(new Point(button.Width / 2, button.Height / 2)))));
+        Assert.False(page.Controls.Find("ResourceInstallLoader", true).Single().Enabled);
+        engines.SelectAsync(SkinEngineMode.Resource).GetAwaiter().GetResult();
+        Assert.True(page.Controls.Find("ResourceInstallLoader", true).Single().Enabled);
     });
     private sealed class Engines : ISkinEngineCoordinator
     {

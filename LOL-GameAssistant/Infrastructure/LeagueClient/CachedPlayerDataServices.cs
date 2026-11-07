@@ -187,11 +187,15 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerH
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         try
         {
-            return await _pages.GetLatestOrCachedAsync($"v3:{scope}:{key.Puuid}:{key.Begin}:{key.End}", async () =>
+            var result = await _pages.GetLatestWithMetadataAsync($"v3:{scope}:{key.Puuid}:{key.Begin}:{key.End}", async () =>
             {
                 var value = await _inner.GetPageAsync(key.Puuid, key.Begin, key.End, deadline.Token).ConfigureAwait(false);
                 return key.Session == PlayerHistorySession.Key ? value : null;
             }, deadline.Token).ConfigureAwait(false);
+            return result.Value == null ? null : new MatchHistoryResponse
+            {
+                Games = result.Value.Games, IsCached = result.Cached, AcquiredAt = result.AcquiredAt
+            };
         }
         finally { _pendingPages.TryRemove(new KeyValuePair<(string, string, int, int), Lazy<Task<MatchHistoryResponse?>>>(key, request)); }
     }

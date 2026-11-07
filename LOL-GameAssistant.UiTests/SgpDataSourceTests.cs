@@ -67,6 +67,56 @@ public sealed class SgpDataSourceTests
         Assert.Contains("76", snapshot.ScopeText); Assert.Equal(76, snapshot.Data!.Games!.MissingSummaryCount);
     }
 
+    private static JObject AbortedGame(long id)
+    {
+        var row = MissingGame(id);
+        row["json"] = new JObject
+        {
+            ["endOfGameResult"] = "Abort_Unexpected", ["gameId"] = 0,
+            ["gameCreation"] = 0, ["gameDuration"] = 0, ["platformId"] = "",
+            ["participants"] = new JArray()
+        };
+        return row;
+    }
+
+    [Fact]
+    public async Task AbortedPlaceholdersPreserveLatestGamesAndRawPagination()
+    {
+        using var http = new HttpClient(new Handler((request, _) =>
+        {
+            var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            Assert.Equal("0", query["startIndex"]); Assert.Equal("3", query["count"]);
+            return Task.FromResult(Json(new JObject { ["games"] = new JArray(Game(44), AbortedGame(43), Game(42)) }));
+        }));
+        var service = new SgpMatchHistoryService(new(Lcu(), http));
+        var page = (await service.GetPageAsync("player", 0, 2))!.Games!;
+        Assert.Equal(new long[] { 44, 42 }, page.Games.Select(g => g.GameId));
+        Assert.Equal(1, page.MissingSummaryCount); Assert.Equal(2, page.GameIndexEnd);
+        Assert.True(page.HasMore); Assert.Equal(4, page.GameCount);
+        Assert.Equal(2, ((ILocalCacheStore)service).MeasureMemory().Entries);
+    }
+
+    [Theory]
+    [InlineData("wrong-region")]
+    [InlineData("invalid-id")]
+    [InlineData("duplicate")]
+    [InlineData("not-aborted")]
+    [InlineData("has-participant")]
+    public async Task AbortedPlaceholdersStillRejectInvalidOrAmbiguousRecords(string scenario)
+    {
+        var row = AbortedGame(43);
+        switch (scenario)
+        {
+            case "wrong-region": row["metadata"]!["match_id"] = "HN10_43"; break;
+            case "invalid-id": row["metadata"]!["match_id"] = "HN1_0"; break;
+            case "not-aborted": row["json"]!["endOfGameResult"] = "GameComplete"; break;
+            case "has-participant": row["json"]!["participants"] = new JArray(new JObject()); break;
+        }
+        var rows = scenario == "duplicate" ? new JArray(Game(43), row) : new JArray(row);
+        using var http = new HttpClient(new Handler((_, _) => Task.FromResult(Json(new JObject { ["games"] = rows }))));
+        await Assert.ThrowsAsync<IOException>(() => new SgpMatchHistoryService(new(Lcu(), http)).GetPageAsync("player", 0, 9));
+    }
+
     [Fact]
     public async Task SparsePagesDoNotFillFromNextPageOrLoseNextPageNavigation()
     {

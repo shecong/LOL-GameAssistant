@@ -5,7 +5,8 @@ namespace LOL_GameAssistant.Infrastructure.Skins;
 /// <summary>Separates the resource loader from the CSLOL overlay without deleting either loader.</summary>
 public static class GameSkinLoaderIsolation
 {
-    public const string ResourceLoaderSha256 = "E4FBBF9671303712A764D505D9E9A6C5FAE7004873899255AB798F759D23E69B";
+    public const string ResourceLoaderSha256 = "DA1B89FB914992D012AEBF5557C41274497463A7A5D2CB8ECFACEE51F872A3E4";
+    public const string LegacyResourceLoaderSha256 = "E4FBBF9671303712A764D505D9E9A6C5FAE7004873899255AB798F759D23E69B";
     public const string DisabledLoaderName = "HID.dll.sc-disabled";
 
     public static async Task<bool> DisableResourceLoaderAsync(string game, Func<bool> gameRunning, CancellationToken token)
@@ -29,6 +30,7 @@ public static class GameSkinLoaderIsolation
     {
         if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) return false;
         await using var stream = File.OpenRead(path);
-        return Convert.ToHexString(await SHA256.HashDataAsync(stream, token).ConfigureAwait(false)) == ResourceLoaderSha256;
+        var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, token).ConfigureAwait(false));
+        return hash is ResourceLoaderSha256 or LegacyResourceLoaderSha256;
     }
 }

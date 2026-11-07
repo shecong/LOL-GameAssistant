@@ -46,7 +46,10 @@ public sealed class SgpMatchHistoryService : IMatchHistoryService, ILocalCacheSt
                 cancellationToken.ThrowIfCancellationRequested();
                 // SGP 会保留只有 metadata 的历史索引；已实测其单场 SUMMARY 返回 404。
                 // 仅容忍可识别的空内容记录，其他格式、身份和大区异常仍严格拒绝。
-                if (row is JObject entry && (entry["json"] == null || entry["json"]!.Type == JTokenType.Null) &&
+                // 异常终止的自定义局也会留下 gameId=0、无参赛者的 SUMMARY 占位。
+                // 它不是有效对局，按缺失内容计数，不能让整页回退到旧缓存。
+                if (row is JObject entry && (entry["json"] == null || entry["json"]!.Type == JTokenType.Null ||
+                    IsAbortedPlaceholder(entry["json"], context.Platform)) &&
                     entry["metadata"] is JObject metadata && metadata["match_id"]?.Type == JTokenType.String &&
                     !string.IsNullOrWhiteSpace(metadata.Value<string>("match_id")))
                 {
@@ -106,4 +109,11 @@ public sealed class SgpMatchHistoryService : IMatchHistoryService, ILocalCacheSt
     }
 
     public void ClearDetailCache() { lock (_sync) { _generation++; _summaries.Clear(); } }
+
+    private static bool IsAbortedPlaceholder(JToken? value, string platform) => value is JObject json &&
+        json.Value<string>("endOfGameResult") == "Abort_Unexpected" &&
+        json["gameId"]?.Type == JTokenType.Integer && json.Value<long>("gameId") == 0 &&
+        json["participants"] is JArray { Count: 0 } &&
+        (json.Value<string>("platformId") == "" ||
+         string.Equals(json.Value<string>("platformId"), platform, StringComparison.OrdinalIgnoreCase));
 }

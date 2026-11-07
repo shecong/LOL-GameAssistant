@@ -1,0 +1,190 @@
+[
+  {
+    "name": "HidD_FlushQueue",
+    "ordinal": 1
+  },
+  {
+    "name": "HidD_FreePreparsedData",
+    "ordinal": 2
+  },
+  {
+    "name": "HidD_GetAttributes",
+    "ordinal": 3
+  },
+  {
+    "name": "HidD_GetConfiguration",
+    "ordinal": 4
+  },
+  {
+    "name": "HidD_GetFeature",
+    "ordinal": 5
+  },
+  {
+    "name": "HidD_GetHidGuid",
+    "ordinal": 6
+  },
+  {
+    "name": "HidD_GetIndexedString",
+    "ordinal": 7
+  },
+  {
+    "name": "HidD_GetInputReport",
+    "ordinal": 8
+  },
+  {
+    "name": "HidD_GetManufacturerString",
+    "ordinal": 9
+  },
+  {
+    "name": "HidD_GetMsGenreDescriptor",
+    "ordinal": 10
+  },
+  {
+    "name": "HidD_GetNumInputBuffers",
+    "ordinal": 11
+  },
+  {
+    "name": "HidD_GetPhysicalDescriptor",
+    "ordinal": 12
+  },
+  {
+    "name": "HidD_GetPreparsedData",
+    "ordinal": 13
+  },
+  {
+    "name": "HidD_GetProductString",
+    "ordinal": 14
+  },
+  {
+    "name": "HidD_GetSerialNumberString",
+    "ordinal": 15
+  },
+  {
+    "name": "HidD_Hello",
+    "ordinal": 16
+  },
+  {
+    "name": "HidD_SetConfiguration",
+    "ordinal": 17
+  },
+  {
+    "name": "HidD_SetFeature",
+    "ordinal": 18
+  },
+  {
+    "name": "HidD_SetNumInputBuffers",
+    "ordinal": 19
+  },
+  {
+    "name": "HidD_SetOutputReport",
+    "ordinal": 20
+  },
+  {
+    "name": "HidP_GetButtonArray",
+    "ordinal": 21
+  },
+  {
+    "name": "HidP_GetButtonCaps",
+    "ordinal": 22
+  },
+  {
+    "name": "HidP_GetCaps",
+    "ordinal": 23
+  },
+  {
+    "name": "HidP_GetData",
+    "ordinal": 24
+  },
+  {
+    "name": "HidP_GetExtendedAttributes",
+    "ordinal": 25
+  },
+  {
+    "name": "HidP_GetLinkCollectionNodes",
+    "ordinal": 26
+  },
+  {
+    "name": "HidP_GetScaledUsageValue",
+    "ordinal": 27
+  },
+  {
+    "name": "HidP_GetSpecificButtonCaps",
+    "ordinal": 28
+  },
+  {
+    "name": "HidP_GetSpecificValueCaps",
+    "ordinal": 29
+  },
+  {
+    "name": "HidP_GetUsageValue",
+    "ordinal": 30
+  },
+  {
+    "name": "HidP_GetUsageValueArray",
+    "ordinal": 31
+  },
+  {
+    "name": "HidP_GetUsages",
+    "ordinal": 32
+  },
+  {
+    "name": "HidP_GetUsagesEx",
+    "ordinal": 33
+  },
+  {
+    "name": "HidP_GetValueCaps",
+    "ordinal": 34
+  },
+  {
+    "name": "HidP_GetVersionInternal",
+    "ordinal": 35
+  },
+  {
+    "name": "HidP_InitializeReportForID",
+    "ordinal": 36
+  },
+  {
+    "name": "HidP_MaxDataListLength",
+    "ordinal": 37
+  },
+  {
+    "name": "HidP_MaxUsageListLength",
+    "ordinal": 38
+  },
+  {
+    "name": "HidP_SetButtonArray",
+    "ordinal": 39
+  },
+  {
+    "name": "HidP_SetData",
+    "ordinal": 40
+  },
+  {
+    "name": "HidP_SetScaledUsageValue",
+    "ordinal": 41
+  },
+  {
+    "name": "HidP_SetUsageValue",
+    "ordinal": 42
+  },
+  {
+    "name": "HidP_SetUsageValueArray",
+    "ordinal": 43
+  },
+  {
+    "name": "HidP_SetUsages",
+    "ordinal": 44
+  },
+  {
+    "name": "HidP_TranslateUsagesToI8042ScanCodes",
+    "ordinal": 45
+  },
+  {
+    "name": "HidP_UnsetUsages",
+    "ordinal": 46
+  },
+  {
+    "name": "HidP_UsageListDifference",
+    "ordinal": 47
+  }
+]

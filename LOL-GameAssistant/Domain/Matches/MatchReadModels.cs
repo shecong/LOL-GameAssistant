@@ -4,6 +4,8 @@ namespace LOL_GameAssistant.Domain.Matches;
 public sealed class MatchHistoryResponse
 {
     public MatchHistoryGames? Games { get; set; }
+    public bool IsCached { get; set; }
+    public DateTimeOffset? AcquiredAt { get; set; }
 }
 
 /// <summary>战绩分页结果与比赛条目。</summary>

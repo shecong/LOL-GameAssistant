@@ -208,11 +208,8 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         ImGui::Begin("SC.SkinPicker",nullptr,PanelFlags); ClampPanel(size);
         const bool hasChildren=aux.skinCategory==0 && aux.skinChildCount>0 && aux.skinChildCount<=32;
         const float childWidth=(std::min)(340.f,display.x*.48f);
-        if(hasChildren && ImGui::GetWindowPos().x+size.x+8+childWidth>display.x)
-            ImGui::SetWindowPos(ImVec2((std::max)(0.f,display.x-size.x-childWidth-8),ImGui::GetWindowPos().y));
         ImVec2 parentPos=ImGui::GetWindowPos();
         RegisterRegion(hits,sx,sy);
-        float childAnchorY=parentPos.y+130;
         auto command=[&](LONG action,LONG argument=0) { current.pendingAux=action;current.pendingArgument=argument;current.pendingVersion=aux.skinVersion; };
         ImGui::TextColored(ImVec4(.82f,.72f,1,1),"游戏换肤"); ImGui::SameLine(ImGui::GetWindowWidth()-72);
         if(ImGui::SmallButton("隐藏")) command(4);
@@ -240,10 +237,13 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         }
         ImGui::EndDisabled();
         ImGui::BeginChild("Skins",ImVec2(0,(std::max)(40.f,ImGui::GetContentRegionAvail().y-145)),ImGuiChildFlags_Borders);
-        static int previousSkinVersion=-1,previousSkinSelected=-1;
-        bool focusSkin=previousSkinVersion!=aux.skinVersion || previousSkinSelected!=aux.skinSelected;
+        static int previousSkinVersion=-1,previousSkinSelected=-1,previousSkinCategory=-1,previousSkinPage=-1;
+        static bool previousChildren=false;
+        bool focusSkin=previousSkinSelected!=aux.skinSelected || previousSkinCategory!=aux.skinCategory ||
+            previousSkinPage!=aux.skinPage || (!hasChildren && !previousChildren && previousSkinVersion!=aux.skinVersion);
         if(focusSkin && aux.skinSelected<0) ImGui::SetScrollY(0);
         previousSkinVersion=aux.skinVersion; previousSkinSelected=aux.skinSelected;
+        previousSkinCategory=aux.skinCategory; previousSkinPage=aux.skinPage; previousChildren=hasChildren;
         ImGui::BeginDisabled(!aux.skinReady);
         ImGui::PushID(aux.skinVersion); // A held mouse click cannot complete on a replacement list.
         ImGuiListClipper skins; skins.Begin(std::clamp(aux.skinCount,0,256));
@@ -253,7 +253,6 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
             auto textPos=ImGui::GetCursorScreenPos();
             if(ImGui::Selectable("##skin",aux.skinSelected==i,0,ImVec2(0,32))) command(1,i);
             if(hasChildren && aux.skinChildParent==i) {
-                childAnchorY=ImGui::GetItemRectMin().y;
                 ImGui::GetWindowDrawList()->AddRect(ImGui::GetItemRectMin(),ImGui::GetItemRectMax(),ImGui::GetColorU32(ImGuiCol_HeaderActive),4.f);
             }
             if(focusSkin && aux.skinSelected==i) ImGui::SetScrollHereY(.5f);
@@ -293,9 +292,16 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
         }
         ImGui::BeginChild("Status",ImVec2(0,0)); ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinStatus); ImGui::PopTextWrapPos(); ImGui::EndChild();
         ImGui::End();
+        static bool childWasVisible=false;
+        static int previousChildParent=-1,previousChildPage=-1,previousChildFrame=-1;
+        static std::string previousChildTitle;
         if(hasChildren) {
-            float childHeight=(std::min)((std::min)(420.f,display.y),100.f+36.f*aux.skinChildCount);
-            ImGui::SetNextWindowPos(ImVec2(parentPos.x+size.x+8,(std::max)(0.f,(std::min)(childAnchorY,display.y-childHeight))));
+            // Anchor to the panel, not a scrolling row. Keep the last page the same size.
+            float childHeight=(std::min)((std::min)(420.f,display.y),100.f+36.f*(aux.skinChildPageCount>1?32:aux.skinChildCount));
+            float childX=parentPos.x+size.x+8;
+            if(childX+childWidth>display.x) childX=parentPos.x-childWidth-8;
+            childX=std::clamp(childX,0.f,(std::max)(0.f,display.x-childWidth));
+            ImGui::SetNextWindowPos(ImVec2(childX,(std::max)(0.f,(std::min)(parentPos.y,display.y-childHeight))));
             ImGui::SetNextWindowSize(ImVec2(childWidth,childHeight));
             ImGui::Begin("SC.SkinVariants",nullptr,PanelFlags|ImGuiWindowFlags_NoMove);
             RegisterRegion(hits,sx,sy);
@@ -307,9 +313,12 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
             aux.skinChildTitle[255]=0;
             ImGui::PushTextWrapPos(); ImGui::TextDisabled("%s",aux.skinChildTitle); ImGui::PopTextWrapPos();
             ImGui::BeginChild("Variants",ImVec2(0,aux.skinChildPageCount>1?-32.f:0),ImGuiChildFlags_Borders);
-            static int previousChildVersion=-1,previousChildSelected=-1;
-            bool focusChild=previousChildVersion!=aux.skinVersion || previousChildSelected!=aux.skinChildSelected;
-            previousChildVersion=aux.skinVersion; previousChildSelected=aux.skinChildSelected;
+            bool focusChild=!childWasVisible || previousChildFrame+1!=ImGui::GetFrameCount() || previousChildParent!=aux.skinChildParent ||
+                previousChildPage!=aux.skinChildPage || previousChildTitle!=aux.skinChildTitle;
+            previousChildParent=aux.skinChildParent; previousChildPage=aux.skinChildPage;
+            previousChildTitle=aux.skinChildTitle;
+            previousChildFrame=ImGui::GetFrameCount();
+            if(focusChild) ImGui::SetScrollY(0);
             ImGui::BeginDisabled(!aux.skinReady); ImGui::PushID(aux.skinVersion);
             for(int i=0;i<aux.skinChildCount;++i) {
                 aux.skinChildNames[i][191]=0; ImGui::PushID(i);
@@ -328,6 +337,7 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
             }
             ImGui::End();
         }
+        childWasVisible=hasChildren;
     }
     regionCount=hits; acceptsMouse=hits>0; lastRender=GetTickCount64(); current.frame->hitRegionCount=hits;
 }
