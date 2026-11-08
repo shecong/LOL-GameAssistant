@@ -99,7 +99,7 @@ public sealed partial class LoungeForm
     private AntdContentWindow RecruitmentDialog(string title, Size size) => new()
     {
         Text = title, ClientSize = size, Font = Font, StartPosition = FormStartPosition.CenterParent,
-        FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
+        MaximizeBox = false, MinimizeBox = false,
         BackColor = UiTheme.Palette.Surface, ForeColor = UiTheme.Palette.TextPrimary
     };
 

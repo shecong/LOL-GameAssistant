@@ -9,6 +9,7 @@ using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.Application.Profiles;
 using LOL_GameAssistant.Application.Settings;
+using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.ApplicationInfo;
 using LOL_GameAssistant.Domain.LeagueClient;
@@ -81,6 +82,7 @@ public sealed class WindowAuditTests
             [typeof(ProfileAppearancePickerForm)] = () => new ProfileAppearancePickerForm(features, Empty<IProfileIconService>(), true),
             [typeof(ReplayManagerForm)] = () => new ReplayManagerForm(1, features),
             [typeof(RewardSelectionForm)] = () => new RewardSelectionForm(features),
+            [typeof(ResourceOnlineLibraryForm)] = () => new ResourceOnlineLibraryForm(Empty<IResourceSkinRepository>()),
             [typeof(RunePresetManagerForm)] = () => new RunePresetManagerForm(settings, Empty<IOpggBuildApplyService>(), Empty<IAiCoachingService>(), assets),
             [typeof(TclsAccountsForm)] = () => new TclsAccountsForm(Empty<ITclsAccountStore>(), null),
             [typeof(UpdateAvailableForm)] = () => new UpdateAvailableForm(new(new Version(99, 0), "验收版本", "https://example.invalid", "更新说明\n这是布局验收数据"), _ => { }),
@@ -127,6 +129,8 @@ public sealed class WindowAuditTests
             {
                 using var window = create(); window.Opacity = 0; window.ShowInTaskbar = false; window.TopMost = false;
                 window.Show(owner); System.Windows.Forms.Application.DoEvents();
+                Assert.Equal(FormBorderStyle.None, window.FormBorderStyle);
+                Assert.Single(window.Controls.OfType<AntdUI.PageHeader>());
                 if (minimum && window.MinimumSize != Size.Empty) window.Size = window.MinimumSize;
                 UiTheme.Apply(window); window.PerformLayout(); System.Windows.Forms.Application.DoEvents();
                 Assert.True(Screen.FromControl(window).WorkingArea.Contains(window.Bounds), type.Name + " 超出工作区");

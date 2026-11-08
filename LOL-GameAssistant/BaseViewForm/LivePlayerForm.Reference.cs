@@ -73,13 +73,14 @@ public partial class LivePlayerForm
     {
         if (_historyHeading == null)
         {
-            _historyHeading = new AntdUI.Label { Text = "最近十场战绩 · 向下滚动查看", AutoSize = false,
+            _historyHeading = new AntdUI.Label { AutoSize = false, AutoEllipsis = true,
                 Name = "recentHistoryHeading",
                 BackColor = Color.Transparent, Font = new Font(UiMetrics.FontFamily, 9F, FontStyle.Bold) };
             headerPanel.Controls.Add(_historyHeading);
             headerPanel.Controls.Add(_kdaLabel);
             headerPanel.Controls.Add(_encounterLabel);
         }
+        _historyHeading.Text = $"分路：{LayoutPosition}";
         headerPanel.Height = 108;
         int right = Math.Max(220, ClientSize.Width - 12);
         picProfile.SetBounds(10, 6, 36, 36);

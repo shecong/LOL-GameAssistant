@@ -48,7 +48,8 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
     private readonly AntdUI.Select _resultFilter = new() { Width = 112, Height = UiMetrics.ControlHeight };
     private readonly AntdUI.Label _recentSummary = new() { TextAlign = ContentAlignment.MiddleLeft };
     private readonly AntdUI.Label _sourceLabel = new() { Text = "SGP · 摘要优先 / 详情按需", Dock = DockStyle.Right, Width = 230, TextAlign = ContentAlignment.MiddleRight };
-    private readonly FlowLayoutPanel _listFilters = new() { Dock = DockStyle.Fill, WrapContents = false };
+    private readonly FlowLayoutPanel _listFilters = new() { WrapContents = false };
+    private bool _layingOutFilters;
     private bool _suppressListFilters;
     private int? _selectedChampion;
     private string _selectedResult = "全部结果";
@@ -120,18 +121,20 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
             _currentPage = 1; _statsLoaded = false; if (_currentPlayer != null) await RenderMatchPageAsync();
         };
         _listFilters.Controls.Add(_championFilter); _listFilters.Controls.Add(_resultFilter); _listFilters.Controls.Add(reset);
-        _historyHeader.Controls.Add(_listFilters); _historyHeader.Controls.Add(_sourceLabel); _historyHeader.Controls.Add(_historyTitle);
+        _viewBar!.Controls.Add(_listFilters);
+        _historyTitle.Visible = false;
+        _historyHeader.Controls.Add(_sourceLabel);
         _historyHeader.Padding = new Padding(4, 2, 4, 0);
-        _historyHeader.SizeChanged += (_, _) => LayoutListFilters();
         panelHistory.Controls.Clear();
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Margin = Padding.Empty };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = Padding.Empty };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         foreach (Control control in new Control[] { _historyHeader, _columnHeader, stackMatches, pagination }) { control.Dock = DockStyle.Fill; control.Margin = Padding.Empty; }
-        layout.Controls.Add(_historyHeader, 0, 0); layout.Controls.Add(_columnHeader, 0, 1); layout.Controls.Add(stackMatches, 0, 2); layout.Controls.Add(pagination, 0, 3);
+        _historyHeader.Controls.Add(pagination);
+        pagination.BringToFront();
+        layout.Controls.Add(_columnHeader, 0, 0); layout.Controls.Add(stackMatches, 0, 1); layout.Controls.Add(_historyHeader, 0, 2);
         panelHistory.Controls.Add(layout);
         panelPlayer.Controls.Add(_recentSummary);
         _sourceLabel.Click += async (_, _) => { if (_currentPlayer != null) await RenderMatchPageAsync(); };
@@ -141,14 +144,41 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
     }
     private void LayoutListFilters()
     {
+        if (_layingOutFilters || _viewBar == null || _listFilters.Controls.Count < 4) return;
+        _layingOutFilters = true;
+        try
+        {
         int S(int n) => n * DeviceDpi / 96;
-        int w = _historyHeader!.ClientSize.Width;
-        _historyTitle.Visible = w >= S(1150); _sourceLabel.Visible = w >= S(980);
-        int width = _listFilters.ClientSize.Width;
-        _modeSelect.Width = S(width < S(490) ? 116 : 170);
-        _championFilter.Width = S(width < S(490) ? 112 : 150);
-        _resultFilter.Width = S(width < S(490) ? 85 : 112);
-        _listFilters.Controls[3].Visible = width >= S(400);
+        int w = _viewBar.ClientSize.Width;
+        bool records = _viewSwitch.SelectIndex == 0;
+        _viewSwitch.Dock = _spectateButton.Dock = DockStyle.None;
+        _pageSizeArea!.Dock = _backToTopButton!.Dock = DockStyle.None;
+        _viewSwitch.SetBounds(0, 0, Math.Min(S(UiLanguage.IsEnglish ? 560 : 390), Math.Max(S(250), w - S(140))), S(37));
+        int right = w - S(4);
+        _spectateButton.SetBounds(right - S(130), 0, S(130), S(37)); right -= S(134);
+        bool extraActions = records && w >= S(UiLanguage.IsEnglish ? 1500 : 1300);
+        _backToTopButton.Visible = _pageSizeArea.Visible = extraActions;
+        if (extraActions)
+        {
+            _backToTopButton.SetBounds(right - S(110), 0, S(110), S(37)); right -= S(114);
+            _pageSizeArea.SetBounds(right - S(155), 0, S(155), S(37)); right -= S(159);
+        }
+        _listFilters.Visible = records;
+        int left = _viewSwitch.Right + S(4);
+        bool compact = right - left < S(520);
+        _modeSelect.Width = S(compact ? 116 : 170);
+        _championFilter.Width = S(compact ? 112 : 150);
+        _resultFilter.Width = S(compact ? 85 : 112);
+        _listFilters.Controls[3].Width = S(60);
+        _listFilters.Controls[3].Visible = true;
+        int width = _listFilters.Controls.Cast<Control>().Sum(c => c.Width + c.Margin.Horizontal);
+        bool wrap = records && right - left < width;
+        int available = wrap ? w : right - left;
+        _listFilters.SetBounds((wrap ? 0 : left) + Math.Max(0, (available - width) / 2), wrap ? S(40) : 0, Math.Min(width, w), S(38));
+        if (_rootLayout != null) _rootLayout.RowStyles[2].Height = S(wrap ? 86 : 46);
+        _sourceLabel.Visible = panelHistory.ClientSize.Width >= S(650);
+        }
+        finally { _layingOutFilters = false; }
     }
     private void LayoutMatchWorkspace(bool reset = false)
     {

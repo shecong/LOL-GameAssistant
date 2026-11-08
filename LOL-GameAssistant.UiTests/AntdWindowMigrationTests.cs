@@ -37,6 +37,48 @@ public sealed class AntdWindowMigrationTests
         Assert.True(body.Top >= header.Bottom);
         window.Text = "装备作用";
         Assert.Equal(window.Text, header.Text);
+        Assert.Same(header, AntdWindowChrome.AddHeader(window));
+        Assert.Single(window.Controls.OfType<AntdUI.PageHeader>());
+    });
+
+    [Theory]
+    [InlineData("Dark")]
+    [InlineData("Light")]
+    public void CompanionHasAntdHeaderAndKeepsItsChromeWhileFollowingClient(string theme) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        string previous = UiTheme.Mode;
+        try
+        {
+            UiTheme.SetMode(theme);
+            using var fixture = new ChampSelectCompanionTests.Fixture(() => new Rectangle(350, 100, 1000, 650));
+            var companion = fixture.Form;
+            companion.StartTracking();
+            System.Windows.Forms.Application.DoEvents();
+            var header = Assert.Single(companion.Controls.OfType<AntdUI.PageHeader>());
+            Assert.Equal("companionWindowHeader", header.Name);
+            Assert.True(header.ShowButton);
+            Assert.False(header.MaximizeBox);
+            Assert.False(header.MinimizeBox);
+            var cards = (Control)typeof(ChampSelectCompanionForm).GetField("_cards", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(companion)!;
+            Assert.True(cards.Top >= header.Bottom);
+            var size = companion.ClientSize;
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                AssertCustomChrome(companion);
+                Assert.NotEqual(0, GetWindowLong(companion.Handle, -20) & 0x08000000);
+                typeof(Control).GetMethod("RecreateHandle", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(companion, null);
+                Assert.Equal(size, companion.ClientSize);
+                companion.Hide(); companion.SyncClientVisibility();
+            }
+            if (Environment.GetEnvironmentVariable("WINDOW_AUDIT_PREVIEWS") is { Length: > 0 } folder)
+            {
+                Directory.CreateDirectory(folder);
+                using var bitmap = new Bitmap(companion.Width, companion.Height);
+                companion.DrawToBitmap(bitmap, companion.ClientRectangle);
+                bitmap.Save(Path.Combine(folder, $"Companion-{theme}.png"));
+            }
+        }
+        finally { UiTheme.SetMode(previous); }
     });
 
     [Fact]
@@ -76,8 +118,10 @@ public sealed class AntdWindowMigrationTests
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal(FormBorderStyle.None, window.FormBorderStyle);
         Assert.Equal(0, GetWindowLong(window.Handle, -16) & 0x00C00000);
-        // 检查 AntdUI 内部非客户区绘制状态，确保重建后未停留在 Destroy 状态。
-        Assert.False((bool)typeof(AntdUI.Window).GetField("eNonclient", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!);
+        // 通过真实标题控件和系统样式验收，不依赖不同 AntdUI 版本的私有字段。
+        var header = Assert.Single(window.Controls.OfType<AntdUI.PageHeader>());
+        Assert.True(header.Visible);
+        Assert.True(window.ClientRectangle.Contains(header.Bounds));
     }
 
     private sealed class TestWindow : AntdUI.Window

@@ -109,6 +109,7 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window, IThemeAware
         Text = "LOL 选人伴随窗";
         AntdWindowChrome.Configure(this, fitWorkingArea: false);
         EnableHitTest = false;
+        MinimizeBox = MaximizeBox = false;
         ShowInTaskbar = false;
         TopMost = false;
         StartPosition = FormStartPosition.Manual;
@@ -133,6 +134,10 @@ internal sealed class ChampSelectCompanionForm : AntdUI.Window, IThemeAware
         });
         header.Controls.Add(_chooseBuild);
         Controls.Add(header);
+        var windowHeader = AntdWindowChrome.AddHeader(this, fitWorkingArea: false);
+        windowHeader.Name = "companionWindowHeader";
+        windowHeader.Height = 34;
+        windowHeader.Font = new Font("Microsoft YaHei UI", 9F);
         _chooseBuild.Click += async (_, _) => await ChooseBuildAsync();
         _timer.Tick += async (_, _) => await RefreshAsync();
         UiLanguage.Changed += LanguageChanged;

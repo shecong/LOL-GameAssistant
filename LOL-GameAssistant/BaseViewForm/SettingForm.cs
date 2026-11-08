@@ -737,7 +737,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(performance, 2, "选人 KDA 发送：", _champSelectKdaAnnouncementEnabled,
                 "选人阶段我方战绩加载完成后，把近期 KDA 评估通过客户端聊天发送一次；只汇总我方玩家。");
             AddSegmentRow(performance, 3, "发送文案：", _champSelectKdaAnnouncementTemplate,
-                "发送用的模板，支持 {players} 与 {allies}（两者内容相同，都是我方名单）。");
+                "支持 {players} 与 {allies}：按选人顺序每人一行，显示玩家名、评级评分、KDA 和胜率；长昵称缩写，全模式参考和样本不足另行标注。");
             AddSegmentRow(performance, 4, "对局 KDA 发送：", _gameKdaAnnouncementEnabled,
                 "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。也可在“一键喊话”设置中配置手动 KDA 快捷键（默认 F9），关闭自动发送后仍能手动发送。");
             AddSegmentRow(performance, 5, "对局发送排版：", _gameKdaOnePlayerPerLine,

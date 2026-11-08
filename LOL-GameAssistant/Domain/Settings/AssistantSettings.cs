@@ -1,4 +1,5 @@
 using LOL_GameAssistant.Domain.Builds;
+using LOL_GameAssistant.Domain.MatchAnalysis;
 
 namespace LOL_GameAssistant.Domain.Settings;
 
@@ -75,8 +76,8 @@ public sealed class AssistantSettings
     /// <summary>对局 KDA 喊话中每名玩家单独发送一条；默认按蓝红双方各汇总一条。</summary>
     public bool GameKdaOnePlayerPerLine { get; set; }
 
-    /// <summary>选人 KDA 汇总消息模板，支持 {players}、{allies}、{enemies} 占位符。</summary>
-    public string ChampSelectKdaAnnouncementTemplate { get; set; } = "【选人近期 KDA 评估】\n{allies}\n{enemies}";
+    /// <summary>选人 KDA 汇总模板；{players} 和 {allies} 均按我方楼层逐行展示。</summary>
+    public string ChampSelectKdaAnnouncementTemplate { get; set; } = ChampSelectKdaAnnouncementBuilder.DefaultTemplate;
 
     public CloudAiSettings Ai { get; set; } = new();
     public bool AutoMatch { get; set; }
@@ -145,9 +146,8 @@ public sealed class AssistantSettings
         AutoAcceptDelayMaxMilliseconds = Math.Clamp(AutoAcceptDelayMaxMilliseconds, 0, 15000);
         if (AutoAcceptDelayMinMilliseconds > AutoAcceptDelayMaxMilliseconds)
             (AutoAcceptDelayMinMilliseconds, AutoAcceptDelayMaxMilliseconds) = (0, 0);
-        ChampSelectKdaAnnouncementTemplate = string.IsNullOrWhiteSpace(ChampSelectKdaAnnouncementTemplate)
-            ? "【选人近期 KDA 评估】\n{allies}\n{enemies}"
-            : ChampSelectKdaAnnouncementTemplate.Trim()[..Math.Min(800, ChampSelectKdaAnnouncementTemplate.Trim().Length)];
+        ChampSelectKdaAnnouncementTemplate = ChampSelectKdaAnnouncementBuilder.NormalizeTemplate(ChampSelectKdaAnnouncementTemplate);
+        ChampSelectKdaAnnouncementTemplate = ChampSelectKdaAnnouncementTemplate[..Math.Min(800, ChampSelectKdaAnnouncementTemplate.Length)];
         CheckIntervalSeconds = Math.Max(1, CheckIntervalSeconds);
         AutoRefreshIntervalSeconds = Math.Max(10, AutoRefreshIntervalSeconds);
         BanChampions ??= new List<string>();

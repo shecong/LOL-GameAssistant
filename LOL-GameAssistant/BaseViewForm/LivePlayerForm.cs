@@ -34,7 +34,7 @@ namespace LOL_GameAssistant.BaseViewForm
             Name = "lblRank", BackColor = Color.Transparent, Visible = false,
             Font = new Font("Microsoft YaHei UI", 8F), TextAlign = ContentAlignment.MiddleLeft
         };
-        private readonly string _position;
+        private string _position;
         private readonly bool _isBot;
         private readonly bool _isAlly;
         private readonly bool _teamKnown;
@@ -77,6 +77,11 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>当前卡片对应玩家的 puuid（供开黑检测结果回填）。</summary>
         public string? Puuid => _playerPuuid;
+        internal void UpdatePosition(string? position)
+        {
+            _position = position?.Trim() ?? "";
+            RecalcHeaderLayout();
+        }
         /// <summary>将玩家近期战绩区域滚动到顶部。</summary>
         public void ScrollMatchesToTop() => panelMatches.AutoScrollPosition = Point.Empty;
 
@@ -521,10 +526,9 @@ namespace LOL_GameAssistant.BaseViewForm
             OverviewChanged?.Invoke(this, EventArgs.Empty);
             lblName.Text = displayName;
             RecalcHeaderLayout();
-            string positionText = GetPositionText(_position);
             lblSub.Text = !level.HasValue
-                ? (string.IsNullOrEmpty(tagLine) ? positionText : $"#{tagLine} {positionText}")
-                : $"Lv.{level}  #{tagLine} {positionText}".Trim();
+                ? (string.IsNullOrEmpty(tagLine) ? "" : $"#{tagLine}")
+                : $"Lv.{level}  #{tagLine}".Trim();
 
             // 图像下载不阻塞战绩请求；其失败也不应让已获取的战绩消失。
             try { await LoadProfileIconAsync(profileIconId, cancellationToken); }
@@ -582,8 +586,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 });
             }
             finally { panelMatches.ResumeLayout(); }
-            if (_historyHeading != null)
-                _historyHeading.Text = $"{(HistoryFilter == LiveHistoryFilter.CurrentMode ? "当前模式" : "最近战绩")} · {games.Count} 场" + (games.Count > 0 ? " · 向下滚动查看" : "");
             ResizeMatchRows();
             // 文字立即显示，图标各自异步补齐，不阻塞评级和卡片完成。
             _ = Task.WhenAll(iconTasks);

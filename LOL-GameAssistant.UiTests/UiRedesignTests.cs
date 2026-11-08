@@ -76,12 +76,19 @@ public sealed class UiRedesignTests
         Assert.Equal(10, rows.Length);
         Assert.True(Field<Control>(cards[0], "_rankLabel").Width > 0);
         Assert.True(Field<Control>(rows[0], "lblMode").Visible);
-        foreach (int width in new[] { 1440, 1670 })
+        foreach (int width in new[] { 1440, 1670, 2100, 2800, 3400 })
         {
             host.ClientSize = new Size(width, 850);
             System.Windows.Forms.Application.DoEvents();
             Assert.Equal(cards[0].Top, cards[1].Top);
             Assert.True(cards[1].Right <= first.ClientSize.Width);
+            int columns = Math.Min(5, (first.ClientSize.Width - first.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth - 2) / 310);
+            for (int i = 1; i < columns; i++)
+            {
+                Assert.Equal(cards[0].Top, cards[i].Top);
+                Assert.True(cards[i].Right <= first.ClientSize.Width);
+                Assert.True(cards[i].Left >= cards[i - 1].Right);
+            }
         }
         var heading = Field<Control>(cards[0], "_historyHeading");
         typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(heading, [EventArgs.Empty]);
@@ -99,8 +106,7 @@ public sealed class UiRedesignTests
         host.ClientSize = new Size(1440, 850);
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal(440, cards[0].Height);
-        Assert.StartsWith("最近战绩", heading.Text);
-        Assert.Contains("10 场", heading.Text);
+        Assert.Equal("分路：上路", heading.Text);
         Assert.True(Field<Control>(cards[0], "panelMatches").Visible);
         host.Controls.Remove(live);
         typeof(LiveGameForm).GetMethod("UpdateTeamOverview", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(live, null);
@@ -162,6 +168,9 @@ public sealed class UiRedesignTests
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal(6, Field<AntdUI.Pagination>(home, "game_pagin").Total);
         Assert.Equal(6, Field<Control>(home, "stackPanel1").Controls.Count);
+        Assert.Equal("接口全部可读记录：12 场", Field<AntdUI.Label>(home, "_modeScope").Text);
+        Assert.Equal(2, Field<TableLayoutPanel>(home, "_modeCounts").RowCount);
+        Assert.Equal(2, Field<TableLayoutPanel>(home, "_modeCounts").Controls.Cast<Control>().Count(c => c.Text == "6 场"));
         // 渲染已加载的数据，不在预览时重新发起首页 Load 查询。
         var load = (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), home,
             typeof(HomeForm).GetMethod("HomeForm_Load", BindingFlags.NonPublic | BindingFlags.Instance)!);

@@ -17,12 +17,16 @@ public sealed class ResourceOnlineLibraryTests
         var access = Find<AntdUI.Input>(window, "ResourceAccessToken"); access.Text = "own-test-token"; Assert.True(access.UseSystemPasswordChar);
         Find<AntdUI.Button>(window, "ResourceConnect").PerformClick();
         Assert.Equal(1, source.Lists); Assert.Equal("own-test-token", source.Last!.AccessToken);
-        var list = Find<ListView>(window, "ResourceOnlineEntries"); Assert.Single(list.Items);
-        list.Items[0].Selected = true;
-        typeof(ListView).GetMethod("OnDoubleClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(list, [EventArgs.Empty]);
-        Assert.Equal(2, source.Lists); Assert.Equal(2, list.Items.Count);
-        Find<AntdUI.Input>(window, "ResourceOnlineSearch").Text = "净化"; Assert.Single(list.Items);
-        list.Items[0].Selected = true;
+        var list = Find<AntdUI.Table>(window, "ResourceOnlineEntries"); Assert.Single((Array)list.DataSource!);
+        list.SelectedIndex = 1;
+        System.Windows.Forms.Application.DoEvents();
+        var cell = list.CellRectangle(1, 0);
+        var mouse = new MouseEventArgs(MouseButtons.Left, 2, cell.Left + 12, cell.Top + cell.Height / 2, 0);
+        typeof(AntdUI.Table).GetMethod("OnMouseDown", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(list, [mouse]);
+        typeof(AntdUI.Table).GetMethod("OnMouseUp", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(list, [mouse]);
+        Assert.Equal(2, source.Lists); Assert.Equal(2, ((Array)list.DataSource!).Length);
+        Find<AntdUI.Input>(window, "ResourceOnlineSearch").Text = "净化"; Assert.Single((Array)list.DataSource!);
+        list.SelectedIndex = 1;
         Find<AntdUI.Button>(window, "ResourceDownload").PerformClick();
         Assert.Equal(1, source.Downloads); Assert.Single(window.DownloadedPaths);
         if (Environment.GetEnvironmentVariable("RESOURCE_ONLINE_CAPTURE") is { Length: > 0 } path)
@@ -34,7 +38,7 @@ public sealed class ResourceOnlineLibraryTests
             window.DrawToBitmap(bitmap, new Rectangle(0, 0, window.Width, window.Height)); bitmap.Save(path);
         }
         Find<AntdUI.Input>(window, "ResourceRepository").Text = "another/repository";
-        Assert.Empty(list.Items); Find<AntdUI.Button>(window, "ResourceDownload").PerformClick(); Assert.Equal(1, source.Downloads);
+        Assert.Empty((Array)list.DataSource!); Find<AntdUI.Button>(window, "ResourceDownload").PerformClick(); Assert.Equal(1, source.Downloads);
     });
     private static T Find<T>(Control parent, string name) where T : Control => parent.Controls.Find(name, true).OfType<T>().Single();
     private sealed class Repository : IResourceSkinRepository

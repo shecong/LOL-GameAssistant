@@ -33,7 +33,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ICurrentRegionService? _regionService;
         private readonly AntdUI.Panel _regionPanel = new() { Name = "currentRegionPanel", Radius = 10, BorderWidth = 1, Padding = new Padding(8) };
         private readonly AntdUI.Label _regionCaption = new() { Text = "当前大区", Dock = DockStyle.Top, Height = 24, TextAlign = ContentAlignment.MiddleCenter };
-        private readonly AntdUI.Label _regionName = new() { Name = "currentRegionName", Text = "未连接", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font(UiMetrics.FontFamily, 12, FontStyle.Bold) };
+        private readonly AntdUI.Label _regionName = new() { Name = "currentRegionName", Text = "未连接", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font(UiMetrics.FontFamily, 10, FontStyle.Bold) };
 
         private MatchHistoryResponse? matchlists;
         private PlayerHistorySnapshot? _historySnapshot;
@@ -147,19 +147,20 @@ namespace LOL_GameAssistant.BaseViewForm
             play_name.Width = play_number.Width = Math.Max(1, right - left);
             play_name.Left = play_number.Left = lblLevelCap.Left = left;
             play_dj.Left = lblLevelCap.Right + Scale(4);
-            int regionLeft = Math.Max(play_dj.Right + Scale(12), playerCard.ClientSize.Width / 2);
-            _regionPanel.Bounds = new Rectangle(regionLeft, Scale(78), Math.Max(1, right - regionLeft), Scale(88));
-            play_number.Width = Math.Max(1, regionLeft - left - Scale(8));
-            lblXpCap.Location = new Point(Scale(14), Scale(140));
-            play_next.Location = new Point(lblXpCap.Right + Scale(6), Scale(138));
-            play_next.Width = Math.Max(1, regionLeft - Scale(8) - play_next.Left);
+            int regionLeft = Math.Max(play_dj.Right + Scale(8), right - Scale(126));
+            _regionPanel.Bounds = new Rectangle(regionLeft, Scale(76), Math.Max(1, right - regionLeft), Scale(48));
+            _regionPanel.Padding = new Padding(4);
+            _regionCaption.Height = Scale(18);
+            bool compact = playerCard.ClientSize.Width < Scale(350);
+            _regionCaption.Visible = !compact;
+            if (compact) _regionPanel.Bounds = new Rectangle(right - Scale(104), Scale(6), Scale(104), Scale(26));
+            play_number.Width = compact ? Math.Max(1, right - left) : Math.Max(1, regionLeft - left - Scale(8));
+            lblXpCap.Location = new Point(Scale(14), Scale(138));
+            play_next.Location = new Point(lblXpCap.Right + Scale(4), Scale(136));
+            play_next.Width = Scale(48);
             play_next.AutoEllipsis = true;
-            play_jd.Bounds = new Rectangle(Scale(14), Scale(180), Math.Max(1, right - Scale(14)), Scale(30));
-            foreach (var title in new[] { game_dspT, game_lhpT })
-            {
-                title.AutoEllipsis = true;
-                title.Width = Math.Max(1, title.Parent!.ClientSize.Width - title.Left - Scale(10));
-            }
+            play_jd.Bounds = new Rectangle(play_next.Right + Scale(6), Scale(132), Math.Max(1, right - play_next.Right - Scale(6)), Scale(30));
+            LayoutDashboardCards();
         }
 
         /// <summary>将语义主题颜色应用到当前控件或窗口。</summary>
@@ -236,6 +237,7 @@ namespace LOL_GameAssistant.BaseViewForm
             game_count.BackColor = palette.IsDark ? palette.SurfaceMuted : Color.White;
             game_count.ForeColor = palette.TextPrimary;
             game_pagin.ForeColor = palette.TextPrimary;
+            ApplyModeCountTheme(palette);
             Invalidate(true);
         }
 
@@ -328,6 +330,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 play_next.Text = player.XpUntilNextLevel.ToString();
                 play_jd.Value = CalculateLevelProgress(player);
                 _historySnapshot = null;
+                UpdateModeCounts(null, "正在读取战绩…");
                 _ = RefreshResourceVersionAsync(token);
                 // Show the profile immediately, then fetch independent data together.
                 var iconTask = _profileIconService.GetProfileIconAsync(player.ProfileIconId, token);
@@ -356,9 +359,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 _historyTip.SetToolTip(lblHistoryTitle, snapshot.ScopeText);
                 _historyTip.SetToolTip(game_pagin, snapshot.ScopeText);
                 matchlists = history;
+                UpdateModeCounts(history);
                 UpdateModeOptions();
                 InitPagin(history);
+                var completeHistory = LoadCompleteHistoryAsync(player, history!, () => request.IsCurrent, token);
                 await GetGameInfo(player, 1);
+                await completeHistory;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex)
@@ -366,6 +372,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (request.IsCurrent)
                 {
                     _infoMsgForm.AddMsg($"首页加载失败：{ex.Message}");
+                    UpdateModeCounts(null, "战绩暂不可用，请刷新重试");
                     if (!stackPanel1.Controls.OfType<RecordForm>().Any()) ShowHistoryMessage("加载失败，请点击刷新重试");
                 }
                 RuntimeDiagnostics.WriteException(ex);
@@ -581,6 +588,7 @@ namespace LOL_GameAssistant.BaseViewForm
             this.game_ycf.Text = solo != null && solo.RatedRating > 0
                 ? $"{solo.RatedRating}" + (string.IsNullOrEmpty(ratedTierName) ? "" : $"（{ratedTierName}）")
                 : "-";
+            LayoutDashboardCards();
         }
 
         /// <summary>

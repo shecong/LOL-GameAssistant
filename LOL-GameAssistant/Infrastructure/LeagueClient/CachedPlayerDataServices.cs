@@ -136,7 +136,10 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerH
         _context = context ?? (_ => Task.FromResult(PlayerHistorySession.Key));
         string directory = root ?? LocalDataCache<MatchHistoryResponse>.Root;
         _pages = new(Path.Combine(directory, "player-data", "history"), TimeSpan.FromDays(30),
-            value => value.Games?.Games?.Count > 0 && value.Games.Games.All(game => game != null && game.GameId > 0));
+            value => value.Games is { Games: not null } data &&
+                (data.Games.Count > 0 || data.MissingSummaryCount > 0 ||
+                 data.IsTotalKnown && !data.HasMore && data.GameIndexEnd < data.GameIndexBegin) &&
+                data.Games.All(game => game != null && game.GameId > 0));
         _details = new(Path.Combine(directory, "player-data", "details"), TimeSpan.FromDays(30),
             value => value.GameId > 0 && value.participants?.Count > 0);
         _snapshots = new(Path.Combine(directory, "player-data", "snapshots"), TimeSpan.FromDays(30),

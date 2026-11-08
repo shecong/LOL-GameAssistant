@@ -62,6 +62,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private FlowLayoutPanel? _pageSizeArea;
         private AntdUI.Button? _backToTopButton;
         private AntdUI.Panel? _historyHeader;
+        private AntdUI.Panel? _viewBar;
 
         private CancellationTokenSource? _pageLoadCts;
         private readonly UiRequestScope _searchScope = new();
@@ -238,6 +239,7 @@ namespace LOL_GameAssistant.BaseViewForm
             };
             _viewSwitch.SelectIndex = 0;
             var viewBar = new AntdUI.Panel { Dock = DockStyle.Fill, Radius = 8, BorderWidth = 1, Margin = new Padding(0, 0, 0, 8) };
+            _viewBar = viewBar;
             _viewSwitch.Dock = DockStyle.Left;
             viewBar.Controls.Add(_viewSwitch);
             var pageSizeArea = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 145, WrapContents = false };
@@ -252,6 +254,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _spectateButton.Click += async (_, _) => await TrySpectatePlayerAsync();
             _playerIdentityTip.SetToolTip(_spectateButton, "尝试观战当前查询的玩家（无需好友）；仅支持当前大区，目标须有可观战对局。");
             viewBar.Controls.Add(_spectateButton);
+            viewBar.SizeChanged += (_, _) => { if (_detailPane != null) LayoutListFilters(); };
 
             panelContent.Dock = DockStyle.Fill;
             panelContent.Margin = Padding.Empty;
@@ -392,20 +395,13 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (IsDisposed) return;
             int Scale(int value) => value * DeviceDpi / 96;
-            _viewSwitch.Width = Math.Min(Scale(600), Math.Max(Scale(310), ClientSize.Width - Scale(ClientSize.Width > Scale(950) ? 460 : 195)));
-            _spectateButton.Width = Scale(130);
-            if (_pageSizeArea != null) _pageSizeArea.Visible = ClientSize.Width > Scale(950) && _viewSwitch.SelectIndex == 0;
-            if (_backToTopButton != null) _backToTopButton.Visible = ClientSize.Width > Scale(950) && _viewSwitch.SelectIndex == 0;
-            _viewSwitch.Height = Scale(37);
             _favoriteSelect.Width = Scale(245);
             _pageSizeSelect.Width = Scale(90);
             _regionSelect.Width = Scale(185);
             _pageSizeSelect.Height = Scale(UiMetrics.ControlHeight);
             if (_myHistoryButton != null) _myHistoryButton.Width = Scale(120);
-            if (_backToTopButton != null) _backToTopButton.Width = Scale(110);
             if (_pageSizeArea != null)
             {
-                _pageSizeArea.Width = Scale(155);
                 _pageSizeArea.Controls[0].Size = new Size(Scale(UiLanguage.IsEnglish ? 58 : 48), Scale(34));
             }
             if (_historyHeader != null) _historyHeader.Height = Scale(48);
@@ -413,7 +409,6 @@ namespace LOL_GameAssistant.BaseViewForm
             _modeSelect.Height = _championFilter.Height = _resultFilter.Height = Scale(UiMetrics.ControlHeight);
             if (_rootLayout != null)
             {
-                _rootLayout.RowStyles[2].Height = Scale(46);
                 _rootLayout.RowStyles[4].Height = Scale(33);
             }
             foreach (Control control in _searchActions.Controls.Cast<Control>().Concat(_favoriteActions.Controls.Cast<Control>()))

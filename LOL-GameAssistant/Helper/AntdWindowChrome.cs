@@ -12,14 +12,16 @@ internal static class AntdWindowChrome
     internal static void Configure(AntdUI.Window window, bool fitWorkingArea = true)
     {
         window.FormBorderStyle = FormBorderStyle.None;
+        ((Form)window).FormBorderStyle = FormBorderStyle.None;
         // 同一窗体只注册一次；重复配置不会叠加句柄事件，也不会重复安装原生消息处理。
         Registrations.GetValue(window, owner => new WindowRegistration(owner, fitWorkingArea));
     }
 
     /// <summary>为普通 AntdUI 弹窗添加支持拖动和窗口按钮的标题栏。</summary>
-    internal static AntdUI.PageHeader AddHeader(AntdUI.Window window)
+    internal static AntdUI.PageHeader AddHeader(AntdUI.Window window, bool fitWorkingArea = true)
     {
-        Configure(window);
+        Configure(window, fitWorkingArea);
+        if (window.Controls.OfType<AntdUI.PageHeader>().FirstOrDefault() is { } existing) return existing;
         window.Icon ??= AppIcon.Shared;
         var header = new AntdUI.PageHeader
         {
@@ -38,14 +40,16 @@ internal static class AntdWindowChrome
     private sealed class WindowRegistration : NativeWindow
     {
         private readonly AntdUI.Window _window;
-        private bool _hasCreatedHandle;
+        private Size? _restoreClientSize;
 
         /// <summary>初始化 WindowRegistration 的实例状态，并保存传入的依赖或数据。</summary>
         internal WindowRegistration(AntdUI.Window window, bool fitWorkingArea)
         {
             _window = window;
+            _restoreClientSize = window.ClientSize;
             window.HandleCreated += HandleCreated;
             window.HandleDestroyed += HandleDestroyed;
+            window.SizeChanged += SizeChanged;
             window.Disposed += WindowDisposed;
             UiTheme.Changed += ThemeChanged;
             if (fitWorkingArea)
@@ -61,14 +65,29 @@ internal static class AntdWindowChrome
         private void HandleCreated(object? sender, EventArgs e)
         {
             AssignHandle(_window.Handle);
-            // AntdUI 2.4.12 在句柄重建后跳过 OnCreated；恢复绘制但不重复 DPI 缩放。
-            if (_hasCreatedHandle) _window.OnCreated\u200C();
-            _hasCreatedHandle = true;
             ApplyStyles();
+            // 2.4.18 会在 OnHandleCreated 中重新按原生客户区计算大小；保留重建前的实际内容尺寸。
+            if (_restoreClientSize is { } size)
+            {
+                _restoreClientSize = null;
+                _window.ClientSize = size;
+            }
+            _window.RefreshDWM();
         }
 
         /// <summary>解除已销毁句柄的绑定，避免继续向旧句柄发送消息。</summary>
-        private void HandleDestroyed(object? sender, EventArgs e) => ReleaseHandle();
+        private void HandleDestroyed(object? sender, EventArgs e)
+        {
+            if (!_window.Disposing && _window.WindowState == FormWindowState.Normal)
+                _restoreClientSize = _window.ClientSize;
+            ReleaseHandle();
+        }
+
+        private void SizeChanged(object? sender, EventArgs e)
+        {
+            // 首次创建前也保存设计尺寸，避免原生边框度量参与 AntdUI 的初始化计算。
+            if (!_window.IsHandleCreated && !_window.Disposing) _restoreClientSize = _window.ClientSize;
+        }
 
         /// <summary>窗口释放时注销事件并解除原生句柄绑定。</summary>
         private void WindowDisposed(object? sender, EventArgs e)
@@ -76,6 +95,7 @@ internal static class AntdWindowChrome
             UiTheme.Changed -= ThemeChanged;
             _window.HandleCreated -= HandleCreated;
             _window.HandleDestroyed -= HandleDestroyed;
+            _window.SizeChanged -= SizeChanged;
             _window.Disposed -= WindowDisposed;
             _window.Shown -= FitWindow;
             _window.Load -= PlaceWindow;

@@ -4,7 +4,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>Chinese directory browser for the original Wind-compatible Gitee mirror.</summary>
-public sealed class ResourceOnlineLibraryForm : Form, IThemeAware
+public sealed class ResourceOnlineLibraryForm : AntdUI.Window, IThemeAware
 {
     private readonly IResourceSkinRepository _repository;
     private readonly AntdUI.Input _repo = new() { Dock = DockStyle.Fill, Name = "ResourceRepository", PlaceholderText = "Gitee 仓库：owner/repository" };
@@ -13,7 +13,7 @@ public sealed class ResourceOnlineLibraryForm : Form, IThemeAware
     private readonly AntdUI.Input _search = new() { Dock = DockStyle.Fill, Name = "ResourceOnlineSearch", PlaceholderText = "搜索当前目录的英雄或皮肤" };
     private readonly AntdUI.Label _pathLabel = new() { Dock = DockStyle.Fill, Text = "根目录" };
     private readonly AntdUI.Label _status = new() { Dock = DockStyle.Fill, Name = "ResourceOnlineStatus", Text = "点击连接仓库，按英雄目录浏览皮肤资源。" };
-    private readonly ListView _list = new() { Dock = DockStyle.Fill, Name = "ResourceOnlineEntries", View = View.Details, FullRowSelect = true, HideSelection = false };
+    private readonly AntdUI.Table _list = new() { Dock = DockStyle.Fill, Name = "ResourceOnlineEntries", Bordered = true, MultipleRows = true };
     private readonly AntdUI.Button _connect = Button("连接仓库", "ResourceConnect");
     private readonly AntdUI.Button _up = Button("上一级", "ResourceUp");
     private readonly AntdUI.Button _download = Button("下载并加入", "ResourceDownload");
@@ -30,6 +30,7 @@ public sealed class ResourceOnlineLibraryForm : Form, IThemeAware
     {
         _repository = repository; Text = "在线皮肤资源库"; Width = 1100; Height = 760; MinimumSize = new Size(780, 560);
         StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false; Padding = new Padding(16);
+        WindowLayout.ConfigureDpi(this);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         foreach (int height in new[] { 48, 48, 64, 56, 48 }) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
@@ -47,8 +48,11 @@ public sealed class ResourceOnlineLibraryForm : Form, IThemeAware
         searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40)); searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
         searchRow.Controls.Add(_pathLabel, 0, 0); searchRow.Controls.Add(_search, 1, 0);
         layout.Controls.Add(actions, 0, 3); layout.Controls.Add(searchRow, 0, 4);
-        _list.Columns.Add("英雄 / 皮肤资源", 620); _list.Columns.Add("类型", 100); _list.Columns.Add("大小", 110);
+        _list.Columns.Add(new AntdUI.Column("Name", "英雄 / 皮肤资源") { Width = "70%", LineBreak = true });
+        _list.Columns.Add(new AntdUI.Column("Kind", "类型") { Width = "15%" });
+        _list.Columns.Add(new AntdUI.Column("Size", "大小") { Width = "15%" });
         layout.Controls.Add(_list, 0, 5); layout.Controls.Add(_status, 0, 6); Controls.Add(layout);
+        AntdWindowChrome.AddHeader(this);
         _repo.Text = (Environment.GetEnvironmentVariable("SKIN_MANAGER_GITEE_OWNER") ?? "jinjutwo") + "/" +
             (Environment.GetEnvironmentVariable("SKIN_MANAGER_GITEE_REPO") ?? "skin-care-manager--hid.dll");
         _connect.Click += async (_, _) => await RunAsync(async token =>
@@ -68,14 +72,14 @@ public sealed class ResourceOnlineLibraryForm : Form, IThemeAware
             if (_connected == null || _path.Length == 0) return;
             int slash = _path.LastIndexOf('/'); await NavigateAsync(slash < 0 ? "" : _path[..slash]);
         };
-        _list.DoubleClick += async (_, _) =>
+        _list.CellDoubleClick += async (_, e) =>
         {
-            if (!_busy && _list.SelectedItems.Count == 1 && _list.SelectedItems[0].Tag is ResourceRepositoryEntry { IsDirectory: true } entry)
-                await NavigateAsync(entry.Path);
+            if (!_busy && e.Record is ResourceEntryRow { Entry.IsDirectory: true } row)
+                await NavigateAsync(row.Entry.Path);
         };
         _download.Click += async (_, _) =>
         {
-            var selected = _list.SelectedItems.Cast<ListViewItem>().Select(i => i.Tag).OfType<ResourceRepositoryEntry>().Where(e => !e.IsDirectory).ToArray();
+            var selected = _list.SelectedsReal().OfType<ResourceEntryRow>().Select(row => row.Entry).Where(e => !e.IsDirectory).ToArray();
             if (_connected == null || selected.Length == 0) { _status.Text = "请先进入英雄目录并选择 WAD 资源文件。"; return; }
             var options = _connected;
             await RunAsync(async token =>
@@ -110,11 +114,12 @@ public sealed class ResourceOnlineLibraryForm : Form, IThemeAware
     private void ShowEntries()
     {
         _pathLabel.Text = _path.Length == 0 ? "根目录" : _path;
-        _list.BeginUpdate(); _list.Items.Clear();
-        foreach (var entry in _entries.Where(e => e.Name.Contains(_search.Text.Trim(), StringComparison.OrdinalIgnoreCase)))
-            _list.Items.Add(new ListViewItem([entry.Name, entry.IsDirectory ? "英雄目录" : "WAD 资源", entry.IsDirectory ? "" : $"{entry.Size / 1048576d:F1} MB"]) { Tag = entry });
-        _list.EndUpdate();
+        _list.SelectedIndexs = [];
+        _list.DataSource = _entries.Where(e => e.Name.Contains(_search.Text.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Select(entry => new ResourceEntryRow(entry.Name, entry.IsDirectory ? "英雄目录" : "WAD 资源",
+                entry.IsDirectory ? "" : $"{entry.Size / 1048576d:F1} MB", entry)).ToArray();
     }
+    private sealed record ResourceEntryRow(string Name, string Kind, string Size, ResourceRepositoryEntry Entry);
     private async Task RunAsync(Func<CancellationToken, Task> action)
     {
         if (_busy) return;

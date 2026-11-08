@@ -135,7 +135,7 @@ public sealed class LiveGameLayoutTests
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal(10, player.LayoutHistory.Count);
         CheckScroll((Panel)Find(player, "panelMatches"));
-        Assert.Contains("10 场", Find(player, "recentHistoryHeading").Text);
+        Assert.Equal("分路：上路", Find(player, "recentHistoryHeading").Text);
         foreach (var layout in Enum.GetValues<LiveGameLayout>().Where(mode => mode != LiveGameLayout.Classic))
         {
             view.SetDisplayLayout(layout);

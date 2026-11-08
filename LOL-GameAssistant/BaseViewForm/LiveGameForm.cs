@@ -38,6 +38,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly Dictionary<string, PlayerRecentPerformanceEventArgs> _champSelectAssessments = new(StringComparer.Ordinal);
 
         private readonly HashSet<string> _expectedChampSelectAssessmentPuuids = new(StringComparer.Ordinal);
+        private readonly List<string> _champSelectAssessmentOrder = new();
         private string _champSelectAssessmentSignature = "";
         private bool _champSelectAssessmentSent;
         private bool _champSelectRosterComplete;
@@ -535,7 +536,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 .DistinctBy(member => member.Puuid, StringComparer.Ordinal)
                 .ToDictionary(member => member.Puuid, StringComparer.Ordinal);
 
-            return members.Select(member =>
+            return members.OrderBy(member => member.CellId).Select(member =>
             {
                 string puuid = member.Puuid ?? "";
                 flowByPuuid.TryGetValue(puuid, out GameTeamMember? flowMember);
@@ -635,10 +636,10 @@ namespace LOL_GameAssistant.BaseViewForm
                 CanKeepPlayerCards(panelTeam1, team1, myPuuid, queueId, gameMode) &&
                 CanKeepPlayerCards(panelTeam2, team2, myPuuid, queueId, gameMode))
             {
+                PrepareChampSelectAssessments(signature, team1, team2, myPuuid);
                 if (force)
                 {
                     // 设置变更仍需重新准备公告，并用已加载的战绩补齐评估结果。
-                    PrepareChampSelectAssessments(signature, team1, team2, myPuuid);
                     PrepareGameAssessments(signature, team1, team2);
                     foreach (var card in panelTeam1.Controls.OfType<LivePlayerForm>()
                         .Concat(panelTeam2.Controls.OfType<LivePlayerForm>()))
@@ -793,8 +794,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 return;
             }
 
-            if (string.Equals(signature, _champSelectAssessmentSignature, StringComparison.Ordinal)) return;
-
             IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> allyTeam =
                 myPuuid != null && team1.Any(member => member.Puuid == myPuuid)
                     ? team1
@@ -803,7 +802,16 @@ namespace LOL_GameAssistant.BaseViewForm
                         : Enumerable.Empty<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)>();
 
             var allies = allyTeam.ToArray();
+            if (string.Equals(signature, _champSelectAssessmentSignature, StringComparison.Ordinal))
+            {
+                // 换楼只更新楼层，不清空已完成评估，也不重复发送。
+                _champSelectAssessmentOrder.Clear();
+                _champSelectAssessmentOrder.AddRange(allies.Select(member => member.Puuid));
+                _champSelectRosterComplete = allies.Length > 0 && allies.All(m => m.IsBot || !string.IsNullOrWhiteSpace(m.Puuid));
+                return;
+            }
             ResetChampSelectAssessments();
+            _champSelectAssessmentOrder.AddRange(allies.Select(member => member.Puuid));
             _champSelectRosterComplete = allies.Length > 0 && allies.All(m => m.IsBot || !string.IsNullOrWhiteSpace(m.Puuid));
             _champSelectAssessmentSignature = signature;
             foreach (string puuid in allies
@@ -823,6 +831,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _champSelectAnnouncementLifetime = new();
             _champSelectRosterComplete = false;
             _champSelectAssessments.Clear();
+            _champSelectAssessmentOrder.Clear();
             _expectedChampSelectAssessmentPuuids.Clear();
             _champSelectAssessmentSignature = "";
             _champSelectAssessmentSent = false;
@@ -1092,42 +1101,18 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>组织选人阶段的近期表现测评文本。</summary>
-        private string BuildChampSelectKdaAnnouncement()
+        private string BuildChampSelectKdaAnnouncement(IReadOnlyList<string>? orderedPuuids = null)
         {
             var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
             if (!settings.ChampSelectKdaAnnouncementEnabled) return "";
 
-            var players = _champSelectAssessments.Values
-                .Where(item => item.IsAlly)
-                .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            string roster = string.Join("\n", players.Select(FormatChampSelectPerformance));
-            string message = RemoveEnemyPlaceholder(settings.ChampSelectKdaAnnouncementTemplate)
-                .Replace("{players}", roster, StringComparison.OrdinalIgnoreCase)
-                .Replace("{allies}", string.IsNullOrWhiteSpace(roster) ? "我方：暂未获取" : $"我方：\n{roster}", StringComparison.OrdinalIgnoreCase)
-                .Trim();
-            return message.Length <= 1200 ? message : message[..1200];
-        }
-
-        /// <summary>
-        /// 公告不再包含敌方，因此保存过的旧模板里 {enemies} 连同它独占的那一行一起删掉，
-        /// 否则聊天里会留下一行空白。
-        /// </summary>
-        private static string RemoveEnemyPlaceholder(string template) => template
-            .Replace("\r\n{enemies}", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("\n{enemies}", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("{enemies}\r\n", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("{enemies}\n", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("{enemies}", "", StringComparison.OrdinalIgnoreCase);
-
-        /// <summary>将选人阶段表现结果格式化为显示文本。</summary>
-        private static string FormatChampSelectPerformance(PlayerRecentPerformanceEventArgs result)
-        {
-            RecentModePerformanceAssessment? assessment = result.Assessment;
-            string name = string.IsNullOrWhiteSpace(result.DisplayName) ? "未知玩家" : result.DisplayName.Trim();
-            if (assessment == null) return $"{name}：战绩暂未获取";
-            if (assessment.SampleSize == 0) return $"{name}：近50场同模式无样本";
-            return $"{name}：{(assessment.UsesAllModes ? "全模式参考 · " : "")}{RecentPerformanceLabelFormatter.GetText(assessment)} {assessment.Score}分 · KDA {assessment.Kda:F2} · 胜率 {(assessment.HasWinRate ? assessment.WinRate.ToString("F0") + "%" : "—")}";
+            var players = (orderedPuuids ?? _champSelectAssessmentOrder)
+                .Select((puuid, index) => (Puuid: puuid, Floor: index + 1))
+                .Where(member => _expectedChampSelectAssessmentPuuids.Contains(member.Puuid))
+                .Select(member => new ChampSelectKdaPlayerSummary(member.Floor,
+                    _champSelectAssessments.GetValueOrDefault(member.Puuid)?.Assessment,
+                    _champSelectAssessments.GetValueOrDefault(member.Puuid)?.DisplayName ?? ""));
+            return ChampSelectKdaAnnouncementBuilder.Build(players, settings.ChampSelectKdaAnnouncementTemplate);
         }
 
         /// <summary>将选人阶段测评内容发送到客户端聊天。</summary>
@@ -1149,6 +1134,10 @@ namespace LOL_GameAssistant.BaseViewForm
                     RuntimeDiagnostics.Report("选人 KDA 评估", "等待", "当前阵容尚未确认，等待下一次阵容刷新");
                     return;
                 }
+                // 发出前按最新 CellId 重新生成，避免等待聊天会话时换楼导致编号过期。
+                message = BuildChampSelectKdaAnnouncement(session.MyTeam.OrderBy(member => member.CellId)
+                    .Select(member => member.Puuid).ToArray());
+                if (string.IsNullOrWhiteSpace(message)) return;
                 var result = await AppCompositionRoot.ChampionSelectChatService.SendAsync(message, CanSend, token);
                 if (!CanSend()) return;
                 Program.GameMain.infoMsg.AddMsg(result.Succeeded ? "选人近期 KDA 评估已发送到聊天窗口。" : $"选人近期 KDA 评估未发送：{result.Message}");
@@ -1165,14 +1154,8 @@ namespace LOL_GameAssistant.BaseViewForm
             _currentPartyDetection = detection;
             detection = detection.WithHistoryFallback(_historyParties);
             PremadeDetectionResult result = detection.Groups;
-            string summary1 = result.GetTeamSummary(0);
-            string summary2 = result.GetTeamSummary(1);
-            lblTeamTitle1.Text = string.IsNullOrEmpty(summary1)
-                ? _teamTitleBase1
-                : $"{_teamTitleBase1} · {(result.Groups.Any(group => group.TeamIndex == 0 && group.IsInferred) ? "疑似开黑" : "开黑")} {summary1}";
-            lblTeamTitle2.Text = string.IsNullOrEmpty(summary2)
-                ? _teamTitleBase2
-                : $"{_teamTitleBase2} · {(result.Groups.Any(group => group.TeamIndex == 1 && group.IsInferred) ? "疑似开黑" : "开黑")} {summary2}";
+            lblTeamTitle1.Text = _teamTitleBase1;
+            lblTeamTitle2.Text = _teamTitleBase2;
 
             SetTeamQueueTag(_teamQueueTag1, detection.GetTeamStatus(0), detection.GetTeamDetail(0));
             SetTeamQueueTag(_teamQueueTag2, detection.GetTeamStatus(1), detection.GetTeamDetail(1));
@@ -1243,7 +1226,7 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>
-        /// 按队伍面板的实际可用宽度重排卡片：宽屏使用两列，空间不足时改为舒展的单列。
+        /// 按队伍面板的实际可用宽度重排卡片：在保持最小可读宽度的前提下自动增加列数。
         /// 滚动条和卡片外边距均纳入计算，避免临界宽度下第二张卡片错误换行。
         /// </summary>
         private void LayoutPlayerCards()
@@ -1289,18 +1272,16 @@ namespace LOL_GameAssistant.BaseViewForm
             int contentWidth = panel.ClientSize.Width - panel.Padding.Horizontal;
             if (contentWidth <= 0) return PlayerCardMinimumWidth;
 
-            // 优先尝试两列；若对局记录区域会产生纵向滚动条，预留其宽度。
-            int twoColumnRows = (cardCount + 1) / 2;
-            int twoColumnScrollbar = !panel.VerticalScroll.Visible && NeedsVerticalScrollbar(panel, twoColumnRows)
-                ? SystemInformation.VerticalScrollBarWidth
-                : 0;
             int margin = panel.Controls.OfType<LivePlayerForm>().Select(card => card.Margin.Horizontal)
                 .DefaultIfEmpty(PlayerCardHorizontalMargin).Max();
-            // 使用控件实际外边距，留出两个像素抵消 DPI 和奇数宽度的舍入。
-            int twoColumnWidth = (contentWidth - twoColumnScrollbar - 2 * margin - 2) / 2;
-            if (cardCount > 1 && twoColumnWidth >= PlayerCardMinimumWidth)
+            // 从能容纳全部玩家的列数向下尝试，预留实际外边距、滚动条及舍入空间。
+            for (int columns = cardCount; columns >= 2; columns--)
             {
-                return Math.Min(PlayerCardPreferredWidth, twoColumnWidth);
+                int rows = (cardCount + columns - 1) / columns;
+                int scrollbar = !panel.VerticalScroll.Visible && NeedsVerticalScrollbar(panel, rows)
+                    ? SystemInformation.VerticalScrollBarWidth : 0;
+                int width = (contentWidth - scrollbar - columns * margin - 2) / columns;
+                if (width >= PlayerCardMinimumWidth) return Math.Min(PlayerCardPreferredWidth, width);
             }
 
             // 单列时让卡片填充所在队列，避免旧逻辑在窗口变宽后仍停留在固定 450px。
@@ -1374,6 +1355,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     existing.CanReuseFor(currentQueueId, currentGameMode, isAlly, teamKnown, member.IsBot))
                 {
                     panel.Controls.Add(existing);
+                    existing.UpdatePosition(member.Position);
                     _ = existing.UpdateCurrentChampionAsync(member.ChampionId);
                     existing.ReplayRecentPerformance();
                     continue;

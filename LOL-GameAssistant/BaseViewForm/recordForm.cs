@@ -45,8 +45,10 @@ namespace LOL_GameAssistant.BaseViewForm
             _performanceTag.TextAlign = ContentAlignment.MiddleCenter;
             _performanceTag.Location = new Point(506, 30);
             _performanceTag.Size = new Size(80, 22);
+            _performanceTag.Visible = false;
             Controls.Add(_performanceTag);
             _performanceTag.BringToFront();
+            InitializeCompactLayout();
             AttachDoubleClickToAllControls(this);
             Resize += (_, _) => LayoutRecord();
             LayoutRecord();
@@ -78,7 +80,8 @@ namespace LOL_GameAssistant.BaseViewForm
             if (IsDisposed) return;
             if (_gameDetail == null)
             {
-                game_name.Text = "摘要 · 详情暂不可用";
+                _loadoutTip.SetToolTip(game_name, "对局摘要 · 详情暂不可用");
+                if (_selectedLoadout.Controls.Count == 0) _loadoutStatus.Text = "详情暂不可用";
                 return;
             }
 
@@ -90,24 +93,24 @@ namespace LOL_GameAssistant.BaseViewForm
             ApplyTheme(UiTheme.Palette);
             try
             {
-                //头像
-                ReplaceImage(game_pic, await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(gamer.championId, cancellationToken)));
-                cancellationToken.ThrowIfCancellationRequested();
-                if (IsDisposed) return;
                 this.game_win.Text = _isWin == null ? "胜负未知" : win ? "胜利" : "失败";
                 this.game_win.ForeColor = win ? System.Drawing.Color.FromArgb(76, 175, 80) : System.Drawing.Color.FromArgb(244, 67, 54);
                 this.game_type.Text = _gameDetail.GetModeText();
                 this.game_time.Text = (_gameDetail.gameCreationDate?.Length >= 10 ? _gameDetail.gameCreationDate.Substring(0, 10) : _gameDetail.gameCreationDate) ?? "未知";
                 this.game_dj.Text = Convert.ToString(gamer.stats?.champLevel);
-                this.game_name.Text = _gameDetail.GetPlayerIdentity(puuid)?.gameName ?? "未知";
+                this.game_name.Text = AppCompositionRoot.ChampionCatalog.GetDisplayName(gamer.championId);
                 this.game_msg.Text = gamer.stats?.HasKdaResult == true ? gamer.GetKdaText() : "KDA —";
                 this.game_duration.Text = _gameDetail.GetDurationText();
                 var stats = gamer.stats;
                 int cs = (stats?.totalMinionsKilled ?? 0) + (stats?.neutralMinionsKilled ?? 0);
                 this.game_cs.Text = $"补刀 {cs}";
-                this.game_damage.Text = $"伤害 {stats?.totalDamageDealtToChampions ?? 0}";
-                this.game_gold.Text = $"金币 {stats?.goldEarned ?? 0}";
-                await ApplyRecentModePerformanceTagAsync(head, puuid, history, cancellationToken);
+                this.game_damage.Text = $"伤害 {FormatCompactNumber(stats?.totalDamageDealtToChampions ?? 0)}";
+                this.game_gold.Text = $"金币 {FormatCompactNumber(stats?.goldEarned ?? 0)}";
+                BuildSelectedLoadout(gamer, _gameDetail.IsAugmentAram() || stats?.AugmentIds.Count > 0);
+                BuildTeamAvatars(_gameDetail, puuid);
+                _loadoutTip.SetToolTip(game_name, game_name.Text);
+                // 数据和阵容先显示，资源下载不阻塞信息排版。
+                ReplaceImage(game_pic, await LoadImageAsync(() => _gameAssetService.GetChampionIconAsync(gamer.championId, cancellationToken)));
                 cancellationToken.ThrowIfCancellationRequested();
                 if (IsDisposed) return;
                 ReplaceImage(pic_D, await LoadImageAsync(() => _gameAssetService.GetSummonerSpellIconAsync(gamer.Spell1Id, cancellationToken)));
@@ -124,7 +127,6 @@ namespace LOL_GameAssistant.BaseViewForm
                     }
                 }
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!IsDisposed) BuildTeamAvatars(_gameDetail, puuid);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception ex)
@@ -139,14 +141,23 @@ namespace LOL_GameAssistant.BaseViewForm
             _isWin = summary?.stats?.HasWinResult == true ? summary.IsWin() : null;
             game_win.Text = _isWin == null ? "胜负未知" : _isWin == true ? "胜利" : "失败";
             game_type.Text = head.GetModeText();
-            game_name.Text = "对局摘要 · 详情加载中";
+            game_name.Text = summary?.championId > 0
+                ? AppCompositionRoot.ChampionCatalog.GetDisplayName(summary.championId) : "英雄未知";
+            game_dj.Text = summary?.stats?.champLevel > 0 ? summary.stats.champLevel.ToString() : "—";
+            ControlLifetime.ClearAndDispose(_selectedLoadout);
+            _loadoutLabel.Text = head.GetModeText().Contains("海克斯", StringComparison.Ordinal) ? "强化" : "符文";
+            _loadoutStatus.Text = "详情加载中…";
+            _loadoutStatus.Visible = true;
+            _loadoutTip.SetToolTip(game_name, "对局摘要 · 详情加载中");
             game_msg.Text = summary?.stats?.HasKdaResult == true ? summary.GetKdaText() : "KDA —";
             game_duration.Text = head.GameDuration > 0 ? $"{head.GameDuration / 60}:{head.GameDuration % 60:D2}" : "时长 —";
             game_time.Text = head.GameCreation > 0 && head.GameCreation <= DateTimeOffset.MaxValue.ToUnixTimeMilliseconds()
                 ? DateTimeOffset.FromUnixTimeMilliseconds(head.GameCreation).ToLocalTime().ToString("yyyy-MM-dd") : "时间 —";
-            game_cs.Text = summary?.stats == null ? "补刀 —" : $"补刀 {summary.stats.totalMinionsKilled}";
-            game_damage.Text = summary?.stats == null ? "伤害 —" : $"伤害 {summary.stats.totalDamageDealtToChampions:N0}";
-            game_gold.Text = summary?.stats == null ? "金币 —" : $"金币 {summary.stats.goldEarned:N0}";
+            game_cs.Text = summary?.stats == null ? "补刀 —" : $"补刀 {summary.stats.totalMinionsKilled + summary.stats.neutralMinionsKilled}";
+            game_damage.Text = summary?.stats == null ? "伤害 —" : $"伤害 {FormatCompactNumber(summary.stats.totalDamageDealtToChampions)}";
+            game_gold.Text = summary?.stats == null ? "金币 —" : $"金币 {FormatCompactNumber(summary.stats.goldEarned)}";
+            if (summary?.stats is { } summaryStats && (summaryStats.AugmentIds.Count > 0 || summaryStats.RuneIds.Count > 0))
+                BuildSelectedLoadout(summary, summaryStats.AugmentIds.Count > 0);
             lblAlly.Visible = lblEnemy.Visible = flowAlly.Visible = flowEnemy.Visible = false;
             ApplyTheme(UiTheme.Palette);
         }
@@ -201,6 +212,11 @@ namespace LOL_GameAssistant.BaseViewForm
             foreach (var entry in flowAlly.Controls.Cast<Control>().Concat(flowEnemy.Controls.Cast<Control>()))
             {
                 entry.BackColor = Color.Transparent;
+                if (entry is Panel panel)
+                {
+                    panel.Back = palette.SurfaceMuted;
+                    panel.ColorScheme = palette.IsDark ? AntdUI.TAMode.Dark : AntdUI.TAMode.Light;
+                }
                 foreach (AntdUI.Label name in entry.Controls.OfType<AntdUI.Label>())
                 {
                     name.BackColor = Color.Transparent;
@@ -208,6 +224,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 }
             }
             foreach (PictureBox picture in Controls.OfType<PictureBox>()) picture.BackColor = palette.SurfaceMuted;
+            ApplyCompactTheme(palette);
             if (_performanceAssessment is not { HasEnoughSample: true } assessment)
             {
                 _performanceTag.BackColor = palette.SurfaceMuted;
@@ -238,6 +255,13 @@ namespace LOL_GameAssistant.BaseViewForm
             e.Graphics.DrawPath(border, outline);
             using var strip = new SolidBrush(accent);
             e.Graphics.FillRectangle(strip, 2, 12, 4, Height - 24);
+            if (Width >= 860 * DeviceDpi / 96)
+            {
+                int padding = 14 * DeviceDpi / 96;
+                int divider = padding + (ClientSize.Width - padding * 2) * 52 / 100 + 8 * DeviceDpi / 96;
+                using var separator = new Pen(UiTheme.Palette.SurfaceMuted);
+                e.Graphics.DrawLine(separator, divider, 12, divider, Height - 12);
+            }
         }
 
         private void LayoutRecord()
@@ -245,51 +269,51 @@ namespace LOL_GameAssistant.BaseViewForm
             if (IsDisposed) return;
             int Scale(int value) => value * DeviceDpi / 96;
             int width = ClientSize.Width;
-            bool sideTeams = width >= Scale(900);
-            Height = Scale(sideTeams ? 158 : width < Scale(680) ? 252 : 224);
-            game_pic.SetBounds(Scale(14), Scale(16), Scale(56), Scale(56));
-            game_win.SetBounds(Scale(82), Scale(12), Scale(66), Scale(28));
-            game_type.SetBounds(Scale(155), Scale(12), Math.Max(Scale(100), width - Scale(320)), Scale(28));
-            game_name.SetBounds(Scale(82), Scale(42), Scale(160), Scale(26));
-            game_msg.SetBounds(Scale(252), Scale(42), Scale(140), Scale(26));
-            game_time.SetBounds(Math.Max(Scale(340), width - Scale(164)), Scale(12), Scale(150), Scale(26));
-            game_duration.SetBounds(Math.Max(Scale(400), width - Scale(92)), Scale(42), Scale(78), Scale(26));
-            _performanceTag.SetBounds(Math.Max(Scale(390), width - Scale(190)), Scale(44), Scale(90), Scale(22));
-            game_cs.SetBounds(Scale(14), Scale(78), Scale(120), Scale(24));
-            game_damage.SetBounds(Scale(142), Scale(78), Scale(160), Scale(24));
-            game_gold.SetBounds(Scale(310), Scale(78), Scale(140), Scale(24));
-            PictureBox[] items = [pic_1, pic_2, pic_3, pic_4, pic_5, pic_6, pic_7, pic_D, pic_F];
+            if (_selectedLoadout == null) return;
+            bool sideTeams = width >= Scale(860);
+            int padding = Scale(14);
+            int leftWidth = sideTeams ? (width - padding * 2) * 52 / 100 : width - padding * 2;
+            int left = padding;
+            int right = left + leftWidth;
+            game_win.SetBounds(left, Scale(6), Scale(52), Scale(24));
+            int dateWidth = Scale(92), durationWidth = Scale(48);
+            game_type.SetBounds(left + Scale(56), Scale(6), Math.Max(1, leftWidth - Scale(210)), Scale(24));
+            game_time.SetBounds(right - dateWidth - durationWidth - Scale(6), Scale(6), dateWidth, Scale(24));
+            game_duration.SetBounds(right - durationWidth, Scale(6), durationWidth, Scale(24));
+            game_pic.SetBounds(left, Scale(34), Scale(40), Scale(40));
+            game_dj.SetBounds(Scale(21), Scale(25), Scale(22), Scale(17));
+            int identityLeft = left + Scale(50);
+            int kdaWidth = Scale(116);
+            game_name.SetBounds(identityLeft, Scale(32), Math.Max(1, leftWidth - Scale(50) - kdaWidth), Scale(22));
+            game_msg.SetBounds(right - kdaWidth, Scale(32), kdaWidth, Scale(24));
+            // 用原昵称行展示补刀、伤害和金币，省去单独的数据行。
+            int statWidth = Math.Max(1, (leftWidth - Scale(50)) / 3);
+            game_cs.SetBounds(identityLeft, Scale(56), statWidth, Scale(20));
+            game_damage.SetBounds(identityLeft + statWidth, Scale(56), statWidth, Scale(20));
+            game_gold.SetBounds(identityLeft + statWidth * 2, Scale(56), statWidth, Scale(20));
+            _equipmentLabel.SetBounds(left, Scale(82), Scale(32), Scale(24));
+            PictureBox[] items = [pic_1, pic_2, pic_3, pic_4, pic_5, pic_6, pic_7];
             for (int index = 0; index < items.Length; index++)
-                items[index].SetBounds(Scale(14 + index * 30), Scale(110), Scale(26), Scale(26));
-            int teamTop = Scale(144);
-            int teamLeft = Scale(14);
-            int teamWidth = Math.Max(1, width - Scale(68));
-            if (sideTeams)
-            {
-                // 使用战绩和装备右侧空白；日期与评分仍留在右上角。
-                game_type.Width = Scale(240);
-                game_gold.Width = Scale(110);
-                teamLeft = Scale(430);
-                teamTop = Scale(70);
-                teamWidth = Math.Max(1, width - teamLeft - Scale(54));
-            }
-            if (width < Scale(680))
-            {
-                game_type.SetBounds(Scale(155), Scale(12), Math.Max(Scale(90), width - Scale(170)), Scale(28));
-                game_time.SetBounds(Math.Max(Scale(245), width - Scale(164)), Scale(42), Scale(150), Scale(26));
-                game_msg.SetBounds(Scale(82), Scale(70), Scale(140), Scale(26));
-                game_duration.SetBounds(Scale(232), Scale(70), Scale(78), Scale(26));
-                _performanceTag.SetBounds(width - Scale(104), Scale(72), Scale(90), Scale(22));
-                game_cs.Top = game_damage.Top = game_gold.Top = Scale(102);
-                foreach (PictureBox picture in items) picture.Top = Scale(134);
-                teamTop = Scale(172);
-            }
-            lblAlly.SetBounds(teamLeft, teamTop, Scale(36), Scale(34));
-            flowAlly.SetBounds(teamLeft + Scale(40), teamTop, teamWidth, Scale(34));
-            lblEnemy.SetBounds(teamLeft, teamTop + Scale(38), Scale(36), Scale(34));
-            flowEnemy.SetBounds(teamLeft + Scale(40), teamTop + Scale(38), teamWidth, Scale(34));
+                items[index].SetBounds(left + Scale(36 + index * 27 + (index == 6 ? 4 : 0)), Scale(82), Scale(24), Scale(24));
+            pic_D.SetBounds(left + Scale(240), Scale(82), Scale(24), Scale(24));
+            pic_F.SetBounds(left + Scale(267), Scale(82), Scale(24), Scale(24));
+            _loadoutLabel.SetBounds(left, Scale(112), Scale(32), Scale(24));
+            int loadoutWidth = Math.Max(1, leftWidth - Scale(36));
+            int loadoutRows = LayoutSelectedLoadout(loadoutWidth);
+            _selectedLoadout.SetBounds(left + Scale(36), Scale(112), loadoutWidth, Scale(loadoutRows * 28));
+            _loadoutStatus.SetBounds(left + Scale(36), Scale(112), loadoutWidth, Scale(24));
+            int ownHeight = Scale(112 + loadoutRows * 28 + 6);
+            int teamLeft = sideTeams ? right + Scale(16) : left;
+            int teamTop = sideTeams ? Scale(14) : ownHeight + Scale(6);
+            int teamWidth = Math.Max(1, width - teamLeft - padding - Scale(30));
+            lblAlly.SetBounds(teamLeft, teamTop, Scale(28), Scale(54));
+            flowAlly.SetBounds(teamLeft + Scale(30), teamTop, teamWidth, Scale(54));
+            lblEnemy.SetBounds(teamLeft, teamTop + Scale(62), Scale(28), Scale(54));
+            flowEnemy.SetBounds(teamLeft + Scale(30), teamTop + Scale(62), teamWidth, Scale(54));
+            Height = sideTeams ? Math.Max(ownHeight, Scale(138)) : teamTop + Scale(122);
             LayoutTeamPlayers(flowAlly);
             LayoutTeamPlayers(flowEnemy);
+            Invalidate();
         }
 
         private void LayoutTeamPlayers(FlowLayoutPanel team)
@@ -299,15 +323,15 @@ namespace LOL_GameAssistant.BaseViewForm
             team.FlowDirection = FlowDirection.LeftToRight;
             int count = team.Controls.Count;
             if (count == 0) return;
-            int gap = Scale(6);
-            int cellWidth = Math.Max(Scale(42), (team.ClientSize.Width - gap * (count - 1)) / count);
+            int gap = Scale(4);
+            int cellWidth = Math.Max(1, (team.ClientSize.Width - gap * (count - 1)) / count);
             for (int index = 0; index < count; index++)
             {
                 Control entry = team.Controls[index];
-                entry.Size = new Size(cellWidth, Scale(34));
+                entry.Size = new Size(cellWidth, Scale(54));
                 entry.Margin = new Padding(0, 0, index == count - 1 ? 0 : gap, 0);
-                entry.Controls["championAvatar"]?.SetBounds(0, Scale(2), Scale(30), Scale(30));
-                entry.Controls["summonerName"]?.SetBounds(Scale(36), 0, Math.Max(1, cellWidth - Scale(36)), Scale(34));
+                entry.Controls["championAvatar"]?.SetBounds(Math.Max(0, (cellWidth - Scale(28)) / 2), Scale(2), Scale(28), Scale(28));
+                entry.Controls["summonerName"]?.SetBounds(0, Scale(33), cellWidth, Scale(20));
             }
         }
 
@@ -329,10 +353,11 @@ namespace LOL_GameAssistant.BaseViewForm
                 bool isMe = identity?.puuid == puuid;
                 string name = !string.IsNullOrWhiteSpace(identity?.gameName) ? identity.gameName
                     : !string.IsNullOrWhiteSpace(identity?.summonerName) ? identity.summonerName : $"玩家{p.participantId}";
-                var entry = new Panel { Name = "teamPlayer", BackColor = Color.Transparent, AccessibleName = name };
+                var entry = new Panel { Name = "teamPlayer", BackColor = Color.Transparent,
+                    Back = UiTheme.Palette.SurfaceMuted, AccessibleName = name };
                 var nameLabel = new AntdUI.Label { Name = "summonerName", Text = name, AutoSize = false,
                     AutoEllipsis = true, TextMultiLine = false, BackColor = Color.Transparent, ForeColor = UiTheme.Palette.TextPrimary,
-                    Font = new Font(UiMetrics.FontFamily, 8.5F), TextAlign = ContentAlignment.MiddleLeft };
+                    Font = new Font(UiMetrics.FontFamily, 8F), TextAlign = ContentAlignment.MiddleCenter };
 
                 var avatar = new RoundPictureBox
                 {

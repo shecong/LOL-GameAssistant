@@ -175,13 +175,14 @@ public sealed class CslolSkinToolsTests
         Assert.False(fileSwitch.Checked); Assert.False(resourceSwitch.Checked);
         Assert.False(Find<AntdUI.Button>(resourcePage, "ResourceApply").Enabled);
         fileSwitch.Checked = true; Assert.True(fileSwitch.Checked); Assert.False(resourceSwitch.Checked);
-        resourceSwitch.Checked = true; Assert.True(resourceSwitch.Checked); Assert.False(fileSwitch.Checked);
-        Assert.False(Find<AntdUI.Button>(browser, "FileSkinApply").Enabled);
+        resourceSwitch.Checked = true; Assert.False(resourceSwitch.Checked); Assert.True(fileSwitch.Checked);
+        Assert.Contains("功能尚未完善", Find<AntdUI.Label>(resourcePage, "ResourceSkinStatus").Text);
+        Assert.Equal(SkinEngineMode.File, settings.Value.SkinEngineMode);
         SecondPhaseRegressionTests.Pump(engines.SetEnabledAsync(SkinEngineMode.Memory, true));
         Assert.True(memory.Enabled); Assert.False(fileSwitch.Checked); Assert.False(resourceSwitch.Checked);
         fileSwitch.Checked = true; Assert.True(fileSwitch.Checked); Assert.False(memory.Enabled);
         fileSwitch.Checked = false; Assert.Equal(SkinEngineMode.None, settings.Value.SkinEngineMode);
-        resourceSwitch.Checked = true; gameRunning = true;
+        SecondPhaseRegressionTests.Pump(engines.SetEnabledAsync(SkinEngineMode.Resource, true)); gameRunning = true;
         resourceSwitch.Checked = false;
         Assert.True(resourceSwitch.Checked); Assert.True(engines.IsEnabled(SkinEngineMode.Resource));
         Assert.Contains("退出对局", Find<AntdUI.Label>(resourcePage, "ResourceSkinStatus").Text);

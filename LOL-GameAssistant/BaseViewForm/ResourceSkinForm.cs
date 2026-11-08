@@ -16,7 +16,7 @@ public sealed class ResourceSkinForm : UserControl, IThemeAware
     private readonly IResourceSkinRepository _repository;
     private readonly List<string> _packages = [];
     private readonly AntdUI.Input _path = new() { Name = "ResourceGamePath", Dock = DockStyle.Fill, PlaceholderText = "英雄联盟 Game 目录" };
-    private readonly AntdUI.Label _status = new() { Name = "ResourceSkinStatus", Dock = DockStyle.Fill, Text = "先开启资源包换肤，再添加资源包并在进入对局前挂载。" };
+    private readonly AntdUI.Label _status = new() { Name = "ResourceSkinStatus", Dock = DockStyle.Fill, Text = "功能尚未完善，暂不支持开启资源包换肤。" };
     private readonly ListView _list = new() { Name = "ResourcePackages", Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false };
     private readonly AntdUI.Button _add = Button("添加资源包", "ResourceAdd");
     private readonly AntdUI.Button _remove = Button("移除所选", "ResourceRemove");
@@ -110,6 +110,13 @@ public sealed class ResourceSkinForm : UserControl, IThemeAware
         {
             if (_syncingEnabled) return;
             bool enabled = _enabled.Checked;
+            if (enabled)
+            {
+                SyncEnabled();
+                _status.Text = "功能尚未完善，暂不支持开启资源包换肤。";
+                if (FindForm() is { } owner) UiMessage.info(owner, "功能尚未完善");
+                return;
+            }
             await RunAsync(async () =>
             {
                 await _engines.SetEnabledAsync(SkinEngineMode.Resource, enabled, _lifetime.Token);
