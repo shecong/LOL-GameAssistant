@@ -45,7 +45,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly AntdUI.Input _customHotkey = new() { ReadOnly = true, Width = 180, Height = 36, Anchor = AnchorStyles.Left, Text = "F7" };
     private readonly AntdUI.Input _batchHotkey = new() { ReadOnly = true, Width = 180, Height = 36, Anchor = AnchorStyles.Left, Text = "F8" };
     private readonly AntdUI.Checkbox _kdaHotkeyEnabled = new() { Text = "手动发送对局 KDA", AutoSize = true };
-    private readonly AntdUI.Checkbox _playerHotkeysEnabled = new() { Text = "小键盘逐人 KDA 测评（犀利文案）", AutoSize = true };
+    private readonly AntdUI.Checkbox _playerHotkeysEnabled = new() { Text = "小键盘逐人 KDA 测评", AutoSize = true };
     private readonly AntdUI.Input _kdaHotkey = new() { ReadOnly = true, Width = 180, Height = 36, Anchor = AnchorStyles.Left, Text = "F9" };
     private readonly AntdUI.Button _multiSelect = new() { Text = "多选：关", AutoSize = true };
     private readonly AntdUI.Label _previewLabel = new() { Text = "待发送内容预览", Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) };

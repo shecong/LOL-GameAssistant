@@ -73,7 +73,7 @@ public sealed class AssistantSettings
     /// <summary>各评估档位的自定义文案，每行一条；空值使用内置词库。</summary>
     public Dictionary<string, string> GameKdaCustomRemarks { get; set; } = new();
 
-    /// <summary>对局 KDA 喊话中每名玩家单独发送一条；默认按蓝红双方各汇总一条。</summary>
+    /// <summary>保留旧配置兼容；当前对局 KDA 汇总统一合并发送，用空格对齐各玩家的显示行。</summary>
     public bool GameKdaOnePlayerPerLine { get; set; }
 
     /// <summary>选人 KDA 汇总模板；{players} 和 {allies} 均按我方楼层逐行展示。</summary>

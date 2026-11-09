@@ -30,8 +30,8 @@ int main(int argc, char** argv) {
     frame->enabled = 1; frame->mayhemEnabled = 1; frame->heartbeat = GetTickCount64();
     strcpy_s(frame->title, "海克斯大乱斗 · 增幅推荐");
     strcpy_s(frame->statusText, "DirectX 11 全屏覆盖层渲染验证");
-    strcpy_s(frame->recommendations, "白银 / 黄金 / 棱彩\n双刀流 50.8% · 119,846 场\n连拨击锤 50.6% · 115,327 场");
-    strcpy_s(frame->offered, "本次识别\n1. 双刀流\n2. 连拨击锤");
+    strcpy_s(frame->recommendations, "白银 / 黄金 / 棱彩\n双刀流 50.8% · 119,846 场\t推荐一效果说明：获得攻击速度。\n连拨击锤 50.6% · 115,327 场\t推荐二效果说明：攻击可触发额外伤害。");
+    strcpy_s(frame->offered, "本次识别\n1. 双刀流\t扫描选项效果说明：获得攻击速度。\n2. 连拨击锤\t扫描选项二的效果介绍。");
     WNDCLASSW wc{}; wc.lpfnWndProc = TestWndProc; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = L"SC.Overlay.Smoke";
     RegisterClassW(&wc);
     HWND window = CreateWindowExW(WS_EX_NOACTIVATE, wc.lpszClassName, L"SC Overlay Render Test", borderless ? WS_POPUP : WS_OVERLAPPEDWINDOW,
@@ -190,6 +190,30 @@ int main(int argc, char** argv) {
     Check(frame->command==2 && GetForegroundWindow()==window,"click collapsed entry without Alt preserves game focus");
     frame->command=0;
     frame->collapsed=0; present(); present();
+    auto augmentRow=reinterpret_cast<BOOL(*)(int,int,RECT*)>(GetProcAddress(module,"OverlayTestAugmentRow"));
+    auto augmentTooltip=reinterpret_cast<const char*(*)()>(GetProcAddress(module,"OverlayTestAugmentTooltip"));
+    Check(augmentRow && augmentTooltip,"augment hover fixtures");
+    auto hoverAugment=[&](int kind,int index,const char* expected) {
+        DWORD activeThread=GetWindowThreadProcessId(GetForegroundWindow(),nullptr);
+        bool attach=activeThread!=GetCurrentThreadId() && AttachThreadInput(GetCurrentThreadId(),activeThread,TRUE);
+        SetForegroundWindow(window);
+        if(attach) AttachThreadInput(GetCurrentThreadId(),activeThread,FALSE);
+        RECT row{}; Check(augmentRow(kind,index,&row),"augment row has hover area");
+        setPointer(LONG((row.left+row.right)/2.0*clientBounds.right/1280),
+            LONG((row.top+row.bottom)/2.0*clientBounds.bottom/720),TRUE);
+        for(int i=0;i<4;++i) present();
+        if(strstr(augmentTooltip(),expected)==nullptr) {
+            printf("tooltip diagnostic: kind=%d index=%d rect=%ld,%ld,%ld,%ld client=%ld,%ld focus=%d text=%s\n",kind,index,
+                row.left,row.top,row.right,row.bottom,clientBounds.right,clientBounds.bottom,GetForegroundWindow()==window,augmentTooltip()); fflush(stdout);
+        }
+        Check(strstr(augmentTooltip(),expected)!=nullptr,"hover shows this augment's effect description");
+        Check(GetForegroundWindow()==window,"augment tooltip preserves game focus");
+    };
+    hoverAugment(0,0,"推荐一效果说明");
+    hoverAugment(0,1,"推荐二效果说明");
+    hoverAugment(1,0,"扫描选项效果说明");
+    setPointer(0,0,TRUE); present(); present();
+    Check(!*augmentTooltip(),"augment description hides when pointer leaves");
     RECT headerPanel{}; Check(region(0,&headerPanel),"get expanded panel hit region");
     const POINT headerClicks[]={{5,5},{45,23},{220,23},{350,23},{45,50}};
     for(const auto& point:headerClicks) {

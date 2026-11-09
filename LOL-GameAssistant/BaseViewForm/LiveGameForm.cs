@@ -1028,9 +1028,12 @@ namespace LOL_GameAssistant.BaseViewForm
             if (position >= members.Length) return null;
             var member = members[position];
             _gameAssessments.TryGetValue(member.Puuid, out var result);
-            return GameKdaAnnouncementBuilder.BuildSharpPlayer(new GameKdaPlayerSummary(team,
-                result?.DisplayName ?? member.Name, result?.Assessment), position + 1,
-                AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaCustomRemarks);
+            var player = new GameKdaPlayerSummary(team, result?.DisplayName ?? member.Name, result?.Assessment);
+            var custom = AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaCustomRemarks;
+            if (result?.Assessment is { } assessment && custom.TryGetValue(assessment.Label.ToString(), out string? remark)
+                && !string.IsNullOrWhiteSpace(remark))
+                return GameKdaAnnouncementBuilder.BuildSharpPlayer(player, position + 1, custom);
+            return GameKdaAnnouncementBuilder.Build([player]).Single();
         }
 
         /// <summary>根据本局玩家集合组织游戏聊天测评消息。</summary>

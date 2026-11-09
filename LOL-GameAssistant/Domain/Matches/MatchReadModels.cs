@@ -27,6 +27,14 @@ public sealed class MatchHistoryGames
 /// <summary>列表页展示所需的单场比赛摘要。</summary>
 public sealed class MatchHistoryGame
 {
+    /// <summary>服务端原始分页位置，包含不可读记录；用于安全地对齐增量历史。</summary>
+    public int? HistoryIndex { get; set; }
+    internal MatchHistoryGame CopyAtHistoryIndex(int index)
+    {
+        var copy = (MatchHistoryGame)MemberwiseClone();
+        copy.HistoryIndex = index;
+        return copy;
+    }
     public string PlatformId { get; set; } = "";
     public bool IsCrossRegion { get; set; }
     public bool HasFullParticipants { get; set; }

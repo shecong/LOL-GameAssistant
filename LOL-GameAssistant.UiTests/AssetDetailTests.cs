@@ -22,6 +22,16 @@ public sealed class AssetDetailTests
     }
 
     [Fact]
+    public void OverlayDescriptionsKeepMarkupOutOfTheVisibleRow()
+    {
+        string row = AugmentOverlayText.Format("强化 50.0% · 123 场", "获得<scaleBonus>100装备急速</scaleBonus><br>冷却缩减 &amp; 提速。%i:cooldown%");
+        Assert.Equal("强化 50.0% · 123 场\t获得100装备急速 冷却缩减 & 提速。", row);
+        Assert.DoesNotContain('\n', row);
+        Assert.DoesNotContain('<', row);
+        Assert.Contains("暂未获取", AugmentOverlayText.Format("未知强化", null));
+    }
+
+    [Fact]
     public void MatchMappingPreservesSelectedRunesAndSkipsEmptySlots()
     {
         var detail = LegacyMatchReadModelMapper.ToDomain(new GameDetailModel.GameInfo

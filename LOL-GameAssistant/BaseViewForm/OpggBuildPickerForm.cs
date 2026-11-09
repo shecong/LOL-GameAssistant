@@ -370,7 +370,8 @@ internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
                 var text = TextLabel($"{info?.Name ?? $"#{augment.Id}"}  {augment.WinRate:0.0}%", Muted);
                 text.Dock = DockStyle.None;
                 text.Size = new Size(160, 40);
-                _toolTip.SetToolTip(text, $"{text.Text} · {augment.Matches:N0} 场样本");
+                _toolTip.SetToolTip(text, $"{text.Text} · {augment.Matches:N0} 场样本\n\n" +
+                    AssetDetailToolTip.PlainText(AugmentCatalog.GetDescription(augment.Id)));
                 runes.Controls.Add(text);
             }
             if (runes.Controls.Count == 0)

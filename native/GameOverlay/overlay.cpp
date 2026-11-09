@@ -97,6 +97,8 @@ std::atomic<bool> testPointerEnabled{false};
 std::atomic<float> testSkinScroll{0};
 RECT testSkinCategories[3]{}, testSkinFirstEntry{}, testSkinPages[2]{}, testCameraToggle{};
 RECT testSkinChildWindow{},testSkinChildFirst{};
+std::string testAugmentTooltip;
+RECT testAugmentRows[2][12]{};
 #endif
 POINT ClientPointer(HWND window) {
 #ifdef SC_OVERLAY_TEST
@@ -528,6 +530,12 @@ extern "C" __declspec(dllexport) BOOL OverlayTestRegion(unsigned index, RECT* ou
 }
 extern "C" __declspec(dllexport) LONG OverlayTestWheel() { return wheel.load(); }
 extern "C" __declspec(dllexport) float OverlayTestSkinScroll() { return testSkinScroll.load(); }
+extern "C" __declspec(dllexport) const char* OverlayTestAugmentTooltip() { return testAugmentTooltip.c_str(); }
+extern "C" __declspec(dllexport) BOOL OverlayTestAugmentRow(int kind,int index,RECT* rect) {
+    if(!rect || kind<0 || kind>1 || index<0 || index>=12) return FALSE;
+    *rect=testAugmentRows[kind][index];
+    return rect->right>rect->left && rect->bottom>rect->top;
+}
 extern "C" __declspec(dllexport) BOOL OverlayTestSkinControl(int kind,int index,RECT* rect) {
     if(!rect) return FALSE;
     if(kind==0 && index>=0 && index<3) *rect=testSkinCategories[index];

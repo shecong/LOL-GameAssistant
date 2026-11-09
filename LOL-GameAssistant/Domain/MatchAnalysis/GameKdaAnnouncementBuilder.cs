@@ -6,15 +6,12 @@ public sealed record GameKdaPlayerSummary(
     string DisplayName,
     RecentModePerformanceAssessment? Assessment);
 
-/// <summary>默认按队伍汇总为短消息；仅逐人模式为每名玩家发送一条。</summary>
+/// <summary>游戏内共用选人的紧凑格式，合并提交，用空格将玩家对齐到下一显示行。</summary>
 public static class GameKdaAnnouncementBuilder
 {
-    private const int MaximumTeamMessageLength = 120;
-    private const string PlayerSeparator = "      ";
-
-    // 2560×1440 默认聊天栏实测：所有人频道前缀后，正文约 30 个半角宽度仍可单行显示。
-    private const int MaximumBodyWidth = 30;
-
+    // 首行需为游戏聊天的频道和发言者前缀留空间；续行使用完整正文宽度。
+    internal const int FirstLineWidth = 30, ContinuationLineWidth = 60;
+    private const int MaximumMessageLength = 480;
     /// <summary>组织单名玩家的测评文案。</summary>
     public static string BuildSharpPlayer(GameKdaPlayerSummary player, int position, IReadOnlyDictionary<string, string>? customRemarks = null)
     {
@@ -41,81 +38,52 @@ public static class GameKdaAnnouncementBuilder
         return $"{prefix} {stats}，{RecentPerformanceLabelFormatter.GetText(assessment)}：{remark}";
     }
 
-    /// <summary>按队伍组织测评消息，支持逐人独立发送或按队伍合并。</summary>
+    /// <summary>整批合并发送；旧排版参数不再拆分玩家，仅在超过输入长度时按玩家边界分批。</summary>
     public static IReadOnlyList<string> Build(IReadOnlyList<GameKdaPlayerSummary> players,
         bool onePlayerPerLine = false)
     {
-        return players.GroupBy(player => player.Team)
-            .SelectMany(team => onePlayerPerLine
-                ? team.Select(player => FormatPlayer(team.Key, player))
-                : BuildTeamMessages(team.Key, team.ToArray()))
-            .ToArray();
-    }
-
-    /// <summary>按队伍分别组织可发送的测评消息。</summary>
-    private static IEnumerable<string> BuildTeamMessages(string team, IReadOnlyList<GameKdaPlayerSummary> players)
-    {
-        // 五人队伍必须一次生成完整汇总，不能按逐个加入时的长度提前拆开，
-        // 否则会出现“红方四人”之后又发送“红方最后一人”的额外消息。
-        foreach (GameKdaPlayerSummary[] batch in players.Chunk(5))
-            yield return BuildTeamMessage(team, batch);
-    }
-
-    /// <summary>组织一支队伍的测评消息。</summary>
-    private static string BuildTeamMessage(string team, IReadOnlyList<GameKdaPlayerSummary> players)
-    {
-        string heading = $"【本局近期KDA·{team}】 ";
-        foreach ((int nameLimit, bool compact, string separator, bool terse) in new[]
-                 { (18, false, PlayerSeparator, false), (12, false, PlayerSeparator, false),
-                   (10, true, PlayerSeparator, false), (8, true, PlayerSeparator, false),
-                   (6, true, PlayerSeparator, false), (6, true, "  ", true), (4, true, "  ", true) })
+        var rows = players.GroupBy(player => player.Team)
+            .SelectMany(team => team.Select(player => FormatPlayer(team.Key, player)));
+        var messages = new List<string>();
+        var body = new System.Text.StringBuilder();
+        int column = 0, lineWidth = FirstLineWidth;
+        foreach (string row in rows)
         {
-            string message = heading + string.Join(separator,
-                players.Select(player => FormatTeamPlayer(player, nameLimit, compact, terse)));
-            if (message.Length <= MaximumTeamMessageLength) return message;
+            string spacing = WrapSpacing(body.Length > 0, row);
+            if (body.Length + spacing.Length + row.Length > MaximumMessageLength && body.Length > 0)
+            {
+                messages.Add(body.ToString()); body.Clear();
+                column = 0; lineWidth = FirstLineWidth;
+                spacing = WrapSpacing(false, row);
+            }
+            body.Append(spacing).Append(row);
+            if (spacing.Length > 0) { column = 0; lineWidth = ContinuationLineWidth; }
+            foreach (var rune in row.EnumerateRunes())
+            {
+                int width = rune.Value <= 0x7f ? 1 : 2;
+                if (column + width > lineWidth) { column = 0; lineWidth = ContinuationLineWidth; }
+                column += width;
+                if (column == lineWidth) { column = 0; lineWidth = ContinuationLineWidth; }
+            }
         }
+        if (body.Length > 0) messages.Add(body.ToString());
+        return messages;
 
-        return heading + string.Join(" ",
-            players.Select(player => FormatTeamPlayer(player, 2, true, true)));
-    }
-
-    /// <summary>将队伍中的玩家信息格式化为测评文本。</summary>
-    private static string FormatTeamPlayer(GameKdaPlayerSummary player, int nameLimit, bool compact, bool terse = false)
-    {
-        string name = NormalizeName(player.DisplayName);
-        if (name.Length > nameLimit) name = name[..nameLimit] + "…";
-        if (player.Assessment == null) return $"{name} 战绩暂未获取";
-        if (player.Assessment is not { SampleSize: > 0 } assessment)
-            return compact ? $"{name} 同模式无样本" : $"{name} 近50场同模式无样本";
-        if (assessment.UsesAllModes) name += "[全模式]";
-        if (!assessment.HasEnoughSample)
-            return compact
-                ? $"{name} 样本不足{assessment.SampleSize}/{assessment.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}"
-                : $"{name} 样本不足{assessment.SampleSize}/{assessment.RequiredSampleSize} KDA{FormatKda(assessment.Kda, 2)}";
-        string label = RecentPerformanceLabelFormatter.GetText(assessment);
-        return compact
-            ? $"{name} {label}{assessment.Score} {(terse ? "K" : "KDA")}{FormatKda(assessment.Kda, 1)}"
-            : $"{name} {label}{assessment.Score}分 KDA{FormatKda(assessment.Kda, 2)}";
+        string WrapSpacing(bool hasPrevious, string row)
+        {
+            int remaining = hasPrevious && column > 0 ? lineWidth - column
+                : !hasPrevious && DisplayWidth(row) > lineWidth ? lineWidth : 0;
+            // 全角空格与汉字等宽，降低补齐时占用的输入字符数；奇数余量再补一个普通空格。
+            return new string('\u3000', remaining / 2) + (remaining % 2 == 0 ? "" : " ");
+        }
     }
 
     /// <summary>将玩家评估信息格式化为显示文本。</summary>
     private static string FormatPlayer(string team, GameKdaPlayerSummary player)
     {
-        // 游戏聊天以 Enter 提交消息；名字中的换行不能传入按键模拟器。
-        string name = NormalizeName(player.DisplayName);
         string teamLabel = team == "蓝方" ? "蓝" : team == "红方" ? "红" : team;
-        string detail = player.Assessment switch
-        {
-            null => "战绩暂未获取",
-            not { SampleSize: > 0 } => "同模式无样本",
-            { HasEnoughSample: false } assessment =>
-                $"样本不足{assessment.SampleSize}/{assessment.RequiredSampleSize} K{FormatKda(assessment.Kda, 1)}",
-            { } assessment =>
-                $"{RecentPerformanceLabelFormatter.GetText(assessment)}{assessment.Score} K{FormatKda(assessment.Kda, 1)}"
-        };
-        if (player.Assessment?.UsesAllModes == true) detail = "全模式 " + detail;
-        int nameWidth = Math.Max(2, MaximumBodyWidth - DisplayWidth(teamLabel) - 2 - DisplayWidth(detail));
-        return $"{teamLabel} {ShortenToDisplayWidth(name, nameWidth)} {detail}";
+        string line = ChampSelectKdaAnnouncementBuilder.FormatPlayer(new(1, player.Assessment, NormalizeName(player.DisplayName)));
+        return $"{NormalizeName(teamLabel)} {line}";
     }
 
     /// <summary>规范化玩家名称，供测评文案使用。</summary>

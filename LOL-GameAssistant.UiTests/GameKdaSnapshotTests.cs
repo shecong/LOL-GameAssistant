@@ -21,8 +21,8 @@ public sealed class GameKdaSnapshotTests
             BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, [slot]);
         Assert.Contains("蓝方一号", Message(0));
         Assert.Null(Message(1));
-        Assert.Contains("【红1】红方1号", Message(5));
-        Assert.Contains("【红5】红方5号", Message(9));
+        Assert.Contains("红 红方1号：", Message(5));
+        Assert.Contains("红 红方5号：", Message(9));
         Assert.Null(Message(10));
         Assert.DoesNotContain("红方2号", Message(5));
     });
@@ -42,8 +42,9 @@ public sealed class GameKdaSnapshotTests
         assessments["blue"] = new("blue", "玩家甲", true, assessment);
         assessments["red"] = new("red", "玩家乙", false, assessment);
         var updated = Messages();
-        Assert.Contains(updated, message => message.StartsWith("蓝 ") && message.Contains("K4.9"));
-        Assert.Contains(updated, message => message.StartsWith("红 ") && message.Contains("K4.9"));
+        string merged = Assert.Single(updated);
+        Assert.Contains("蓝 玩家甲：上等马88分｜KDA4.90｜胜率55%", merged);
+        Assert.Contains("红 玩家乙：上等马88分｜KDA4.90｜胜率55%", merged);
         Assert.DoesNotContain(updated, message => message.Contains("暂未获取"));
     });
 

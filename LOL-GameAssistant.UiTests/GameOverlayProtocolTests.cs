@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Infrastructure.GameData;
+using LOL_GameAssistant.Helper;
 using Xunit;
 
 namespace LOL_GameAssistant.UiTests;
@@ -145,6 +146,20 @@ public sealed class GameOverlayProtocolTests
         Assert.Equal("黄金", ReadText(view, 0, 256));
         var tail = new byte[250]; view.ReadArray(6, tail, 0, tail.Length);
         Assert.All(tail, value => Assert.Equal((byte)0, value));
+    }
+
+    [Fact]
+    public void FullRecommendationPageCarriesEachTooltipWithoutTruncatingRows()
+    {
+        using var mapping = MemoryMappedFile.CreateNew(null, NativeGameOverlayBridge.PixelOffset);
+        using var view = mapping.CreateViewAccessor();
+        string[] rows = Enumerable.Range(1, 12).Select(index => AugmentOverlayText.Format(
+            $"强化{index} 50.0% · 999,999 场", new string('强', 800))).ToArray();
+        string recommendations = string.Join('\n', rows);
+        string offered = string.Join('\n', rows.Take(3));
+        NativeGameOverlayBridge.WriteFrame(view, new("海克斯", "当前英雄", recommendations, offered, 0, false, false), true);
+        Assert.Equal(recommendations, ReadText(view, NativeGameOverlayBridge.RecommendationsOffset, 32768));
+        Assert.Equal(offered, ReadText(view, NativeGameOverlayBridge.OfferedOffset, 16384));
     }
 
     private static string ReadText(MemoryMappedViewAccessor view, int offset, int size)

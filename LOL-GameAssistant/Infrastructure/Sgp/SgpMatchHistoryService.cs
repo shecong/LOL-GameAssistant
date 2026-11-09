@@ -41,8 +41,10 @@ public sealed class SgpMatchHistoryService : IMatchHistoryService, ILocalCacheSt
                 $"/match-history-query/v1/products/lol/player/{Uri.EscapeDataString(puuid)}/SUMMARY?startIndex={offset}&count={take}", false, cancellationToken).ConfigureAwait(false);
             if (session != PlayerHistorySession.Key) throw new OperationCanceledException("客户端会话已变化。");
             if (result["games"] is not JArray rows || rows.Count > take) throw new IOException("SGP 战绩分页响应无效。");
+            int rowIndex = offset;
             foreach (var row in rows)
             {
+                int historyIndex = rowIndex++;
                 cancellationToken.ThrowIfCancellationRequested();
                 // SGP 会保留只有 metadata 的历史索引；已实测其单场 SUMMARY 返回 404。
                 // 仅容忍可识别的空内容记录，其他格式、身份和大区异常仍严格拒绝。
@@ -64,6 +66,7 @@ public sealed class SgpMatchHistoryService : IMatchHistoryService, ILocalCacheSt
                     continue;
                 }
                 var mapped = SgpMatchMapper.Map(row, context.Platform);
+                mapped.Summary.HistoryIndex = historyIndex;
                 mapped.Summary.IsCrossRegion = mapped.Detail.IsCrossRegion = context.IsCrossRegion;
                 if (!ids.Add(mapped.Summary.GameId)) throw new IOException("SGP 返回重复对局，已停止分页，避免重复数据。");
                 if (mapped.Summary.GetParticipant(puuid) == null) throw new IOException("SGP 对局中找不到请求的玩家。");

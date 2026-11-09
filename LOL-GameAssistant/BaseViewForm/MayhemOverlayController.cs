@@ -169,8 +169,9 @@ internal sealed class MayhemOverlayController : IDisposable
                 : $"{RarityName(rarity)}增幅推荐（场数↓，同场数按胜率↓）"
         };
         foreach (var augment in top)
-            lines.Add($"{DisplayName(_namedAugments.GetValueOrDefault(augment.Id))}  {augment.WinRate:0.0}%  · {augment.Matches:N0} " +
-                (UiLanguage.IsEnglish ? "matches" : "场"));
+            lines.Add(AugmentOverlayText.Format(
+                $"{DisplayName(_namedAugments.GetValueOrDefault(augment.Id))}  {augment.WinRate:0.0}%  · {augment.Matches:N0} " +
+                (UiLanguage.IsEnglish ? "matches" : "场"), _namedAugments.GetValueOrDefault(augment.Id)?.Description));
         if (top.Count == 0)
             lines.Add(UiLanguage.IsEnglish ? "No champion samples for this type yet" : "暂无该类型的英雄推荐样本");
         if (!string.IsNullOrEmpty(_coreRecommendation))
@@ -243,10 +244,11 @@ internal sealed class MayhemOverlayController : IDisposable
                 .ThenByDescending(item => item.Stats?.WinRate ?? -1).ToArray();
             _offered = (UiLanguage.IsEnglish ? "Detected offers · recommended order" : "本次识别 · 建议顺序") + Environment.NewLine +
                 string.Join(Environment.NewLine, scored.Select((item, index) =>
-                    $"{index + 1}. [{RarityName(named.GetValueOrDefault(item.Id)?.Rarity ?? item.Stats?.Rarity ?? -1)}] " +
+                    AugmentOverlayText.Format($"{index + 1}. [{RarityName(named.GetValueOrDefault(item.Id)?.Rarity ?? item.Stats?.Rarity ?? -1)}] " +
                     $"{DisplayName(named.GetValueOrDefault(item.Id))}  " +
                     (item.Stats == null ? (UiLanguage.IsEnglish ? "No champion sample" : "暂无该英雄样本") :
-                        $"{item.Stats.WinRate:0.0}% · {item.Stats.Matches:N0} " + (UiLanguage.IsEnglish ? "matches" : "场"))));
+                        $"{item.Stats.WinRate:0.0}% · {item.Stats.Matches:N0} " + (UiLanguage.IsEnglish ? "matches" : "场")),
+                        named.GetValueOrDefault(item.Id)?.Description)));
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex)

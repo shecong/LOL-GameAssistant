@@ -8,4 +8,7 @@ public interface IAugmentInfoService
 }
 
 /// <summary>强化展示信息，包括名称、图标地址和稀有度。</summary>
-public sealed record AugmentInfo(int Id, string Name, string? IconUrl, string? EnglishName = null, int? Rarity = null);
+public sealed record AugmentInfo(int Id, string Name, string? IconUrl, string? EnglishName = null, int? Rarity = null)
+{
+    public string? Description { get; init; }
+}

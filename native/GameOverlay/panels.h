@@ -16,18 +16,33 @@ void ClampPanel(ImVec2 size) {
         std::clamp(p.y, 0.f, (std::max)(0.f, display.y-size.y))));
 }
 
+void AugmentTooltip(const std::string& title, const std::string& description) {
+    if (description.empty() || !ImGui::IsItemHovered()) return;
+    ImGui::BeginTooltip();
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + (std::min)(420.f, ImGui::GetIO().DisplaySize.x - 32.f));
+    ImGui::TextUnformatted(title.c_str()); ImGui::Separator();
+    ImGui::TextUnformatted(description.c_str());
+    ImGui::PopTextWrapPos(); ImGui::EndTooltip();
+#ifdef SC_OVERLAY_TEST
+    testAugmentTooltip = description;
+#endif
+}
+
 void RecommendationRows(const char* text) {
-    struct Row { std::string name,rate,samples; };
+    struct Row { std::string name,rate,samples,description; };
     static std::string previous;
     static std::vector<Row> rows;
     if(previous!=text) {
         previous=text; rows.clear();
         std::istringstream lines(previous); std::string line;
         while(std::getline(lines,line)) {
+            auto separator=line.find('\t');
+            std::string description=separator==std::string::npos ? "" : line.substr(separator+1);
+            if(separator!=std::string::npos) line.resize(separator);
             auto percent=line.find('%'); if(percent==std::string::npos) continue;
             auto start=percent; while(start>0 && (isdigit(static_cast<unsigned char>(line[start-1])) || line[start-1]=='.')) --start;
             auto delimiter=line.find("·",percent);
-            rows.push_back({line.substr(0,start),line.substr(start,percent-start+1),delimiter==std::string::npos ? "" : line.substr(delimiter+2)});
+            rows.push_back({line.substr(0,start),line.substr(start,percent-start+1),delimiter==std::string::npos ? "" : line.substr(delimiter+2),description});
         }
     }
     if(rows.empty()) { ImGui::TextWrapped("%s",text); return; }
@@ -39,11 +54,34 @@ void RecommendationRows(const char* text) {
         ImGuiListClipper clipper; clipper.Begin(int(rows.size()),29);
         while(clipper.Step()) for(int i=clipper.DisplayStart;i<clipper.DisplayEnd;++i) {
             const auto& row=rows[i];
-            ImGui::TableNextRow(0,29); ImGui::TableNextColumn(); ImGui::TextUnformatted(row.name.c_str());
+            ImGui::TableNextRow(0,29); ImGui::TableNextColumn();
+            ImGui::PushID(i);
+            ImGui::Selectable(row.name.c_str(),false,ImGuiSelectableFlags_SpanAllColumns,ImVec2(0,20));
+#ifdef SC_OVERLAY_TEST
+            if(i<12) { auto a=ImGui::GetItemRectMin(),b=ImGui::GetItemRectMax(); testAugmentRows[0][i]={LONG(a.x),LONG(a.y),LONG(b.x),LONG(b.y)}; }
+#endif
+            AugmentTooltip(row.name,row.description);
+            ImGui::PopID();
             ImGui::TableNextColumn(); ImGui::TextColored(ImVec4(.55f,.85f,.70f,1),"%s",row.rate.c_str());
             ImGui::TableNextColumn(); ImGui::TextDisabled("%s",row.samples.c_str());
         }
         ImGui::EndTable();
+    }
+}
+
+void OfferedAugmentRows(const char* text) {
+    if(!*text) { ImGui::TextWrapped("扫描后显示当前增幅与推荐"); return; }
+    std::istringstream lines(text); std::string line; int index=0;
+    while(std::getline(lines,line)) {
+        auto separator=line.find('\t');
+        if(separator==std::string::npos) { ImGui::TextWrapped("%s",line.c_str()); continue; }
+        std::string label=line.substr(0,separator),description=line.substr(separator+1);
+        ImGui::TextWrapped("%s",label.c_str());
+#ifdef SC_OVERLAY_TEST
+        if(index<12) { auto a=ImGui::GetItemRectMin(),b=ImGui::GetItemRectMax(); testAugmentRows[1][index]={LONG(a.x),LONG(a.y),LONG(b.x),LONG(b.y)}; }
+#endif
+        AugmentTooltip(label,description);
+        ++index;
     }
 }
 
@@ -80,6 +118,10 @@ void DrawBitmapPanel(Session& current, uint32_t width, uint32_t height, uint32_t
 }
 
 void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float sy) {
+#ifdef SC_OVERLAY_TEST
+    testAugmentTooltip.clear();
+    memset(testAugmentRows,0,sizeof(testAugmentRows));
+#endif
     auto display = ImGui::GetIO().DisplaySize;
     auto& style = ImGui::GetStyle();
     style.WindowPadding = ImVec2(14,14); style.ItemSpacing = ImVec2(8,9);
@@ -175,7 +217,7 @@ void DrawPanels(Session& current, Frame& frame, Auxiliary& aux, float sx, float 
             ImGui::TextColored(ImVec4(.73f,.81f,.94f,1),"本次识别");
             const char* offered=frame.offered;
             if(strncmp(offered,"本次识别\n",13)==0) offered+=13;
-            ImGui::TextWrapped("%s",*offered ? offered : "扫描后显示当前增幅与推荐"); ImGui::EndChild();
+            OfferedAugmentRows(offered); ImGui::EndChild();
         }
         ImGui::End(); ImGui::PopStyleVar(2);
     } else { current.frame->panelWidth=0; current.frame->panelHeight=0; }

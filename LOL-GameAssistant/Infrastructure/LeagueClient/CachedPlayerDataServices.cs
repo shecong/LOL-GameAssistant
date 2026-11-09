@@ -119,7 +119,7 @@ internal sealed class CachedRankedStatsService : IRankedStatsService
 }
 
 /// <summary>按玩家、分页区间和对局 ID 保存战绩，空响应不覆盖已有记录。</summary>
-internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerHistorySnapshotSource
+internal sealed partial class CachedMatchHistoryService : IMatchHistoryService, IPlayerHistorySnapshotSource, ICompletePlayerHistoryStore
 {
     private readonly IMatchHistoryService _inner;
     private readonly LocalDataCache<MatchHistoryResponse> _pages;
@@ -144,6 +144,8 @@ internal sealed class CachedMatchHistoryService : IMatchHistoryService, IPlayerH
             value => value.GameId > 0 && value.participants?.Count > 0);
         _snapshots = new(Path.Combine(directory, "player-data", "snapshots"), TimeSpan.FromDays(30),
             value => value.Data?.Games != null);
+        _completeHistory = new(Path.Combine(directory, "player-data", "complete-history"), TimeSpan.FromDays(30),
+            value => value.Content is { Length: > 0 });
     }
 
     public async Task<PlayerHistorySnapshot> ReadSnapshotAsync(string puuid, CancellationToken cancellationToken)

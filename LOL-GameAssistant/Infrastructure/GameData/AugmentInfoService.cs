@@ -10,6 +10,7 @@ public sealed class AugmentInfoService : IAugmentInfoService
     {
         await AugmentCatalog.RefreshAsync().ConfigureAwait(false);
         return (await AugmentCatalog.ResolveAsync(ids).ConfigureAwait(false))
-            .Select(item => new AugmentInfo(item.Id, item.Name, item.IconUrl, item.EnglishName, item.Rarity)).ToArray();
+            .Select(item => new AugmentInfo(item.Id, item.Name, item.IconUrl, item.EnglishName, item.Rarity)
+                { Description = AugmentCatalog.GetDescription(item.Id) }).ToArray();
     }
 }

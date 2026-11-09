@@ -267,9 +267,9 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         /// <returns></returns>
         private Task LoadGame() => LoadPlayerAsync(null);
-        public Task RefreshAsync() => LoadPlayerAsync(UserStatus == 2 ? userOhterinfo?.Puuid : null);
+        public Task RefreshAsync() => LoadPlayerAsync(UserStatus == 2 ? userOhterinfo?.Puuid : null, refreshHistory: true);
 
-        internal async Task LoadPlayerAsync(string? puuid, string? search = null)
+        internal async Task LoadPlayerAsync(string? puuid, string? search = null, bool refreshHistory = false)
         {
             if (IsDisposed) return;
             using var request = _loads.Begin();
@@ -330,12 +330,14 @@ namespace LOL_GameAssistant.BaseViewForm
                 play_next.Text = player.XpUntilNextLevel.ToString();
                 play_jd.Value = CalculateLevelProgress(player);
                 _historySnapshot = null;
+                _cachedModeCountsVisible = false;
                 UpdateModeCounts(null, "正在读取战绩…");
                 _ = RefreshResourceVersionAsync(token);
                 // Show the profile immediately, then fetch independent data together.
                 var iconTask = _profileIconService.GetProfileIconAsync(player.ProfileIconId, token);
                 var rankedTask = _rankedStatsService.GetAsync(player.Puuid, isCurrentUser: puuid == null, cancellationToken: token);
-                var historyTask = PlayerHistoryRepository.For(_matchHistoryService).GetBatchAsync(player.Puuid, token);
+                var historyTask = PlayerHistoryRepository.For(_matchHistoryService).GetBatchAsync(player.Puuid, token, refresh: refreshHistory);
+                var completeSnapshot = await ShowCachedModeCountsAsync(player, () => request.IsCurrent, token);
                 async Task UpdateIconAsync()
                 {
                     try { var icon = await iconTask; if (request.IsCurrent && icon is { Length: > 0 }) ReplaceProfileIcon(icon); }
@@ -359,11 +361,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 _historyTip.SetToolTip(lblHistoryTitle, snapshot.ScopeText);
                 _historyTip.SetToolTip(game_pagin, snapshot.ScopeText);
                 matchlists = history;
-                UpdateModeCounts(history);
+                if (!_cachedModeCountsVisible) UpdateModeCounts(history);
                 UpdateModeOptions();
                 InitPagin(history);
-                var completeHistory = LoadCompleteHistoryAsync(player, history!, () => request.IsCurrent, token);
+                var completeHistory = LoadCompleteHistoryAsync(player, history!, () => request.IsCurrent, token, completeSnapshot);
                 await GetGameInfo(player, 1);
+                if (request.IsCurrent && IsHandleCreated) Search_Player.Loading = refeash.Loading = false;
                 await completeHistory;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -372,7 +375,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (request.IsCurrent)
                 {
                     _infoMsgForm.AddMsg($"首页加载失败：{ex.Message}");
-                    UpdateModeCounts(null, "战绩暂不可用，请刷新重试");
+                    if (!_cachedModeCountsVisible) UpdateModeCounts(null, "战绩暂不可用，请刷新重试");
+                    else _modeScope.Text = "缓存统计 · 战绩更新暂不可用";
                     if (!stackPanel1.Controls.OfType<RecordForm>().Any()) ShowHistoryMessage("加载失败，请点击刷新重试");
                 }
                 RuntimeDiagnostics.WriteException(ex);

@@ -79,7 +79,7 @@ public partial class RecordForm
                 tag.Text = UiLanguage.IsEnglish && !string.IsNullOrWhiteSpace(display.EnglishName)
                     ? display.EnglishName : display.Name;
                 tag.AccessibleName = tag.Text;
-                _loadoutTip.SetToolTip(tag, tag.Text + "\n" + AugmentCatalog.GetDescription(id));
+                _loadoutTip.SetToolTip(tag, tag.Text + "\n\n" + AssetDetailToolTip.PlainText(AugmentCatalog.GetDescription(id)));
                 byte[]? bytes = await AugmentCatalog.GetIconAsync(display.IconUrl, _lifetime.Token);
                 if (bytes == null || tag.IsDisposed) return;
                 using var stream = new MemoryStream(bytes);
@@ -90,7 +90,7 @@ public partial class RecordForm
             {
                 string? details = await _gameAssetService.GetRuneDetailsAsync(id, _lifetime.Token);
                 if (IsDisposed || tag.IsDisposed) return;
-                _loadoutTip.SetToolTip(tag, details ?? $"符文 #{id}");
+                _loadoutTip.SetToolTip(tag, AssetDetailToolTip.PlainText(details ?? $"符文 #{id}"));
                 tag.AccessibleName = details ?? tag.AccessibleName;
                 image = await LoadImageAsync(() => _gameAssetService.GetRuneIconAsync(id, _lifetime.Token));
                 if (image != null) tag.Text = "";
