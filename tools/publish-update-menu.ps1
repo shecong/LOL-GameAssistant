@@ -9,6 +9,8 @@ param(
     [string]$ReleaseNotesFile,
     [switch]$RebuildUpdater,
     [string]$UpdaterPath,
+    [string]$InstallerCompilerPath,
+    [switch]$SkipInstaller,
     [switch]$CheckOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -19,7 +21,7 @@ try {
     $releaseEntryName = Get-UpdateEntryExecutable -Repository $releaseRepository
     $releaseInteractive = -not $Architecture
     if ($releaseInteractive) {
-        Write-Host '自动更新打包：1=x64，2=x86（32 位），3=ARM64，4=全部架构'
+        Write-Host '更新包与安装包：1=x64，2=x86（32 位），3=ARM64，4=全部架构'
         $releaseChoice = Read-Host '请选择'
         $Architecture = @{ '1'='x64'; '2'='x86'; '3'='arm64'; '4'='all' }[$releaseChoice]
         if (-not $Architecture) { throw '选择无效，请输入 1、2、3 或 4。' }
@@ -98,6 +100,9 @@ try {
         $releaseExistingUpdater = if (-not $RebuildUpdater) {
             Resolve-UpdateUpdater -Repository $releaseRepository -Runtime $releaseRuntime -PublishDirectory $releaseSource -UpdaterPath $UpdaterPath
         } else { $null }
+        if (-not $SkipInstaller) {
+            & (Join-Path $PSScriptRoot 'build-installer.ps1') -Runtime $releaseRuntime -CompilerPath $InstallerCompilerPath -CheckOnly
+        }
         $releaseTasks += [pscustomobject]@{ Runtime=$releaseRuntime; Source=$releaseSource; Updater=$releaseExistingUpdater }
     }
 
@@ -112,7 +117,12 @@ try {
         if ($releaseTask.Source -and ($releaseRunRoot.Equals($releaseTask.Source, [StringComparison]::OrdinalIgnoreCase) -or $releaseRunRoot.StartsWith($releaseTask.Source.TrimEnd('\','/') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase))) {
             throw '打包输出不能位于输入发布目录内部，请修改 -OutputRoot。'
         }
-        foreach ($releaseAsset in @("LOL-GameAssistant-$($releaseTask.Runtime).zip", "update-$($releaseTask.Runtime).json")) {
+        $releaseAssets = @("LOL-GameAssistant-$($releaseTask.Runtime).zip", "update-$($releaseTask.Runtime).json")
+        if (-not $SkipInstaller) {
+            $setupName = "sc-assistant-setup-$releaseVersion-$($releaseTask.Runtime).exe"
+            $releaseAssets += @($setupName, "$setupName.sha256")
+        }
+        foreach ($releaseAsset in $releaseAssets) {
             if (Test-Path -LiteralPath (Join-Path $releaseRunRoot $releaseAsset)) { throw "已有本版本的 $releaseAsset，请升级版本号或通过 -OutputRoot 更换输出目录。" }
         }
     }
@@ -121,7 +131,7 @@ try {
     $releaseTasks | Format-Table Runtime,Source,Updater -AutoSize | Out-Host
     Write-Host "本次输出目录：$releaseRunRoot"
     if ($Architecture -in @('arm64','all')) { Write-Host '默认复用对应架构的现成更新器，无需 C++ 编译器；各架构的 OCR、SkinCore、GameOverlay 依赖仍需兼容性验收。' }
-    if ($CheckOnly) { Write-Host '检查完成，未构建或生成更新包。'; exit 0 }
+    if ($CheckOnly) { Write-Host '发布配置检查完成。'; exit 0 }
 
     $releaseSummary = @("版本：$releaseVersion", "主程序入口：$releaseEntryName", "下载服务器：$($releaseSettings.serverBaseUrl)", '改名前仍运行 LOL-GameGUI.exe 的旧客户端需先下载一次完整包。', '请先上传所有版本/架构目录，验证后最后更新 IIS 根目录 update.json。', '')
     foreach ($releaseTask in $releaseTasks) {
@@ -135,6 +145,15 @@ try {
             $releaseArguments.AllowHttpServer = ($releaseSettings.allowHttp -eq $true)
         }
         & (Join-Path $PSScriptRoot 'publish-update.ps1') @releaseArguments
+        if (-not $SkipInstaller) {
+            $installerArguments = @{
+                Runtime = $releaseTask.Runtime
+                CompilerPath = $InstallerCompilerPath
+                OutputDirectory = $releaseOutput
+                UpdaterPath = $releaseTask.Updater
+            }
+            & (Join-Path $PSScriptRoot 'build-installer.ps1') @installerArguments
+        }
         $releaseSummary += @(
             "[$($releaseTask.Runtime)]",
             "ZIP：$releaseOutput\LOL-GameAssistant-$($releaseTask.Runtime).zip",
@@ -142,6 +161,14 @@ try {
             "IIS：上传到 v$releaseVersion/$($releaseTask.Runtime)/，完整配置在服务器重命名为 update.json。",
             'GitHub：ZIP 与对应 update-win-*.json 直接作为同版本 Release 附件上传。', ''
         )
+        if (-not $SkipInstaller) {
+            $setupName = "sc-assistant-setup-$releaseVersion-$($releaseTask.Runtime).exe"
+            $releaseSummary += @(
+                "安装程序：$releaseOutput\$setupName",
+                "安装程序校验：$releaseOutput\$setupName.sha256",
+                '安装程序及校验文件可作为服务器下载文件和 GitHub Release 附件。应用内更新继续使用对应架构的 ZIP 与更新配置。', ''
+            )
+        }
     }
     [IO.File]::WriteAllText((Join-Path $releaseRunRoot 'update.json'), $releaseIndex, [Text.UTF8Encoding]::new($false))
     $releaseSummary += @("IIS 根索引：$releaseRunRoot\update.json（所有架构上传并验证后最后发布）。", '旧 x64 客户端的 GitHub 兼容：可另外复制 update-win-x64.json 并以 update.json 为附件名上传；不要使用只有版本号的根索引。')

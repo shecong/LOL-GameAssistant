@@ -1047,7 +1047,10 @@ namespace LOL_GameAssistant.BaseViewForm
                 return new GameKdaPlayerSummary(member.Team,
                     result?.DisplayName ?? member.Name, result?.Assessment);
             }).ToArray();
-            return GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine);
+            var messages = GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine);
+            RuntimeDiagnostics.Report("双方 KDA 文案", "已生成",
+                $"蓝方 {players.Count(player => player.Team == "蓝方")} 人，红方 {players.Count(player => player.Team == "红方")} 人，共 {messages.Count} 条；各条字符数 {string.Join(",", messages.Select(message => message.Length))}");
+            return messages;
         }
 
         /// <summary>将逐人 KDA 测评消息交给游戏聊天发送器。</summary>

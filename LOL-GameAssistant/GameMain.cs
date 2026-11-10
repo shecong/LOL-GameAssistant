@@ -103,12 +103,21 @@ namespace LOL_GameAssistant
         public Task<GameShoutSendResult> TestGameChatOpenAsync() =>
             _quickMessageController.TestChatOpenAsync();
 
+        public Task<GameShoutSendResult> TestGameChatWidthAsync()
+        {
+            var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
+            return _quickMessageController.SendBatchToGameAsync(
+                LOL_GameAssistant.Domain.MatchAnalysis.GameChatWidthRuler.BuildMessages(),
+                settings.QuickShoutSendToAll, settings.QuickShoutUseClipboard,
+                settings.QuickMessageSendIntervalSeconds, description: "聊天宽度标尺", fastBatch: true);
+        }
+
         /// <summary>将逐人 KDA 测评消息交给游戏聊天发送器。</summary>
         public Task<GameShoutSendResult> SendGameKdaAnnouncementAsync(
             IReadOnlyList<string> messages, AssistantSettings settings, bool requireForeground = false) =>
             _quickMessageController.SendBatchToGameAsync(messages,
                 settings.QuickShoutSendToAll, settings.QuickShoutUseClipboard,
-                settings.QuickMessageSendIntervalSeconds, requireForeground);
+                settings.QuickMessageSendIntervalSeconds, requireForeground, fastBatch: true);
 
         /// <summary>注册快捷喊话热键，并将热键动作分派到对应的发送流程。</summary>
         public void ConfigureQuickShoutHotkeys(AssistantSettings config) =>

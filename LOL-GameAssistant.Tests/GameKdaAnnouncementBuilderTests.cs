@@ -59,7 +59,8 @@ public sealed class GameKdaAnnouncementBuilderTests
     {
         var assessment = new RecentModePerformanceAssessment(MatchPerformanceTier.Lower, 55, 19, 42, "", 2.19, true, label);
         string message = GameKdaAnnouncementBuilder.BuildSharpPlayer(new("红方", "测试玩家", assessment), 5, new Dictionary<string, string> { [label.ToString()] = expected });
-        Assert.StartsWith("【红5】测试玩家", message);
+        Assert.StartsWith("测试玩家", message);
+        Assert.DoesNotContain("【红5】", message);
         Assert.Contains("19场 KDA2.19", message);
         Assert.Contains(expected, message);
         Assert.DoesNotContain('\n', message);

@@ -24,7 +24,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private static readonly string[] HeroPositions = ["", "TOP", "MIDDLE", "JUNGLE", "BOTTOM", "SUPPORT"];
     private FileSkinPreferences _preferences = new();
     private readonly CancellationTokenSource _lifetime = new();
-    private CancellationTokenSource? _cardsRequest, _heroesRequest, _applyRequest;
+    private CancellationTokenSource? _cardsRequest, _heroesRequest, _applyRequest, _resourceRequest;
     private readonly AntdUI.Input _path = new() { Name = "FileSkinGamePath", Dock = DockStyle.Fill, PlaceholderText = "选择英雄联盟 Game 目录" };
     private readonly AntdUI.Input _heroQuery = new() { Name = "FileSkinHeroSearch", Dock = DockStyle.Top, Height = 44, PlaceholderText = "英雄 · 中文 / 拼音 / 首字母 / 英文" };
     private readonly AntdUI.Select _heroLane = new() { Name = "FileSkinHeroLane", Dock = DockStyle.Top, Height = 38, List = true };
@@ -55,6 +55,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private readonly Dictionary<FileSkinArtTile, CslolSkinEntry> _skinTiles = [];
     private readonly Dictionary<FileSkinArtTile, string> _heroTiles = [];
     private bool _loaded, _busy, _disposing;
+    private readonly AntdUI.Select _resourceSource = new() { Name = "FileSkinResourceSource", Width = 120, Height = 38, List = true };
     private int _page;
 
     public FileSkinBrowserForm(ICslolSkinService files, ISkinEngineCoordinator engines, IApplicationSettingsStore settings,
@@ -75,7 +76,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         _previous.Click += (_, _) => { _page--; RenderCards(); };
         _next.Click += (_, _) => { _page++; RenderCards(); };
         _apply.Click += async (_, _) => await ApplyAsync();
-        _stop.Click += async (_, _) => await ToggleEnabledAsync(false);
+        _stop.Click += async (_, _) => { if (_resourceRequest != null) _resourceRequest.Cancel(); else await ToggleEnabledAsync(false); };
         _enabled.CheckedChanged += async (_, _) => { if (!_syncingEnabled) await ToggleEnabledAsync(_enabled.Checked); };
         _engines.Changed += EngineChanged;
         _save.Click += (_, _) => SavePreset();
@@ -113,6 +114,24 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         reload.Click += async (_, _) => await LoadCatalogAsync();
         var config = _settings.Load(); _path.Text = CslolSkinService.ResolveGameDirectory(config.CslolGamePath) ?? CslolSkinService.ResolveGameDirectory(config.GameClientPath) ?? config.CslolGamePath;
         tools.Controls.Add(_path, 0, 0); tools.Controls.Add(browse, 1, 0); tools.Controls.Add(reload, 2, 0);
+        if (_files is IFileSkinResourceInstaller installer)
+        {
+            header.Height += 44;
+            var resources = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, WrapContents = false };
+            var download = new AntdUI.Button { Name = "FileSkinDownloadResources", Text = "下载资源", Width = 110, Height = 38 };
+            var import = new AntdUI.Button { Name = "FileSkinImportResources", Text = "导入资源包", Width = 130, Height = 38 };
+            download.Click += async (_, _) => await InstallResourcesAsync(installer, null);
+            import.Click += async (_, _) =>
+            {
+                if (_busy) return;
+                using var dialog = new OpenFileDialog { Title = "选择独立换肤资源包", Filter = "换肤资源包 (*.zip)|*.zip" };
+                if (dialog.ShowDialog(FindForm()) == DialogResult.OK) await InstallResourcesAsync(installer, dialog.FileName);
+            };
+            _resourceSource.Items.AddRange(["服务器", "GitHub"]); _resourceSource.SelectedIndex = 0;
+            resources.Controls.Add(_resourceSource); resources.Controls.Add(download); resources.Controls.Add(import);
+            resources.Controls.Add(new AntdUI.Label { Text = "首次使用下载一次，更新助手无需重复下载", Width = 380, Height = 38 });
+            header.Controls.Add(resources);
+        }
         header.Controls.Add(_status); header.Controls.Add(tools); header.Controls.Add(title);
         _body.ColumnStyles.Add(new(SizeType.Absolute, 260)); _body.ColumnStyles.Add(new(SizeType.Percent, 100));
         _body.RowStyles.Add(new(SizeType.Percent, 100));
@@ -156,6 +175,25 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         catch (OperationCanceledException) { }
         catch (Exception error) { if (!_disposing) _status.Text = "资源加载失败：" + error.Message; }
         finally { _busy = false; if (!_disposing) UpdateControls(); }
+    }
+
+    private async Task InstallResourcesAsync(IFileSkinResourceInstaller installer, string? archive)
+    {
+        if (_busy || _disposing) return;
+        _busy = true; UpdateControls();
+        bool installed = false;
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _resourceRequest = request;
+        try
+        {
+            if (archive == null) await installer.DownloadResourcesAsync(request.Token, _resourceSource.SelectedIndex == 1);
+            else await Task.Run(() => installer.ImportResourcesAsync(archive, request.Token));
+            installed = true;
+        }
+        catch (OperationCanceledException) { if (!_disposing) _status.Text = "已取消资源安装。"; }
+        catch (Exception error) { if (!_disposing) _status.Text = "资源安装失败：" + error.Message; }
+        finally { _resourceRequest = null; _busy = false; if (!_disposing) UpdateControls(); }
+        if (installed && !_disposing) await LoadCatalogAsync();
     }
     private void RenderHeroes()
     {

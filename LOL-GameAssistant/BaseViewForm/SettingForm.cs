@@ -694,7 +694,7 @@ namespace LOL_GameAssistant.BaseViewForm
             var overlayNote = CreateAiNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
             var privacyNote = CreateAiNote("数据说明：启用并配置服务后，英雄、阶段、阵容、时间、金币、本人生命/法力/技能等级、匿名记分板装备与战绩、近期公开事件、确认的对线与增幅候选会用于 AI 分析。最近三条建议及其反馈随请求发送，用于避免重复；本局完整记录仅保留在内存。不发送玩家名称、账号标识、认证信息、聊天或截图。未配置模型或密钥时只提供本机状态提醒。");
             var opggNote = CreateAiNote("自动配置默认关闭，仅后台加载推荐。点击“一键选择符文装备”可手动配置；勾选后，在预选、选择或切换英雄时自动应用对应符文和装备。优先复用助手符文页，页面已满时替换当前可编辑页。");
-            var kdaAnnouncementNote = CreateAiNote("选人发送只汇总我方，通过客户端群聊发送一次；对局自动与手动汇总均合并发送，通过补空格将下一名玩家对齐到新的显示行；与选人阶段共用玩家名、评级评分、KDA、胜率的紧凑格式。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者使用已获取最多 500 条摘要中最近 50 场同模式有效对局；KDA 和胜率分别排除缺失字段。默认满 10 场按累计 KDA 分档，样本下限可在下方调整；不足时标“数据不足”。同模式无有效KDA样本时自动使用全模式参考，并排除自定义对局。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
+            var kdaAnnouncementNote = CreateAiNote("选人发送只汇总我方，通过客户端群聊发送一次；对局自动与手动均分别汇总蓝红双方，每条最多两名同队玩家，每名玩家用【】包围并对齐到独立显示行，玩家之间不插入空白行；与选人阶段共用玩家名、评级评分、KDA、胜率的紧凑格式。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者使用已获取最多 500 条摘要中最近 50 场同模式有效对局；KDA 和胜率分别排除缺失字段。默认满 10 场按累计 KDA 分档，样本下限可在下方调整；不足时标“数据不足”。同模式无有效KDA样本时自动使用全模式参考，并排除自定义对局。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
 
             var ratingPolicyPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
             ratingPolicyPanel.Controls.Add(_ratingMinimumGames);
@@ -740,8 +740,26 @@ namespace LOL_GameAssistant.BaseViewForm
                 "支持 {players} 与 {allies}：按选人顺序每人一行，显示玩家名、评级评分、KDA 和胜率；长昵称缩写，全模式参考和样本不足另行标注。");
             AddSegmentRow(performance, 4, "对局 KDA 发送：", _gameKdaAnnouncementEnabled,
                 "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。也可在“一键喊话”设置中配置手动 KDA 快捷键（默认 F9），关闭自动发送后仍能手动发送。");
-            AddSegmentRow(performance, 5, "对局发送排版：", CreateAiNote("玩家名：评级评分｜KDA｜胜率。自动与手动汇总均合并发送，用空格补齐首行和续行，使下一名玩家从新显示行开始；保留蓝、红方标记。"));
+            AddSegmentRow(performance, 5, "对局发送排版：", CreateAiNote("【蓝方/红方 玩家名：评级评分｜KDA｜胜率】。自动与手动均分别汇总蓝红双方，每条最多两名同队玩家，每名玩家对齐到独立显示行，玩家之间不插入空白行。"));
             AddSegmentRow(performance, 6, "KDA 说明：", kdaAnnouncementNote);
+            var widthTest = new AntdUI.Button { Name = "TestKdaChatWidth", Text = "测试每行字数", AutoSize = true };
+            var widthTestStatus = CreateAiNote("点击后发送三条编号标尺：全角数字、半角数字、带全角空格数字。每组两位数字是编号；请截图保留首行与续行的换行位置，测试时保持聊天框大小及字体不变。");
+            widthTest.Click += async (_, _) =>
+            {
+                widthTest.Enabled = false;
+                try
+                {
+                    if (Program.GameMain == null) return;
+                    var result = await Program.GameMain.TestGameChatWidthAsync();
+                    widthTestStatus.Text = result.Succeeded
+                        ? "三条标尺已注入游戏聊天。请把完整换行截图发来，用于校准首行、续行和空格宽度。"
+                        : result.Message;
+                }
+                catch (Exception error) { widthTestStatus.Text = "字数测试失败：" + error.Message; }
+                finally { if (!widthTest.IsDisposed) widthTest.Enabled = true; }
+            };
+            AddSegmentRow(performance, 7, "行宽校准：", widthTest);
+            AddSegmentRow(performance, 8, "测试说明：", widthTestStatus);
             performance.ResumeLayout(true);
 
             var connection = CreateAiSettingsCard(content, "aiConnectionCard", "AI 服务连接");

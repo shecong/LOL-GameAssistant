@@ -1,0 +1,9 @@
+﻿sc Assistant Copyright Notice
+
+Copyright © 2026 shecong and project contributors.
+
+This project is licensed under the MIT License. See LICENSE.txt in the installation directory for the complete terms.
+
+League of Legends and related trademarks belong to their respective owners. sc Assistant is an independent third-party project. Bundled third-party components remain subject to their respective licenses.
+
+Project home: https://github.com/shecong/LOL-GameAssistant

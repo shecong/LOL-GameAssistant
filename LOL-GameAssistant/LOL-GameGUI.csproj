@@ -19,6 +19,7 @@
     <UpdaterRuntime Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</UpdaterRuntime>
     <ApplicationIcon>Resources\Brand\sc-icon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <EnableCompressionInSingleFile Condition="'$(PublishSingleFile)' == 'true' and '$(SelfContained)' == 'true'">true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -47,12 +48,12 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
-    <Content Include="Tools\Cslol\**\*" Condition="Exists('Tools\Cslol\mod-tools.exe')">
+    <Content Include="Tools\Cslol\**\*" Exclude="Tools\Cslol\hashes.game.txt" Condition="Exists('Tools\Cslol\mod-tools.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
-    <Content Include="Data\Skins\**\*">
+    <Content Include="Data\Skins\**\*" Exclude="Data\Skins\skins.plskin;Data\Skins\skinlib\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>

@@ -54,6 +54,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly AntdUI.Button _clientSend = new() { Text = "发送到客户端群聊", AutoSize = true };
     private readonly AntdUI.Button _gameSend = new() { Text = "一键发送到游戏", AutoSize = true };
     private readonly AntdUI.Button _testGameEnter = new() { Text = "测试游戏回车", AutoSize = true };
+    private readonly AntdUI.Button _testGameWidth = new() { Name = "TestGameChatWidth", Text = "测试每行字数", AutoSize = true };
     private Dictionary<string, string> _kdaCustomRemarks = new();
     private DateTime _lastSentAtUtc = DateTime.MinValue;
 
@@ -177,6 +178,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _clientSend.Click += async (_, _) => await SendClientAsync();
         _gameSend.Click += async (_, _) => await SendGameAsync();
         _testGameEnter.Click += async (_, _) => await TestGameEnterAsync();
+        _testGameWidth.Click += async (_, _) => await TestGameWidthAsync();
         _builtInHotkey.KeyDown += (_, e) => CaptureHotkey(_builtInHotkey, e);
         _customHotkey.KeyDown += (_, e) => CaptureHotkey(_customHotkey, e);
         _batchHotkey.KeyDown += (_, e) => CaptureHotkey(_batchHotkey, e);
@@ -419,12 +421,19 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     {
         var bar = new Panel { Dock = DockStyle.Bottom, Height = 48, Padding = new Padding(12, 4, 12, 4) };
         var save = new AntdUI.Label { Text = "开关自动保存", Dock = DockStyle.Right, Width = 130 };
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
         actions.Controls.Add(_clientSend);
         actions.Controls.Add(_gameSend);
         actions.Controls.Add(_testGameEnter);
+        actions.Controls.Add(_testGameWidth);
         bar.Controls.Add(actions);
         bar.Controls.Add(save);
+        actions.SizeChanged += (_, _) =>
+        {
+            int required = actions.Controls.Cast<Control>().Sum(control => control.Width + control.Margin.Horizontal);
+            int height = required > actions.ClientSize.Width ? 92 : 48;
+            if (bar.Height != height) bar.Height = height;
+        };
         return bar;
     }
 
@@ -603,6 +612,21 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         try { _status.Text = (await _testGameChatOpen()).Message; }
         catch (Exception ex) { _status.Text = $"测试游戏回车失败：{ex.Message}"; }
         finally { _testGameEnter.Enabled = true; }
+    }
+
+    private async Task TestGameWidthAsync()
+    {
+        _testGameWidth.Enabled = false;
+        try
+        {
+            var result = await _sendGameBatch(LOL_GameAssistant.Domain.MatchAnalysis.GameChatWidthRuler.BuildMessages(),
+                _sendToAll.Checked, _useClipboard.Checked, false, (int)_minimumInterval.Value);
+            _status.Text = result.Succeeded
+                ? "已注入三条标尺：全角、半角、带空格。请截下游戏中的完整换行，保持聊天框大小和字体不变。"
+                : result.Message;
+        }
+        catch (Exception error) { _status.Text = "字数测试失败：" + error.Message; }
+        finally { if (!IsDisposed) _testGameWidth.Enabled = true; }
     }
 
     /// <summary>将当前主题的文字颜色应用到相关标签。</summary>

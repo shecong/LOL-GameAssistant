@@ -42,6 +42,9 @@ public sealed class QuickShoutLayoutTests
         Assert.True(cooldown.Height >= 32);
         Assert.True(cooldown.Parent!.ClientRectangle.Contains(cooldown.Bounds), $"Cooldown {cooldown.Bounds}, parent {cooldown.Parent.ClientRectangle}");
         var phrases = Field<AntdUI.Table>(editor, "_phrases");
+        var widthTest = Field<AntdUI.Button>(editor, "_testGameWidth");
+        Assert.True(widthTest.Visible);
+        Assert.True(widthTest.Parent!.ClientRectangle.Contains(widthTest.Bounds), $"Width test {widthTest.Bounds}, parent {widthTest.Parent.ClientRectangle}");
         Assert.True(phrases.Height >= 180);
         if (width == 1440 || width == 820)
         {

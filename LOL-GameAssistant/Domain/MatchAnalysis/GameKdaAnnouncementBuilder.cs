@@ -6,17 +6,14 @@ public sealed record GameKdaPlayerSummary(
     string DisplayName,
     RecentModePerformanceAssessment? Assessment);
 
-/// <summary>游戏内共用选人的紧凑格式，合并提交，用空格将玩家对齐到下一显示行。</summary>
+/// <summary>游戏内共用选人的紧凑字段，每三名同队玩家合并提交，并对齐各自的显示行。</summary>
 public static class GameKdaAnnouncementBuilder
 {
-    // 首行需为游戏聊天的频道和发言者前缀留空间；续行使用完整正文宽度。
-    internal const int FirstLineWidth = 30, ContinuationLineWidth = 60;
-    private const int MaximumMessageLength = 480;
     /// <summary>组织单名玩家的测评文案。</summary>
     public static string BuildSharpPlayer(GameKdaPlayerSummary player, int position, IReadOnlyDictionary<string, string>? customRemarks = null)
     {
         string name = ShortenToDisplayWidth(NormalizeName(player.DisplayName), 20);
-        string prefix = $"【{(player.Team == "蓝方" ? "蓝" : "红")}{position}】{name}";
+        string prefix = name;
         var assessment = player.Assessment;
         if (assessment == null) return $"{prefix} 战绩暂未获取，没数据就不瞎下结论。";
         string scope = assessment.UsesAllModes ? "各模式" : "同模式";
@@ -38,52 +35,51 @@ public static class GameKdaAnnouncementBuilder
         return $"{prefix} {stats}，{RecentPerformanceLabelFormatter.GetText(assessment)}：{remark}";
     }
 
-    /// <summary>整批合并发送；旧排版参数不再拆分玩家，仅在超过输入长度时按玩家边界分批。</summary>
+    /// <summary>每条最多两名同队玩家，显示阵营前缀，玩家各占一行，不插入额外空白行。</summary>
     public static IReadOnlyList<string> Build(IReadOnlyList<GameKdaPlayerSummary> players,
         bool onePlayerPerLine = false)
     {
-        var rows = players.GroupBy(player => player.Team)
-            .SelectMany(team => team.Select(player => FormatPlayer(team.Key, player)));
-        var messages = new List<string>();
+        return players.GroupBy(player => player.Team)
+            .OrderBy(team => team.Key == "蓝方" ? 0 : team.Key == "红方" ? 1 : 2)
+            .SelectMany(team => team.Chunk(2).Select(batch => AlignDisplayRows(
+                batch.Select(FormatPlayer))))
+            .ToArray();
+    }
+
+    private static string AlignDisplayRows(IEnumerable<string> rows)
+    {
+        // 首行预留频道和发送者前缀；游戏聊天的实际换行会提交，使用等宽空格对齐续行。
+        // 当前游戏标尺：首行约15个全角字符，续行约35个；全角按2个显示单位计算。
+        const int firstLineWidth = 30, continuationLineWidth = 70;
+        int column = 0, lineWidth = firstLineWidth;
         var body = new System.Text.StringBuilder();
-        int column = 0, lineWidth = FirstLineWidth;
         foreach (string row in rows)
         {
-            string spacing = WrapSpacing(body.Length > 0, row);
-            if (body.Length + spacing.Length + row.Length > MaximumMessageLength && body.Length > 0)
+            if (column > 0 || body.Length == 0 && DisplayWidth(row) > firstLineWidth)
             {
-                messages.Add(body.ToString()); body.Clear();
-                column = 0; lineWidth = FirstLineWidth;
-                spacing = WrapSpacing(false, row);
+                int remaining = lineWidth - column;
+                body.Append('\u3000', remaining / 2);
+                if (remaining % 2 != 0) body.Append(' ');
+                column = 0;
+                lineWidth = continuationLineWidth;
             }
-            body.Append(spacing).Append(row);
-            if (spacing.Length > 0) { column = 0; lineWidth = ContinuationLineWidth; }
+            body.Append(row);
             foreach (var rune in row.EnumerateRunes())
             {
                 int width = rune.Value <= 0x7f ? 1 : 2;
-                if (column + width > lineWidth) { column = 0; lineWidth = ContinuationLineWidth; }
+                if (column + width > lineWidth) { column = 0; lineWidth = continuationLineWidth; }
                 column += width;
-                if (column == lineWidth) { column = 0; lineWidth = ContinuationLineWidth; }
+                if (column == lineWidth) { column = 0; lineWidth = continuationLineWidth; }
             }
         }
-        if (body.Length > 0) messages.Add(body.ToString());
-        return messages;
-
-        string WrapSpacing(bool hasPrevious, string row)
-        {
-            int remaining = hasPrevious && column > 0 ? lineWidth - column
-                : !hasPrevious && DisplayWidth(row) > lineWidth ? lineWidth : 0;
-            // 全角空格与汉字等宽，降低补齐时占用的输入字符数；奇数余量再补一个普通空格。
-            return new string('\u3000', remaining / 2) + (remaining % 2 == 0 ? "" : " ");
-        }
+        return body.ToString();
     }
 
     /// <summary>将玩家评估信息格式化为显示文本。</summary>
-    private static string FormatPlayer(string team, GameKdaPlayerSummary player)
+    private static string FormatPlayer(GameKdaPlayerSummary player)
     {
-        string teamLabel = team == "蓝方" ? "蓝" : team == "红方" ? "红" : team;
         string line = ChampSelectKdaAnnouncementBuilder.FormatPlayer(new(1, player.Assessment, NormalizeName(player.DisplayName)));
-        return $"{NormalizeName(teamLabel)} {line}";
+        return $"【{NormalizeName(player.Team)} {line}】";
     }
 
     /// <summary>规范化玩家名称，供测评文案使用。</summary>

@@ -1,0 +1,9 @@
+﻿sc助手 版权所有声明
+
+Copyright © 2026 shecong 及项目贡献者。
+
+本项目采用 MIT 许可证。完整许可条款随程序提供，请参阅安装目录中的 LICENSE.txt。
+
+英雄联盟、League of Legends 及相关商标归各自权利人所有。sc助手是独立的第三方项目。随程序分发的第三方组件各自适用其原有许可证。
+
+项目地址：https://github.com/shecong/LOL-GameAssistant

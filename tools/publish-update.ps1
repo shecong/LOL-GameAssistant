@@ -83,6 +83,11 @@ foreach ($updateItem in Get-ChildItem -LiteralPath $updateSource -Recurse -Force
 foreach ($updateFile in Get-ChildItem -LiteralPath $updateSource -Recurse -File) {
     if ($updateFile.Extension -eq '.pdb' -or $updateFile.Name -eq 'update-files.txt') { continue }
     $updateRelative = [IO.Path]::GetRelativePath($updateSource, $updateFile.FullName)
+    $updateNormalizedRelative = $updateRelative.Replace('\', '/')
+    # 大型文件换肤资源独立下载；复用旧发布目录时也不能重新混入主程序更新包。
+    if ($updateNormalizedRelative -in @('Data/Skins/skins.plskin', 'Tools/Cslol/hashes.game.txt') -or
+        $updateNormalizedRelative.StartsWith('Data/Skins/skinlib/', [StringComparison]::OrdinalIgnoreCase) -or
+        $updateFile.Extension -eq '.bak') { continue }
     $updateFirst = ($updateRelative -split '[\\/]')[0]
     if ($updateFirst -in @('.update', 'logs', 'cache', 'userdata') -or $updateFile.Name -eq 'settings.json') {
         throw "User data must not be included in publish folder: $updateRelative"
@@ -93,7 +98,13 @@ foreach ($updateFile in Get-ChildItem -LiteralPath $updateSource -Recurse -File)
 }
 Copy-Item -LiteralPath $updateUpdater -Destination (Join-Path $updateStage 'Updater.exe') -Force
 if ($ServerBaseUrl) {
-    $updateSources = @{ serverBaseUrl = $ServerBaseUrl.TrimEnd('/') + '/'; allowHttp = [bool]$AllowHttpServer } | ConvertTo-Json
+    $updateSourceConfigPath = Join-Path $updateStage 'update-source.json'
+    $updateSourcesConfig = if (Test-Path -LiteralPath $updateSourceConfigPath) {
+        Get-Content -LiteralPath $updateSourceConfigPath -Raw | ConvertFrom-Json
+    } else { [pscustomobject]@{} }
+    $updateSourcesConfig | Add-Member -NotePropertyName serverBaseUrl -NotePropertyValue ($ServerBaseUrl.TrimEnd('/') + '/') -Force
+    $updateSourcesConfig | Add-Member -NotePropertyName allowHttp -NotePropertyValue ([bool]$AllowHttpServer) -Force
+    $updateSources = $updateSourcesConfig | ConvertTo-Json -Depth 8
     [IO.File]::WriteAllText((Join-Path $updateStage 'update-source.json'), $updateSources, [Text.UTF8Encoding]::new($false))
 }
 $updateLines = @(Get-ChildItem -LiteralPath $updateStage -Recurse -File | Sort-Object FullName | ForEach-Object {

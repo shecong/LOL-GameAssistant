@@ -5,8 +5,10 @@
 ```powershell
 # 检查构建环境和现成更新器，不生成发布包
 .\publish-update.bat x64 -Mode Build -CheckOnly
-# 自动构建主程序并生成更新包（默认 E:\release-assets\版本号）
+# 自动构建主程序并生成更新包和安装包（默认 E:\release-assets\版本号）
 .\publish-update.bat x64 -Mode Build
+# 生成三种架构的 ZIP、更新清单及安装 EXE
+.\publish-update.bat all -Mode Build
 # 打包 VS 已发布到干净目录的主程序
 .\publish-update.bat x64 -PublishDirectory 'E:\releases\版本号\win-x64\publish'
 # 更新器源码或程序入口名变更后，重新构建对应架构的更新器
@@ -14,6 +16,7 @@
 ```
 
 `all` 会检查全部架构，任一架构未就绪会在生成更新包前停止。
+默认同时生成安装包。编译器可通过 `-InstallerCompilerPath` 指定。只生成 ZIP 和更新清单时使用 `-SkipInstaller`。
 ARM64 重建需安装 MSVC ARM64 编译工具和对应 Windows SDK 库；不能复用 x64/x86 的更新器。构建脚本会遍历已安装的 VS/Build Tools 及 MSVC 版本，选择具备目标架构的工具链，不再只检查最新 IDE。
 双击 BAT 使用默认输出目录时，若同版本目录已经存在，会自动生成带时间和随机后缀的新目录，保留旧产物。命令行显式指定输出根目录时仍禁止覆盖。
 `-RebuildUpdater -CheckOnly` 只检查编译环境；实际兼容性检查在构建后打包时执行。
@@ -32,5 +35,7 @@ ARM64 重建需安装 MSVC ARM64 编译工具和对应 Windows SDK 库；不能�
 IIS：将 ZIP 和对应的 `update-win-*.json` 上传到 `v版本号/win-架构/`，在服务器把完整配置命名为 `update.json`。所有架构验证后，最后上传输出根目录的 `update.json` 版本索引。
 
 GitHub：ZIP 和 `update-win-*.json` 作为对应版本 Release 附件上传。旧 x64 清单文件名兼容可另外复制完整的 `update-win-x64.json` 为 `update.json`；这仅兼容清单名称，不能解决 EXE 改名迁移。不要上传根目录的版本索引来代替完整清单。
+
+`sc-assistant-setup-<版本>-win-<架构>.exe` 与对应的 `.sha256` 文件可以放到 IIS 同架构目录，也可以作为 GitHub Release 附件。用户首次安装使用 EXE，已安装的程序通过服务器或 GitHub 下载同架构的更新 ZIP。
 
 脚本回归检查：`pwsh -NoProfile -File tools/tests/UpdatePublishing.Tests.ps1`。

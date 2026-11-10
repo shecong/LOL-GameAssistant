@@ -67,13 +67,11 @@ public static class AppCompositionRoot
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"),
             loggingEnabled: () => RuntimeDiagnostics.Enabled,
             memoryAllowed: () => new LegacyApplicationSettingsStore().Load().SkinEngineMode == LOL_GameAssistant.Domain.Skins.SkinEngineMode.Memory && CslolSkins?.IsRunning != true);
-    public static ICslolSkinService CslolSkins { get; } = new LOL_GameAssistant.Infrastructure.Skins.CslolSkinService(
-        Path.Combine(AppContext.BaseDirectory, "Tools", "Cslol"),
-        Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "skins.plskin"),
-        Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "manifest.json"),
+    public static ICslolSkinService CslolSkins { get; } = new LOL_GameAssistant.Infrastructure.Skins.OptionalCslolSkinService(
+        AppContext.BaseDirectory,
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "FileSkinResources"),
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "Cslol"),
-        localLibraryDir: Directory.Exists(Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "skinlib"))
-            ? Path.Combine(AppContext.BaseDirectory, "Data", "Skins", "skinlib") : null,
+        Path.Combine(AppContext.BaseDirectory, "update-source.json"),
         memoryEnabled: () => SkinCoreService.Enabled || new LegacyApplicationSettingsStore().Load().SkinEngineMode != LOL_GameAssistant.Domain.Skins.SkinEngineMode.File);
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
     public static IResourceSkinLoader ResourceSkinLoader { get; } = new LOL_GameAssistant.Infrastructure.Skins.ResourceSkinLoader(

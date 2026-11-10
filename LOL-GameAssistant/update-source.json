@@ -1,4 +1,11 @@
 {
   "serverBaseUrl": "http://159.75.148.241/",
-  "allowHttp": true
+  "allowHttp": true,
+  "fileSkinResources": {
+    "sha256": "ce23c97e0d5c41ac840473fc4f85e703ad941c89324c8b7c03837a0f9e1c37fd",
+    "urls": [
+      "http://159.75.148.241/resources/file-skin-resources-26.1109/file-skin-resources.zip",
+      "https://github.com/shecong/LOL-GameAssistant/releases/download/file-skin-resources-26.1109/file-skin-resources.zip"
+    ]
+  }
 }

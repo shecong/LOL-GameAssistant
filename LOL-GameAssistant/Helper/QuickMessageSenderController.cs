@@ -76,8 +76,8 @@ public sealed class QuickMessageSenderController : IDisposable
         string description = "双方 KDA 汇总", int maximumMessages = 10, bool fastBatch = false)
     {
         if (messages.Count == 0 || messages.Count > maximumMessages ||
-            messages.Any(message => string.IsNullOrWhiteSpace(message) || message.Length > 500))
-            return new(false, $"{description}内容为空、过长或消息数量过多。");
+            messages.Any(string.IsNullOrWhiteSpace))
+            return new(false, $"{description}内容为空或消息数量过多。");
         // 热键和界面按钮可能同时触发；只允许一个发送流程注入按键，避免聊天序列交错。
         if (Interlocked.Exchange(ref _sending, 1) != 0)
             return new(false, "另一条游戏内喊话正在发送。");
@@ -101,12 +101,14 @@ public sealed class QuickMessageSenderController : IDisposable
                     return new(false, $"游戏失去前台焦点；{description}已注入 {index}/{messages.Count} 条。", index);
                 string text = sendToAll ? "/all " + messages[index] : messages[index];
                 GameShoutSendResult result = await SendChatLineAsync(text, useClipboard,
-                    fastBatch ? 50 : 100);
+                    fastBatch ? 50 : 100, fastInput: fastBatch);
                 if (!result.Succeeded) return result with { SentCount = index,
                     Message = $"{result.Message} {description}已注入 {index}/{messages.Count} 条。" };
                 _lastSentAtUtc = DateTime.UtcNow;
-                if (!fastBatch && index < messages.Count - 1)
-                    await Task.Delay(TimeSpan.FromSeconds(interval));
+                RuntimeDiagnostics.Report(description + "进度", "按键已注入",
+                    $"{index + 1}/{messages.Count} 条；{messages[index].Length} 个字符；游戏端没有送达回执");
+                if (index < messages.Count - 1)
+                    await Task.Delay(fastBatch ? 250 : interval * 1000);
             }
             RuntimeDiagnostics.Report(description, "按键已注入",
                 $"已通过 WindowsInput 依次注入 {messages.Count} 条；游戏端没有送达回执");
@@ -197,10 +199,14 @@ public sealed class QuickMessageSenderController : IDisposable
 
     /// <summary>打开聊天输入框，输入一行文本并提交。</summary>
     private static async Task<GameShoutSendResult> SendChatLineAsync(string text, bool useClipboard,
-        int stepDelayMilliseconds = 100)
+        int stepDelayMilliseconds = 100, bool fastInput = false)
     {
         ClipboardSnapshot originalClipboard = default;
         bool clipboardChanged = false;
+        // 长文案仍只提交一次，但给游戏足够的时间处理打开、输入和粘贴事件。
+        bool longMessage = !fastInput && text.Length > 80;
+        int inputDelay = longMessage ? Math.Max(250, stepDelayMilliseconds) : stepDelayMilliseconds;
+        int submitDelay = longMessage ? Math.Max(400, stepDelayMilliseconds) : stepDelayMilliseconds;
         try
         {
             if (useClipboard)
@@ -209,22 +215,28 @@ public sealed class QuickMessageSenderController : IDisposable
                 Clipboard.SetText(text);
                 clipboardChanged = true;
                 await Simulate.Events()
-                    .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
-                    .ClickChord(KeyCode.Control, KeyCode.A).Click(KeyCode.Backspace).Wait(stepDelayMilliseconds)
-                    .ClickChord(KeyCode.Control, KeyCode.V).Wait(stepDelayMilliseconds)
+                    .Click(KeyCode.Enter).Wait(inputDelay)
+                    .ClickChord(KeyCode.Control, KeyCode.A).Click(KeyCode.Backspace).Wait(inputDelay)
+                    .ClickChord(KeyCode.Control, KeyCode.V).Wait(submitDelay)
                     .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
                     .Invoke();
             }
             else
             {
-                // 与 ZuAnBot 的游戏内发送序列保持一致。
-                await Simulate.Events()
-                    .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
-                    .ClickChord(KeyCode.Control, KeyCode.A).Click(KeyCode.Backspace).Wait(stepDelayMilliseconds)
-                    .Click(text).Wait(stepDelayMilliseconds)
-                    .Click(KeyCode.Enter).Wait(stepDelayMilliseconds)
-                    .Invoke();
+                var input = Simulate.Events()
+                    .Click(KeyCode.Enter).Wait(inputDelay)
+                    .ClickChord(KeyCode.Control, KeyCode.A).Click(KeyCode.Backspace).Wait(inputDelay);
+                if (longMessage)
+                {
+                    // 在同一个聊天输入框内逐个文本元素输入；中途不按回车，也不拆成多条消息。
+                    TextElementEnumerator elements = StringInfo.GetTextElementEnumerator(text);
+                    while (elements.MoveNext()) input.Click(elements.GetTextElement()).Wait(10);
+                }
+                else input.Click(text);
+                await input.Wait(submitDelay).Click(KeyCode.Enter).Wait(inputDelay).Invoke();
             }
+            RuntimeDiagnostics.Report("游戏聊天输入", "按键已注入",
+                $"正文 {text.Length} 个 UTF-16 字符；方式 {(useClipboard ? "粘贴" : longMessage ? "缓速输入" : "直接输入")}；整条提交一次；游戏端没有送达回执");
             return new(true, "聊天按键序列已执行。");
         }
         catch (Exception ex)
