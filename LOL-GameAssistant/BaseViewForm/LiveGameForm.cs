@@ -1042,7 +1042,14 @@ namespace LOL_GameAssistant.BaseViewForm
             if (result?.Assessment is { } assessment && custom.TryGetValue(assessment.Label.ToString(), out string? remark)
                 && !string.IsNullOrWhiteSpace(remark))
                 return GameKdaAnnouncementBuilder.BuildSharpPlayer(player, position + 1, custom);
-            return GameKdaAnnouncementBuilder.Build([player]).Single();
+            return GameKdaAnnouncementBuilder.Build([player], lineWidths: LoadChatLineWidths()).Single();
+        }
+
+        /// <summary>读取后端保存的聊天行宽校准。</summary>
+        private static GameChatLineWidths LoadChatLineWidths()
+        {
+            var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
+            return new(settings.GameChatFirstLineWidth, settings.GameChatContinuationLineWidth);
         }
 
         /// <summary>根据本局玩家集合组织游戏聊天测评消息。</summary>
@@ -1057,7 +1064,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     result?.DisplayName ?? member.Name, result?.Assessment);
             }).ToArray();
             var messages = BuildPremadeAnnouncementMessages(AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaPremadeAnnouncementEnabled)
-                .Concat(GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine)).ToArray();
+                .Concat(GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine, LoadChatLineWidths())).ToArray();
             RuntimeDiagnostics.Report("双方 KDA 文案", "已生成",
                 $"蓝方 {players.Count(player => player.Team == "蓝方")} 人，红方 {players.Count(player => player.Team == "红方")} 人，共 {messages.Length} 条；各条字符数 {string.Join(",", messages.Select(message => message.Length))}");
             return messages;

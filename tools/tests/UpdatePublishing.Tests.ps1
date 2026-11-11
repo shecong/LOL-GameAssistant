@@ -68,7 +68,26 @@ try {
     }
     Assert-UpdateSkinDependencies -Repository $repository -PublishDirectory (Join-Path $repository 'LOL-GameAssistant')
     Write-Host 'PASS: complete skin dependencies accepted; every missing or empty dependency rejected.'
+
+    # The public preflight must reject incomplete VS publish folders before
+    # writing output, not defer the failure until actual ZIP creation.
+    $incompleteSource = Join-Path $testDirectory 'incomplete-publish'
+    New-Item -ItemType Directory -Path $incompleteSource | Out-Null
+    [IO.File]::WriteAllText((Join-Path $incompleteSource $entry), 'fixture')
+    $preflightOutput = Join-Path $testDirectory 'preflight-output'
+    $shellPath = (Get-Process -Id $PID).Path
+    $preflightResult = & $shellPath -NoProfile -File (Join-Path $repository 'tools/publish-update-menu.ps1') `
+        x64 -CheckOnly -SkipInstaller -PublishDirectory $incompleteSource -OutputRoot $preflightOutput 2>&1
+    if ($LASTEXITCODE -eq 0 -or ($preflightResult | Out-String) -notlike '*换肤依赖*') {
+        throw 'CheckOnly did not reject the incomplete publish folder.'
+    }
+    if (Test-Path -LiteralPath $preflightOutput) { throw 'CheckOnly created output for an invalid package.' }
+    Write-Host 'PASS: public CheckOnly rejects incomplete publish folders without creating output.'
 } finally {
+    if ($incompleteSource -and (Test-Path -LiteralPath $incompleteSource)) {
+        Remove-Item -LiteralPath (Join-Path $incompleteSource $entry)
+        Remove-Item -LiteralPath $incompleteSource
+    }
     if ($dependencyRoot -and (Test-Path -LiteralPath $dependencyRoot)) {
         $resolvedDependencies = [IO.Path]::GetFullPath($dependencyRoot)
         $expectedDependencies = [IO.Path]::GetFullPath((Join-Path $testDirectory 'dependencies'))

@@ -72,6 +72,7 @@ try {
                 throw "找不到 $releaseRuntime 主程序。先用 VS 发布到 $PublishRoot\$releaseVersion\$releaseRuntime\publish，或通过 -PublishDirectory 指定实际目录；自动构建请使用 -Mode Build。"
             }
             $releaseSource = [IO.Path]::GetFullPath($releaseSource)
+            Assert-UpdateSkinDependencies -Repository $releaseRepository -PublishDirectory $releaseSource
             foreach ($releaseUserPath in @('.update','logs','cache','userdata','settings.json')) {
                 if (Test-Path -LiteralPath (Join-Path $releaseSource $releaseUserPath)) {
                     throw "发布目录包含运行数据 $releaseUserPath，不能直接打包。请用 VS 发布到干净目录，或改用 -Mode Build 自动构建；不要删除正在使用的更新事务或个人配置。"
@@ -96,6 +97,10 @@ try {
                     throw "$releaseEntry 实际架构与 $releaseRuntime 不同，不能共用其他架构的发布包。"
                 }
             } finally { $releaseReader.Dispose(); $releaseStream.Dispose() }
+        }
+        else {
+            # Build 模式的原生依赖由仓库复制；预检也必须发现缺失文件。
+            Assert-UpdateSkinDependencies -Repository $releaseRepository -PublishDirectory (Join-Path $releaseRepository 'LOL-GameAssistant')
         }
         $releaseExistingUpdater = if (-not $RebuildUpdater) {
             Resolve-UpdateUpdater -Repository $releaseRepository -Runtime $releaseRuntime -PublishDirectory $releaseSource -UpdaterPath $UpdaterPath
@@ -171,6 +176,10 @@ try {
         }
     }
     [IO.File]::WriteAllText((Join-Path $releaseRunRoot 'update.json'), $releaseIndex, [Text.UTF8Encoding]::new($false))
+    $releaseServerOutput = Export-UpdateServerLayout -AssetDirectory $releaseRunRoot `
+        -Runtime @($releaseTasks | ForEach-Object { $_.Runtime }) -SkipInstaller:$SkipInstaller
+    $releaseSummary += @("服务器目录：$releaseServerOutput（复用上述成品，无需重新打包）。",
+        '复制服务器目录内的 v版本 文件夹到网站根目录，最后覆盖根目录 update.json。GitHub 继续使用本版本目录根部的 ZIP、安装 EXE 和 update-win-*.json。')
     $releaseSummary += @("IIS 根索引：$releaseRunRoot\update.json（所有架构上传并验证后最后发布）。", '旧 x64 客户端的 GitHub 兼容：可另外复制 update-win-x64.json 并以 update.json 为附件名上传；不要使用只有版本号的根索引。')
     $releaseSummaryPath = Join-Path $releaseRunRoot '发布结果.txt'
     [IO.File]::WriteAllLines($releaseSummaryPath, [string[]]$releaseSummary, [Text.UTF8Encoding]::new($false))

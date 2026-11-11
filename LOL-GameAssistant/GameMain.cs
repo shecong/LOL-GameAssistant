@@ -103,13 +103,15 @@ namespace LOL_GameAssistant
         public Task<GameShoutSendResult> TestGameChatOpenAsync() =>
             _quickMessageController.TestChatOpenAsync();
 
+        private readonly Infrastructure.GameData.GameChatWidthCalibrator _chatWidthCalibrator = new(AppCompositionRoot.ApplicationSettingsStore);
+
         public Task<GameShoutSendResult> TestGameChatWidthAsync()
         {
             var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
-            return _quickMessageController.SendBatchToGameAsync(
-                LOL_GameAssistant.Domain.MatchAnalysis.GameChatWidthRuler.BuildMessages(),
+            return _chatWidthCalibrator.CalibrateAsync((probe, recognize) => _quickMessageController.SendBatchToGameAsync(
+                [probe],
                 settings.QuickShoutSendToAll, settings.QuickShoutUseClipboard,
-                settings.QuickMessageSendIntervalSeconds, description: "聊天宽度标尺", fastBatch: true);
+                settings.QuickMessageSendIntervalSeconds, description: "聊天宽度标尺", fastBatch: true, afterSend: recognize));
         }
 
         /// <summary>将逐人 KDA 测评消息交给游戏聊天发送器。</summary>

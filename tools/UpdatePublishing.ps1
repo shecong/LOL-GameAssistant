@@ -10,6 +10,68 @@ function Get-UpdateEntryExecutable {
     return $entry
 }
 
+function Export-UpdateServerLayout {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$AssetDirectory,
+        [string]$OutputDirectory,
+        [ValidateSet('win-x64', 'win-x86', 'win-arm64')][string[]]$Runtime = @('win-x64', 'win-x86', 'win-arm64'),
+        [switch]$SkipInstaller
+    )
+    $assets = [IO.Path]::GetFullPath($AssetDirectory)
+    if (-not $OutputDirectory) { $OutputDirectory = Join-Path $assets 'server' }
+    $destination = [IO.Path]::GetFullPath($OutputDirectory)
+    if ($assets.TrimEnd('\','/').Equals($destination.TrimEnd('\','/'), [StringComparison]::OrdinalIgnoreCase)) {
+        throw '服务器输出目录不能与 GitHub 成品目录相同。'
+    }
+    $indexPath = Join-Path $assets 'update.json'
+    $index = Get-Content -LiteralPath $indexPath -Raw | ConvertFrom-Json
+    $version = [string]$index.version
+    if ($index.schemaVersion -ne 1 -or $version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+        throw 'GitHub 成品目录缺少有效的根更新索引。'
+    }
+    $copies = [Collections.Generic.List[object]]::new()
+    # 所有架构先验证，再复制；只整理成品，不解压或重新压缩 ZIP。
+    foreach ($target in ($Runtime | Select-Object -Unique)) {
+        $manifestPath = Join-Path $assets "update-$target.json"
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $zipName = "LOL-GameAssistant-$target.zip"
+        $zipPath = Join-Path $assets $zipName
+        if ($manifest.schemaVersion -ne 1 -or $manifest.version -ne $version -or
+            $manifest.runtime -ne $target -or $manifest.package -cne $zipName -or
+            $manifest.entryExecutable -cne 'sc助手.exe' -or $manifest.sha256 -notmatch '^[a-fA-F0-9]{64}$') {
+            throw "更新清单与版本或架构不匹配：$manifestPath"
+        }
+        if ((Get-Item -LiteralPath $zipPath).Length -ne $manifest.size -or
+            (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash -ine $manifest.sha256) {
+            throw "ZIP 大小或 SHA256 校验失败：$zipPath"
+        }
+        $folder = Join-Path $destination "v$version/$target"
+        $copies.Add(@{ Source = $zipPath; Destination = (Join-Path $folder $zipName) })
+        $copies.Add(@{ Source = $manifestPath; Destination = (Join-Path $folder 'update.json') })
+        if (-not $SkipInstaller) {
+            $setupName = "sc-assistant-setup-$version-$target.exe"
+            $setupPath = Join-Path $assets $setupName
+            $hashPath = "$setupPath.sha256"
+            $expectedHash = (Get-Content -LiteralPath $hashPath -Raw).Trim() -split '\s+', 2
+            if ($expectedHash.Count -ne 2 -or $expectedHash[0] -notmatch '^[a-fA-F0-9]{64}$' -or
+                $expectedHash[1] -cne $setupName -or
+                (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash -ine $expectedHash[0]) {
+                throw "安装包 SHA256 校验失败：$setupPath"
+            }
+            $copies.Add(@{ Source = $setupPath; Destination = (Join-Path $folder $setupName) })
+            $copies.Add(@{ Source = $hashPath; Destination = (Join-Path $folder "$setupName.sha256") })
+        }
+    }
+    foreach ($copy in $copies) {
+        New-Item -ItemType Directory -Path (Split-Path $copy.Destination -Parent) -Force | Out-Null
+        Copy-Item -LiteralPath $copy.Source -Destination $copy.Destination -Force
+    }
+    # 根索引最后写入，服务器路径严格对应客户端的 v{version}/{runtime}/update.json。
+    Copy-Item -LiteralPath $indexPath -Destination (Join-Path $destination 'update.json') -Force
+    return $destination
+}
+
 function Assert-UpdateUpdaterEntry {
     param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$EntryExecutable)
     # 原生更新器内嵌允许的 UTF-16 入口名称。按字节检查，避免字符串对齐影响；

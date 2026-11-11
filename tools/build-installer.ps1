@@ -48,7 +48,10 @@ $runtimeInstaller = "windowsdesktop-runtime-$($runtimePackage.version)-$Runtime.
 if ([IO.Path]::GetFileName($runtimeUri.AbsolutePath) -ne $runtimeInstaller) {
     throw "Desktop Runtime URL does not match the configured $Runtime version."
 }
-if ($CheckOnly) { return }
+if ($CheckOnly) {
+    Assert-UpdateSkinDependencies -Repository $repo -PublishDirectory (Join-Path $repo 'LOL-GameAssistant')
+    return
+}
 
 if (-not $ChineseMessagesPath) {
     $ChineseMessagesPath = Join-Path (Split-Path $CompilerPath -Parent) 'Languages/ChineseSimplified.isl'

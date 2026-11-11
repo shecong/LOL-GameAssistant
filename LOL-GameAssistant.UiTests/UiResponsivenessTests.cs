@@ -15,6 +15,45 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class UiResponsivenessTests(ITestOutputHelper output) : IDisposable
 {
+    [Fact]
+    public void AiSettingsReopeningReusesControlsAndBoundsLayoutWork() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var settings = new SettingForm(
+            SecondPhaseRegressionTests.Service<LOL_GameAssistant.Application.LeagueClient.IGameClientLauncher>((_, _) => null),
+            SecondPhaseRegressionTests.Service<LOL_GameAssistant.Application.Settings.IApplicationSettingsStore>((method, _) =>
+                method.Name == "GetStoragePath" ? "test-settings.json" : new AssistantSettings()),
+            SecondPhaseRegressionTests.Service<LOL_GameAssistant.Application.Settings.ISettingsSecretProtector>((_, _) => null),
+            SecondPhaseRegressionTests.Service<LOL_GameAssistant.Application.ClientFeatures.IClientFeatureService>((_, _) => null));
+        using var host = new Form { ClientSize = new Size(1594, 780), ShowInTaskbar = false, Opacity = 0 };
+        settings.Dock = DockStyle.Fill; host.Controls.Add(settings); host.Show();
+        var navigation = SecondPhaseRegressionTests.Field<AntdUI.Segmented>(settings, "_settingsSegmented");
+        var watch = Stopwatch.StartNew();
+        settings.ShowAiRecommendationSettings();
+        System.Windows.Forms.Application.DoEvents();
+        output.WriteLine($"AI settings first open: {watch.Elapsed.TotalMilliseconds:F1} ms");
+        var controls = Descendants(settings).ToArray();
+        int layouts = 0;
+        foreach (var control in controls) control.Layout += (_, _) => layouts++;
+        for (int i = 0; i < 3; i++)
+        {
+            navigation.SelectIndex = 0; System.Windows.Forms.Application.DoEvents();
+            layouts = 0; watch.Restart();
+            settings.ShowAiRecommendationSettings();
+            System.Windows.Forms.Application.DoEvents();
+            output.WriteLine($"AI settings reopen {i + 1}: {watch.Elapsed.TotalMilliseconds:F1} ms, {layouts} layout events");
+            Assert.InRange(layouts, 0, 10);
+        }
+        host.Hide(); System.Windows.Forms.Application.DoEvents();
+        layouts = 0; watch.Restart();
+        host.Show(); System.Windows.Forms.Application.DoEvents();
+        output.WriteLine($"AI settings parent reopen: {watch.Elapsed.TotalMilliseconds:F1} ms, {layouts} layout events");
+        Assert.InRange(layouts, 0, 20);
+        Assert.Equal(controls, Descendants(settings));
+    });
+
+    private static IEnumerable<Control> Descendants(Control root) => root.Controls.Cast<Control>()
+        .SelectMany(child => new[] { child }.Concat(Descendants(child)));
+
     private readonly bool _previousDiagnosticsEnabled = RuntimeDiagnostics.Enabled;
     public void Dispose() => RuntimeDiagnostics.SetEnabled(_previousDiagnosticsEnabled);
     [Fact]

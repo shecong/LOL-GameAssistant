@@ -30,7 +30,7 @@ public partial class SettingForm
         }
         AddSegmentRow(rows, options.Length + 1, "功能状态：",
             CreateAiNote("该功能正在测试，即将上线。当前仅供预览，暂不支持启用。"));
-        rows.ResumeLayout(true);
+        rows.ResumeLayout(false);
     }
 
     private Control CreateAiDashboard(out TableLayoutPanel content)

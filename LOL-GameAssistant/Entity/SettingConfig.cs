@@ -100,6 +100,12 @@ namespace LOL_GameAssistant.Entity
         [JsonProperty("gameKdaCustomRemarks")]
         public Dictionary<string, string> GameKdaCustomRemarks { get; set; } = new();
 
+        [JsonProperty("gameChatFirstLineWidth")]
+        public int GameChatFirstLineWidth { get; set; } = 30;
+
+        [JsonProperty("gameChatContinuationLineWidth")]
+        public int GameChatContinuationLineWidth { get; set; } = 70;
+
         [JsonProperty("gameKdaOnePlayerPerLine")]
         public bool GameKdaOnePlayerPerLine { get; set; } = false;
 

@@ -73,7 +73,8 @@ public sealed class QuickMessageSenderController : IDisposable
     /// <summary>按同一游戏内喊话序列依次发送多条短消息。</summary>
     public async Task<GameShoutSendResult> SendBatchToGameAsync(IReadOnlyList<string> messages,
         bool sendToAll, bool useClipboard, int minimumIntervalSeconds, bool requireForeground = false,
-        string description = "双方 KDA 汇总", int maximumMessages = 10, bool fastBatch = false)
+        string description = "双方 KDA 汇总", int maximumMessages = 10, bool fastBatch = false,
+        Func<Task<GameShoutSendResult>>? afterSend = null)
     {
         if (messages.Count == 0 || messages.Count > maximumMessages ||
             messages.Any(string.IsNullOrWhiteSpace))
@@ -112,6 +113,7 @@ public sealed class QuickMessageSenderController : IDisposable
             }
             RuntimeDiagnostics.Report(description, "按键已注入",
                 $"已通过 WindowsInput 依次注入 {messages.Count} 条；游戏端没有送达回执");
+            if (afterSend != null) return await afterSend();
             return new(true, $"已注入{description}（{messages.Count} 条）；请在游戏聊天中确认。", messages.Count);
         }
         finally { Volatile.Write(ref _sending, 0); }

@@ -37,20 +37,21 @@ public static class GameKdaAnnouncementBuilder
 
     /// <summary>每条最多两名同队玩家，显示阵营前缀，玩家各占一行，不插入额外空白行。</summary>
     public static IReadOnlyList<string> Build(IReadOnlyList<GameKdaPlayerSummary> players,
-        bool onePlayerPerLine = false)
+        bool onePlayerPerLine = false, GameChatLineWidths? lineWidths = null)
     {
         return players.GroupBy(player => player.Team)
             .OrderBy(team => team.Key == "蓝方" ? 0 : team.Key == "红方" ? 1 : 2)
             .SelectMany(team => team.Chunk(2).Select(batch => AlignDisplayRows(
-                batch.Select(FormatPlayer))))
+                batch.Select(FormatPlayer), lineWidths)))
             .ToArray();
     }
 
-    private static string AlignDisplayRows(IEnumerable<string> rows)
+    private static string AlignDisplayRows(IEnumerable<string> rows, GameChatLineWidths? widths)
     {
         // 首行预留频道和发送者前缀；游戏聊天的实际换行会提交，使用等宽空格对齐续行。
-        // 当前游戏标尺：首行约15个全角字符，续行约35个；全角按2个显示单位计算。
-        const int firstLineWidth = 30, continuationLineWidth = 70;
+        // OCR 校准以半角显示单位保存；无有效结果时沿用默认值。
+        widths = widths is { IsValid: true } ? widths : GameChatLineWidths.Default;
+        int firstLineWidth = widths.FirstLine, continuationLineWidth = widths.ContinuationLine;
         int column = 0, lineWidth = firstLineWidth;
         var body = new System.Text.StringBuilder();
         foreach (string row in rows)

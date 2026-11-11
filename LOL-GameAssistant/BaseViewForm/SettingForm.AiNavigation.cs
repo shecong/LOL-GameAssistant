@@ -36,14 +36,25 @@ public partial class SettingForm
         Control? clickedSection = null;
         bool jumping = false;
         bool selecting = false;
+        bool synchronizePending = false;
+        void QueueSynchronize()
+        {
+            if (synchronizePending || !page.IsHandleCreated || page.IsDisposed || !page.Visible) return;
+            synchronizePending = true;
+            page.BeginInvoke(() =>
+            {
+                synchronizePending = false;
+                if (!page.IsDisposed && page.Visible) Synchronize();
+            });
+        }
         void ScrollChanged(object sender, AntdUI.IntEventArgs e)
         {
             if (!jumping) clickedSection = null;
-            Synchronize();
+            QueueSynchronize();
         }
         void Synchronize()
         {
-            if (!page.IsHandleCreated || sections.Length == 0 || page.ClientSize.Height <= 0) return;
+            if (selecting || !page.IsHandleCreated || !page.Visible || sections.Length == 0 || page.ClientSize.Height <= 0) return;
             var scroll = page.YScroll;
             if (scroll != null && !ReferenceEquals(scroll, observedScroll))
             {
@@ -67,7 +78,11 @@ public partial class SettingForm
             }
             if (changed) menu.Invalidate();
             selecting = true;
-            try { compactNavigation.SelectedIndex = Array.IndexOf(sections, active); }
+            try
+            {
+                int index = Array.IndexOf(sections, active);
+                if (compactNavigation.SelectedIndex != index) compactNavigation.SelectedIndex = index;
+            }
             finally { selecting = false; }
         }
         void Jump(Control card)
@@ -88,9 +103,9 @@ public partial class SettingForm
             if (!selecting && compactNavigation.SelectedIndex >= 0 && compactNavigation.SelectedIndex < sections.Length)
                 Jump(sections[compactNavigation.SelectedIndex]);
         };
-        page.HandleCreated += (_, _) => Synchronize();
-        page.Layout += (_, _) => Synchronize();
-        page.VisibleChanged += (_, _) => Synchronize();
+        page.HandleCreated += (_, _) => QueueSynchronize();
+        page.Layout += (_, _) => QueueSynchronize();
+        page.VisibleChanged += (_, _) => QueueSynchronize();
         void ResizeDirectory()
         {
             int dpi = host.DeviceDpi;
@@ -103,7 +118,7 @@ public partial class SettingForm
             else heading.Height = 36 * dpi / 96;
             menu.Visible = !compact;
             compactNavigation.Visible = compact;
-            Synchronize();
+            QueueSynchronize();
         }
         host.SizeChanged += (_, _) => ResizeDirectory();
         host.DpiChangedAfterParent += (_, _) => ResizeDirectory();

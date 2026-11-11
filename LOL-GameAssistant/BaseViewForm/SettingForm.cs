@@ -108,6 +108,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Segmented _settingsSegmented = new();
         private readonly AntdUI.Panel _settingsSegmentHost = new();
         private readonly Control[] _settingsSegments = new Control[6];
+        private int _activeSettingsSegment = -1;
         private readonly AntdUI.Input _clientPath = new() { Dock = DockStyle.Fill };
         private readonly AntdUI.Checkbox _autoLaunchClient = new() { Text = "启动助手时直接启动 LOL 客户端", AutoSize = true };
         private readonly AntdUI.Label _clientStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
@@ -273,13 +274,19 @@ namespace LOL_GameAssistant.BaseViewForm
         private void ShowSettingsSegment(int index)
         {
             if (index < 0 || index >= _settingsSegments.Length) return;
+            if (_activeSettingsSegment == index) return;
             HideSettingTips();
             EnsureSettingsSegment(index);
             _settingsSegmentHost.SuspendLayout();
             try
             {
                 for (int i = 0; i < _settingsSegments.Length; i++)
-                    if (_settingsSegments[i] is Control segment) segment.Visible = i == index;
+                    if (_settingsSegments[i] is Control segment)
+                    {
+                        if (i == 4) SetAiSegmentVisible(segment, i == index);
+                        else segment.Visible = i == index;
+                    }
+                _activeSettingsSegment = index;
             }
             finally { _settingsSegmentHost.ResumeLayout(true); }
         }
@@ -288,6 +295,40 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             _settingsSegmented.SelectIndex = 4;
             ShowSettingsSegment(4);
+        }
+
+        private static void SetAiSegmentVisible(Control segment, bool visible)
+        {
+            WithAiLayoutSuspended(segment, () => segment.Visible = visible);
+            if (visible) segment.PerformLayout();
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            // Switching the main settings tab also changes every descendant's
+            // effective visibility, even when the AI category stays selected.
+            if (_settingsSegments?[4] is not Control ai)
+            {
+                base.OnVisibleChanged(e);
+                return;
+            }
+            WithAiLayoutSuspended(ai, () => base.OnVisibleChanged(e));
+            if (Visible && _activeSettingsSegment == 4) ai.PerformLayout();
+        }
+
+        private static void WithAiLayoutSuspended(Control segment, Action action)
+        {
+            // VisibleChanged cascades through every row. Do not let each child
+            // visibility notification remeasure the complete auto-sized dashboard.
+            static IEnumerable<Control> Containers(Control root) => new[] { root }
+                .Concat(root.Controls.Cast<Control>().Where(child => child.HasChildren).SelectMany(Containers));
+            var containers = Containers(segment).ToArray();
+            foreach (var control in containers) control.SuspendLayout();
+            try { action(); }
+            finally
+            {
+                for (int i = containers.Length - 1; i >= 0; i--) containers[i].ResumeLayout(false);
+            }
         }
 
         /// <summary>子页面在首次使用时创建，切换回来复用原有状态。</summary>
@@ -412,6 +453,8 @@ namespace LOL_GameAssistant.BaseViewForm
         private void SaveConfigPreservingSelections()
         {
             AssistantSettings latest = _settingsStore.Load();
+            _config.GameChatFirstLineWidth = latest.GameChatFirstLineWidth;
+            _config.GameChatContinuationLineWidth = latest.GameChatContinuationLineWidth;
             _config.PersonalRunePresets = latest.PersonalRunePresets;
             _config.LiveGameLayout = latest.LiveGameLayout;
             _config.OpggManualBuildSelections = latest.OpggManualBuildSelections;
@@ -707,14 +750,14 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(selection, 3, "选人伴随窗：", _champSelectCompanionEnabled,
                 "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
             AddSegmentRow(selection, 4, "OP.GG 说明：", opggNote);
-            selection.ResumeLayout(true);
+            selection.ResumeLayout(false);
 
             var battle = CreateAiSettingsCard(content, "aiBattleCard", "局内对局信息面板");
             AddSegmentRow(battle, 1, "对局信息：", _battleOverlayEnabled);
             AddSegmentRow(battle, 2, "面板快捷键：", _battleOverlayHotkey,
                 "默认 · 键，可设置单键或 Ctrl / Alt / Shift 组合键。按住显示，松开或切出游戏后隐藏。");
             AddSegmentRow(battle, 3, "面板说明：", CreateAiNote("游戏位于前台时，面板快捷键显示独立的蓝红双方信息表，不抢焦点。\n启用后，游戏中使用面板快捷键；客户端或桌面仍使用“外观与窗口”中的按住置顶键。\n可查看段位、赛季战绩、近期胜负、英雄样本胜率和本局 KDA / 补刀 / 视野得分。窗口或无边框模式下使用。"));
-            battle.ResumeLayout(true);
+            battle.ResumeLayout(false);
 
             var jungle = CreateAiSettingsCard(content, "aiJungleRouteCard", "敌方打野路线分析");
             AddSegmentRow(jungle, 1, "路线预测：", _enemyJungleRouteEnabled,
@@ -725,12 +768,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 "默认 F10，可录入单键或组合键。游戏前台按一次分析并显示路线图，再按一次收起；切出游戏后隐藏。下次打开重新分析。");
             AddSegmentRow(jungle, 3, "峡谷地图：", openJungle);
             AddSegmentRow(jungle, 4, "分析说明：", CreateAiNote("扫描最近 30 场，最多分析 8 场携带惩戒的常规峡谷对局。优先参考相同英雄，按双方阵营映射历史坐标。地图展示起始区域、时间点、样本一致性与可核对的历史事件；位置采样间连线为插值，不代表精确营地顺序或本局实时位置。客户端未确认打野时需手动选择；时间线不可用时显示数据不足。"));
-            jungle.ResumeLayout(true);
+            jungle.ResumeLayout(false);
 
             var mayhem = CreateAiSettingsCard(content, "aiMayhemCard", "海克斯增幅助手");
             AddSegmentRow(mayhem, 1, "海克斯侧边栏：", _mayhemOverlayEnabled,
                 "仅海克斯大乱斗的窗口或无边框模式显示；独占全屏自动隐藏并停止扫描。可识别增幅卡片并比较胜率。");
-            mayhem.ResumeLayout(true);
+            mayhem.ResumeLayout(false);
 
             var performance = CreateAiSettingsCard(content, "aiPerformanceCard", "战绩评估与 KDA 发送");
             AddSegmentRow(performance, 1, "评级样本下限：", ratingPolicyPanel,
@@ -746,24 +789,23 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(performance, 6, "对局发送排版：", CreateAiNote("【蓝方/红方 玩家名：评级评分｜KDA｜胜率】。自动与手动均分别汇总蓝红双方，每条最多两名同队玩家，每名玩家对齐到独立显示行，玩家之间不插入空白行。"));
             AddSegmentRow(performance, 7, "KDA 说明：", kdaAnnouncementNote);
             var widthTest = new AntdUI.Button { Name = "TestKdaChatWidth", Text = "测试每行字数", AutoSize = true };
-            var widthTestStatus = CreateAiNote("点击后发送三条编号标尺：全角数字、半角数字、带全角空格数字。每组两位数字是编号；请截图保留首行与续行的换行位置，测试时保持聊天框大小及字体不变。");
+            var widthTestStatus = CreateAiNote("点击后自动发送标尺并调用本机 OCR 判断首行与续行宽度，成功后保存并应用于 KDA 排版。请保持游戏前台、聊天文字完整可见；调整聊天框或字体后重新校准。");
             widthTest.Click += async (_, _) =>
             {
                 widthTest.Enabled = false;
+                widthTestStatus.Text = "正在发送标尺并自动进行 OCR 校准，请保持游戏前台……";
                 try
                 {
                     if (Program.GameMain == null) return;
                     var result = await Program.GameMain.TestGameChatWidthAsync();
-                    widthTestStatus.Text = result.Succeeded
-                        ? "三条标尺已注入游戏聊天。请把完整换行截图发来，用于校准首行、续行和空格宽度。"
-                        : result.Message;
+                    widthTestStatus.Text = result.Message;
                 }
                 catch (Exception error) { widthTestStatus.Text = "字数测试失败：" + error.Message; }
                 finally { if (!widthTest.IsDisposed) widthTest.Enabled = true; }
             };
             AddSegmentRow(performance, 8, "行宽校准：", widthTest);
             AddSegmentRow(performance, 9, "测试说明：", widthTestStatus);
-            performance.ResumeLayout(true);
+            performance.ResumeLayout(false);
 
             var connection = CreateAiSettingsCard(content, "aiConnectionCard", "AI 服务连接");
             AddSegmentRow(connection, 1, "服务商：", providerPanel,
@@ -780,7 +822,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 "“测试连接”的结果，会显示服务端返回的真实原因，例如模型名称不存在、Key 无效或余额不足。");
             AddSaveRow(connection, 7, "保存 AI 连接与密钥");
             AddSegmentRow(connection, 8, "保存方式：", CreateAiNote("所有开关立即保存；服务商、地址、模型与密钥填写完成后使用上方按钮保存。"));
-            connection.ResumeLayout(true);
+            connection.ResumeLayout(false);
 
             var analysis = CreateAiSettingsCard(content, "aiAnalysisCard", "AI 时间线与分析策略");
             AddSegmentRow(analysis, 1, "AI 时间线：", _recommendationEnabled,
@@ -790,7 +832,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(analysis, 3, "请求预算：", budgetPanel, "选人与局内共享预算，失败请求也计入；手动分析至少间隔8秒。新一局自动重置。");
             AddSegmentRow(analysis, 4, "建议质量：", CreateAiNote("行动计划必须包含具体步骤、事实依据、执行条件与备选方案。未通过校验的输出会被拦截；没有可靠新行动时继续观察。低血状态由本机即时提醒。"));
             AddSegmentRow(analysis, 5, "数据与隐私：", privacyNote);
-            analysis.ResumeLayout(true);
+            analysis.ResumeLayout(false);
 
             var display = CreateAiSettingsCard(content, "aiDisplayCard", "AI 提醒与浮窗");
             AddSegmentRow(display, 1, "建议提醒：", _showPopup,
@@ -802,11 +844,11 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(display, 4, "位置与时长：", overlayOffsetPanel,
                 "横向/纵向偏移以所选角落为基准；停留秒数是浮窗自动隐藏前的显示时长。");
             AddSegmentRow(display, 5, "浮窗说明：", overlayNote);
-            display.ResumeLayout(true);
+            display.ResumeLayout(false);
 
             CreateCooldownPreviewCard(content);
 
-            content.ResumeLayout(true);
+            content.ResumeLayout(false);
             return AddAiSectionNavigation((AntdUI.Panel)panel, content);
         }
 

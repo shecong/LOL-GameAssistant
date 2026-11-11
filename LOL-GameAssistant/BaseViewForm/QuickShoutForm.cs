@@ -617,13 +617,11 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private async Task TestGameWidthAsync()
     {
         _testGameWidth.Enabled = false;
+        _status.Text = "正在发送标尺并自动进行 OCR 校准，请保持游戏前台……";
         try
         {
-            var result = await _sendGameBatch(LOL_GameAssistant.Domain.MatchAnalysis.GameChatWidthRuler.BuildMessages(),
-                _sendToAll.Checked, _useClipboard.Checked, false, (int)_minimumInterval.Value);
-            _status.Text = result.Succeeded
-                ? "已注入三条标尺：全角、半角、带空格。请截下游戏中的完整换行，保持聊天框大小和字体不变。"
-                : result.Message;
+            var result = await Program.GameMain.TestGameChatWidthAsync();
+            _status.Text = result.Message;
         }
         catch (Exception error) { _status.Text = "字数测试失败：" + error.Message; }
         finally { if (!IsDisposed) _testGameWidth.Enabled = true; }
