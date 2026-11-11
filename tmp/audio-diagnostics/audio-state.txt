@@ -1,0 +1,42 @@
+audio_probe.cpp
+foreground_pid=30896
+endpoint=Q27G4S (NVIDIA High Definition Audio) id={0.0.0.00000000}.{08f7449a-8fdc-48fb-9b88-82f8ac83f01a}
+ endpoint_volume=1.000 mute=0
+ session pid=0 volume=1.000 mute=0 state=0
+ process=
+endpoint=Realtek Digital Output (Realtek(R) Audio) id={0.0.0.00000000}.{98e8448e-93e6-4ae1-ae92-730e42b7b504}
+ endpoint_volume=1.000 mute=0
+ session pid=0 volume=1.000 mute=0 state=0
+ process=
+endpoint=??? (FxSound Audio Enhancer) id={0.0.0.00000000}.{f4564bde-6952-43ce-b89b-8dba8e603f93}
+ endpoint_volume=0.401 mute=0
+ session pid=44324 volume=1.000 mute=0 state=0
+ process=E:\WeGameApps\???????????\Riot Client\RiotClientServices.exe
+ session pid=30104 volume=1.000 mute=0 state=1
+ process=C:\Program Files\FxSound LLC\FxSound\FxSound.exe
+ session pid=0 volume=1.000 mute=0 state=0
+ process=
+ session pid=26784 volume=1.000 mute=0 state=0
+ process=C:\app\steam\steam.exe
+ session pid=52752 volume=1.000 mute=0 state=1
+ process=E:\WeGameApps\???????????\Game\League of Legends.exe
+ session pid=11024 volume=1.000 mute=0 state=0
+ process=E:\WeGameApps\???????????\LeagueClient\LeagueClientUxRender.exe
+endpoint=??? (Realtek(R) Audio) id={0.0.0.00000000}.{f78461cd-26c3-4839-a27d-bb7a6c8d452e}
+ endpoint_volume=0.401 mute=0
+ session pid=30104 volume=1.000 mute=0 state=1
+ process=C:\Program Files\FxSound LLC\FxSound\FxSound.exe
+ session pid=0 volume=1.000 mute=0 state=0
+ process=
+endpoint=????? (Realtek(R) Audio) id={0.0.1.00000000}.{ae3dc25e-059c-440b-a927-f4eacaa1c113}
+ endpoint_volume=0.554 mute=0
+ session pid=0 volume=1.000 mute=0 state=0
+ process=
+endpoint=Mic in at rear panel (Pink) (Realtek(R) Audio) id={0.0.1.00000000}.{b05f3927-e234-4fe4-a705-aa967c1cc394}
+ endpoint_volume=1.000 mute=0
+ session pid=0 volume=1.000 mute=0 state=0
+ process=
+ session pid=26784 volume=1.000 mute=0 state=0
+ process=C:\app\steam\steam.exe
+ session pid=44324 volume=1.000 mute=0 state=0
+ process=E:\WeGameApps\???????????\Riot Client\RiotClientServices.exe

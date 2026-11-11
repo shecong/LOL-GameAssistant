@@ -37,6 +37,7 @@ public partial class SettingForm
                 _enemyJungleRouteEnabled.Checked = latest.EnemyJungleRouteEnabled;
                 _champSelectKdaAnnouncementEnabled.Checked = latest.ChampSelectKdaAnnouncementEnabled;
                 _gameKdaAnnouncementEnabled.Checked = latest.GameKdaAnnouncementEnabled;
+                _gameKdaPremadeAnnouncementEnabled.Checked = latest.GameKdaPremadeAnnouncementEnabled;
                 _recommendationEnabled.Checked = latest.Ai.RecommendationEnabled;
                 _overlayEnabled.Checked = latest.Ai.RecommendationOverlayEnabled; _showPopup.Checked = latest.Ai.ShowRecommendationPopup;
                 swi_auto_refresh.Checked = latest.AutoRefresh;

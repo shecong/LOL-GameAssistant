@@ -61,6 +61,7 @@ public sealed class AssistantSettings
 
     /// <summary>对局中双方近期 KDA 评估齐备后，通过游戏内喊话发送一次。</summary>
     public bool GameKdaAnnouncementEnabled { get; set; }
+    public bool GameKdaPremadeAnnouncementEnabled { get; set; } = true;
     public int RecentPerformanceMinimumGames { get; set; } = 10;
 
     /// <summary>游戏前台手动发送双方 KDA，独立于自动发送开关。</summary>

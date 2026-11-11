@@ -65,6 +65,7 @@ public sealed class SettingsAutoSaveAndCacheTests
             "_champSelectCompanionEnabled:ChampSelectCompanionEnabled", "_champSelectKdaAnnouncementEnabled:ChampSelectKdaAnnouncementEnabled",
             "_enemyJungleRouteEnabled:EnemyJungleRouteEnabled",
             "_gameKdaAnnouncementEnabled:GameKdaAnnouncementEnabled", "_gameKdaOnePlayerPerLine:GameKdaOnePlayerPerLine",
+            "_gameKdaPremadeAnnouncementEnabled:GameKdaPremadeAnnouncementEnabled",
             "_recommendationEnabled:Ai.RecommendationEnabled", "_dynamicRefresh:Ai.DynamicRefreshEnabled", "_showPopup:Ai.ShowRecommendationPopup",
             "_overlayEnabled:Ai.RecommendationOverlayEnabled"];
         foreach (string mapping in settingsFields)

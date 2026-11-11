@@ -34,13 +34,13 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly CancellationTokenSource _dataLifetime = new();
         private int _dataDisposed;
 
-        // 选人聊天只在一套确定的十人阵容全部完成近期战绩计算后发送一次，避免卡片异步完成时刷屏。
+        // 选人聊天在我方名单全部完成近期战绩计算后发送一次。
         private readonly Dictionary<string, PlayerRecentPerformanceEventArgs> _champSelectAssessments = new(StringComparer.Ordinal);
 
         private readonly HashSet<string> _expectedChampSelectAssessmentPuuids = new(StringComparer.Ordinal);
         private readonly List<string> _champSelectAssessmentOrder = new();
         private string _champSelectAssessmentSignature = "";
-        private bool _champSelectAssessmentSent;
+        private ChampionSelectAnnouncementDelivery _champSelectAnnouncementDelivery = new();
         private bool _champSelectRosterComplete;
         private CancellationTokenSource _champSelectAnnouncementLifetime = new();
 
@@ -834,7 +834,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _champSelectAssessmentOrder.Clear();
             _expectedChampSelectAssessmentPuuids.Clear();
             _champSelectAssessmentSignature = "";
-            _champSelectAssessmentSent = false;
+            _champSelectAnnouncementDelivery = new();
         }
 
         /// <summary>准备本局玩家表现评估的数据和发送状态。</summary>
@@ -920,7 +920,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     SendGameKdaAnnouncement();
                 return;
             }
-            if (_champSelectAssessmentSent || Program.GameMain.gameFlowPhase != GameFlowPhase.ChampSelect ||
+            if (_champSelectAnnouncementDelivery.IsSent || Program.GameMain.gameFlowPhase != GameFlowPhase.ChampSelect ||
                 !_expectedChampSelectAssessmentPuuids.Contains(result.Puuid)) return;
 
             _champSelectAssessments[result.Puuid] = result;
@@ -929,7 +929,7 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void TrySendChampSelectKdaAnnouncement()
         {
-            if (IsDisposed || _champSelectAssessmentSent || Program.GameMain.gameFlowPhase != GameFlowPhase.ChampSelect) return;
+            if (IsDisposed || _champSelectAnnouncementDelivery.IsSent || Program.GameMain.gameFlowPhase != GameFlowPhase.ChampSelect) return;
             // 敌方卡片也会发布结果，因此必须按我方名单逐个确认，不能用收到的条数判断。
             if (!_champSelectRosterComplete || !AreChampSelectAssessmentsReady(_expectedChampSelectAssessmentPuuids, _champSelectAssessments)) return;
 
@@ -937,14 +937,20 @@ namespace LOL_GameAssistant.BaseViewForm
             string message = BuildChampSelectKdaAnnouncement();
             if (string.IsNullOrWhiteSpace(message)) return;
 
-            // 先锁住本局，LCU 故障也不能在每次自动刷新时重复尝试、污染选人聊天。
-            _champSelectAssessmentSent = true;
-            _ = SendChampSelectKdaAnnouncementAsync(signature, message, _champSelectAnnouncementLifetime.Token);
+            // 发送中阻止并发，成功才记为已发送；聊天会话晚到或 LCU 暂时失败时自动重试。
+            var token = _champSelectAnnouncementLifetime.Token;
+            _ = _champSelectAnnouncementDelivery.SendAsync(
+                retryToken => SendChampSelectKdaAnnouncementAsync(signature, retryToken),
+                () => !IsDisposed && signature == _champSelectAssessmentSignature &&
+                    Program.GameMain.gameFlowPhase == GameFlowPhase.ChampSelect &&
+                    AppCompositionRoot.ApplicationSettingsStore.Load().ChampSelectKdaAnnouncementEnabled,
+                token);
         }
 
         internal static bool AreChampSelectAssessmentsReady(IReadOnlySet<string> expected,
             IReadOnlyDictionary<string, PlayerRecentPerformanceEventArgs> results) => expected.Count > 0 &&
-            expected.All(puuid => results.TryGetValue(puuid, out var value) && value.IsAlly && value.Assessment != null);
+            expected.All(puuid => results.TryGetValue(puuid, out var value) && value.IsAlly &&
+                value.Assessment != null && value.IsDisplayNameReady);
 
         /// <summary>启动游戏内逐人 KDA 测评发送。</summary>
         private void SendGameKdaAnnouncement()
@@ -990,6 +996,9 @@ namespace LOL_GameAssistant.BaseViewForm
                     return;
                 }
                 var settings = AppCompositionRoot.ApplicationSettingsStore.Load();
+                await WaitForPremadeAnnouncementAsync();
+                if (IsDisposed || generation != _gameAssessmentGeneration ||
+                    Program.GameMain.gameFlowPhase != GameFlowPhase.InProgress) return;
                 IReadOnlyList<string> messages;
                 if (playerSlot is int slot)
                 {
@@ -999,7 +1008,7 @@ namespace LOL_GameAssistant.BaseViewForm
                         Program.GameMain.infoMsg.AddMsg("此小键盘位置没有对应玩家，未发送。");
                         return;
                     }
-                    messages = [message];
+                    messages = BuildPremadeAnnouncementMessages(settings.GameKdaPremadeAnnouncementEnabled).Append(message).ToArray();
                 }
                 else messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
                 var result = await Program.GameMain.SendGameKdaAnnouncementAsync(messages, settings, requireForeground: true);
@@ -1047,9 +1056,10 @@ namespace LOL_GameAssistant.BaseViewForm
                 return new GameKdaPlayerSummary(member.Team,
                     result?.DisplayName ?? member.Name, result?.Assessment);
             }).ToArray();
-            var messages = GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine);
+            var messages = BuildPremadeAnnouncementMessages(AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaPremadeAnnouncementEnabled)
+                .Concat(GameKdaAnnouncementBuilder.Build(players, onePlayerPerLine)).ToArray();
             RuntimeDiagnostics.Report("双方 KDA 文案", "已生成",
-                $"蓝方 {players.Count(player => player.Team == "蓝方")} 人，红方 {players.Count(player => player.Team == "红方")} 人，共 {messages.Count} 条；各条字符数 {string.Join(",", messages.Select(message => message.Length))}");
+                $"蓝方 {players.Count(player => player.Team == "蓝方")} 人，红方 {players.Count(player => player.Team == "红方")} 人，共 {messages.Length} 条；各条字符数 {string.Join(",", messages.Select(message => message.Length))}");
             return messages;
         }
 
@@ -1075,7 +1085,14 @@ namespace LOL_GameAssistant.BaseViewForm
 
                     // 等待游戏就绪或前台期间，卡片可能已经补齐战绩；首条发送前重新生成文案。
                     // 部分发送后保持原批次，避免拆分条数变化导致重复或遗漏。
-                    if (sentCount == 0) messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
+                    if (sentCount == 0)
+                    {
+                        await WaitForPremadeAnnouncementAsync();
+                        if (IsDisposed || generation != _gameAssessmentGeneration || signature != _gameAssessmentSignature ||
+                            Program.GameMain.gameFlowPhase != GameFlowPhase.InProgress ||
+                            !AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaAnnouncementEnabled) return;
+                        messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
+                    }
                     GameShoutSendResult result = await Program.GameMain.SendGameKdaAnnouncementAsync(
                         messages.Skip(sentCount).ToArray(), settings, requireForeground: true);
                     if (IsDisposed || generation != _gameAssessmentGeneration ||
@@ -1122,7 +1139,7 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         /// <summary>将选人阶段测评内容发送到客户端聊天。</summary>
-        private async Task SendChampSelectKdaAnnouncementAsync(string signature, string message, CancellationToken token)
+        private async Task<bool> SendChampSelectKdaAnnouncementAsync(string signature, CancellationToken token)
         {
             bool CanSend() => !IsDisposed && !token.IsCancellationRequested && signature == _champSelectAssessmentSignature &&
                 Program.GameMain.gameFlowPhase == GameFlowPhase.ChampSelect &&
@@ -1130,26 +1147,33 @@ namespace LOL_GameAssistant.BaseViewForm
                 !AppCompositionRoot.Automation.IsPaused && _champSelectRosterComplete;
             try
             {
-                if (!CanSend()) return;
+                if (!CanSend()) return false;
+                await WaitForPremadeAnnouncementAsync(token);
+                if (!CanSend()) return false;
                 var session = await _championSelectService.GetSessionAsync(token);
-                if (!CanSend()) return;
+                if (!CanSend()) return false;
                 if (session == null || session.MyTeam.Any(m => string.IsNullOrWhiteSpace(m.Puuid)) ||
                     !_expectedChampSelectAssessmentPuuids.SetEquals(session.MyTeam.Select(m => m.Puuid)))
                 {
-                    _champSelectAssessmentSent = false;
                     RuntimeDiagnostics.Report("选人 KDA 评估", "等待", "当前阵容尚未确认，等待下一次阵容刷新");
-                    return;
+                    return false;
                 }
                 // 发出前按最新 CellId 重新生成，避免等待聊天会话时换楼导致编号过期。
-                message = BuildChampSelectKdaAnnouncement(session.MyTeam.OrderBy(member => member.CellId)
+                string message = BuildChampSelectKdaAnnouncement(session.MyTeam.OrderBy(member => member.CellId)
                     .Select(member => member.Puuid).ToArray());
-                if (string.IsNullOrWhiteSpace(message)) return;
+                if (string.IsNullOrWhiteSpace(message)) return false;
+                message = AddChampSelectPremadeMessages(message, session,
+                    AppCompositionRoot.ApplicationSettingsStore.Load().GameKdaPremadeAnnouncementEnabled);
                 var result = await AppCompositionRoot.ChampionSelectChatService.SendAsync(message, CanSend, token);
-                if (!CanSend()) return;
-                Program.GameMain.infoMsg.AddMsg(result.Succeeded ? "选人近期 KDA 评估已发送到聊天窗口。" : $"选人近期 KDA 评估未发送：{result.Message}");
+                if (!CanSend()) return result.Succeeded;
+                if (result.Succeeded)
+                    Program.GameMain.infoMsg.AddMsg("选人近期 KDA 评估已发送到聊天窗口。");
+                else
+                    RuntimeDiagnostics.Report("选人 KDA 评估", "等待重试", result.Message);
+                return result.Succeeded;
             }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-            catch (Exception e) { if (CanSend()) RuntimeDiagnostics.Report("选人 KDA 评估", "发送失败", e.Message); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception e) { if (CanSend()) RuntimeDiagnostics.Report("选人 KDA 评估", "发送失败", e.Message); return false; }
         }
 
         /// <summary>
@@ -1176,6 +1200,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _historyPartyCancellation?.Cancel();
             _historyPartyCancellation?.Dispose();
             _historyPartyCancellation = null;
+            _historyPartyTask = Task.CompletedTask;
             _historyPartySignature = "";
             _historyParties = new([]);
         }
@@ -1198,7 +1223,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ApplyPremadeResult(_currentPartyDetection);
             if (teamOne.Length == 0 && teamTwo.Length == 0) return;
             _historyPartyCancellation = new CancellationTokenSource();
-            _ = DetectHistoryPartiesAsync(signature, teamOne, teamTwo, _historyPartyCancellation.Token);
+            _historyPartyTask = DetectHistoryPartiesAsync(signature, teamOne, teamTwo, _historyPartyCancellation.Token);
         }
 
         /// <summary>从近期战绩推断可能的同队关系。</summary>

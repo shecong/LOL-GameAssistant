@@ -197,18 +197,37 @@ public sealed class LivePlayerHistoryLoadingTests
             requests++;
             return Task.FromResult<MatchHistoryResponse?>(new() { Games = new() });
         }, profile: profile.Task);
-        int assessments = 0;
-        card.RecentPerformanceReady += (_, _) => assessments++;
+        var assessments = new List<PlayerRecentPerformanceEventArgs>();
+        card.RecentPerformanceReady += (_, result) => assessments.Add(result);
         using var form = Mount(card);
         Assert.False(profile.Task.IsCompleted);
         Assert.Equal(1, requests);
-        Assert.Equal(1, assessments);
+        Assert.Single(assessments);
+        Assert.False(assessments[0].IsDisplayNameReady);
         Assert.Empty(Child(card, "panelMatches").Controls.OfType<ShimmerPanel>());
         profile.SetResult(new("", "补齐名称", "12345", 0, 123, 0, 0));
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal("补齐名称", Child(card, "lblName").Text);
         Assert.Contains("12345", Child(card, "lblSub").Text);
+        Assert.Equal(2, assessments.Count);
+        Assert.True(assessments[1].IsDisplayNameReady);
+        Assert.Equal("补齐名称", assessments[1].DisplayName);
         Assert.Equal(1, requests);
+    });
+
+    [Fact]
+    public void FailedNicknameLookupUsesFloorInsteadOfLoadingPlaceholder() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        var card = CreateCard((_, _) => Task.FromResult<MatchHistoryResponse?>(new() { Games = new() }),
+            profile: Task.FromResult<PlayerProfile?>(null));
+        Child(card, "lblName").Text = "加载玩家信息…";
+        var assessments = new List<PlayerRecentPerformanceEventArgs>();
+        card.RecentPerformanceReady += (_, result) => assessments.Add(result);
+        using var form = Mount(card);
+        var result = Assert.Single(assessments);
+        Assert.True(result.IsDisplayNameReady);
+        Assert.Equal("", result.DisplayName);
+        Assert.StartsWith("3楼：", ChampSelectKdaAnnouncementBuilder.FormatPlayer(new(3, result.Assessment, result.DisplayName)));
     });
 
     [Fact]

@@ -136,6 +136,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.SelectMultiple _aramBenchPriority = new() { Dock = DockStyle.Fill };
         private readonly AntdUI.Checkbox _champSelectKdaAnnouncementEnabled = new() { Text = "选人加载完成后发送 KDA 评估到聊天", AutoSize = true };
         private readonly AntdUI.Checkbox _gameKdaAnnouncementEnabled = new() { Text = "对局中发送双方玩家近期 KDA 评估", AutoSize = true };
+        private readonly AntdUI.Checkbox _gameKdaPremadeAnnouncementEnabled = new() { Name = "gameKdaPremadeAnnouncementEnabled", Text = "发送前提示双方开黑", AutoSize = true };
         private readonly AntdUI.Checkbox _gameKdaOnePlayerPerLine = new() { Text = "每名玩家单独发送一条（单人一行）", AutoSize = true, Visible = false };
         private readonly AntdUI.InputNumber _ratingMinimumGames = new() { Name = "ratingMinimumGames", Minimum = 1, Maximum = 50, Value = 10, Width = 100 };
         private readonly AntdUI.Input _champSelectKdaAnnouncementTemplate = new() { Dock = DockStyle.Fill, Multiline = true, Height = 86 };
@@ -740,8 +741,10 @@ namespace LOL_GameAssistant.BaseViewForm
                 "支持 {players} 与 {allies}：按选人顺序每人一行，显示玩家名、评级评分、KDA 和胜率；长昵称缩写，全模式参考和样本不足另行标注。");
             AddSegmentRow(performance, 4, "对局 KDA 发送：", _gameKdaAnnouncementEnabled,
                 "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。也可在“一键喊话”设置中配置手动 KDA 快捷键（默认 F9），关闭自动发送后仍能手动发送。");
-            AddSegmentRow(performance, 5, "对局发送排版：", CreateAiNote("【蓝方/红方 玩家名：评级评分｜KDA｜胜率】。自动与手动均分别汇总蓝红双方，每条最多两名同队玩家，每名玩家对齐到独立显示行，玩家之间不插入空白行。"));
-            AddSegmentRow(performance, 6, "KDA 说明：", kdaAnnouncementNote);
+            AddSegmentRow(performance, 5, "双方开黑提示：", _gameKdaPremadeAnnouncementEnabled,
+                "选人阶段及游戏内发送 KDA 前，先列出检测到的我方和敌方开黑玩家，并标明阵营；没有开黑组的阵营不显示。关闭后只发送 KDA。");
+            AddSegmentRow(performance, 6, "对局发送排版：", CreateAiNote("【蓝方/红方 玩家名：评级评分｜KDA｜胜率】。自动与手动均分别汇总蓝红双方，每条最多两名同队玩家，每名玩家对齐到独立显示行，玩家之间不插入空白行。"));
+            AddSegmentRow(performance, 7, "KDA 说明：", kdaAnnouncementNote);
             var widthTest = new AntdUI.Button { Name = "TestKdaChatWidth", Text = "测试每行字数", AutoSize = true };
             var widthTestStatus = CreateAiNote("点击后发送三条编号标尺：全角数字、半角数字、带全角空格数字。每组两位数字是编号；请截图保留首行与续行的换行位置，测试时保持聊天框大小及字体不变。");
             widthTest.Click += async (_, _) =>
@@ -758,8 +761,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 catch (Exception error) { widthTestStatus.Text = "字数测试失败：" + error.Message; }
                 finally { if (!widthTest.IsDisposed) widthTest.Enabled = true; }
             };
-            AddSegmentRow(performance, 7, "行宽校准：", widthTest);
-            AddSegmentRow(performance, 8, "测试说明：", widthTestStatus);
+            AddSegmentRow(performance, 8, "行宽校准：", widthTest);
+            AddSegmentRow(performance, 9, "测试说明：", widthTestStatus);
             performance.ResumeLayout(true);
 
             var connection = CreateAiSettingsCard(content, "aiConnectionCard", "AI 服务连接");
@@ -944,6 +947,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _champSelectKdaAnnouncementEnabled.Checked = _config.ChampSelectKdaAnnouncementEnabled;
             _gameKdaAnnouncementEnabled.Checked = _config.GameKdaAnnouncementEnabled;
             _gameKdaOnePlayerPerLine.Checked = _config.GameKdaOnePlayerPerLine;
+            _gameKdaPremadeAnnouncementEnabled.Checked = _config.GameKdaPremadeAnnouncementEnabled;
             _ratingMinimumGames.Value = Math.Clamp(_config.RecentPerformanceMinimumGames, 1, 50);
             _gameKdaOnePlayerPerLine.Enabled = true;
             _champSelectKdaAnnouncementTemplate.Text = _config.ChampSelectKdaAnnouncementTemplate;

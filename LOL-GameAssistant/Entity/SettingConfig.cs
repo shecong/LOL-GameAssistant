@@ -84,6 +84,8 @@ namespace LOL_GameAssistant.Entity
 
         [JsonProperty("gameKdaAnnouncementEnabled")]
         public bool GameKdaAnnouncementEnabled { get; set; } = false;
+        [JsonProperty("gameKdaPremadeAnnouncementEnabled")]
+        public bool GameKdaPremadeAnnouncementEnabled { get; set; } = true;
         public int RecentPerformanceMinimumGames { get; set; } = 10;
 
         [JsonProperty("gameKdaHotkeyEnabled")]

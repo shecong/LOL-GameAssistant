@@ -71,6 +71,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private bool _loadStarted;
         private bool _loading;
         private bool _headerLoadStarted;
+        private bool _playerIdentityReady;
         private RecentModePerformanceAssessment? _cachedAssessment;
         private PlayerHistorySnapshot? _historySnapshot;
         private bool _layingOutMatchRows;
@@ -506,7 +507,8 @@ namespace LOL_GameAssistant.BaseViewForm
             int profileIconId = 0;
             try
             {
-                PlayerProfile? info = await GetPlayerProfileAsync(_playerPuuid!, cancellationToken);
+                PlayerProfile? info = await GetPlayerProfileAsync(_playerPuuid!, cancellationToken)
+                    .WaitAsync(TimeSpan.FromSeconds(8), cancellationToken);
                 if (info != null)
                 {
                     if (!string.IsNullOrEmpty(info.GameName)) displayName = info.GameName;
@@ -529,6 +531,9 @@ namespace LOL_GameAssistant.BaseViewForm
             lblSub.Text = !level.HasValue
                 ? (string.IsNullOrEmpty(tagLine) ? "" : $"#{tagLine}")
                 : $"Lv.{level}  #{tagLine}".Trim();
+            _playerIdentityReady = true;
+            // 战绩可先显示；昵称查询完成后重新发布，让选人公告取得最终名称。
+            ReplayRecentPerformance();
 
             // 图像下载不阻塞战绩请求；其失败也不应让已获取的战绩消失。
             try { await LoadProfileIconAsync(profileIconId, cancellationToken); }
@@ -711,10 +716,14 @@ namespace LOL_GameAssistant.BaseViewForm
             OverviewChanged?.Invoke(this, EventArgs.Empty);
             RecentPerformanceReady?.Invoke(this, new PlayerRecentPerformanceEventArgs(
                 _playerPuuid,
-                lblName.Text,
+                AnnouncementDisplayName,
                 _isAlly,
-                assessment));
+                assessment, !_headerLoadStarted || _playerIdentityReady));
         }
+
+        // 查询失败时发送端按楼层兜底，不能把 UI 的加载占位文字当成玩家昵称。
+        internal string AnnouncementDisplayName => lblName.Text is "加载玩家信息…" or "加载玩家信息..." or "未知玩家"
+            ? "" : lblName.Text ?? "";
 
         /// <summary>判断当前卡片是否可继续用于指定玩家上下文。</summary>
         internal bool CanReuseFor(int queueId, string? gameMode, bool isAlly, bool teamKnown, bool isBot) =>
@@ -727,7 +736,8 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (!_recentPerformancePublished || IsDisposed || string.IsNullOrWhiteSpace(_playerPuuid)) return;
             RecentPerformanceReady?.Invoke(this, new PlayerRecentPerformanceEventArgs(
-                _playerPuuid, lblName.Text, _isAlly, _cachedAssessment));
+                _playerPuuid, AnnouncementDisplayName, _isAlly, _cachedAssessment,
+                !_headerLoadStarted || _playerIdentityReady));
         }
 
         /// <summary>切换数据加载期间的骨架占位展示。</summary>
@@ -958,17 +968,20 @@ namespace LOL_GameAssistant.BaseViewForm
             string puuid,
             string? displayName,
             bool isAlly,
-            RecentModePerformanceAssessment? assessment)
+            RecentModePerformanceAssessment? assessment,
+            bool isDisplayNameReady = true)
         {
             Puuid = puuid;
             DisplayName = displayName ?? "未知玩家";
             IsAlly = isAlly;
             Assessment = assessment;
+            IsDisplayNameReady = isDisplayNameReady;
         }
 
         public string Puuid { get; }
         public string DisplayName { get; }
         public bool IsAlly { get; }
         public RecentModePerformanceAssessment? Assessment { get; }
+        public bool IsDisplayNameReady { get; }
     }
 }
