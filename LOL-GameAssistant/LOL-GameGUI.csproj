@@ -98,10 +98,10 @@
     <Compile Include="../Shared/LoungeProtocol.cs" Link="Lounge/LoungeProtocol.cs" />
     <Compile Include="../Shared/LoungeContent.cs" Link="Lounge/LoungeContent.cs" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.14" />
-    <PackageReference Include="AntdUI" Version="2.4.18" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" />
+    <PackageReference Include="AntdUI" Version="2.4.19" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="System.Management" Version="10.0.14" />
+    <PackageReference Include="System.Management" Version="11.0.0" />
     <PackageReference Include="Sdcb.SimdPaddleOCR" Version="$(SimdPaddleOcrVersion)" />
     <PackageReference Include="Sdcb.SimdPaddleOCR.Models.ChineseV6Small" Version="$(SimdPaddleOcrModelsVersion)" />
     <PackageReference Include="WindowsInput" Version="6.4.1" />
