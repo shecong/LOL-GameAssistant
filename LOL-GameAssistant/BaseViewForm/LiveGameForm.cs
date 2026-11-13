@@ -1008,7 +1008,7 @@ namespace LOL_GameAssistant.BaseViewForm
                         Program.GameMain.infoMsg.AddMsg("此小键盘位置没有对应玩家，未发送。");
                         return;
                     }
-                    messages = BuildPremadeAnnouncementMessages(settings.GameKdaPremadeAnnouncementEnabled).Append(message).ToArray();
+                    messages = BuildPremadeAnnouncementMessages(settings.GameKdaPremadeAnnouncementEnabled, slot).Append(message).ToArray();
                 }
                 else messages = BuildCurrentGameKdaMessages(settings.GameKdaOnePlayerPerLine);
                 var result = await Program.GameMain.SendGameKdaAnnouncementAsync(messages, settings, requireForeground: true);

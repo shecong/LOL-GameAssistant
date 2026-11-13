@@ -15,6 +15,49 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class GameKdaPremadeAnnouncementTests
 {
+    [Theory]
+    [InlineData(true, 0, "我方", "蓝甲、蓝乙")]
+    [InlineData(true, 1, "我方", "蓝甲、蓝乙")]
+    [InlineData(true, 2, "我方", "蓝丙、蓝丁")]
+    [InlineData(true, 5, "敌方", "红甲、红乙")]
+    [InlineData(true, 7, "敌方", "红丙、红丁")]
+    [InlineData(false, 2, "敌方", "蓝丙、蓝丁")]
+    [InlineData(false, 7, "我方", "红丙、红丁")]
+    public void IndividualAnnouncementOnlyIncludesTheSelectedPlayersGroup(bool blueSide, int slot, string side, string names)
+        => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = CreateFormWithMultipleGroups(blueSide);
+        Assert.Equal($"【{side}开黑·2人】{names}", Assert.Single(form.BuildPremadeAnnouncementMessages(true, slot)));
+        Assert.Equal(4, form.BuildPremadeAnnouncementMessages(true).Count);
+    });
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(4)]
+    [InlineData(9)]
+    [InlineData(10)]
+    public void SoloOrMissingPlayerDoesNotIncludeOtherGroups(int slot) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var form = CreateFormWithMultipleGroups(true);
+        Assert.Empty(form.BuildPremadeAnnouncementMessages(true, slot));
+        Assert.Empty(form.BuildPremadeAnnouncementMessages(false, 0));
+    });
+
+    private static LiveGameForm CreateFormWithMultipleGroups(bool blueSide)
+    {
+        var form = CreateForm(blueSide);
+        Field<List<(string Puuid, string Name, string Team)>>(form, "_gameAssessmentRoster").AddRange([
+            ("blue3", "蓝丙", "蓝方"), ("blue4", "蓝丁", "蓝方"), ("blue5", "蓝戊", "蓝方"),
+            ("red3", "红丙", "红方"), ("red4", "红丁", "红方"), ("red5", "红戊", "红方")]);
+        Set(form, "_currentPartyDetection", new CurrentPartyDetectionResult(new([
+            new(1, ["blue1", "blue2"], ["蓝甲", "蓝乙"], 0),
+            new(2, ["blue3", "blue4"], ["蓝丙", "蓝丁"], 0),
+            new(3, ["red1", "red2"], ["红甲", "红乙"], 1),
+            new(4, ["red3", "red4"], ["红丙", "红丁"], 1)
+        ]), [true, true]));
+        return form;
+    }
+
     [Fact]
     public void MultipleGroupsHaveSeparateNumbersForEachSideInBothPhases() => MatchListScrollingTests.OnUiThread(() =>
     {

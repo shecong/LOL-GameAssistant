@@ -23,9 +23,18 @@ public partial class LiveGameForm
     }
 
     /// <summary>先列我方、再列敌方当前名单内的开黑组，发送文案统一显示“开黑”。</summary>
-    internal IReadOnlyList<string> BuildPremadeAnnouncementMessages(bool enabled)
+    internal IReadOnlyList<string> BuildPremadeAnnouncementMessages(bool enabled, int? playerSlot = null)
     {
         if (!enabled) return [];
+        string? selectedPuuid = null;
+        if (playerSlot is int slot)
+        {
+            if (slot is < 0 or > 9) return [];
+            string selectedTeam = slot < 5 ? "蓝方" : "红方";
+            selectedPuuid = _gameAssessmentRoster.Where(member => member.Team == selectedTeam)
+                .ElementAtOrDefault(slot % 5).Puuid;
+            if (string.IsNullOrWhiteSpace(selectedPuuid)) return [];
+        }
         string? self = _encounterSelfPuuid ?? _myPuuid;
         if (string.IsNullOrWhiteSpace(self)) return [];
         string? ownTeam = _gameAssessmentRoster.FirstOrDefault(member => member.Puuid == self).Team;
@@ -36,7 +45,7 @@ public partial class LiveGameForm
             var members = _gameAssessmentRoster.Where(member => member.Team == (teamIndex == 0 ? "蓝方" : "红方"))
                 .Select(member => (member.Puuid, member.Name)).ToArray();
             return BuildPremadeMessagesForTeam(teamIndex, teamIndex == ownIndex ? "我方" : "敌方", members,
-                puuid => _gameAssessments.GetValueOrDefault(puuid)?.DisplayName);
+                puuid => _gameAssessments.GetValueOrDefault(puuid)?.DisplayName, selectedPuuid);
         }).ToArray();
     }
 
@@ -56,11 +65,12 @@ public partial class LiveGameForm
     }
 
     private IReadOnlyList<string> BuildPremadeMessagesForTeam(int teamIndex, string side,
-        (string Puuid, string Name)[] members, Func<string, string?> resolveName)
+        (string Puuid, string Name)[] members, Func<string, string?> resolveName, string? selectedPuuid = null)
     {
         if (_currentPartyDetection == null) return [];
         var detection = _currentPartyDetection.WithHistoryFallback(_historyParties);
         var groups = detection.Groups.Groups.Where(group => group.TeamIndex == teamIndex && group.Puuids.Count >= 2 &&
+                (selectedPuuid == null || group.Puuids.Contains(selectedPuuid)) &&
                 group.Puuids.All(puuid => members.Any(member => member.Puuid == puuid)))
             .OrderBy(group => group.Puuids.Min(puuid => Array.FindIndex(members, member => member.Puuid == puuid)))
             .ToArray();
