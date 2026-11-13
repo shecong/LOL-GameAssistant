@@ -9,7 +9,7 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class BuildConfigurationRegressionTests
 {
-    private static OpggBuildOption Option => new(1, [], [3006, 3031, 3094], [], 8000, 8200,
+    private static OpggBuildOption CreateOption() => new(1, [], [3006, 3031, 3094], [], 8000, 8200,
         [8005, 8009, 9104, 8014, 8234, 8236], 100, 50);
 
     [Theory]
@@ -29,11 +29,11 @@ public sealed class BuildConfigurationRegressionTests
         {
             Assert.Equal("ApplyBuildAsync", method.Name);
             applications++;
-            lcu.Page["selectedPerkIds"] = new JArray(Option.RunePerkIds);
+            lcu.Page["selectedPerkIds"] = new JArray(CreateOption().RunePerkIds);
             return Task.FromResult(OpggBuildApplyResult.Success("已应用符文"));
         });
         var service = new VerifiedBuildApplyService(inner, lcu, folder.Path);
-        var result = await service.ApplyBuildAsync(1, "TOP", Option, applySummonerSpells: false, applyItemSet: false);
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption(), applySummonerSpells: false, applyItemSet: false);
         Assert.Equal(expected, result.Succeeded);
         Assert.Equal(expected ? 1 : 0, applications);
     }
@@ -50,11 +50,11 @@ public sealed class BuildConfigurationRegressionTests
             Assert.Equal("ApplyBuildAsync", method.Name);
             Assert.False((bool)args[6]!); // No item write without an item baseline.
             applications++;
-            lcu.Page["selectedPerkIds"] = new JArray(Option.RunePerkIds);
+            lcu.Page["selectedPerkIds"] = new JArray(CreateOption().RunePerkIds);
             return Task.FromResult(OpggBuildApplyResult.Success("已应用符文"));
         });
         var service = new VerifiedBuildApplyService(inner, lcu, folder.Path);
-        var result = await service.ApplyBuildAsync(1, "TOP", Option, applySummonerSpells: false);
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption(), applySummonerSpells: false);
         Assert.True(result.Succeeded, result.Message);
         Assert.Equal(1, applications);
         Assert.Contains("保留原出装", result.Message);
@@ -75,7 +75,7 @@ public sealed class BuildConfigurationRegressionTests
         var lcu = new Client { ItemsReadable = false };
         var inner = Service<IOpggBuildApplyService>((_, _) => throw new InvalidOperationException("Must not write"));
         var service = new VerifiedBuildApplyService(inner, lcu, folder.Path);
-        var result = await service.ApplyBuildAsync(1, "TOP", Option with { RunePerkIds = [] }, applySummonerSpells: false);
+        var result = await service.ApplyBuildAsync(1, "TOP", CreateOption() with { RunePerkIds = [] }, applySummonerSpells: false);
         Assert.False(result.Succeeded);
         Assert.Empty(lcu.ItemWrites);
     }

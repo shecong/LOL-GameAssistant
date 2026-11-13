@@ -1,5 +1,5 @@
 {
-  "version": "10.0.14",
-  "url": "https://download.microsoft.com/download/9b53b153-e93a-4c89-8049-c7381505cf80/71f0a69e-a1d6-4a79-830a-f1fc950b4c60/windowsdesktop-runtime-10.0.14-win-arm64.exe",
-  "sha256": "26858741e5fd3fe02d2c988c7041602ff06203cf4b326c6ef11fcf1d11d17380"
+  "version": "11.0.0",
+  "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/11.0.0/windowsdesktop-runtime-11.0.0-win-arm64.exe",
+  "sha256": "9537033d2522cca54110d4d1c0285eec240b95d308942b09ff650a820e42338e"
 }

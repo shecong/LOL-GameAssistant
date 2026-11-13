@@ -47,7 +47,7 @@ public static class ChampSelectKdaAnnouncementBuilder
             ? assessment.WinRate.ToString("F0", CultureInfo.InvariantCulture) + "%" : "--";
         // 与现有 KDA 分档一致，截断而非四舍五入，避免 4.499 显示成 4.50。
         string kda = hasKda
-            ? (Math.Truncate((decimal)Math.Max(0, assessment.Kda) * 100m) / 100m)
+            ? (Math.Truncate(decimal.Parse(Math.Max(0, assessment.Kda).ToString("G15", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture) * 100m) / 100m)
                 .ToString("F2", CultureInfo.InvariantCulture) : "--";
         string score = hasKda && assessment.HasEnoughSample
             ? assessment.Score.ToString(CultureInfo.InvariantCulture) + "分" : "";

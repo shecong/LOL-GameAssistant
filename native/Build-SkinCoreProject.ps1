@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory)][ValidateSet('Classic', 'Hybrid', 'Relay')][string]$Project,
     [ValidateSet('Build', 'Clean')][string]$Action = 'Build',
-    [string]$WdkRoot = '', [string]$SdkVersion = '10.0.26100.0'
+    [string]$WdkRoot = '', [string]$SdkVersion = '10.0.28000.0',
+    [string]$KmdfVersion = '', [string]$KmdfMinimumVersion = '1.31'
 )
 $ErrorActionPreference = 'Stop'
 # VS/MSBuild may inherit a PowerShell 7-only PSModulePath. Restore the modules
@@ -23,7 +24,7 @@ if ($Action -eq 'Clean') {
     }
     return
 }
-if ($Project -eq 'Relay') { & "$skinProjectRoot\build.ps1" -WdkRoot $WdkRoot -SdkVersion $SdkVersion }
+if ($Project -eq 'Relay') { & "$skinProjectRoot\build.ps1" -WdkRoot $WdkRoot -SdkVersion $SdkVersion -KmdfVersion $KmdfVersion -KmdfMinimumVersion $KmdfMinimumVersion }
 else { & "$skinProjectRoot\build.ps1" }
 if ($Project -eq 'Classic') {
     $skinClassicRuntime = Join-Path $PSScriptRoot '..\LOL-GameAssistant\Tools\SkinCore'

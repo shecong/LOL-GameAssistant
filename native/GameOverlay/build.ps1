@@ -1,7 +1,7 @@
 ﻿param([switch]$Test)
 $ErrorActionPreference = 'Stop'
 $overlayPins = @{
-    imgui = @('https://github.com/ocornut/imgui.git', 'v1.91.9b', 'f5befd2d29e66809cd1110a152e375a7f1981f06')
+    imgui = @('https://github.com/ocornut/imgui.git', 'v1.93.0', 'c1aaac65e896a45f81f47a4d68f9959e0f86c859')
     minhook = @('https://github.com/TsudaKageyu/minhook.git', 'v1.3.4', 'c3fcafdc10146beb5919319d0683e44e3c30d537')
 }
 foreach ($overlayDependency in $overlayPins.Keys) {
@@ -46,6 +46,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Smoke harness compilation failed' }
         & ./sc-game-overlay-smoke.exe
         if ($LASTEXITCODE -ne 0) { throw 'Overlay render smoke test failed' }
+        & ./sc-game-overlay-smoke.exe --flip --borderless
+        if ($LASTEXITCODE -ne 0) { throw 'Overlay flip-model render smoke test failed' }
     }
     $overlayDestination = Join-Path $PSScriptRoot '../../LOL-GameAssistant/Tools/GameOverlay'
     New-Item -ItemType Directory -Path $overlayDestination -Force | Out-Null

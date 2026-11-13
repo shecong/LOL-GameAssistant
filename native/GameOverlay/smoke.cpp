@@ -1,6 +1,8 @@
 #include "protocol.h"
 #include <d3d11.h>
+#include <d3d11_1.h>
 #include <dxgi.h>
+#include <dxgi1_2.h>
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 #include <cstdio>
@@ -10,6 +12,36 @@ using Microsoft::WRL::ComPtr;
 using namespace overlay;
 static void Check(bool condition, const char* message) { if (!condition) { printf("FAIL: %s\n", message); fflush(stdout); ExitProcess(1); } }
 static unsigned gameWheelMessages=0;
+static unsigned verifiedFrames=0, minimumOverlayPixels=UINT_MAX;
+static uint64_t baselineFrameHash=0;
+static ComPtr<ID3D11Texture2D> verificationTexture;
+static void VerifyPresentedFrame(IDXGISwapChain* chain) {
+    ComPtr<ID3D11Texture2D> back; ComPtr<ID3D11Device> device; ComPtr<ID3D11DeviceContext> context;
+    Check(SUCCEEDED(chain->GetBuffer(0,IID_PPV_ARGS(&back))),"per-frame backbuffer");
+    back->GetDevice(&device); device->GetImmediateContext(&context);
+    D3D11_TEXTURE2D_DESC desc{},existing{}; back->GetDesc(&desc);
+    if(verificationTexture) verificationTexture->GetDesc(&existing);
+    if(existing.Width!=desc.Width || existing.Height!=desc.Height || existing.Format!=desc.Format) {
+        verificationTexture.Reset(); desc.Usage=D3D11_USAGE_STAGING; desc.BindFlags=desc.MiscFlags=0; desc.CPUAccessFlags=D3D11_CPU_ACCESS_READ;
+        Check(SUCCEEDED(device->CreateTexture2D(&desc,nullptr,&verificationTexture)),"per-frame staging texture");
+    }
+    context->CopyResource(verificationTexture.Get(),back.Get());
+    D3D11_MAPPED_SUBRESOURCE data{};
+    Check(SUCCEEDED(context->Map(verificationTexture.Get(),0,D3D11_MAP_READ,0,&data)),"per-frame pixel readback");
+    unsigned visible=0; uint64_t frameHash=14695981039346656037ull;
+    for(UINT y=0;y<desc.Height;++y) {
+        auto row=static_cast<const unsigned char*>(data.pData)+size_t(y)*data.RowPitch;
+        for(UINT x=0;x<desc.Width;++x) {
+            if(row[x*4+1]!=51) ++visible;
+            for(unsigned c=0;c<3;++c) { frameHash^=row[x*4+c]; frameHash*=1099511628211ull; }
+        }
+    }
+    context->Unmap(verificationTexture.Get(),0);
+    minimumOverlayPixels=(std::min)(minimumOverlayPixels,visible); ++verifiedFrames;
+    Check(visible>4000,"every submitted frame contains visible overlay pixels");
+    if(!baselineFrameHash) baselineFrameHash=frameHash;
+    Check(frameHash==baselineFrameHash,"static panel pixels remain identical across paced frames");
+}
 static LRESULT CALLBACK TestWndProc(HWND window,UINT message,WPARAM wParam,LPARAM lParam) {
     if(message==WM_MOUSEWHEEL) ++gameWheelMessages;
     return DefWindowProcW(window,message,wParam,lParam);
@@ -44,6 +76,8 @@ int main(int argc, char** argv) {
     ComPtr<IDXGISwapChain> chain; ComPtr<ID3D11Device> device; ComPtr<ID3D11DeviceContext> context;
     Check(SUCCEEDED(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION,
         &desc, &chain, &device, nullptr, &context)), "D3D11 hardware device");
+    ComPtr<IDXGISwapChain1> chain1;
+    Check(SUCCEEDED(chain.As(&chain1)),"extended presentation interface");
     const char computeSource[]="[numthreads(1,1,1)] void main(uint3 id:SV_DispatchThreadID) {}";
     ComPtr<ID3DBlob> code,errors; ComPtr<ID3D11ComputeShader> gameCompute;
     Check(SUCCEEDED(D3DCompile(computeSource,sizeof(computeSource),nullptr,nullptr,nullptr,"main","cs_5_0",0,0,&code,&errors)),"compile game compute shader");
@@ -52,6 +86,22 @@ int main(int argc, char** argv) {
     ud.MiscFlags=D3D11_RESOURCE_MISC_BUFFER_STRUCTURED; ud.StructureByteStride=4;
     ComPtr<ID3D11Buffer> ub; ComPtr<ID3D11UnorderedAccessView> gameUav;
     Check(SUCCEEDED(device->CreateBuffer(&ud,nullptr,&ub)) && SUCCEEDED(device->CreateUnorderedAccessView(ub.Get(),nullptr,&gameUav)),"game UAV");
+    ComPtr<ID3D11DeviceContext1> context1;
+    Check(SUCCEEDED(context.As(&context1)),"D3D11.1 game context");
+    D3D11_BUFFER_DESC cbDesc{}; cbDesc.ByteWidth=4096; cbDesc.BindFlags=D3D11_BIND_CONSTANT_BUFFER;
+    ComPtr<ID3D11Buffer> gameConstants;
+    Check(SUCCEEDED(device->CreateBuffer(&cbDesc,nullptr,&gameConstants)),"game ranged constant buffer");
+    ComPtr<ID3D11Predicate> gamePredicate;
+    D3D11_QUERY_DESC queryDesc{D3D11_QUERY_OCCLUSION_PREDICATE,0};
+    Check(SUCCEEDED(device->CreatePredicate(&queryDesc,&gamePredicate)),"game occlusion predicate");
+    context->Begin(gamePredicate.Get()); context->End(gamePredicate.Get()); context->Flush();
+    BOOL queryResult=TRUE; HRESULT queryStatus=S_FALSE;
+    ULONGLONG queryDeadline=GetTickCount64()+2500;
+    while((queryStatus=context->GetData(gamePredicate.Get(),&queryResult,sizeof(queryResult),0))==S_FALSE &&
+        GetTickCount64()<queryDeadline) Sleep(1);
+    Check(queryStatus==S_OK && queryResult==FALSE,"empty query suppresses conditional game draws");
+    bool useGamePredicate=false;
+    unsigned presentCount=0;
     if (exclusive) {
         DWORD foregroundThread=GetWindowThreadProcessId(GetForegroundWindow(),nullptr);
         bool joined=foregroundThread!=GetCurrentThreadId() && AttachThreadInput(GetCurrentThreadId(),foregroundThread,TRUE);
@@ -82,11 +132,29 @@ int main(int argc, char** argv) {
         ComPtr<ID3D11Texture2D> back; ComPtr<ID3D11RenderTargetView> view;
         Check(SUCCEEDED(chain->GetBuffer(0, IID_PPV_ARGS(&back))), "get backbuffer");
         Check(SUCCEEDED(device->CreateRenderTargetView(back.Get(), nullptr, &view)), "render target");
+        context->SetPredication(nullptr,FALSE);
         const float color[]{0.1f, 0.2f, 0.3f, 1.f}; context->ClearRenderTargetView(view.Get(), color);
         ID3D11RenderTargetView* target = view.Get(); ID3D11UnorderedAccessView* uav=gameUav.Get(); UINT preserve=UINT(-1);
         context->OMSetRenderTargetsAndUnorderedAccessViews(1,&target,nullptr,1,1,&uav,&preserve);
         context->CSSetShader(gameCompute.Get(),nullptr,0);
-        Check(SUCCEEDED(chain->Present(0, 0)), "present");
+        ID3D11Buffer* constants=gameConstants.Get(); UINT firstConstant=(++presentCount%2) ? 16 : 32,constantCount=16;
+        context1->VSSetConstantBuffers1(0,1,&constants,&firstConstant,&constantCount);
+        ComPtr<ID3D11Buffer> configuredConstants; UINT configuredFirst=0,configuredCount=0;
+        context1->VSGetConstantBuffers1(0,1,&configuredConstants,&configuredFirst,&configuredCount);
+        Check(configuredConstants.Get()==constants && configuredFirst==firstConstant && configuredCount==constantCount,
+            "game constant-buffer range fixture configured");
+        context->SetPredication(useGamePredicate ? gamePredicate.Get() : nullptr,FALSE);
+        DXGI_PRESENT_PARAMETERS parameters{};
+        Check(SUCCEEDED((presentCount%2) ? chain->Present(0,0) : chain1->Present1(0,0,&parameters)),"alternating Present / Present1");
+        ComPtr<ID3D11Buffer> restoredConstants; UINT restoredFirst=0,restoredCount=0;
+        context1->VSGetConstantBuffers1(0,1,&restoredConstants,&restoredFirst,&restoredCount);
+        Check(restoredConstants.Get()==constants && restoredFirst==firstConstant && restoredCount==constantCount,
+            "game constant-buffer range restored exactly");
+        ComPtr<ID3D11Predicate> restoredPredicate; BOOL restoredCondition=TRUE;
+        context->GetPredication(&restoredPredicate,&restoredCondition);
+        Check(restoredPredicate.Get()==(useGamePredicate ? gamePredicate.Get() : nullptr) && restoredCondition==FALSE,
+            "game conditional rendering restored exactly");
+        context->SetPredication(nullptr,FALSE);
         if (!savedPreview && frame->status == 2) {
             D3D11_TEXTURE2D_DESC readDesc{}; back->GetDesc(&readDesc);
             readDesc.Usage = D3D11_USAGE_STAGING; readDesc.BindFlags = readDesc.MiscFlags = 0; readDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
@@ -447,6 +515,29 @@ int main(int argc, char** argv) {
         frame->uiBuilds-builds,frame->targetCreates-creates,frame->lastCpuUs,
         double(finished.QuadPart-started.QuadPart)*1000/hz.QuadPart/300);
     frame->enabled = 0;
+    frame->enabled=1; frame->collapsed=0;
+    auto observeFrames=reinterpret_cast<void(*)(void(*)(IDXGISwapChain*))>(GetProcAddress(module,"OverlayTestFrameObserver"));
+    Check(observeFrames!=nullptr,"pre-Present pixel verification observer");
+    setPointer(0,0,TRUE);
+    for(int scenario=0;scenario<3;++scenario) {
+        frame->mayhemEnabled=scenario!=1; aux->flags=scenario==0 ? 0 : 8;
+        frame->heartbeat=GetTickCount64(); present(); present();
+        baselineFrameHash=0; unsigned before=verifiedFrames;
+        observeFrames(VerifyPresentedFrame);
+        for(int i=0;i<360;++i) {
+            frame->heartbeat=GetTickCount64(); useGamePredicate=(i%2)==0;
+            present((i%7)==0); Sleep(scenario==0 ? 4 : scenario==1 ? 8 : 12);
+        }
+        observeFrames(nullptr); useGamePredicate=false;
+        Check(verifiedFrames==before+360,"every presented frame contains overlay pixels");
+    }
+    context->SetPredication(nullptr,FALSE);
+    Check(frame->presentCalls>0 && frame->present1Calls>0,"both presentation paths are instrumented");
+    Check(frame->presentCalls+frame->present1Calls==frame->renderedFrames+frame->skippedCalls,
+        "presentation diagnostics account for rendered and deliberately skipped frames");
+    frame->enabled=0;
+    printf("PASS: isolated pipeline: %u stable pixel frames; ranged constant buffers and alternating predicates restored; min pixels=%u\n",
+        verifiedFrames,minimumOverlayPixels);
     printf("PASS: DX11 render, UTF-8 Chinese UI, state restore, capture, disable, heartbeat, 48x48 collapse, mouse without Alt, auxiliary panels, versioned skin selection, wheel queue routing, raw wheel masking, resolution change\n");
     DestroyWindow(window);
     // The production module intentionally stays pinned until process exit.

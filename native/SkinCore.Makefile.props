@@ -2,10 +2,11 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ConfigurationType>Makefile</ConfigurationType>
-    <SkinSdkVersion Condition="'$(SkinSdkVersion)' == ''">10.0.26100.0</SkinSdkVersion>
-    <SkinWdkRoot Condition="'$(SkinWdkRoot)' == '' and Exists('$(MSBuildThisFileDirectory)..\.artifacts\wdk-nuget\wdk\c\Include\$(SkinSdkVersion)\km\ntddk.h')">$(MSBuildThisFileDirectory)..\.artifacts\wdk-nuget\wdk\c</SkinWdkRoot>
+    <SkinSdkVersion Condition="'$(SkinSdkVersion)' == ''">10.0.28000.0</SkinSdkVersion>
+    <SkinKmdfMinimumVersion Condition="'$(SkinKmdfMinimumVersion)' == ''">1.31</SkinKmdfMinimumVersion>
+    <SkinWdkRoot Condition="'$(SkinWdkRoot)' == '' and Exists('$(MSBuildThisFileDirectory)..\.artifacts\wdk-nuget\10.0.28000.2526\c\Include\$(SkinSdkVersion)\km\ntddk.h')">$(MSBuildThisFileDirectory)..\.artifacts\wdk-nuget\10.0.28000.2526\c</SkinWdkRoot>
     <SkinWdkRoot Condition="'$(SkinWdkRoot)' == ''">$(MSBuildProgramFiles32)\Windows Kits\10</SkinWdkRoot>
-    <NMakeBuildCommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)Build-SkinCoreProject.ps1&quot; -Project $(SkinProjectKind) -Action Build -WdkRoot &quot;$(SkinWdkRoot)&quot; -SdkVersion &quot;$(SkinSdkVersion)&quot;</NMakeBuildCommandLine>
+    <NMakeBuildCommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)Build-SkinCoreProject.ps1&quot; -Project $(SkinProjectKind) -Action Build -WdkRoot &quot;$(SkinWdkRoot)&quot; -SdkVersion &quot;$(SkinSdkVersion)&quot; -KmdfVersion &quot;$(SkinKmdfVersion)&quot; -KmdfMinimumVersion &quot;$(SkinKmdfMinimumVersion)&quot;</NMakeBuildCommandLine>
     <NMakeReBuildCommandLine>$(NMakeBuildCommandLine)</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)Build-SkinCoreProject.ps1&quot; -Project $(SkinProjectKind) -Action Clean</NMakeCleanCommandLine>
     <NMakeOutput>$(ProjectDir)bin\$(SkinOutputName)</NMakeOutput>

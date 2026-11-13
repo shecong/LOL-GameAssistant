@@ -13,8 +13,7 @@ public sealed partial class ClientToolsForm
     }
     private Control CreatePartyCard()
     {
-        var card = Card("开黑大厅", 175, out FlowLayoutPanel body);
-        body.Controls.Add(Caption("选择模式、邀请已有好友、设置分路，核对队伍状态后开始匹配。也可从休息室招募进入。", 590));
+        var card = Card("开黑大厅", 110, out FlowLayoutPanel body);
         body.Controls.Add(Button("打开开黑大厅", (_, _) => { using var form = new PartyHubForm(AppCompositionRoot.PartyService); form.ShowDialog(FindForm()); }));
         return card;
     }

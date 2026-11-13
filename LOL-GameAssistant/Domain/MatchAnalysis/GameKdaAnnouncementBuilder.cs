@@ -114,8 +114,9 @@ public static class GameKdaAnnouncementBuilder
     private static string FormatKda(double value, int decimals)
     {
         decimal factor = decimals == 1 ? 10m : 100m;
-        decimal nonNegative = (decimal)Math.Max(0, value);
+        // Normalize double precision before truncation so exact hundredths stay stable across runtimes.
+        decimal nonNegative = decimal.Parse(Math.Max(0, value).ToString("G15", System.Globalization.CultureInfo.InvariantCulture), System.Globalization.CultureInfo.InvariantCulture);
         decimal truncated = Math.Truncate(nonNegative * factor) / factor;
-        return truncated.ToString($"F{decimals}");
+        return truncated.ToString($"F{decimals}", System.Globalization.CultureInfo.InvariantCulture);
     }
 }

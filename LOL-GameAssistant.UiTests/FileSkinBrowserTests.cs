@@ -188,7 +188,9 @@ public sealed class FileSkinBrowserTests
     private sealed class Resources : IResourceSkinService
     {
         public bool Mounted, FailClear; public Func<Task>? BeforeClear;
-        public ResourceSkinState State => new("test", Mounted ? [new("owned.wad.client", "test", "", 305, 1)] : []);
+        private readonly ResourceSkinState _emptyState = new("test", []);
+        private readonly ResourceSkinState _mountedState = new("test", [new("owned.wad.client", "test", "", 305, 1)]);
+        public ResourceSkinState State => Mounted ? _mountedState : _emptyState;
         public Task ApplyAsync(string gameDirectory, IReadOnlyList<string> packages, CancellationToken token = default) => throw new NotImplementedException();
         public async Task ClearAsync(CancellationToken token = default)
         {

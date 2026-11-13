@@ -26,10 +26,14 @@ dotnet publish LOL-GameAssistant/LOL-GameGUI.csproj -c Release -r win-x64 --self
 
 依赖（未经修改）：
 
-- Dear ImGui v1.91.9b，`f5befd2d29e66809cd1110a152e375a7f1981f06`，MIT，<https://github.com/ocornut/imgui>
+- Dear ImGui v1.93.0，`c1aaac65e896a45f81f47a4d68f9959e0f86c859`，MIT，<https://github.com/ocornut/imgui>
 - MinHook v1.3.4，`c3fcafdc10146beb5919319d0683e44e3c30d537`，BSD 2-Clause 及其依赖许可，<https://github.com/TsudaKageyu/minhook>
 
 ## 验证范围与限制
+
+浮窗绘制和 OCR 取图使用独立的 DX11.1 管线状态对象（`SwapDeviceContextState`），完成后由运行时恢复游戏状态。不能只用 DX11.0 的逐项 Get/Set 保存状态：例如 `VSSetConstantBuffers` 会丢失游戏通过 `VSSetConstantBuffers1` 设置的常量缓冲区偏移与长度。独立状态也隔离游戏的条件绘制。退出浮窗状态前清空其资源绑定，避免保留后缓冲区导致分辨率切换失败。
+
+`Present` 和 `Present1` 必须共用绘制路径；DXGI 内部转发只绘制一次。`build.ps1 -Test` 同时运行普通交换链和 flip 无边框模式，每帧交替使用两种提交入口，验证常量缓冲区区间、谓词及游戏输出状态恢复；每种模式额外检查增幅、换肤及同时显示三种场景，共 1080 帧，在交替条件绘制下要求每帧浮窗可见且静态 RGB 哈希一致。这些是受控 DX11 测试，不能代替实机闪烁验收。v2 协议头原预留字节 116/120/124 记录接管路径的 Present / Present1 / 跳过计数，协议大小和文字偏移保持不变。
 
 `build.ps1 -Test` 使用独立 DX11 程序验证真实绘制、游戏渲染目标恢复、绘制前取图、RGBA→BGRA、停用、心跳过期、48×48 收起、无需 Alt 的真实鼠标点击、独立面板与带版本的皮肤选择指令、换肤列表双向滚动、消息队列提前拦截、原始滚轮过滤，以及移出/关闭面板后恢复游戏滚轮、窗口分辨率变化。运行以下命令可额外验证独占全屏，会短暂显示测试窗口并在结束后恢复桌面：
 
@@ -45,6 +49,8 @@ cd native/GameOverlay/bin
 本模块不是腾讯/WeGame 官方集成，受保护环境可能拒绝加载。未实现 DX9/DX12/Vulkan；不承诺所有游戏版本兼容。鼠标悬停在交互面板内时，垂直滚轮在游戏读取消息队列前交给覆盖层，同时过滤 `GetRawInputData` / `GetRawInputBuffer` 返回的垂直滚轮标志，避免换肤列表滚动同时缩放游戏视距；原始鼠标位移、按键及水平滚轮保持原值。移出面板、关闭面板或失去焦点后恢复游戏滚轮；其他输入路径仍需游戏内实测。
 
 ## 生命周期与协议
+
+v2 协议的心跳和绝对截止时间统一使用 Win32 `GetTickCount64`。托管端不能直接写入 `Environment.TickCount64`：.NET 11 已将它改为 `QueryUnbiasedInterruptTime`，精度和休眠计时规则均不同，会使原生端把正常心跳当成未来时间而漏绘。`GameOverlayClock` 显式读取协议时钟；界面截止时间先换算为剩余时长再写入。相关托管回归测试直接与 Win32 时钟比较，原生 smoke 自己写入心跳无法覆盖这一跨运行时错误。
 
 Home 换肤面板包含英雄、眼位与小兵三个分类，支持版本校验及分页。辅助命令 5 携带分类（0 英雄、1 眼位、2 小兵），命令 6 携带翻页方向（-1 / 1）；辅助数据的预留字节 76 / 80 / 84 分别保存分类、当前页与总页数，原有结构大小与文本偏移保持不变。分类、分页、目录或对局会话改变时更新列表版本，旧点击不会应用到新列表。对象分类的恢复按钮同时恢复小兵与眼位，不影响英雄皮肤。
 

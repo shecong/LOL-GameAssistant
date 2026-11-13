@@ -142,7 +142,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         {
             bool changed=_frameDirty || _panelsDirty;
             if(_frameDirty) { WriteFrame(session.View, _lastFrame ?? new("", "", "", "", 0, false, false), _enabled || _panels.Count > 0); _frameDirty=false; }
-            else { session.View.Write(8, _enabled || _panels.Count>0 ? 1 : 0); session.View.Write(24, Environment.TickCount64); }
+            else { session.View.Write(8, _enabled || _panels.Count>0 ? 1 : 0); session.View.Write(24, GameOverlayClock.Now); }
             session.View.Write(80, _enabled ? 1 : 0);
             if (_panelsDirty) { WritePanels(session.View); _panelsDirty = false; _dirtyPanels.Clear(); }
             if(changed) session.View.Write(96,unchecked(session.View.ReadInt32(96)+1));
@@ -152,6 +152,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
 
     private void WritePanels(MemoryMappedViewAccessor view)
     {
+        long managedNow = Environment.TickCount64, nativeNow = GameOverlayClock.Now;
         int flags = 0;
         foreach (var (kind, payload) in _panels)
         {
@@ -169,12 +170,12 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                     if (payload.Pixels is { } junglePixels) view.WriteArray(JunglePixelOffset, junglePixels, 0, junglePixels.Length);
                     break;
                 case GameOverlayPanelKind.Coaching:
-                    view.Write(AuxOffset + 16, p.Deadline); view.Write(AuxOffset + 32, p.Position);
+                    view.Write(AuxOffset + 16, GameOverlayClock.Deadline(p.Deadline, managedNow, nativeNow)); view.Write(AuxOffset + 32, p.Position);
                     view.Write(AuxOffset + 36, p.OffsetX); view.Write(AuxOffset + 40, p.OffsetY);
                     WriteText(view, AuxOffset + 128, 256, p.Title); WriteText(view, AuxOffset + 384, 2048, p.Body); WriteText(view, AuxOffset + 2432, 1024, p.Detail);
                     break;
                 case GameOverlayPanelKind.SkinNotice:
-                    view.Write(AuxOffset + 24, p.Deadline); WriteText(view, AuxOffset + 3456, 1024, p.Body); break;
+                    view.Write(AuxOffset + 24, GameOverlayClock.Deadline(p.Deadline, managedNow, nativeNow)); WriteText(view, AuxOffset + 3456, 1024, p.Body); break;
                 case GameOverlayPanelKind.SkinPicker:
                     view.Write(AuxOffset + 57984, Math.Min(32, p.Submenu?.Items.Count ?? 0));
                     view.Write(AuxOffset + 57988, p.Submenu?.Selected ?? -1);
@@ -355,7 +356,7 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
     internal static void WriteFrame(MemoryMappedViewAccessor view, GameOverlayFrame frame, bool enabled)
     {
         view.Write(8, enabled ? 1 : 0);
-        view.Write(24, Environment.TickCount64);
+        view.Write(24, GameOverlayClock.Now);
         view.Write(36, Math.Clamp(frame.Rarity, 0, 2));
         view.Write(40, frame.Collapsed ? 1 : 0);
         view.Write(44, frame.Scanning ? 1 : 0);

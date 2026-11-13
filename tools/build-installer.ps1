@@ -39,7 +39,7 @@ $CompilerPath = (Resolve-Path -LiteralPath $CompilerPath).Path
 $runtimeConfig = Join-Path $repo "installer/runtime-$runtimeArch.json"
 $runtimePackage = Get-Content -LiteralPath $runtimeConfig -Raw | ConvertFrom-Json
 $runtimeUri = [Uri]$runtimePackage.url
-if ($runtimePackage.version -notmatch '^10\.0\.[0-9]+$' -or $runtimePackage.sha256 -notmatch '^[0-9a-f]{64}$' -or
+if ($runtimePackage.version -notmatch '^11\.0\.[0-9]+$' -or $runtimePackage.sha256 -notmatch '^[0-9a-f]{64}$' -or
     -not $runtimeUri.IsAbsoluteUri -or $runtimeUri.Scheme -ne 'https' -or
     $runtimeUri.Host -notin @('download.microsoft.com', 'builds.dotnet.microsoft.com', 'dotnetcli.blob.core.windows.net')) {
     throw "Invalid Microsoft Desktop Runtime configuration in $runtimeConfig."

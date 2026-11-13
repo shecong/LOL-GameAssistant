@@ -405,3 +405,8 @@ output/
 
 # User-supplied pinned resource loader; prepared by tools/prepare-resource-skins.ps1.
 /LOL-GameAssistant/Tools/ResourceSkins/HID.dll
+
+# Local temporary publish output and resource cache.
+/tmp/kda-paced-publish/
+/tmp/kda-three-player-publish/
+/tmp/optional-resource-probe-result/

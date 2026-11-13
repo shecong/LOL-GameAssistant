@@ -6,6 +6,7 @@ if (-not $coreVs) { throw 'Install Visual Studio C++ Build Tools and Windows SDK
 $coreVc = (Get-ChildItem -LiteralPath "$coreVs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
 $coreSdk = 'C:\Program Files (x86)\Windows Kits\10'
 $coreSdkVersion = (Get-ChildItem -LiteralPath "$coreSdk\Lib" -Directory | Where-Object { Test-Path -LiteralPath "$($_.FullName)\um\x64\kernel32.lib" } | Sort-Object Name -Descending | Select-Object -First 1).Name
+Write-Output "Core toolchain: MSVC $(Split-Path $coreVc -Leaf); Windows SDK $coreSdkVersion"
 $env:PATH = "$coreVc\bin\Hostx64\x64;$env:PATH"
 $env:LIB = "$coreVc\lib\x64;$coreSdk\Lib\$coreSdkVersion\ucrt\x64;$coreSdk\Lib\$coreSdkVersion\um\x64"
 $env:INCLUDE = "$coreVc\include;$coreSdk\Include\$coreSdkVersion\ucrt;$coreSdk\Include\$coreSdkVersion\shared;$coreSdk\Include\$coreSdkVersion\um"

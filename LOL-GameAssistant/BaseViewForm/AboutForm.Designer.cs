@@ -3,10 +3,6 @@ namespace LOL_GameAssistant.BaseViewForm
     partial class AboutForm
     {
         private System.ComponentModel.IContainer components = new System.ComponentModel.Container();
-        private AntdUI.Label lblVersion = null!;
-        private AntdUI.Button btn_opengithub = null!;
-        private AntdUI.Button btn_github = null!;
-        private AntdUI.Button btn_update = null!;
 
         protected override void Dispose(bool disposing)
         {
@@ -28,5 +24,10 @@ namespace LOL_GameAssistant.BaseViewForm
             btn_github.Click += btn_github_Click;
             btn_update.Click += btn_update_Click;
         }
+
+        private AntdUI.Label lblVersion = null!;
+        private AntdUI.Button btn_opengithub = null!;
+        private AntdUI.Button btn_github = null!;
+        private AntdUI.Button btn_update = null!;
     }
 }

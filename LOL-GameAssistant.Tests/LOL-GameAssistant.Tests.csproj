@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -14,6 +14,7 @@
     <EmbeddedResource Include="..\LOL-GameAssistant\Resources\cslol-champion-search.json" LogicalName="LOL_GameAssistant.Resources.CslolChampionSearch.json" WithCulture="false" />
     <EmbeddedResource Include="..\LOL-GameAssistant\Resources\cslol-names.zh-CN.json" LogicalName="LOL_GameAssistant.Resources.CslolNamesZhCN.json" WithCulture="false" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolSkinService.cs" Link="Infrastructure\Skins\CslolSkinService.cs" />
+    <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolGameIndexMirror.cs" Link="Infrastructure\Skins\CslolGameIndexMirror.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\GameSkinLoaderIsolation.cs" Link="Infrastructure\Skins\GameSkinLoaderIsolation.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\CslolToolRunner.cs" Link="Infrastructure\Skins\CslolToolRunner.cs" />
     <Compile Include="..\LOL-GameAssistant\Infrastructure\Skins\SkinPackageStore.cs" Link="Infrastructure\Skins\SkinPackageStore.cs" />
@@ -50,9 +51,9 @@
     <Compile Include="..\LOL-GameAssistant\Domain\Teams\PremadeDetectionResult.cs" Link="Domain\PremadeDetectionResult.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Teams\CurrentPartyDetector.cs" Link="Domain\CurrentPartyDetector.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\Teams\CurrentPartySnapshotCache.cs" Link="Domain\CurrentPartySnapshotCache.cs" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />

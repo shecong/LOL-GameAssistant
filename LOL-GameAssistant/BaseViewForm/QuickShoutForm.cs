@@ -78,7 +78,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         {
             Dock = DockStyle.Fill,
             Padding = new Padding(4, 0, 0, 0),
-            Text = "一键喊话  ·  开启多选后点击多句，可按词库顺序发送到客户端或游戏内。"
+            Text = "一键喊话"
         };
         var toggleOptions = new AntdUI.Button { Name = "quickShoutToggleOptions", Text = "发送与快捷键设置 ▾", Dock = DockStyle.Right, Width = 164 };
         header.Controls.Add(heading);
@@ -203,7 +203,6 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         Bind(_playerHotkeysEnabled, (s, v) => s.GameKdaPlayerHotkeysEnabled = v);
         _minimumInterval.ValueChanged += (_, _) => AutoSave(s => s.QuickMessageSendIntervalSeconds = (int)_minimumInterval.Value);
         _customPhrases.Leave += (_, _) => SaveOptions();
-        _status.Text = "从词库选句；多选发送会逐条发送到客户端群聊或游戏内。";
         RefreshPhrases();
         ApplyTheme(UiTheme.Palette);
         _loadingSettings = false;
@@ -349,7 +348,6 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         cooldown.Controls.Add(_minimumInterval, 1, 0);
         cooldown.Controls.Add(OptionLabel("秒"), 2, 0);
         sending.Controls.Add(cooldown, 0, 4);
-        sending.Controls.Add(OptionLabel("冷却为两组喊话之间的间隔。\n多选最多 10 句；逐字批量最多 40 字。"), 0, 5);
 
         var shortcuts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 6, Padding = new Padding(12, 0, 8, 0) };
         shortcuts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
@@ -374,9 +372,6 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         }
         _kdaHotkeyEnabled.AutoSize = false;
         _kdaHotkeyEnabled.Dock = DockStyle.Fill;
-        var hint = OptionLabel("点击输入框后按键录入，支持 Ctrl / Alt / Shift 组合。\n仅游戏前台触发；KDA 可重复发送。");
-        shortcuts.Controls.Add(hint, 0, 5);
-        shortcuts.SetColumnSpan(hint, 2);
         area.Controls.Add(sending, 0, 0);
         area.Controls.Add(shortcuts, 1, 0);
         return area;
@@ -385,9 +380,8 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     /// <summary>创建逐人测评热键的配置区域。</summary>
     private Control CreatePlayerHotkeyOptions()
     {
-        var panel = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 88, ColumnCount = 1, RowCount = 2, Padding = new Padding(20, 0, 20, 0) };
+        var panel = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, ColumnCount = 1, RowCount = 1, Padding = new Padding(20, 0, 20, 0) };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
         var customize = new AntdUI.Button { Text = "自定义测评文案", Width = 150, Height = 28, Margin = new Padding(12, 0, 0, 0) };
@@ -395,7 +389,6 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         actions.Controls.Add(_playerHotkeysEnabled);
         actions.Controls.Add(customize);
         panel.Controls.Add(actions, 0, 0);
-        panel.Controls.Add(OptionLabel("NumPad 1–5：蓝方五人；NumPad 6–9、0：红方五人，按卡片从左到右、从上到下。开启 Num Lock，按一次仅发送对应玩家。"), 0, 1);
         return panel;
     }
 
@@ -420,14 +413,12 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private Control CreateActionBar()
     {
         var bar = new Panel { Dock = DockStyle.Bottom, Height = 48, Padding = new Padding(12, 4, 12, 4) };
-        var save = new AntdUI.Label { Text = "开关自动保存", Dock = DockStyle.Right, Width = 130 };
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
         actions.Controls.Add(_clientSend);
         actions.Controls.Add(_gameSend);
         actions.Controls.Add(_testGameEnter);
         actions.Controls.Add(_testGameWidth);
         bar.Controls.Add(actions);
-        bar.Controls.Add(save);
         actions.SizeChanged += (_, _) =>
         {
             int required = actions.Controls.Cast<Control>().Sum(control => control.Width + control.Margin.Horizontal);

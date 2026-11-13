@@ -1,6 +1,8 @@
 #include "protocol.h"
 #include <d3d11.h>
+#include <d3d11_1.h>
 #include <dxgi.h>
+#include <dxgi1_2.h>
 #include <wrl/client.h>
 #include <atomic>
 #include <memory>
@@ -66,8 +68,24 @@ std::mutex inputGate;
 std::vector<std::pair<int, bool>> mouseEvents;
 using Present = HRESULT (STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
 Present originalPresent = nullptr;
+using Present1 = HRESULT (STDMETHODCALLTYPE*)(IDXGISwapChain1*, UINT, UINT, const DXGI_PRESENT_PARAMETERS*);
+Present1 originalPresent1 = nullptr;
+thread_local bool forwardingPresent=false;
+struct Presentation {
+    IDXGISwapChain* chain;
+    UINT sync,flags;
+    const DXGI_PRESENT_PARAMETERS* parameters=nullptr;
+    bool extended=false;
+    HRESULT Forward() const {
+        return extended ? originalPresent1(static_cast<IDXGISwapChain1*>(chain),sync,flags,parameters)
+                        : originalPresent(chain,sync,flags);
+    }
+};
+
 ComPtr<ID3D11Device> device;
 ComPtr<ID3D11DeviceContext> context;
+ComPtr<ID3D11DeviceContext1> context1;
+ComPtr<ID3DDeviceContextState> overlayPipeline;
 ImGuiContext* gui = nullptr;
 LARGE_INTEGER frequency{}, lastTick{};
 using ResizeBuffers=HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*,UINT,UINT,UINT,DXGI_FORMAT,UINT);
@@ -86,12 +104,19 @@ HRESULT STDMETHODCALLTYPE OnResize(IDXGISwapChain* chain,UINT count,UINT width,U
     if(cachedChain==chain) DropTarget();
     return originalResize(chain,count,width,height,format,flags);
 }
-HRESULT ForwardPresent(IDXGISwapChain* chain,UINT sync,UINT flags,std::unique_lock<std::mutex>& lock) {
+HRESULT ForwardPresent(const Presentation& call,std::unique_lock<std::mutex>& lock) {
     if(lock.owns_lock()) lock.unlock();
-    return originalPresent(chain,sync,flags);
+    struct ForwardScope {
+        bool previous=forwardingPresent;
+        ForwardScope() { forwardingPresent=true; }
+        ~ForwardScope() { forwardingPresent=previous; }
+    } scope;
+    return call.Forward();
 }
 
 #ifdef SC_OVERLAY_TEST
+using TestFrameObserver=void(*)(IDXGISwapChain*);
+TestFrameObserver testFrameObserver=nullptr;
 std::atomic<LONG> testPointerX{0}, testPointerY{0};
 std::atomic<bool> testPointerEnabled{false};
 std::atomic<float> testSkinScroll{0};
@@ -286,6 +311,14 @@ bool Initialize(IDXGISwapChain* chain, HWND window) {
     if (gui) { ImGui_ImplDX11_Shutdown(); ImGui::DestroyContext(gui); gui = nullptr; }
     DropTarget();
     device = next; device->GetImmediateContext(&context);
+    context1.Reset(); overlayPipeline.Reset();
+    ComPtr<ID3D11Device1> device1;
+    if(FAILED(device.As(&device1)) || FAILED(context.As(&context1))) return false;
+    D3D_FEATURE_LEVEL level=device->GetFeatureLevel();
+    UINT stateFlags=(device->GetCreationFlags() & D3D11_CREATE_DEVICE_SINGLETHREADED)
+        ? D3D11_1_CREATE_DEVICE_CONTEXT_STATE_SINGLETHREADED : 0;
+    if(FAILED(device1->CreateDeviceContextState(stateFlags,&level,1,D3D11_SDK_VERSION,
+        __uuidof(ID3D11Device),nullptr,&overlayPipeline))) return false;
     gui = ImGui::CreateContext();
     auto& io = ImGui::GetIO(); io.IniFilename = io.LogFilename = nullptr;
     wchar_t windows[MAX_PATH]{}; GetWindowsDirectoryW(windows, MAX_PATH);
@@ -325,13 +358,23 @@ bool Initialize(IDXGISwapChain* chain, HWND window) {
 #include "panels.h"
 #include "pipeline.h"
 
-HRESULT STDMETHODCALLTYPE OnPresent(IDXGISwapChain* chain, UINT sync, UINT flags) {
-    if (flags & DXGI_PRESENT_TEST) return originalPresent(chain,sync,flags);
+HRESULT RenderPresentation(const Presentation& call) {
+    auto chain=call.chain; UINT flags=call.flags;
+    if (forwardingPresent || (flags & DXGI_PRESENT_TEST)) return call.Forward();
     std::unique_lock renderLock(renderGate, std::try_to_lock);
-    if (!renderLock.owns_lock()) return ForwardPresent(chain,sync,flags,renderLock);
+    if (!renderLock.owns_lock()) return ForwardPresent(call,renderLock);
     std::shared_ptr<Session> current;
     { std::unique_lock lock(sessionGate, std::try_to_lock); if (lock.owns_lock()) current = session; }
-    if(!current) return ForwardPresent(chain,sync,flags,renderLock);
+    if(!current) return ForwardPresent(call,renderLock);
+    struct PresentationMetrics {
+        Frame* frame;
+        bool rendered=false;
+        ~PresentationMetrics() {
+            if(!rendered) InterlockedIncrement(reinterpret_cast<volatile LONG*>(&frame->skippedCalls));
+        }
+    } metrics{current->frame};
+    auto counter=call.extended ? &current->frame->present1Calls : &current->frame->presentCalls;
+    InterlockedIncrement(reinterpret_cast<volatile LONG*>(counter));
     LARGE_INTEGER cpuStarted{}; QueryPerformanceCounter(&cpuStarted);
     if(GetTickCount64()>=current->nextSnapshot) {
         DWORD acquired=WaitForSingleObject(current->mutex,0);
@@ -347,7 +390,7 @@ HRESULT STDMETHODCALLTYPE OnPresent(IDXGISwapChain* chain, UINT sync, UINT flags
         }
     }
     Frame& snapshot=current->cached; Auxiliary& auxiliary=current->auxiliary;
-    if(!Live(snapshot) || snapshot.status<0) { cameraListening=false; cameraWheel=0; cameraReset=false; acceptsMouse=false; drawReady=false; return ForwardPresent(chain,sync,flags,renderLock); }
+    if(!Live(snapshot) || snapshot.status<0) { cameraListening=false; cameraWheel=0; cameraReset=false; acceptsMouse=false; drawReady=false; return ForwardPresent(call,renderLock); }
     cameraListening=(auxiliary.flags & 16)!=0;
     if(!cameraListening) { cameraWheel=0; cameraReset=false; }
     if(cameraListening && (cameraWheel.load()!=0 || cameraReset.load())) {
@@ -364,19 +407,20 @@ HRESULT STDMETHODCALLTYPE OnPresent(IDXGISwapChain* chain, UINT sync, UINT flags
     }
     DXGI_SWAP_CHAIN_DESC desc{}; DWORD pid = 0;
     if (FAILED(chain->GetDesc(&desc)) || !IsWindowVisible(desc.OutputWindow) || IsIconic(desc.OutputWindow))
-        return ForwardPresent(chain,sync,flags,renderLock);
+        return ForwardPresent(call,renderLock);
     GetWindowThreadProcessId(desc.OutputWindow, &pid);
-    if (pid != GetCurrentProcessId()) return ForwardPresent(chain,sync,flags,renderLock);
+    if (pid != GetCurrentProcessId()) return ForwardPresent(call,renderLock);
     auto previousContext = ImGui::GetCurrentContext();
     if (gui) ImGui::SetCurrentContext(gui);
     if (!Initialize(chain, desc.OutputWindow)) {
         InterlockedExchange(&current->frame->status, -4);
-        ImGui::SetCurrentContext(previousContext); return ForwardPresent(chain,sync,flags,renderLock);
+        ImGui::SetCurrentContext(previousContext); return ForwardPresent(call,renderLock);
     }
     ImGui::SetCurrentContext(gui);
     // Capture before drawing the panel, so OCR never reads its own recommendations.
     LONG request = current->frame->captureRequest;
     if (request > 0 && request != current->frame->captureResponse) {
+        IsolatedPipelineState captureState(context1.Get(),overlayPipeline.Get());
         HRESULT result=Capture(chain,*current,request);
         if(result!=E_PENDING) { current->frame->captureError=result; InterlockedExchange(&current->frame->captureResponse,request); }
     }
@@ -384,7 +428,7 @@ HRESULT STDMETHODCALLTYPE OnPresent(IDXGISwapChain* chain, UINT sync, UINT flags
         DropTarget();
         ComPtr<ID3D11Texture2D> back;
         if(FAILED(chain->GetBuffer(0,IID_PPV_ARGS(&back))) || FAILED(device->CreateRenderTargetView(back.Get(),nullptr,&cachedTarget))) {
-            ImGui::SetCurrentContext(previousContext); return ForwardPresent(chain,sync,flags,renderLock);
+            ImGui::SetCurrentContext(previousContext); return ForwardPresent(call,renderLock);
         }
         back->GetDesc(&cachedBuffer); cachedChain=chain; ++current->frame->targetCreates;
     }
@@ -420,9 +464,12 @@ HRESULT STDMETHODCALLTYPE OnPresent(IDXGISwapChain* chain, UINT sync, UINT flags
         ++current->frame->uiBuilds;
     }
     {
-        ExtraPipelineState state(context.Get());
+        IsolatedPipelineState state(context1.Get(),overlayPipeline.Get());
         ID3D11RenderTargetView* view=cachedTarget.Get(); context->OMSetRenderTargets(1,&view,nullptr);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+#ifdef SC_OVERLAY_TEST
+        if(testFrameObserver) testFrameObserver(chain);
+#endif
     }
     if (current->pendingCommand) {
         DWORD acquired = WaitForSingleObject(current->mutex, 0);
@@ -444,11 +491,19 @@ HRESULT STDMETHODCALLTYPE OnPresent(IDXGISwapChain* chain, UINT sync, UINT flags
         }
     }
     InterlockedExchange(&current->frame->status, 2); InterlockedIncrement(reinterpret_cast<volatile LONG*>(&current->frame->renderedFrames));
+    metrics.rendered=true;
     ImGui::SetCurrentContext(previousContext);
     LARGE_INTEGER finished{}; QueryPerformanceCounter(&finished);
     uint32_t elapsed=uint32_t((finished.QuadPart-cpuStarted.QuadPart)*1000000/frequency.QuadPart);
     current->frame->lastCpuUs=elapsed; current->frame->maxCpuUs=(std::max)(current->frame->maxCpuUs,elapsed);
-    return ForwardPresent(chain,sync,flags,renderLock);
+    return ForwardPresent(call,renderLock);
+}
+
+HRESULT STDMETHODCALLTYPE OnPresent(IDXGISwapChain* chain,UINT sync,UINT flags) {
+    return RenderPresentation({chain,sync,flags});
+}
+HRESULT STDMETHODCALLTYPE OnPresent1(IDXGISwapChain1* chain,UINT sync,UINT flags,const DXGI_PRESENT_PARAMETERS* parameters) {
+    return RenderPresentation({chain,sync,flags,parameters,true});
 }
 
 int Install() {
@@ -464,6 +519,9 @@ int Install() {
     if (FAILED(result)) { DestroyWindow(probe); return -2; }
     auto table=*reinterpret_cast<void***>(chain.Get());
     void* present=table[8]; void* resize=table[13];
+    ComPtr<IDXGISwapChain1> chain1;
+    if(FAILED(chain.As(&chain1))) { DestroyWindow(probe); return -2; }
+    void* present1=(*reinterpret_cast<void***>(chain1.Get()))[22];
     MH_STATUS status=MH_Initialize();
     if(status!=MH_OK && status!=MH_ERROR_ALREADY_INITIALIZED) { DestroyWindow(probe); return -3; }
     HMODULE user32=GetModuleHandleW(L"user32.dll");
@@ -472,6 +530,7 @@ int Install() {
     struct Hook { void* target; void* callback; void** original; };
     Hook hooks[]{
         {present,reinterpret_cast<void*>(&OnPresent),reinterpret_cast<void**>(&originalPresent)},
+        {present1,reinterpret_cast<void*>(&OnPresent1),reinterpret_cast<void**>(&originalPresent1)},
         {resize,reinterpret_cast<void*>(&OnResize),reinterpret_cast<void**>(&originalResize)},
         {rawData,reinterpret_cast<void*>(&OnRawInputData),reinterpret_cast<void**>(&originalRawInputData)},
         {rawBuffer,reinterpret_cast<void*>(&OnRawInputBuffer),reinterpret_cast<void**>(&originalRawInputBuffer)}
@@ -518,6 +577,9 @@ DWORD WINAPI Attach(void* argument) {
 }
 
 #ifdef SC_OVERLAY_TEST
+extern "C" __declspec(dllexport) void OverlayTestFrameObserver(TestFrameObserver observer) {
+    std::lock_guard lock(renderGate); testFrameObserver=observer;
+}
 extern "C" __declspec(dllexport) void OverlayTestSync() {
     std::lock_guard lock(renderGate); if(session) session->nextSnapshot=0;
 }

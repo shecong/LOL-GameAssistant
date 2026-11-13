@@ -6,6 +6,7 @@ if (-not $hybridVs) { throw 'Install Visual Studio C++ Build Tools and Windows S
 $hybridVc = (Get-ChildItem -LiteralPath "$hybridVs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
 $hybridSdk = 'C:\Program Files (x86)\Windows Kits\10'
 $hybridVersion = (Get-ChildItem -LiteralPath "$hybridSdk\Lib" -Directory | Where-Object { Test-Path -LiteralPath "$($_.FullName)\um\x64\kernel32.lib" } | Sort-Object Name -Descending | Select-Object -First 1).Name
+Write-Output "Hybrid toolchain: MSVC $(Split-Path $hybridVc -Leaf); Windows SDK $hybridVersion"
 $env:PATH = "$hybridVc\bin\Hostx64\x64;$env:PATH"
 $env:LIB = "$hybridVc\lib\x64;$hybridSdk\Lib\$hybridVersion\ucrt\x64;$hybridSdk\Lib\$hybridVersion\um\x64"
 $env:INCLUDE = "$hybridVc\include;$hybridSdk\Include\$hybridVersion\ucrt;$hybridSdk\Include\$hybridVersion\shared;$hybridSdk\Include\$hybridVersion\um"

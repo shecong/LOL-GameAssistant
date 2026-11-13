@@ -7,7 +7,7 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class ChampSelectKdaFormatTests
 {
-    private static RecentModePerformanceAssessment Ready => new(
+    private static RecentModePerformanceAssessment Ready { get; } = new(
         MatchPerformanceTier.Upper, 88, 20, 55, "", 4.9, true, RecentPerformanceLabel.Upper);
 
     [Fact]

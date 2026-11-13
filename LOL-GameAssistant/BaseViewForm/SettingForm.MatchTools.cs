@@ -16,7 +16,7 @@ public partial class SettingForm
     private readonly AntdUI.Switch _autoReturn = new();
     private readonly AntdUI.Switch _returnAndSearch = new();
     private readonly AntdUI.InputNumber _quickQueue = new() { Minimum = 1, Maximum = 3000, Value = 430, Height = 32 };
-    private readonly AntdUI.Label _matchToolsStatus = new() { AutoSize = true, Text = "操作仅作用于当前登录的客户端。" };
+    private readonly AntdUI.Label _matchToolsStatus = new() { AutoSize = true, Text = "" };
 
     /// <summary>创建自动接受匹配的延迟配置行。</summary>
     private Control CreateAcceptDelayRow()

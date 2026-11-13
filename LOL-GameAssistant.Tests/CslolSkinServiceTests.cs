@@ -139,6 +139,94 @@ public sealed class CslolSkinServiceTests
     }
 
     [Theory]
+    [InlineData("import", false)]
+    [InlineData("import", true)]
+    [InlineData("mkoverlay", false)]
+    [InlineData("mkoverlay", true)]
+    public async Task GameReadFailureRetriesWithLocalMirrorButStartsAgainstRealGame(string stage, bool warningOnly)
+    {
+        using var fixture = new Fixture();
+        var wad = Path.Combine(fixture.Game, "DATA", "FINAL", "Champions", "Annie.wad.client");
+        Directory.CreateDirectory(Path.GetDirectoryName(wad)!);
+        await File.WriteAllTextAsync(wad, "complete original WAD payload");
+        bool failed = false;
+        fixture.Runner.Result = args =>
+        {
+            if (args[0] == stage && !failed)
+            {
+                failed = true;
+                return new(warningOnly, "[WRN] Failed to open game wad file DATA/FINAL/Champions/Annie.wad.client: mapping failed");
+            }
+            return new(true, "");
+        };
+        using var service = fixture.Service();
+        var result = await service.ApplyAsync(fixture.Game, await service.LoadCatalogAsync());
+        Assert.True(result.Ok, result.Message);
+        var retries = fixture.Runner.Calls.Where(args => args[0] == stage).ToArray();
+        Assert.Equal(2, retries.Length);
+        Assert.Contains("--game:" + fixture.Game, retries[0]);
+        string mirror = Assert.Single(retries[1], arg => arg.StartsWith("--game:"))[7..];
+        Assert.NotEqual(fixture.Game, mirror);
+        Assert.Equal(await File.ReadAllBytesAsync(wad), await File.ReadAllBytesAsync(Path.Combine(mirror, "DATA", "FINAL", "Champions", "Annie.wad.client")));
+        Assert.False(File.Exists(Path.Combine(mirror, "League of Legends.exe")));
+        Assert.Contains("--game:" + fixture.Game, fixture.Runner.Calls.Last());
+        Assert.Equal("runoverlay", fixture.Runner.Calls.Last()[0]);
+        if (stage == "import") Assert.Contains("--game:" + mirror, fixture.Runner.Calls.Single(args => args[0] == "mkoverlay"));
+    }
+
+    [Fact]
+    public async Task RepeatedMirrorReadFailureStopsWithoutStartingOverlay()
+    {
+        using var fixture = new Fixture();
+        Directory.CreateDirectory(Path.Combine(fixture.Game, "DATA", "FINAL"));
+        await File.WriteAllTextAsync(Path.Combine(fixture.Game, "DATA", "FINAL", "Annie.wad.client"), "payload");
+        fixture.Runner.Result = _ => new(true, "Failed to open game wad file: Access denied");
+        using var service = fixture.Service();
+        var result = await service.ApplyAsync(fixture.Game, await service.LoadCatalogAsync());
+        Assert.Equal("index-mirror", result.Stage);
+        Assert.Equal(2, fixture.Runner.Calls.Count);
+        Assert.False(service.IsRunning);
+    }
+
+    [Fact]
+    public async Task UnrelatedToolFailureDoesNotCopyGameOrRetry()
+    {
+        using var fixture = new Fixture();
+        fixture.Runner.Result = _ => new(false, "Invalid mod archive");
+        using var service = fixture.Service();
+        var result = await service.ApplyAsync(fixture.Game, await service.LoadCatalogAsync());
+        Assert.Equal("import", result.Stage);
+        Assert.Single(fixture.Runner.Calls);
+        Assert.False(Directory.Exists(Path.Combine(fixture.Root, "mirrors")));
+    }
+
+    [Fact]
+    public async Task MissingGameResourcesReportMirrorFailureInsteadOfStartingOverlay()
+    {
+        using var fixture = new Fixture();
+        fixture.Runner.Result = _ => new(false, "Not a valid Game folder");
+        using var service = fixture.Service();
+        var result = await service.ApplyAsync(fixture.Game, await service.LoadCatalogAsync());
+        Assert.Equal("index-mirror", result.Stage);
+        Assert.Contains("DATA/FINAL", result.Message);
+        Assert.Single(fixture.Runner.Calls);
+    }
+
+    [Fact]
+    public async Task GameStartingDuringMirrorCopyPreventsRetryAndOverlay()
+    {
+        using var fixture = new Fixture(); bool running = false;
+        Directory.CreateDirectory(Path.Combine(fixture.Game, "DATA", "FINAL"));
+        await File.WriteAllTextAsync(Path.Combine(fixture.Game, "DATA", "FINAL", "Annie.wad.client"), "payload");
+        fixture.Runner.Result = _ => new(false, "Not a valid Game folder");
+        using var service = fixture.Service(game: () => running);
+        service.StatusChanged += status => { if (status.Contains("镜像已准备")) running = true; };
+        var result = await service.ApplyAsync(fixture.Game, await service.LoadCatalogAsync());
+        Assert.Equal("game-running", result.Stage);
+        Assert.Single(fixture.Runner.Calls);
+    }
+
+    [Theory]
     [InlineData(-1, 20)]
     [InlineData(10000, 20)]
     [InlineData(0, -1)]
@@ -200,7 +288,8 @@ public sealed class CslolSkinServiceTests
                 nonce = Convert.ToBase64String(nonce), tag = Convert.ToBase64String(tag) } } }));
         }
         public CslolSkinService Service(Func<bool>? memory = null, Func<bool>? game = null, string? library = null) =>
-            new(Path.Combine(Root, "tools"), Package, Manifest, Work, Key, library, memory, game ?? (() => false), Runner);
+            new(Path.Combine(Root, "tools"), Package, Manifest, Work, Key, library, memory, game ?? (() => false), Runner,
+                indexMirrorRoot: Path.Combine(Root, "mirrors"));
         public void Dispose() { if (Directory.Exists(Root)) Directory.Delete(Root, true); }
     }
     private sealed class Runner : ICslolToolRunner
@@ -208,6 +297,7 @@ public sealed class CslolSkinServiceTests
         public List<string[]> Calls { get; } = [];
         public Session Session { get; } = new();
         public Func<CancellationToken, Task>? Import;
+        public Func<IReadOnlyList<string>, CslolToolResult>? Result;
         public async Task<CslolToolResult> RunAsync(IReadOnlyList<string> args, Action<string> status, CancellationToken token)
         {
             Calls.Add(args.ToArray());
@@ -217,7 +307,7 @@ public sealed class CslolSkinServiceTests
                 Directory.CreateDirectory(Path.Combine(args[2], "WAD"));
                 File.WriteAllText(Path.Combine(args[2], "WAD", "Annie.wad.client"), "fixture");
             }
-            return new(true, "");
+            return Result?.Invoke(args) ?? new(true, "");
         }
         public Task<ICslolOverlaySession> StartOverlayAsync(IReadOnlyList<string> args, Action<string> status, CancellationToken token)
         { Calls.Add(args.ToArray()); return Task.FromResult<ICslolOverlaySession>(Session); }

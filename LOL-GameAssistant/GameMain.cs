@@ -405,6 +405,18 @@ namespace LOL_GameAssistant
         private void Tabs1_SelectedIndexChanged(object? sender, EventArgs e)
         {
             UpdateLoungeMessageActivity();
+            // 记录切换耗时（覆盖 AntdUI 异步 ShowPage 的重新停靠与布局），用于判断切页成本。
+            long switchStarted = Environment.TickCount64;
+            int switchIndex = tabs1.SelectedIndex;
+            if (IsHandleCreated)
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed) return;
+                    string page = switchIndex >= 0 && switchIndex < tabs1.Pages.Count
+                        ? tabs1.Pages[switchIndex].Text : "?";
+                    RuntimeDiagnostics.Report("界面性能 · 切换页面", "完成",
+                        $"{page} · 耗时 {(int)(Environment.TickCount64 - switchStarted)} ms");
+                }));
             if (tabs1.SelectedIndex == LiveGameTabIndex)
             {
                 _ = liveGameForm.AddView(force: true);

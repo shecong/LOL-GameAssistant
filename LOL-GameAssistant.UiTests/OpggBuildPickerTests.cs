@@ -1,4 +1,4 @@
-﻿using LOL_GameAssistant.Application.Builds;
+using LOL_GameAssistant.Application.Builds;
 using Button = AntdUI.Button;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.BaseViewForm;
@@ -206,7 +206,7 @@ public sealed class OpggBuildPickerTests
         row.PerformClick();
         Assert.True(form.Visible);
         Assert.Equal(DialogResult.None, form.DialogResult);
-        Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Text.Contains("正在应用方案 2"));
+        Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Text?.Contains("正在应用方案 2") == true);
         var status = Children(form).OfType<AntdUI.Label>().Single(label => label.Name == "applyStatus");
         Assert.True(status.Visible);
         Assert.Contains("正在应用方案 2", status.Text);
@@ -217,13 +217,13 @@ public sealed class OpggBuildPickerTests
         System.Windows.Forms.Application.DoEvents();
         Assert.True(form.Visible);
         Assert.True(row.Enabled);
-        Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Text.Contains("客户端拒绝写入符文页"));
+        Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Text?.Contains("客户端拒绝写入符文页") == true);
         Assert.Contains("客户端拒绝写入符文页", status.Text);
         row.PerformClick();
         Assert.Equal(2, applications);
         Assert.True(form.Visible);
         Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Name == "applyStatus" &&
-            label.Visible && label.Text.Contains("已应用"));
+            label.Visible && label.Text?.Contains("已应用") == true);
         Assert.True(row.Enabled);
         ((Button)form.AcceptButton!).PerformClick();
         Assert.Equal(3, applications);
@@ -342,7 +342,7 @@ public sealed class OpggBuildPickerTests
         Children(form).OfType<Button>().Single(b => b.Text == "大乱斗").PerformClick();
         Assert.Null(form.SelectedOption);
         Assert.False(Children(form).OfType<Button>().Single(b => b.Text == "应用选中方案").Enabled);
-        Assert.Contains(Children(form).OfType<AntdUI.Label>(), l => l.Visible && l.Text.Contains("当前对局没有此模式"));
+        Assert.Contains(Children(form).OfType<AntdUI.Label>(), l => l.Visible && l.Text?.Contains("当前对局没有此模式") == true);
         Children(form).OfType<Button>().Single(b => b.Text == "全部").PerformClick();
         Assert.Equal(1, form.SelectedOption?.Order);
         Assert.NotEqual(DialogResult.OK, form.DialogResult);
@@ -398,12 +398,12 @@ public sealed class OpggBuildPickerTests
         Assert.Empty(calls);
         SecondPhaseRegressionTests.Pump(form.ChangeCategoryAsync("ranked", "all"));
         foreach (string lane in new[] { "上路", "打野", "中路", "下路", "辅助" })
-            Assert.True(Children(form).OfType<AntdUI.Label>().Any(label => label.Text.Contains($"[{lane}]")),
-                lane + ": " + string.Join(";", Children(form).OfType<AntdUI.Label>().Where(label => label.Text.StartsWith("方案")).Select(label => label.Text)));
+            Assert.True(Children(form).OfType<AntdUI.Label>().Any(label => label.Text?.Contains($"[{lane}]") == true),
+                lane + ": " + string.Join(";", Children(form).OfType<AntdUI.Label>().Where(label => label.Text?.StartsWith("方案") == true).Select(label => label.Text)));
         Assert.Equal(new[] { "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }, calls);
         Children(form).OfType<Button>().Single(button => button.Text == "下路").PerformClick();
         Assert.Equal("BOTTOM", form.SelectedPosition);
-        Assert.DoesNotContain(Children(form).OfType<AntdUI.Label>(), label => label.Text.Contains("[中路]"));
+        Assert.DoesNotContain(Children(form).OfType<AntdUI.Label>(), label => label.Text?.Contains("[中路]") == true);
         Children(form).OfType<Button>().Single(button => button.Name == "applyRoute1").PerformClick();
         Assert.Equal(DialogResult.OK, form.DialogResult);
         Assert.Equal("BOTTOM", form.SelectedPosition);
@@ -427,7 +427,7 @@ public sealed class OpggBuildPickerTests
         Children(form).OfType<Button>().Single(button => button.Text == "峡谷").PerformClick();
         Assert.Equal("ranked", form.SelectedOption?.Mode);
         Assert.DoesNotContain(Children(form).OfType<AntdUI.Label>(), label => label.Name == "applyStatus" &&
-            label.Text.Contains("与当前对局模式不一致"));
+            label.Text?.Contains("与当前对局模式不一致") == true);
         Assert.True(Children(form).OfType<Button>().Single(button => button.Text == "应用选中方案").Enabled);
     });
 
@@ -450,7 +450,7 @@ public sealed class OpggBuildPickerTests
         System.Windows.Forms.Application.DoEvents();
         Assert.True(first.IsCompletedSuccessfully);
         Assert.Equal("BOTTOM", form.SelectedPosition);
-        Assert.DoesNotContain(Children(form).OfType<AntdUI.Label>(), label => label.Text.Contains("[上路]"));
+        Assert.DoesNotContain(Children(form).OfType<AntdUI.Label>(), label => label.Text?.Contains("[上路]") == true);
     });
 
     [Fact]
@@ -471,12 +471,12 @@ public sealed class OpggBuildPickerTests
         var loading = form.ChangeCategoryAsync("ranked", "all");
         System.Windows.Forms.Application.DoEvents();
         Assert.Equal(4, pending.Count);
-        Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Visible && label.Text.Contains("[上路]"));
+        Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Visible && label.Text?.Contains("[上路]") == true);
         Assert.True(Children(form).OfType<Button>().Single(button => button.Text == "应用选中方案").Enabled);
         Assert.All(pending.Values, response => Assert.False(response.Task.IsCompleted));
         pending["BOTTOM"].SetResult(Choices("BOTTOM"));
         System.Windows.Forms.Application.DoEvents();
-        Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Text.Contains("[下路]"));
+        Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Text?.Contains("[下路]") == true);
         Assert.False(pending["JUNGLE"].Task.IsCompleted);
         foreach (var pair in pending) pair.Value.TrySetResult(Choices(pair.Key));
         System.Windows.Forms.Application.DoEvents();
@@ -549,7 +549,7 @@ public sealed class OpggBuildPickerTests
         using var form = CreateForm(allowApply: false);
         form.Show();
         Assert.Contains(Children(form).OfType<AntdUI.Label>(), label => label.Name == "applyStatus" &&
-            label.Visible && label.Text.Contains("仅供预览"));
+            label.Visible && label.Text?.Contains("仅供预览") == true);
         Assert.All(Children(form).OfType<Button>().Where(button => button.Name.StartsWith("applyRoute") ||
             button.Text == "应用选中方案"), button => Assert.False(button.Enabled));
         Children(form).OfType<Button>().Single(button => button.Text == "全部").PerformClick();

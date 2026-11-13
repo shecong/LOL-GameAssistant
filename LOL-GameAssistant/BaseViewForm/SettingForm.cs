@@ -346,11 +346,17 @@ namespace LOL_GameAssistant.BaseViewForm
                     AppCompositionRoot.ChampionInsightsService, AppCompositionRoot.ProfileIconService),
                 _ => throw new ArgumentOutOfRangeException(nameof(index))
             };
-            segment.Dock = DockStyle.Fill;
-            segment.Visible = false;
-            SizeInteractiveControls(segment);
-            ResizeSettingColumns(segment);
-            UiTheme.Apply(segment);
+            // 批量完成尺寸、列宽与主题调整后再统一布局，避免每个属性写入都触发整页重排。
+            segment.SuspendLayout();
+            try
+            {
+                segment.Dock = DockStyle.Fill;
+                segment.Visible = false;
+                SizeInteractiveControls(segment);
+                ResizeSettingColumns(segment);
+                UiTheme.Apply(segment);
+            }
+            finally { segment.ResumeLayout(false); }
             _settingsSegments[index] = segment;
             _settingsSegmentHost.Controls.Add(segment);
             return segment;
@@ -559,7 +565,6 @@ namespace LOL_GameAssistant.BaseViewForm
             pathPanel.Controls.Add(browse);
 
             _launchClientButton.Click += async (_, _) => await StartLeagueClientFromSettingsAsync();
-            var note = CreateNote("选择 LOL 安装文件夹后，助手会优先使用国服 TCLS/client.exe；其他安装使用 LeagueClient.exe 或 Riot 启动器。首次启动可能需要在启动器完成登录或更新。\n也可留空，由助手从安装清单和常见位置查找。自动启动只在助手打开时执行一次。");
 
             AddSegmentRow(layout, 0, "安装文件夹：", pathPanel,
                 "LOL 安装目录。助手会查找 TCLS/client.exe 或 LeagueClient.exe，用于“立即启动”和启动助手时的自动启动；留空则尝试常见安装位置。");
@@ -569,16 +574,11 @@ namespace LOL_GameAssistant.BaseViewForm
                 "按上面的安装目录立即启动客户端，并等待 LCU 连接；成功后会把实际路径写回上面的输入框。");
             AddSegmentRow(layout, 3, "状态：", _clientStatus,
                 "上一次启动与连接的结果。");
-            AddSegmentRow(layout, 4, "说明：", note);
-            AddSegmentRow(layout, 5, "TCLS 账号：", CreateTclsAccountRow());
-            AddSegmentRow(layout, 6, "自动登录：", _tclsAutoLogin);
-            var tclsNote = CreateNote("先管理账号并保存默认大区，再开启自动登录。\n验证码、安全验证或无法识别的界面需手动处理，详情见运行日志。\n已登录的客户端不会自动切换账号。");
-            tclsNote.TextMultiLine = true;
-            AddSegmentRow(layout, 7, "登录说明：", tclsNote);
-            AddSectionHeader(layout, 8, "应用启动与本地数据");
-            AddSegmentRow(layout, 9, "开机自启：", swi_startup);
-            AddSegmentRow(layout, 10, "本地缓存：", label_cache_status);
-            AddSegmentRow(layout, 11, "保存方式：", CreateNote("开关即时保存，安装路径编辑后离开输入框自动保存。"));
+            AddSegmentRow(layout, 4, "TCLS 账号：", CreateTclsAccountRow());
+            AddSegmentRow(layout, 5, "自动登录：", _tclsAutoLogin);
+            AddSectionHeader(layout, 6, "应用启动与本地数据");
+            AddSegmentRow(layout, 7, "开机自启：", swi_startup);
+            AddSegmentRow(layout, 8, "本地缓存：", label_cache_status);
             layout.ResumeLayout(true);
             return panel;
         }
@@ -597,7 +597,6 @@ namespace LOL_GameAssistant.BaseViewForm
             _hotkey.Click += (_, _) => _hotkey.Focus();
             _hotkey.Enter += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(true);
             _hotkey.Leave += (_, _) => Program.GameMain.SetWindowHotkeyCapturePaused(false);
-            var holdNote = CreateNote("点击输入框后按一个按键。按住该键时助手会以不抢焦点的方式临时置顶，松开后隐藏到托盘；默认是键盘左上角的 · 键。\nWindows 会接管已注册的按键；快捷键不会注入或修改游戏客户端。");
 
             AddSegmentRow(layout, 0, "界面主题：", _themeMode,
                 "界面配色：跟随系统、浅色或深色，保存后立即生效。");
@@ -608,11 +607,9 @@ namespace LOL_GameAssistant.BaseViewForm
                 "点击输入框后按一个键即可设定。按住该键时助手临时置顶且不抢焦点，松开后隐藏到托盘。");
             AddSegmentRow(layout, 4, "快捷键范围：", _onlyLeagueFocused,
                 "开启时只有 LOL 位于前台才响应置顶键；关闭则任何窗口下都响应。");
-            AddSegmentRow(layout, 5, "置顶说明：", holdNote);
-            AddSectionHeader(layout, 6, "窗口行为");
-            AddSegmentRow(layout, 7, "最小化到托盘：", swi_tray);
-            AddSegmentRow(layout, 8, "游戏分辨率：", select_resolution);
-            AddSegmentRow(layout, 9, "保存方式：", CreateNote("开关、主题、语言、透明度与快捷键修改后自动保存。"));
+            AddSectionHeader(layout, 5, "窗口行为");
+            AddSegmentRow(layout, 6, "最小化到托盘：", swi_tray);
+            AddSegmentRow(layout, 7, "游戏分辨率：", select_resolution);
             layout.ResumeLayout(true);
             return panel;
         }
@@ -735,10 +732,6 @@ namespace LOL_GameAssistant.BaseViewForm
             overlayOffsetPanel.Controls.Add(_overlayOffsetY);
             overlayOffsetPanel.Controls.Add(new AntdUI.Label { Text = "停留秒数", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
             overlayOffsetPanel.Controls.Add(_overlayDuration);
-            var overlayNote = CreateAiNote("浮窗背景完全透明，只显示带深色描边的文字，不遮挡游戏画面；默认显示在游戏左下角，不抢键盘焦点；横向/纵向偏移以所选角落为基准。关闭此项后，建议只会更新到“智能建议”页。 ");
-            var privacyNote = CreateAiNote("数据说明：启用并配置服务后，英雄、阶段、阵容、时间、金币、本人生命/法力/技能等级、匿名记分板装备与战绩、近期公开事件、确认的对线与增幅候选会用于 AI 分析。最近三条建议及其反馈随请求发送，用于避免重复；本局完整记录仅保留在内存。不发送玩家名称、账号标识、认证信息、聊天或截图。未配置模型或密钥时只提供本机状态提醒。");
-            var opggNote = CreateAiNote("自动配置默认关闭，仅后台加载推荐。点击“一键选择符文装备”可手动配置；勾选后，在预选、选择或切换英雄时自动应用对应符文和装备。优先复用助手符文页，页面已满时替换当前可编辑页。");
-            var kdaAnnouncementNote = CreateAiNote("选人发送只汇总我方，通过客户端群聊发送一次；对局自动与手动均分别汇总蓝红双方，每条最多两名同队玩家，每名玩家用【】包围并对齐到独立显示行，玩家之间不插入空白行；与选人阶段共用玩家名、评级评分、KDA、胜率的紧凑格式。对局发送沿用喊话页的游戏内发送方式与“所有人”选项。两者使用已获取最多 500 条摘要中最近 50 场同模式有效对局；KDA 和胜率分别排除缺失字段。默认满 10 场按累计 KDA 分档，样本下限可在下方调整；不足时标“数据不足”。同模式无有效KDA样本时自动使用全模式参考，并排除自定义对局。若玩家资料暂不可查，会在消息中标注。选人模板支持 {players}、{allies}。");
 
             var ratingPolicyPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
             ratingPolicyPanel.Controls.Add(_ratingMinimumGames);
@@ -749,14 +742,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 "预选、选择或更换英雄时，按英雄、模式和分路自动应用个人方案或 OP.GG 推荐；个人方案未保存装备时补充推荐出装。同一英雄不重复写入，手动调整方案后保留选择。");
             AddSegmentRow(selection, 3, "选人伴随窗：", _champSelectCompanionEnabled,
                 "选人时跟随客户端的位置、大小和最小化状态，仅展示可见队友的最近表现与自动选禁状态。");
-            AddSegmentRow(selection, 4, "OP.GG 说明：", opggNote);
             selection.ResumeLayout(false);
 
             var battle = CreateAiSettingsCard(content, "aiBattleCard", "局内对局信息面板");
             AddSegmentRow(battle, 1, "对局信息：", _battleOverlayEnabled);
             AddSegmentRow(battle, 2, "面板快捷键：", _battleOverlayHotkey,
                 "默认 · 键，可设置单键或 Ctrl / Alt / Shift 组合键。按住显示，松开或切出游戏后隐藏。");
-            AddSegmentRow(battle, 3, "面板说明：", CreateAiNote("游戏位于前台时，面板快捷键显示独立的蓝红双方信息表，不抢焦点。\n启用后，游戏中使用面板快捷键；客户端或桌面仍使用“外观与窗口”中的按住置顶键。\n可查看段位、赛季战绩、近期胜负、英雄样本胜率和本局 KDA / 补刀 / 视野得分。窗口或无边框模式下使用。"));
             battle.ResumeLayout(false);
 
             var jungle = CreateAiSettingsCard(content, "aiJungleRouteCard", "敌方打野路线分析");
@@ -767,7 +758,6 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(jungle, 2, "分析快捷键：", _enemyJungleRouteHotkey,
                 "默认 F10，可录入单键或组合键。游戏前台按一次分析并显示路线图，再按一次收起；切出游戏后隐藏。下次打开重新分析。");
             AddSegmentRow(jungle, 3, "峡谷地图：", openJungle);
-            AddSegmentRow(jungle, 4, "分析说明：", CreateAiNote("扫描最近 30 场，最多分析 8 场携带惩戒的常规峡谷对局。优先参考相同英雄，按双方阵营映射历史坐标。地图展示起始区域、时间点、样本一致性与可核对的历史事件；位置采样间连线为插值，不代表精确营地顺序或本局实时位置。客户端未确认打野时需手动选择；时间线不可用时显示数据不足。"));
             jungle.ResumeLayout(false);
 
             var mayhem = CreateAiSettingsCard(content, "aiMayhemCard", "海克斯增幅助手");
@@ -786,10 +776,12 @@ namespace LOL_GameAssistant.BaseViewForm
                 "游戏进行中双方玩家的近期 KDA 评估加载完成后，按喊话页设置发送到游戏聊天，一局一次；会包含敌方玩家。也可在“一键喊话”设置中配置手动 KDA 快捷键（默认 F9），关闭自动发送后仍能手动发送。");
             AddSegmentRow(performance, 5, "双方开黑提示：", _gameKdaPremadeAnnouncementEnabled,
                 "选人阶段及游戏内发送 KDA 前，先列出检测到的我方和敌方开黑玩家，并标明阵营；没有开黑组的阵营不显示。关闭后只发送 KDA。");
-            AddSegmentRow(performance, 6, "对局发送排版：", CreateAiNote("【蓝方/红方 玩家名：评级评分｜KDA｜胜率】。自动与手动均分别汇总蓝红双方，每条最多两名同队玩家，每名玩家对齐到独立显示行，玩家之间不插入空白行。"));
-            AddSegmentRow(performance, 7, "KDA 说明：", kdaAnnouncementNote);
             var widthTest = new AntdUI.Button { Name = "TestKdaChatWidth", Text = "测试每行字数", AutoSize = true };
-            var widthTestStatus = CreateAiNote("点击后自动发送标尺并调用本机 OCR 判断首行与续行宽度，成功后保存并应用于 KDA 排版。请保持游戏前台、聊天文字完整可见；调整聊天框或字体后重新校准。");
+            var widthTestStatus = new AntdUI.Label
+            {
+                AutoSize = true, AutoSizeMode = AntdUI.TAutoSize.Height, TextMultiLine = true,
+                TextAlign = ContentAlignment.TopLeft, Dock = DockStyle.Top, ForeColor = Color.DimGray
+            };
             widthTest.Click += async (_, _) =>
             {
                 widthTest.Enabled = false;
@@ -803,8 +795,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 catch (Exception error) { widthTestStatus.Text = "字数测试失败：" + error.Message; }
                 finally { if (!widthTest.IsDisposed) widthTest.Enabled = true; }
             };
-            AddSegmentRow(performance, 8, "行宽校准：", widthTest);
-            AddSegmentRow(performance, 9, "测试说明：", widthTestStatus);
+            AddSegmentRow(performance, 6, "行宽校准：", widthTest);
+            AddSegmentRow(performance, 7, "测试结果：", widthTestStatus);
             performance.ResumeLayout(false);
 
             var connection = CreateAiSettingsCard(content, "aiConnectionCard", "AI 服务连接");
@@ -821,7 +813,6 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(connection, 6, "连通性：", _aiTestStatus,
                 "“测试连接”的结果，会显示服务端返回的真实原因，例如模型名称不存在、Key 无效或余额不足。");
             AddSaveRow(connection, 7, "保存 AI 连接与密钥");
-            AddSegmentRow(connection, 8, "保存方式：", CreateAiNote("所有开关立即保存；服务商、地址、模型与密钥填写完成后使用上方按钮保存。"));
             connection.ResumeLayout(false);
 
             var analysis = CreateAiSettingsCard(content, "aiAnalysisCard", "AI 时间线与分析策略");
@@ -830,8 +821,6 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(analysis, 2, "动态建议：", refreshPanel,
                 "装备、阵容等变化触发分析；无明显变化时按此间隔兜底。关闭后仅阶段切换和手动操作发起分析，仍同步本机数据并撤下失效建议。");
             AddSegmentRow(analysis, 3, "请求预算：", budgetPanel, "选人与局内共享预算，失败请求也计入；手动分析至少间隔8秒。新一局自动重置。");
-            AddSegmentRow(analysis, 4, "建议质量：", CreateAiNote("行动计划必须包含具体步骤、事实依据、执行条件与备选方案。未通过校验的输出会被拦截；没有可靠新行动时继续观察。低血状态由本机即时提醒。"));
-            AddSegmentRow(analysis, 5, "数据与隐私：", privacyNote);
             analysis.ResumeLayout(false);
 
             var display = CreateAiSettingsCard(content, "aiDisplayCard", "AI 提醒与浮窗");
@@ -843,7 +832,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 "浮窗停靠的屏幕角落。");
             AddSegmentRow(display, 4, "位置与时长：", overlayOffsetPanel,
                 "横向/纵向偏移以所选角落为基准；停留秒数是浮窗自动隐藏前的显示时长。");
-            AddSegmentRow(display, 5, "浮窗说明：", overlayNote);
             display.ResumeLayout(false);
 
             CreateCooldownPreviewCard(content);
@@ -876,15 +864,6 @@ namespace LOL_GameAssistant.BaseViewForm
             layout.SuspendLayout();
             return layout;
         }
-
-        /// <summary>创建设置分区中的说明文本。</summary>
-        private static AntdUI.Label CreateNote(string text) => new()
-        {
-            AutoSize = true,
-            MaximumSize = new Size(620, 0),
-            ForeColor = Color.DimGray,
-            Text = text
-        };
 
         /// <summary>设置项的悬停说明：标题和控件上都挂同一段文字，鼠标停在行的任意位置都能看到。</summary>
         private void AddSegmentRow(TableLayoutPanel layout, int row, string caption, Control control, string? tip = null)

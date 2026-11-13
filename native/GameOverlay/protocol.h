@@ -26,7 +26,7 @@ struct Frame {
     uint32_t renderedFrames;
     uint32_t mayhemEnabled, panelWidth, panelHeight, hitRegionCount;
     uint32_t revision, uiBuilds, targetCreates, lastCpuUs, maxCpuUs;
-    uint8_t reserved[12];
+    uint32_t presentCalls, present1Calls, skippedCalls; // Optional diagnostics in the v2 reserved tail.
     char title[256], statusText[2048], recommendations[32768], offered[16384];
 };
 struct Auxiliary {
@@ -49,6 +49,7 @@ struct Auxiliary {
 };
 #pragma pack(pop)
 static_assert(offsetof(Frame, title) == 128);
+static_assert(offsetof(Frame, presentCalls) == 116 && offsetof(Frame, skippedCalls) == 124);
 static_assert(sizeof(Frame) == 51584);
 static_assert(offsetof(Auxiliary, coachTitle) == 128);
 static_assert(offsetof(Auxiliary, jungleVersion) == 104);

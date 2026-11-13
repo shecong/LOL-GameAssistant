@@ -7,6 +7,7 @@ const vm = require('node:vm');
 function fixture() {
   const pending = [];
   const ctx = vm.createContext({
+    window: { setTimeout, clearTimeout }, AbortController,
     fetch: url => new Promise((resolve, reject) => pending.push({ url, resolve, reject })),
     document: { querySelectorAll: () => [] },
   });
@@ -17,6 +18,7 @@ function fixture() {
     fetch: mode => vm.runInContext(`fetchTierData(${JSON.stringify(mode)})`, ctx),
     tier: () => vm.runInContext('tierCache.get(1)', ctx),
     mode: () => vm.runInContext('tierCacheMode', ctx),
+    run: code => vm.runInContext(code, ctx),
     resolve(index, tier, empty = false) {
       pending[index].resolve({ ok: true, json: async () => ({ data: empty ? [] : [{
         id: 1, positions: [{ stats: { tier_data: { tier } } }], average_stats: { tier },
@@ -73,4 +75,35 @@ test('a failed obsolete request does not clear the newer pending request', async
   const duplicate = f.fetch('aram'); assert.equal(f.pending.length, 2);
   f.resolve(1, 1); await Promise.all([current, duplicate]);
   assert.equal(f.tier(), 'T1');
+});
+
+test('expired cache refreshes and a failed refresh keeps the last successful data', async () => {
+  const f = fixture();
+  const initial = f.fetch('aram'); f.resolve(0, 2); await initial;
+  f.run('tierUpdatedAt = Date.now() - CACHE_TTL - 1');
+  const refresh = f.fetch('aram');
+  assert.equal(f.pending.length, 2);
+  assert.equal(f.tier(), 'T2');
+  f.pending[1].resolve({ ok: false, status: 503 });
+  await assert.rejects(refresh, /503/);
+  assert.equal(f.tier(), 'T2');
+  const retry = f.fetch('aram'); f.resolve(2, 1); await retry;
+  assert.equal(f.tier(), 'T1');
+});
+
+test('unsupported queues stay unknown instead of borrowing ranked data', () => {
+  const f = fixture();
+  assert.equal(f.run('modeFromQueue({ id: 450 })'), 'aram');
+  assert.equal(f.run('modeFromQueue({ gameMode: "CHERRY" })'), 'arena');
+  assert.equal(f.run('modeFromQueue({ id: 1900 })'), 'urf');
+  assert.equal(f.run('modeFromQueue({ id: 420 })'), 'ranked');
+  assert.equal(f.run('modeFromQueue({ id: 99999, gameMode: "UNKNOWN" })'), '');
+});
+
+test('missing tier is not converted into an OP badge', async () => {
+  const f = fixture();
+  const request = f.fetch('aram');
+  f.pending[0].resolve({ ok: true, json: async () => ({ data: [{ id: 1, average_stats: { tier: null } }] }) });
+  await request;
+  assert.equal(f.tier(), undefined);
 });

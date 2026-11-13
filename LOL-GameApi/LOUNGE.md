@@ -12,7 +12,7 @@ dotnet run --project LOL-GameApi --no-launch-profile --urls http://127.0.0.1:508
 
 ## 公网部署
 
-1. 发布 `LOL-GameApi` 到安装了 **ASP.NET Core 10.0.13 或更高补丁版本**的主机。
+1. 发布 `LOL-GameApi` 到安装了 **ASP.NET Core 11.0.0 或更高补丁版本**的主机。
 2. 客户端支持 HTTP 和 HTTPS。直接运行 EXE 时可使用 `LOL-GameApi.exe --urls "http://0.0.0.0:5000"`，并放行云平台及 Windows 防火墙的 TCP 5000；客户端填写 `http://服务器公网IP:5000`。HTTP 会明文传输消息与安装会话凭据。使用 HTTPS 反向代理时，启用 WebSocket Upgrade，代理空闲超时至少 90 秒，后端可监听回环地址。
 3. 保留 `/hubs/lounge` 和 `/hubs/lounge/negotiate` 路径及 Authorization 请求头。客户端不放宽证书校验。
 4. 数据库默认位于后端内容目录 `data/lounge.db`；挂载持久化目录并给进程写入权限。SQLite WAL 备份请使用在线备份或停服务后同时处理数据库及 WAL 文件，不要只复制活跃的主数据库文件。

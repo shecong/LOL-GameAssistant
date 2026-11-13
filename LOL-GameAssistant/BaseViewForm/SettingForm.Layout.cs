@@ -28,8 +28,6 @@ public partial class SettingForm
             };
             AddSegmentRow(rows, index + 1, option.Caption, checkbox, message);
         }
-        AddSegmentRow(rows, options.Length + 1, "功能状态：",
-            CreateAiNote("该功能正在测试，即将上线。当前仅供预览，暂不支持启用。"));
         rows.ResumeLayout(false);
     }
 
@@ -54,15 +52,6 @@ public partial class SettingForm
             Font = new Font(UiMetrics.FontFamily, 18F, FontStyle.Bold),
             Margin = new Padding(0, 0, 0, 4)
         });
-        var note = CreateAiNote("按功能配置选人辅助、局内面板、战绩评估与 AI 建议。开关即时保存，AI 连接单独保存。");
-        note.Margin = new Padding(0, 0, 0, 20);
-        content.Controls.Add(note);
-        content.SizeChanged += (sender, _) =>
-        {
-            var container = (Control)sender!;
-            note.MaximumSize = new Size(Math.Max(1,
-                container.ClientSize.Width - container.Padding.Horizontal - note.Margin.Horizontal), 0);
-        };
         page.Controls.Add(content);
         return page;
     }
@@ -80,31 +69,11 @@ public partial class SettingForm
         rows.Font = new Font(UiMetrics.FontFamily, 10F);
         AddSectionHeader(rows, 0, title);
         rows.Controls[0].Padding = new Padding(0, 0, 0, 12);
-        rows.Layout += (_, _) =>
-        {
-            int[] widths = rows.GetColumnWidths();
-            if (widths.Length < 2) return;
-            foreach (AntdUI.Label note in rows.Controls.OfType<AntdUI.Label>().Where(label => label.Name == "aiDescription"))
-            {
-                // Layout fires before the table recalculates its percent column. Use the
-                // current client width so an early narrow measurement cannot stick.
-                var maximum = new Size(Math.Max(1, rows.ClientSize.Width - rows.Padding.Horizontal -
-                    widths[0] - note.Margin.Horizontal), 0);
-                if (note.MaximumSize != maximum) note.MaximumSize = maximum;
-            }
-        };
         card.Controls.Add(rows);
         content.Controls.Add(card);
+        rows.SizeChanged += (_, _) => card.InvalidatePreferredSize();
         return rows;
     }
-
-    // Only the description grows vertically; section headers and field captions keep their own layout.
-    private static AntdUI.Label CreateAiNote(string text) => new()
-    {
-        Name = "aiDescription", Text = text, TextMultiLine = true, AutoSize = true, AutoSizeMode = AntdUI.TAutoSize.Height,
-        TextAlign = ContentAlignment.TopLeft, Dock = DockStyle.Top,
-        ForeColor = Color.DimGray
-    };
 
     /// <summary>各列独立向下排列，避免英雄列表把另一列的设置挤出首屏。</summary>
     private Control CreateMatchDashboard()
@@ -126,10 +95,6 @@ public partial class SettingForm
             Margin = new Padding(0, 0, 0, 4)
         };
         content.Controls.Add(heading);
-        var note = CreateNote("按对局流程配置自动操作，修改后自动保存。");
-        note.Margin = new Padding(0, 0, 0, 20);
-        content.Controls.Add(note);
-
         var columns = new TableLayoutPanel
         {
             Name = "matchSettingsColumns", Dock = DockStyle.Top, AutoSize = true,
@@ -265,14 +230,24 @@ public partial class SettingForm
 
     private sealed class AiSettingsCard : SettingsCard
     {
+        private int _measuredWidth = -1;
+        private Size _measuredSize;
+
         // AntdUI.Panel does not measure its children for AutoSize. Let the table's
         // current preferred size drive the card, including its first visible layout.
+        // 父级布局会反复询问同一宽度下的首选尺寸，按宽度缓存避免重复测量整张卡片。
         public override Size GetPreferredSize(Size proposedSize)
         {
             if (Controls.Count == 0) return base.GetPreferredSize(proposedSize);
             int width = Math.Max(1, (proposedSize.Width > 0 ? proposedSize.Width : Width) - Padding.Horizontal);
-            return Controls[0].GetPreferredSize(new Size(width, 0)) + Padding.Size;
+            if (width == _measuredWidth) return _measuredSize;
+            _measuredSize = Controls[0].GetPreferredSize(new Size(width, 0)) + Padding.Size;
+            _measuredWidth = width;
+            return _measuredSize;
         }
+
+        /// <summary>内容尺寸变化（文字、语言、行高）后丢弃测量缓存。</summary>
+        internal void InvalidatePreferredSize() => _measuredWidth = -1;
     }
 
     private class SettingsCard : AntdUI.Panel, IThemeAware

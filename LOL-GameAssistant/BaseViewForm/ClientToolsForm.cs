@@ -21,6 +21,7 @@ public sealed partial class ClientToolsForm : UserControl, IThemeAware
     private static readonly string[] ToolCategories = ["回放与备份", "资料与外观", "好友活动", "英雄数据", "本地缓存", "开黑大厅"];
     private readonly LocalCacheToolsControl _cacheTools;
     private readonly IProfileIconService _profileIcons;
+    private readonly IPenguPluginService _penguPlugin;
     private readonly List<AntdUI.Panel> _cards = [];
     private readonly ToolTip _featureTip = new() { AutoPopDelay = 16000, InitialDelay = 320, ReshowDelay = 120, ShowAlways = false };
     private readonly HashSet<Control> _tipTargets = [];
@@ -41,11 +42,11 @@ public sealed partial class ClientToolsForm : UserControl, IThemeAware
         Dock = DockStyle.Bottom,
         Height = 32,
         Padding = new Padding(12, 7, 12, 0),
-        Text = "所有操作仅作用于当前电脑已登录的英雄联盟客户端。"
+        Text = ""
     };
 
-    private readonly AntdUI.Label _backgroundPreviewCaption = Caption("输入皮肤 ID 后点击预览。", 260);
-    private readonly AntdUI.Label _profileIconPreviewCaption = Caption("输入头像 ID 后点击预览。", 180);
+    private readonly AntdUI.Label _backgroundPreviewCaption = Caption("", 260);
+    private readonly AntdUI.Label _profileIconPreviewCaption = Caption("", 180);
 
     private readonly PictureBox _backgroundPreview = new()
     {
@@ -65,11 +66,13 @@ public sealed partial class ClientToolsForm : UserControl, IThemeAware
     public ClientToolsForm(
         IClientFeatureService features,
         IChampionInsightsService championInsights,
-        IProfileIconService profileIcons, ILocalCacheManagementService? cacheManagement = null)
+        IProfileIconService profileIcons, ILocalCacheManagementService? cacheManagement = null,
+        IPenguPluginService? penguPlugin = null)
     {
         _features = features;
         _championInsights = championInsights;
         _profileIcons = profileIcons;
+        _penguPlugin = penguPlugin ?? AppCompositionRoot.PenguPlugin;
         _cacheTools = new(cacheManagement ?? AppCompositionRoot.LocalCacheManagementService);
         Dock = DockStyle.Fill;
         _featureTip.Popup += (_, e) => _activeTipControl = e.AssociatedControl;
@@ -95,7 +98,7 @@ public sealed partial class ClientToolsForm : UserControl, IThemeAware
         foreach (string category in ToolCategories)
             navigation.Items.Add(new AntdUI.SegmentedItem { Text = category });
         Control[][] groups = [[CreateReplayCard(), CreateRewardsCard(), CreateBackupsCard()],
-            [CreateProfileCard()], [CreateFriendsCard(), CreateFriendDirectoryCard()], [CreateInsightsCard(), CreateAugmentReviewCard()], [CreateCacheCard()], [CreatePartyCard()]];
+            [CreateProfileCard(), CreatePenguPluginCard()], [CreateFriendsCard(), CreateFriendDirectoryCard()], [CreateInsightsCard(), CreateAugmentReviewCard()], [CreateCacheCard()], [CreatePartyCard()]];
         foreach (Control[] group in groups)
             foreach (Control card in group) AddCard(content, card);
         // 切换客户端工具中当前展示的功能分类。

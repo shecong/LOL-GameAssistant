@@ -60,8 +60,8 @@ chinesesimp.RuntimeTitle=正在准备 .NET 桌面运行时
 english.RuntimeTitle=Preparing the .NET Desktop Runtime
 chinesesimp.RuntimeDescription=本机缺少所需版本，正在从微软下载并校验。
 english.RuntimeDescription=The required version is missing. Setup is downloading and verifying it from Microsoft.
-chinesesimp.RuntimeFailed=无法准备 .NET 10 桌面运行时（{#RuntimeArch}）。请检查网络，或从微软安装运行时后重试。%n%n%1
-english.RuntimeFailed=Setup could not prepare the .NET 10 Desktop Runtime ({#RuntimeArch}). Check your connection or install the runtime from Microsoft and try again.%n%n%1
+chinesesimp.RuntimeFailed=无法准备 .NET 11 桌面运行时（{#RuntimeArch}）。请检查网络，或从微软安装运行时后重试。%n%n%1
+english.RuntimeFailed=Setup could not prepare the .NET 11 Desktop Runtime ({#RuntimeArch}). Check your connection or install the runtime from Microsoft and try again.%n%n%1
 chinesesimp.RuntimeExitCode=运行时安装程序返回错误 %1。
 english.RuntimeExitCode=The runtime installer returned error %1.
 chinesesimp.RuntimeMissing=运行时安装完成后仍未检测到所需版本。
@@ -96,7 +96,7 @@ var
 begin
   Result := False;
   FrameworkDir := AddBackslash(Root) + 'shared\' + FrameworkName + '\';
-  if not FindFirst(FrameworkDir + '10.0.*', Entry) then Exit;
+  if not FindFirst(FrameworkDir + '11.0.*', Entry) then Exit;
   try
     repeat
       if (Entry.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then begin

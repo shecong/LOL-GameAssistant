@@ -6,6 +6,7 @@ if (!$vsInstall) { throw 'Visual Studio C++ tools are required' }
 $vcTools = (Get-ChildItem -LiteralPath "$vsInstall\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
 $sdkRoot = 'C:\Program Files (x86)\Windows Kits\10'
 $sdkVersion = (Get-ChildItem -LiteralPath "$sdkRoot\Lib" -Directory | Where-Object { Test-Path -LiteralPath "$($_.FullName)\um\x64\kernel32.lib" } | Sort-Object Name -Descending | Select-Object -First 1).Name
+Write-Output "Resource HID toolchain: MSVC $(Split-Path $vcTools -Leaf); Windows SDK $sdkVersion"
 $env:PATH = "$vcTools\bin\Hostx64\x64;$env:PATH"
 $env:LIB = "$vcTools\lib\x64;$sdkRoot\Lib\$sdkVersion\ucrt\x64;$sdkRoot\Lib\$sdkVersion\um\x64"
 $env:INCLUDE = "$vcTools\include;$sdkRoot\Include\$sdkVersion\ucrt;$sdkRoot\Include\$sdkVersion\shared;$sdkRoot\Include\$sdkVersion\um"

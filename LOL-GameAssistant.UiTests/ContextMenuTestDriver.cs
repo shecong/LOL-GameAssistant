@@ -14,7 +14,7 @@ internal static class ContextMenuTestDriver
             .SelectMany(form => form.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
                 .Where(field => field.FieldType == typeof(AntdUI.ContextMenuStrip.Config))
                 .Select(field => (Form: form, Config: (AntdUI.ContextMenuStrip.Config)field.GetValue(form)!)))
-            .Where(menu => menu.Config.Control == owner).ToArray();
+            .Where(menu => menu.Config.Target.GetControl == owner).ToArray();
         var menu = Assert.Single(menus);
         var item = Assert.Single(menu.Config.Items.OfType<AntdUI.ContextMenuStripItem>(), item => item.Text == text);
         Assert.True(item.Enabled);

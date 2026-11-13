@@ -10,6 +10,55 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class GameOverlayProtocolTests
 {
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern ulong GetTickCount64();
+
+    [Fact]
+    public void PublishedHeartbeatUsesTheNativeClockEvenAfterRuntimeUpgrade()
+    {
+        using var mapping = MemoryMappedFile.CreateNew(null, NativeGameOverlayBridge.PixelOffset);
+        using var view = mapping.CreateViewAccessor();
+        for (int i = 0; i < 64; ++i)
+        {
+            long before = (long)GetTickCount64();
+            NativeGameOverlayBridge.WriteFrame(view, new("", "", "", "", 0, false, false), true);
+            long after = (long)GetTickCount64();
+            Assert.InRange(view.ReadInt64(24), before, after);
+            Thread.Sleep(1);
+        }
+    }
+
+    [Fact]
+    public void HeartbeatRefreshWithoutPayloadChangesAlsoUsesNativeClock()
+    {
+        using var bridge = new NativeGameOverlayBridge(connectToGame: false);
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+        var sessionType = typeof(NativeGameOverlayBridge).GetNestedType("Session", System.Reflection.BindingFlags.NonPublic)!;
+        object session = Activator.CreateInstance(sessionType, flags, null,
+            [$"Local\\SC.Overlay.Clock.Test.{Guid.NewGuid():N}", Environment.ProcessId], null)!;
+        typeof(NativeGameOverlayBridge).GetField("_session", flags)!.SetValue(bridge, session);
+        var view = (MemoryMappedViewAccessor)sessionType.GetProperty("View")!.GetValue(session)!;
+        bridge.PublishPanel(new(GameOverlayPanelKind.SkinPicker));
+        var heartbeat = typeof(NativeGameOverlayBridge).GetMethod("Heartbeat", flags)!;
+        for (int i = 0; i < 64; ++i)
+        {
+            long before = (long)GetTickCount64();
+            heartbeat.Invoke(bridge, null);
+            Assert.InRange(view.ReadInt64(24), before, (long)GetTickCount64());
+            Thread.Sleep(1);
+        }
+    }
+
+    [Theory]
+    [InlineData(103000, 100000, 500000, 503000)]
+    [InlineData(103000, 100000, 100005, 103005)]
+    [InlineData(99000, 100000, 500000, 500000)]
+    [InlineData(0, 100000, 500000, 0)]
+    public void PanelDeadlinesTransferRemainingDurationAcrossClockDomains(long deadline, long managedNow, long nativeNow, long expected)
+    {
+        Assert.Equal(expected, GameOverlayClock.Deadline(deadline, managedNow, nativeNow));
+    }
+
     [Fact]
     public void ExitDisablesAllPanelsBeforeClosingMappingAndCannotRestartHeartbeat()
     {
@@ -126,7 +175,7 @@ public sealed class GameOverlayProtocolTests
         Assert.Equal(0x53434f56u, view.ReadUInt32(0));
         Assert.Equal(1, view.ReadInt32(8)); Assert.Equal(2, view.ReadInt32(12));
         Assert.Equal(12, view.ReadInt32(32)); Assert.Equal(7, view.ReadInt32(48)); Assert.Equal(7, view.ReadInt32(52));
-        Assert.InRange(view.ReadInt64(24), Environment.TickCount64 - 5000, Environment.TickCount64);
+        Assert.InRange(view.ReadInt64(24), (long)GetTickCount64() - 5000, (long)GetTickCount64());
         Assert.Equal(2, view.ReadInt32(36)); Assert.Equal(1, view.ReadInt32(40)); Assert.Equal(1, view.ReadInt32(44));
         Assert.Equal("海克斯", ReadText(view, 128, 256));
         Assert.Equal("当前英雄", ReadText(view, 384, 2048));

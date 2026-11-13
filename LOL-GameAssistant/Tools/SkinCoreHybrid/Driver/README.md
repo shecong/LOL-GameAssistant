@@ -11,7 +11,9 @@ powershell -NoProfile -File native/LeagueSkinHybrid/build.ps1 -Test
 powershell -NoProfile -File native/SkinCoreRelay/build.ps1 -WdkRoot '你的WDK根目录'
 ```
 
-WDK 根目录需同时具有 `Include/<SDK版本>/km`、`Lib/<SDK版本>/km/x64` 及 KMDF 1.31 的头文件和库；也可使用微软 `Microsoft.Windows.WDK.x64` NuGet 包中的 `c` 目录。配套用户态 SDK 默认使用本机 10.0.26100.0。编译脚本不安装工具链、不修改启动设置、不签名和加载驱动。
+默认使用 Windows SDK 10.0.28000.2957（目录版本 10.0.28000.0）与 WDK 10.0.28000.2526。先运行 `tools/prepare-wdk.ps1` 下载并校验微软官方包；本地 WDK 位于 `.artifacts/wdk-nuget/10.0.28000.2526/c`，旧版工具包保留。SDK 与 WDK 必须属于相同 build，补丁号可以不同。
+
+构建自动选用工具包内最新可用的 KMDF 头文件和库，当前为 1.35；通过 `KMDF_MINIMUM_VERSION_REQUIRED=31` 保留最低框架 1.31（Windows 10 2004）要求。当前驱动使用的 WDF 调用均可在 1.31 头文件中找到；这不是 Windows 10 实机加载验收。可传入 `-KmdfVersion`、`-KmdfMinimumVersion` 覆盖，要求 1.25 ≤ 最低版本 ≤ 目标版本。编译脚本不安装、签名或加载驱动，也不修改启动设置。
 
 输出：
 

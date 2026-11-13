@@ -26,6 +26,7 @@ Write-Host "原生更新器工具链：$Runtime -> $updaterVc"
 $updaterSdk = "${env:ProgramFiles(x86)}\Windows Kits\10"
 $updaterSdkVersion = (Get-ChildItem -LiteralPath "$updaterSdk\Lib" -Directory | Where-Object { Test-Path -LiteralPath "$($_.FullName)\um\$updaterArch\kernel32.lib" } | Sort-Object Name -Descending | Select-Object -First 1).Name
 if (-not $updaterSdkVersion) { throw 'Windows SDK not found.' }
+Write-Output "Updater Windows SDK: $updaterSdkVersion"
 foreach ($updaterRequiredLibrary in @("$updaterVc\lib\$updaterArch\libcmt.lib", "$updaterSdk\Lib\$updaterSdkVersion\ucrt\$updaterArch\ucrt.lib")) {
     if (-not (Test-Path -LiteralPath $updaterRequiredLibrary)) { throw "缺少 $Runtime 编译库：$updaterRequiredLibrary，请在 Visual Studio Installer 中补齐对应工具和 Windows SDK。" }
 }

@@ -36,6 +36,11 @@ namespace LOL_GameAssistant.Bootstrap;
 /// </summary>
 public static class AppCompositionRoot
 {
+    public static IPenguLoaderDownloadService PenguLoaderDownload { get; } = new Infrastructure.Pengu.PenguLoaderDownloadService(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "PenguLoader"));
+    public static IPenguPluginService PenguPlugin { get; } = new Infrastructure.Pengu.PenguPluginService(
+        Path.Combine(AppContext.BaseDirectory, "Tools", "PenguPlugin"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "pengu-plugin.json"));
     static AppCompositionRoot()
     {
         System.Windows.Forms.Application.ApplicationExit += (_, _) => TclsLoginLauncher.Cancel();
