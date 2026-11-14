@@ -1,6 +1,6 @@
-using System.Diagnostics;
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Bootstrap;
+using LOL_GameAssistant.Infrastructure.Pengu;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
@@ -9,106 +9,106 @@ public sealed partial class ClientToolsForm
     private Control CreatePenguPluginCard()
     {
         IPenguPluginService plugin = _penguPlugin;
-        IPenguLoaderDownloadService loaderDownload = AppCompositionRoot.PenguLoaderDownload;
-        CancellationTokenSource? downloading = null;
+        IPenguLocalLoaderService loader = AppCompositionRoot.PenguLocalLoader;
+        var settingsService = new PenguVisualSettingsService(() => loader.Prepare().PluginsDirectory);
         PenguPluginStatusForm? checkWindow = null;
-        var card = Card("客户端视觉插件（Pengu）", 240, out FlowLayoutPanel body);
-        var path = Input("选择 Pengu Loader 的 plugins 文件夹", 450, plugin.PluginsDirectory);
-        path.ReadOnly = true;
+        var card = Card("客户端视觉插件（Pengu）", 490, out FlowLayoutPanel body);
         var status = Caption("", 650);
-        status.Height = 90;
-        void Refresh()
-        {
-            try { status.Text = plugin.Inspect().Message; }
-            catch (Exception error) { status.Text = error.Message; }
-        }
+        status.Height = 80;
+        var enabled = new AntdUI.Checkbox { Text = "启用视觉功能", Width = 150, Height = 32, Checked = true };
+        var badges = new AntdUI.Checkbox { Text = "英雄评级", Width = 130, Height = 32, Checked = true };
+        var players = new AntdUI.Checkbox { Text = "开黑 / KDA / 胜率", Width = 200, Height = 32, Checked = true };
+        var navigation = new AntdUI.Checkbox { Text = "隐藏客户端导航", Width = 180, Height = 32 };
+        var mode = Select(180);
+        AddSelectItems(mode, "自动识别", "峡谷 / 排位", "极地大乱斗", "斗魂竞技场", "无限火力");
+        mode.SelectedIndex = 0;
+        var wallpaper = Input("图片直链，或选择本地图片", 620, "");
+        var imageName = Caption("未设置壁纸", 620);
+        string selectedName = "";
+        string refreshNonce = "";
         void Run(Action action, string message)
         {
-            try { action(); Refresh(); SetStatus(message, true); }
+            try { action(); status.Text = plugin.Inspect().Message; SetStatus(message, true); }
             catch (Exception error) { status.Text = error.Message; SetStatus(error.Message, false); }
         }
-        body.Controls.Add(Caption("可直接下载官方稳定版并安装插件，再打开 Loader 激活。重启 LOL 客户端后，检查右下角 ✦ 确认插件显示。", 650));
+        PenguVisualSettings Values() => new()
+        {
+            Enabled = enabled.Checked, ShowBadges = badges.Checked, ShowPlayerStats = players.Checked,
+            HideNavigation = navigation.Checked, TierMode = new[] { "auto", "ranked", "aram", "arena", "urf" }[Math.Clamp(mode.SelectedIndex, 0, 4)],
+            WallpaperUrl = wallpaper.Text, WallpaperName = selectedName, RefreshNonce = refreshNonce
+        };
+        void Install()
+        {
+            var prepared = loader.Prepare();
+            plugin.SelectDirectory(prepared.PluginsDirectory);
+            plugin.Install();
+            plugin.SetEnabled(true);
+        }
+        void ReadSettings()
+        {
+            var settings = settingsService.Read();
+            refreshNonce = settings.RefreshNonce;
+            enabled.Checked = settings.Enabled; badges.Checked = settings.ShowBadges;
+            players.Checked = settings.ShowPlayerStats; navigation.Checked = settings.HideNavigation;
+            mode.SelectedIndex = Array.IndexOf(new[] { "auto", "ranked", "aram", "arena", "urf" }, settings.TierMode);
+            wallpaper.Text = settings.WallpaperUrl; selectedName = settings.WallpaperName;
+            imageName.Text = selectedName.Length > 0 ? selectedName : "未选择本地图片";
+        }
+        body.Controls.Add(Caption("由 sc助手直接控制，无需启动 Pengu 管理窗口。首次接入或更新 core.dll 后重启 LOL 客户端；设置在客户端加载后约 1 秒生效。", 650));
         body.SetFlowBreak(body.Controls[^1], true);
-        var downloadButton = Button("下载 Loader 并安装插件", async (_, _) =>
-        {
-            if (downloading != null) return;
-            using var source = new CancellationTokenSource();
-            downloading = source;
-            foreach (AntdUI.Button button in body.Controls.OfType<AntdUI.Button>()) button.Enabled = button.Name == "cancelPenguDownload";
-            try
-            {
-                var progress = new Progress<PenguLoaderDownloadProgress>(value =>
-                {
-                    if (!status.IsDisposed) status.Text = value.Total > 0
-                        ? $"{value.Message} · {value.Downloaded * 100 / value.Total}%" : value.Message;
-                });
-                PreparedPenguLoader loader = await loaderDownload.DownloadAsync(progress, source.Token);
-                if (card.IsDisposed) return;
-                source.Token.ThrowIfCancellationRequested();
-                plugin.SelectDirectory(loader.PluginsDirectory);
-                plugin.Install();
-                path.Text = plugin.PluginsDirectory;
-                status.Text = $"已下载 {loader.Version} 并安装视觉插件。点击“打开 Loader”启用开关，然后完整重启 LOL 客户端。\n{loader.ExecutablePath}";
-                SetStatus("Pengu Loader 与插件已准备完成。", true);
-            }
-            catch (OperationCanceledException) { if (!status.IsDisposed) status.Text = "下载已取消，可重新下载。"; }
-            catch (Exception error) { if (!status.IsDisposed) { status.Text = error.Message; SetStatus(error.Message, false); } }
-            finally
-            {
-                downloading = null;
-                if (!body.IsDisposed)
-                    foreach (AntdUI.Button button in body.Controls.OfType<AntdUI.Button>()) button.Enabled = button.Name != "cancelPenguDownload";
-            }
-        });
-        var cancelButton = Button("取消下载", (_, _) => downloading?.Cancel());
-        cancelButton.Name = "cancelPenguDownload";
-        cancelButton.Enabled = false;
-        body.Controls.Add(downloadButton);
-        body.Controls.Add(cancelButton);
-        body.Controls.Add(Button("打开 Loader", (_, _) => Run(() =>
-        {
-            string? loaderDirectory = string.IsNullOrEmpty(plugin.PluginsDirectory) ? null : Path.GetDirectoryName(plugin.PluginsDirectory);
-            string? executable = loaderDirectory == null ? null : new[] { "Pengu Loader.exe", "PenguLoader.exe", "pengu-loader.exe" }
-                .Select(name => Path.Combine(loaderDirectory, name)).FirstOrDefault(File.Exists);
-            executable ??= loaderDownload.GetInstalled()?.ExecutablePath;
-            if (executable == null) throw new InvalidOperationException("请先下载 Loader，或选择已有 Loader 的 plugins 文件夹。");
-            Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(executable) });
-        }, "已打开 Pengu Loader，请在 Loader 内启用开关后重启 LOL 客户端。")));
-        card.Disposed += (_, _) => { downloading?.Cancel(); if (checkWindow is { IsDisposed: false }) checkWindow.Close(); };
+        body.Controls.Add(Button("安装 / 更新视觉组件", (_, _) => Run(Install, "已安装视觉组件，请重新启动 LOL 客户端加载新版本。")));
+        body.Controls.Add(Button("激活客户端加载", (_, _) => Run(() => { Install(); settingsService.Save(Values()); loader.SetActivated(true); }, "已激活，请重启 LOL 客户端。此后直接从本软件控制视觉功能。")));
+        body.Controls.Add(Button("停用客户端加载", (_, _) => Run(() => loader.SetActivated(false), "已停用加载入口，下次启动客户端生效。")));
         body.SetFlowBreak(body.Controls[^1], true);
-        body.Controls.Add(path);
-        body.Controls.Add(Button("选择目录", (_, _) =>
+        body.Controls.Add(enabled); body.Controls.Add(badges); body.Controls.Add(players);
+        body.SetFlowBreak(body.Controls[^1], true);
+        body.Controls.Add(navigation); body.Controls.Add(Caption("评级模式", 90)); body.Controls.Add(mode);
+        body.SetFlowBreak(body.Controls[^1], true);
+        body.Controls.Add(wallpaper);
+        body.SetFlowBreak(body.Controls[^1], true);
+        body.Controls.Add(Button("选择本地图片", (_, _) =>
         {
-            using var picker = new FolderBrowserDialog { Description = "选择 Pengu Loader 的 plugins 文件夹", UseDescriptionForTitle = true, ShowNewFolderButton = false };
-            if (Directory.Exists(plugin.PluginsDirectory)) picker.SelectedPath = plugin.PluginsDirectory;
+            using var picker = new OpenFileDialog { Title = "选择客户端壁纸", Filter = "图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif|所有文件|*.*" };
             if (picker.ShowDialog(FindForm()) != DialogResult.OK) return;
-            Run(() => { plugin.SelectDirectory(picker.SelectedPath); path.Text = plugin.PluginsDirectory; }, "已保存插件目录。");
+            Run(() =>
+            {
+                Install();
+                var settings = settingsService.ImportWallpaper(picker.FileName, Values());
+                wallpaper.Text = settings.WallpaperUrl; selectedName = settings.WallpaperName;
+                imageName.Text = selectedName + "（点击应用设置生效）";
+            }, "本地图片已复制，点击应用设置生效。");
         }));
+        body.Controls.Add(Button("清除壁纸", (_, _) => { wallpaper.Text = ""; selectedName = ""; imageName.Text = "壁纸已清除（点击应用设置生效）"; }));
+        body.Controls.Add(Button("应用设置", (_, _) => Run(() => { Install(); settingsService.Save(Values()); }, "设置已保存。已加载新视觉组件的客户端将在约 1 秒内应用。")));
         body.SetFlowBreak(body.Controls[^1], true);
-        body.Controls.Add(Button("安装 / 更新插件", (_, _) => Run(plugin.Install, "插件文件已安装。请重启 LOL 客户端后检查右下角 ✦。")));
-        body.Controls.Add(Button("启用", (_, _) => Run(() => plugin.SetEnabled(true), "已启用，下次启动客户端生效。")));
-        body.Controls.Add(Button("停用", (_, _) => Run(() => plugin.SetEnabled(false), "已停用，下次启动客户端生效。")));
-        body.Controls.Add(Button("卸载插件", (_, _) => Run(plugin.Uninstall, "已移除插件文件。请重启客户端以清除当前面板；客户端保存的视觉偏好仍保留。")));
-        body.Controls.Add(Button("检查加载状态", (_, _) =>
+        body.Controls.Add(Button("刷新视觉数据", (_, _) => Run(() =>
+        {
+            Install(); refreshNonce = Guid.NewGuid().ToString("N"); settingsService.Save(Values());
+        }, "已发送刷新请求，客户端加载后会重新获取数据并重试壁纸。")));
+        body.Controls.Add(Button("恢复默认视觉", (_, _) => Run(() => { Install(); settingsService.Save(new()); ReadSettings(); }, "已恢复默认视觉设置。")));
+        body.SetFlowBreak(body.Controls[^1], true);
+        body.Controls.Add(imageName);
+        body.SetFlowBreak(body.Controls[^1], true);
+        body.Controls.Add(Button("检查加载状态", (_, _) => Run(() =>
         {
             if (checkWindow is { IsDisposed: false }) { checkWindow.Activate(); return; }
-            SetStatus("正在检查插件加载状态…", true);
-            checkWindow = new PenguPluginStatusForm(plugin, message =>
-            {
-                if (status.IsDisposed) return;
-                status.Text = message;
-                SetStatus("插件检查已完成，详细结果见“插件加载检查”窗口。", true);
-            });
+            checkWindow = new PenguPluginStatusForm(plugin, message => { if (!status.IsDisposed) status.Text = message; });
             checkWindow.Show(FindForm());
-        }));
-        body.Controls.Add(Button("打开插件目录", (_, _) => Run(() =>
+        }, "正在检查视觉组件加载状态。")));
+        body.Controls.Add(Button("选择本地源码目录", (_, _) =>
         {
-            if (!Directory.Exists(plugin.PluginsDirectory)) throw new InvalidOperationException("请先选择插件目录。");
-            Process.Start(new ProcessStartInfo(plugin.PluginsDirectory) { UseShellExecute = true });
-        }, "已打开插件目录。")));
+            using var picker = new FolderBrowserDialog { Description = "选择 PenguLoader 源码根目录", SelectedPath = loader.SourceDirectory };
+            if (picker.ShowDialog(FindForm()) != DialogResult.OK) return;
+            Run(() => { loader.SelectDirectory(picker.SelectedPath); Install(); ReadSettings(); }, "已切换本地视觉内核，请重新激活并重启客户端。");
+        }));
         body.SetFlowBreak(body.Controls[^1], true);
         body.Controls.Add(status);
-        Refresh();
+        try { ReadSettings(); status.Text = plugin.Inspect().Message; }
+        catch (Exception error) { status.Text = error.Message; }
+        var refresh = new System.Windows.Forms.Timer { Interval = 3000 };
+        refresh.Tick += (_, _) => { if (card.Visible) { try { status.Text = plugin.Inspect().Message; } catch (Exception error) { status.Text = error.Message; } } };
+        refresh.Start();
+        card.Disposed += (_, _) => { refresh.Dispose(); if (checkWindow is { IsDisposed: false }) checkWindow.Close(); };
         return card;
     }
 }

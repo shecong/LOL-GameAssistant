@@ -9,7 +9,8 @@ public sealed record PenguClientRuntime(bool ClientRunning, string? LoaderDirect
 
 public sealed class PenguPluginService(string bundleDirectory, string settingsFile,
     Func<string, PenguClientRuntime>? runtimeProbe = null,
-    Func<string, PenguLoaderActivation>? activationProbe = null) : IPenguPluginService
+    Func<string, PenguLoaderActivation>? activationProbe = null,
+    Func<string>? bundleProvider = null) : IPenguPluginService
 {
     public const string PluginId = "lol-game-assistant-visuals";
     private static readonly string[] Payload = ["index.js", "pengu.yml", "README.md"];
@@ -19,7 +20,8 @@ public sealed class PenguPluginService(string bundleDirectory, string settingsFi
     public void SelectDirectory(string directory)
     {
         string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory.Trim().Trim('"')));
-        if (!Path.GetFileName(root).Equals("plugins", StringComparison.OrdinalIgnoreCase)) root = Path.Combine(root, "plugins");
+        if (!Path.GetFileName(root).Equals("plugins", StringComparison.OrdinalIgnoreCase) &&
+            (File.Exists(Path.Combine(root, "core.dll")) || Directory.Exists(Path.Combine(root, "plugins")))) root = Path.Combine(root, "plugins");
         if (!Directory.Exists(root)) throw new InvalidOperationException("请选择 Pengu Loader 下已存在的 plugins 文件夹，或包含它的 Loader 目录。");
         EnsureRegularPath(root);
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(settingsFile))!);
@@ -48,17 +50,35 @@ public sealed class PenguPluginService(string bundleDirectory, string settingsFi
                     DateTimeOffset.UtcNow - timestamp is var age && age >= TimeSpan.FromSeconds(-5) && age < TimeSpan.FromSeconds(35) &&
                     state.TryGetProperty("active", out var active) && active.ValueKind == JsonValueKind.True)
                 {
-                    string summary = state.TryGetProperty("panelMounted", out var panel) && panel.ValueKind == JsonValueKind.True
+                    string summary = state.TryGetProperty("managed", out var managed) && managed.ValueKind == JsonValueKind.True
+                        ? "客户端已连接 sc助手控制" : state.TryGetProperty("panelMounted", out var panel) && panel.ValueKind == JsonValueKind.True
                         ? "客户端面板已挂载" : "客户端已加载，面板尚未挂载";
+                    string applied = "";
+                    if (state.TryGetProperty("managed", out var controlled) && controlled.ValueKind == JsonValueKind.True)
+                    {
+                        string settings = Path.Combine(target, "settings.json");
+                        try
+                        {
+                            if (File.Exists(settings) && new FileInfo(settings).Length <= 65536)
+                            {
+                                using var desired = JsonDocument.Parse(File.ReadAllText(settings));
+                                applied = desired.RootElement.TryGetProperty("revision", out var expected) &&
+                                    state.TryGetProperty("revision", out var actual) && expected.GetString() == actual.GetString()
+                                    ? " · 设置已应用" : " · 设置等待客户端应用";
+                            }
+                        }
+                        catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException)
+                        { applied = " · 设置文件读取失败"; }
+                    }
                     string Detail(string key) => state.TryGetProperty(key, out var value) ? value.ToString() : "-";
-                    return new(installed, enabled, true, $"{summary} · v{Detail("version")} · 模式 {Detail("mode")} · 头像 {Detail("targets")} / 角标 {Detail("badges")}\n{Detail("error")}" +
+                    return new(installed, enabled, true, $"{summary}{applied} · v{Detail("version")} · 模式 {Detail("mode")} · 头像 {Detail("targets")} / 角标 {Detail("badges")}\n{Detail("error")} {Detail("configError")} {Detail("wallpaper")}" +
                         (enabled ? "" : "\n下次启动已停用；当前客户端仍在运行，请重启客户端。"));
                 }
             }
             catch (JsonException) { /* A stale or incomplete diagnostic is not proof of loading. */ }
         }
         return new(installed, enabled, false, enabled
-            ? "已安装并启用。请启用 Pengu Loader 后重启 LOL 客户端，检查右下角 ✦。未收到加载状态回传时，请在客户端确认插件显示。"
+            ? "已安装并启用。首次接入或升级内核后请重启 LOL 客户端，等待状态回传。"
             : "已停用，下次启动生效；如客户端仍有面板，请重启客户端。");
     }
 
@@ -91,18 +111,18 @@ public sealed class PenguPluginService(string bundleDirectory, string settingsFi
         lines.Add("下一步：");
         if (!disk.Installed || !disk.Enabled) lines.Add("先安装并启用视觉插件，再完整重启 LOL 客户端。");
         else if (activation.Activated == false && runtime.LoaderDirectory == null)
-            lines.Add("Loader 尚未激活。点击“打开 Loader”，将 Active Status 从 OFF 切换为 ON，再按 Loader 提示重启客户端。下载文件和安装插件不会自动开启此开关。");
-        else if (!runtime.ClientRunning) lines.Add("打开 Loader 启用开关，然后启动 LOL 客户端。");
+            lines.Add("请点击本软件的“激活客户端加载”，然后重启 LOL 客户端。");
+        else if (!runtime.ClientRunning) lines.Add("点击本软件的“激活客户端加载”，然后启动 LOL 客户端。");
         else if (runtime.Error != null && runtime.LoaderDirectory == null)
-            lines.Add("客户端模块读取受限，暂时无法判断 Loader 是否加载。请在客户端检查右下角 ✦。");
+            lines.Add("客户端模块读取受限，暂时无法判断 Loader 是否加载。请等待客户端状态回传。");
         else if (runtime.LoaderDirectory == null)
             lines.Add(activation.Activated == true
-                ? "Loader 已激活，但当前客户端尚未检测到 Loader 模块。请接受 Loader 的客户端重启提示；若重启后仍未加载，再检查客户端兼容性。"
-                : "当前客户端未检测到 Loader 模块。请在 Loader 确认 Active Status，然后完整退出、重新启动客户端。");
+                ? "Loader 已激活，但当前客户端尚未检测到 Loader 模块。请完整重启 LOL 客户端；若重启后仍未加载，再检查客户端兼容性。"
+                : "当前客户端未检测到 Loader 模块。请在本软件激活客户端加载，然后完整退出、重新启动客户端。");
         else if (!Path.TrimEndingDirectorySeparator(runtime.LoaderDirectory).Equals(loaderDirectory, StringComparison.OrdinalIgnoreCase))
             lines.Add("客户端加载的是另一目录的 Loader。请将插件目录改为上述 Loader 下的 plugins，重新安装插件并重启客户端。");
         else if (!disk.Loaded)
-            lines.Add("Loader 模块已加载，但这不代表视觉插件已显示。请在客户端右下角检查 ✦；未收到状态回传时，不能只靠此检查确认插件画面。");
+            lines.Add("Loader 模块已加载，但这不代表视觉插件已显示。请更新视觉组件并重启客户端；未收到状态回传时，还不能确认视觉组件已运行。");
         else lines.Add("已确认插件回传状态；实际角标还需进入选人页面查看。");
         lines.Add("");
         lines.Add($"插件目录：{(PluginsDirectory.Length > 0 ? PluginsDirectory : "尚未选择")}");
@@ -135,7 +155,7 @@ public sealed class PenguPluginService(string bundleDirectory, string settingsFi
                         string? directory = Path.GetDirectoryName(fileName);
                         if (directory == null) continue;
                         if (directory.Equals(selectedDirectory, StringComparison.OrdinalIgnoreCase)) detected = directory;
-                        else if (detected == null && File.Exists(Path.Combine(directory, "Pengu Loader.exe"))) detected = directory;
+                        else if (detected == null && (File.Exists(Path.Combine(directory, "Pengu Loader.exe")) || File.Exists(Path.Combine(directory, "pengu-loader.exe")))) detected = directory;
                     }
                 }
                 catch (Exception failure) when (failure is System.ComponentModel.Win32Exception or InvalidOperationException or NotSupportedException or IOException or UnauthorizedAccessException)
@@ -150,7 +170,8 @@ public sealed class PenguPluginService(string bundleDirectory, string settingsFi
         string target = Target();
         if (Directory.Exists(target) && ManagedFiles.Any(name => File.Exists(Path.Combine(target, name)))) VerifyOwned(target);
         // Read the complete payload before touching an existing installation.
-        var files = Payload.ToDictionary(name => name, name => File.ReadAllText(Path.Combine(bundleDirectory, name)));
+        string source = bundleProvider?.Invoke() ?? bundleDirectory;
+        var files = Payload.ToDictionary(name => name, name => File.ReadAllText(Path.Combine(source, name)));
         bool disabled = File.Exists(Path.Combine(target, "index.js.disabled")) && !File.Exists(Path.Combine(target, "index.js"));
         Directory.CreateDirectory(target);
         foreach (var (name, content) in files)

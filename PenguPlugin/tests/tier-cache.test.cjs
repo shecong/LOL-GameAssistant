@@ -7,11 +7,11 @@ const vm = require('node:vm');
 function fixture() {
   const pending = [];
   const ctx = vm.createContext({
-    window: { setTimeout, clearTimeout }, AbortController,
+    window: { setTimeout, clearTimeout }, AbortController, URL,
     fetch: url => new Promise((resolve, reject) => pending.push({ url, resolve, reject })),
     document: { querySelectorAll: () => [] },
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8')
+  vm.runInContext(fs.readFileSync(process.env.PENGU_PLUGIN_SOURCE || path.join(__dirname, '..', 'index.js'), 'utf8')
     .replaceAll('export function ', 'function '), ctx);
   return {
     pending,
@@ -106,4 +106,36 @@ test('missing tier is not converted into an OP badge', async () => {
   f.pending[0].resolve({ ok: true, json: async () => ({ data: [{ id: 1, average_stats: { tier: null } }] }) });
   await request;
   assert.equal(f.tier(), undefined);
+});
+
+
+test('player statistics use matching identity and mode, exclude invalid games, and deduplicate', () => {
+  const f = fixture();
+  const result = f.run(`playerSummary([
+    { gameId: 1, gameDuration: 1200, queueId: 450, participantIdentities: [{ participantId: 2, player: { puuid: 'a' } }], participants: [
+      { participantId: 1, stats: { kills: 99, deaths: 1, assists: 99, win: false } },
+      { participantId: 2, stats: { kills: 3, deaths: 0, assists: 6, win: true } }] },
+    { gameId: 1, gameDuration: 1200, queueId: 450, participants: [{ stats: { kills: 3, deaths: 0, assists: 6, win: true } }] },
+    { gameId: 2, gameDuration: 1200, queueId: 420, participants: [{ stats: { kills: 0, deaths: 9, assists: 0, win: false } }] },
+    { gameId: 3, gameDuration: 120, queueId: 450, participants: [{ stats: { kills: 0, deaths: 9, assists: 0, win: false } }] },
+    { gameId: 4, gameDuration: 1200, queueId: 450, participants: [{ stats: { win: true } }] }
+  ], 'a', 'aram')`);
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), { kda: '9.00', rate: 100, count: 1, scope: '同模式' });
+  assert.equal(f.run(`playerSummary([], 'a', 'aram')`), null);
+  assert.equal(f.run(`playerSummary([{ gameDuration: 900, queueId: 420, participants: [{stats: {kills: 1, deaths: 2, assists: 3, win: false}}] }], 'a', 'aram').scope`), '全模式');
+});
+
+test('party groups stay within a team and missing party metadata stays unknown', () => {
+  const f = fixture();
+  assert.equal(f.run(`partyLabel({ partyId: '0' }, []).text`), '开黑未知');
+  assert.equal(f.run(`partyLabel({ partyId: 'x' }, [{partyId:'x'}, {partyId:'x'}]).text`), '开黑1 · 2人');
+  assert.equal(f.run(`partyLabel({ partyId: 'x' }, [{partyId:'x'}]).text`), '未见组队');
+});
+
+
+test('Unsplash photo pages are distinguished from actual image URLs', () => {
+  const f = fixture();
+  assert.equal(f.run(`isWallpaperPage('https://unsplash.com/photos/vernazza-coastal-village-in-italy-cYrMQA7a3Wc')`), true);
+  assert.equal(f.run(`isWallpaperPage('https://images.unsplash.com/photo-1499678329028-101435549a4e?auto=format')`), false);
+  assert.equal(f.run(`validWallpaper('javascript:alert(1)')`), '');
 });

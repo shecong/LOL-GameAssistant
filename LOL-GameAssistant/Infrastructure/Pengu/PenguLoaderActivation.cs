@@ -11,6 +11,9 @@ public sealed record PenguLoaderActivation(bool? Activated, string Message)
         {
             string core = Path.Combine(loaderDirectory, "core.dll");
             if (!File.Exists(core)) return new(false, "未激活（缺少 core.dll）");
+            using (var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+            using (var entry = machine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\LeagueClientUx.exe"))
+                if (MatchesDebugger(entry?.GetValue("Debugger") as string, core)) return new(true, "已激活（sc助手直接控制）");
             string config = Path.Combine(loaderDirectory, "config");
             var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (File.Exists(config) && new FileInfo(config).Length <= 65536)
@@ -19,14 +22,18 @@ public sealed record PenguLoaderActivation(bool? Activated, string Message)
                     string[] parts = line.Split('=', 2);
                     if (parts.Length == 2) values[parts[0].Trim()] = parts[1].Trim();
                 }
-            if (values.TryGetValue("UseSymlink", out var mode) && (mode.Equals("true", StringComparison.OrdinalIgnoreCase) || mode == "1"))
+            if ((values.TryGetValue("UseSymlink", out var mode) && (mode.Equals("true", StringComparison.OrdinalIgnoreCase) || mode == "1")) ||
+                (values.TryGetValue("activation_mode", out var activationMode) && activationMode == "1"))
             {
-                if (!values.TryGetValue("LeaguePath", out var path) || string.IsNullOrWhiteSpace(path)) return new(false, "未激活（本地模式没有配置游戏目录）");
+                if (!values.TryGetValue("league_dir", out var path)) values.TryGetValue("LeaguePath", out path);
+                if (string.IsNullOrWhiteSpace(path)) return new(false, "未激活（本地模式没有配置游戏目录）");
                 var link = new FileInfo(Path.Combine(path, "version.dll"));
                 var target = link.Exists ? link.ResolveLinkTarget(returnFinalTarget: true) : null;
                 return target != null && Path.GetFullPath(target.FullName).Equals(Path.GetFullPath(core), StringComparison.OrdinalIgnoreCase)
                     ? new(true, "已激活（本地模式）") : new(false, "未激活（本地模式的 version.dll 未指向当前 Loader）");
             }
+            if (values.TryGetValue("activation_mode", out var demandMode) && demandMode == "2")
+                return new(null, "按需加载模式，请在本地 Loader 中启动客户端后检查模块");
             foreach (RegistryView view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
             {
                 using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);

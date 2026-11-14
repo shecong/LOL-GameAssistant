@@ -1,68 +1,32 @@
-# 客户端视觉插件 v0.2.0
+# 客户端视觉插件 v0.4.0
 
-在 LOL 客户端右下角显示 `✦` 设置面板，为选人网格、英雄卡片、备战席和队伍头像添加 OP.GG T 级角标，并提供壁纸和导航隐藏开关。插件只修改客户端 DOM / CSS，不执行选人、奖励或其他 LCU 写操作。
+由 sc助手直接控制英雄评级、选人开黑 / KDA / 胜率、隐藏导航和壁纸。日常运行不需要 Pengu 管理窗口、Vite 服务或 WebView 前端。使用用户本地克隆的 core.dll，不查询或下载 GitHub 发行版。
 
-## 从助手安装
+## 使用
 
-1. 在助手打开 **设置 → 客户端工具 → 资料与外观 → 客户端视觉插件（Pengu）**。
-2. 点击“下载 Loader 并安装插件”。助手通过 GitHub 官方 Releases API 查询最新稳定版，下载便携 ZIP，解压并安装视觉插件，同时保存插件目录；支持进度显示和取消。
-3. 点击“打开 Loader”，在 Loader 窗口内启用开关，然后完整重启 LOL 客户端。
-4. 点击客户端右下角 `✦`。助手加载状态回传取决于 Loader 是否提供文件写入接口；未收到回传时，请在客户端确认显示，不能因此判定加载失败。
+1. 在 E:\code\PenguLoader 运行 `./scripts/prepare-game-assistant.ps1 -BuildCore`。只构建客户端 preload 与 core.dll，不构建 Pengu 管理前端。
+2. 在 sc助手的“设置 → 客户端工具 → 资料与外观 → 客户端视觉插件（Pengu）”，点击“激活客户端加载”。这会安装视觉插件并直接配置本地 core.dll 的加载入口。
+3. 完整重启 LOL 客户端一次。此后修改开关或壁纸并点击“应用设置”，客户端约 1 秒内读取；不需要每次重启。
+4. “检查加载状态”显示内核、插件和有效状态回传。“停用客户端加载”下次启动生效；取消“启用视觉功能”并应用可实时恢复客户端默认视觉。
 
-下载目录为 `%LOCALAPPDATA%/LOL-GameAssistant/PenguLoader/<版本>/`，不会放进 LOL / Riot Client 目录。重复下载同一版本会复用已有文件；下载失败或取消会清理临时文件。校验下载长度；官方接口提供 SHA-256 时同时校验摘要，未提供时只记录本地 SHA-256，不把本地摘要称为官方认证。助手不自动激活 Loader。
+首次接入或更新 core.dll 后必须重启客户端才能加载新内核。设置更改和内核升级是两种不同的生效过程。客户端内不再挂载本插件的设置面板。
 
-已有 Loader 时，可点击“选择目录”，选择其 `plugins` 文件夹或包含该文件夹的 Loader 根目录，再点击“安装 / 更新插件”。
+## 设置与状态通道
 
-安装包和更新包携带 `Tools/PenguPlugin/`。安装按钮将其中三个文件部署到 `plugins/lol-game-assistant-visuals/`，不会自动升级已部署的副本。升级助手后，需再次点击“安装 / 更新插件”并重启客户端；更新保留原有停用状态。
+sc助手原子写入 `bin/plugins/lol-game-assistant-visuals/settings.json`（遵循本地 `[app] plugins_dir` 配置）。客户端 preload 仅向此插件注入 `visualControl`，通过固定路径、限长的 native 方法读取设置，每秒检查一次。应用后及每 10 秒写入 `runtime.json`，含配置 revision、加载状态、模式、头像/角标数量和壁纸/配置错误。助手只接受 35 秒内的活动状态；心跳不代表所有客户端页面均兼容。
 
-“停用”会将入口改名为 `index.js.disabled`，下次启动客户端生效。“卸载插件”只移除本插件已知文件，保留用户额外文件及客户端 localStorage 视觉偏好。已加载的客户端需要重启后才会移除面板。
+桥接不提供任意文件路径读写。心跳不包含账号令牌、聊天或玩家身份。关闭 sc助手后，文件配置仍保留并由客户端继续使用。未迁移的旧内核仍保留旧面板兼容入口，更新内核后进入直接控制模式。
 
-也可手动把本目录的 `index.js`、`pengu.yml`、`README.md` 复制到上述插件目录。运行时不需要 Node.js、npm 或浏览器测试依赖。
+壁纸支持 HTTP/HTTPS 图片直链，Unsplash `/photos/` 网页会明确提示使用直链。也可在 sc助手选择 JPG、PNG、BMP、GIF 本地图片（最多 20 MB，GIF 使用静态帧），规范化为最长边 2560 像素的 PNG 后复制到插件目录，原图移动或删除不影响壁纸，不上传图片。图片成功加载后才透明化原背景；切换导航开关不会清除壁纸。清除壁纸后点击应用恢复原背景。
 
-## 客户端显示与数据更新
+## 数据
 
-- 默认从本机 LCU 的 gameflow / lobby 读取队列，自动识别峡谷、大乱斗、斗魂竞技场、无限火力；不支持或尚未就绪的队列等待识别，不显示错误模式的数据。也可手动选择模式。
-- 同一模式的数据缓存 30 分钟，每 30 秒检查模式与缓存；失败按 2、4、8 秒等间隔退避重试，最长 60 秒，可手动刷新。
-- 切换模式清除旧角标，过期请求不会覆盖新数据；头像被复用或英雄 ID 改变后重新匹配。卸载会清理监听、计时器、请求、角标及插件修改的定位样式。
-- 壁纸只接受 HTTP / HTTPS 图片地址，清空即恢复。客户端页面自身的不透明背景可能遮挡壁纸。
-- 排位角标取该英雄公开统计中最好的分路 T 级，不代表玩家本人水平。
+英雄 T 级取 OP.GG 公开统计，自动识别峡谷、大乱斗、斗魂竞技场、无限火力，可手动指定；缓存 30 分钟。失败退避重试，切换模式不会被过期请求覆盖。
 
-## 排查没有显示
+选人信息只读本机 LCU：按 cellId/puuid 等识别队伍行，显示同队 partyId 分组；缺失标识显示未知。KDA 为近期最多 20 场有效匹配的累计（击杀+助攻）/max(1,死亡)，胜率为有效场次胜率，优先同模式并显示样本数。排除自定义、重开、不足 5 分钟及缺失数据；身份隐藏时显示未知，不绕过隐藏身份。此数据是玩家近期数据，并非选定英雄专属胜率。
 
-助手中的“检查加载状态”会打开独立检查窗口，显示检查时间、插件安装与入口状态、Loader 版本、实际激活配置、LOL 客户端进程、Loader 模块所在目录及插件心跳，并给出下一步建议。检查在后台执行；读目录或进程失败时显示原因。窗口支持重新检查，重复点击入口会激活已有窗口。下载和安装插件不等于激活 Loader；Active Status 为 OFF 时必须在 Loader 中开启并接受客户端重启提示。
+插件只修改客户端 DOM/CSS，不执行选人、奖励等 LCU 写操作。不同版本客户端的头像选择器仍需在选人页面实测。
 
-Loader 模块已加载只说明 Loader 进入了客户端，不代表视觉插件一定显示；未收到文件心跳时仍需在客户端确认 `✦`。如果检测到客户端使用了另一目录的 Loader，应将插件安装到那个 Loader 的 `plugins` 目录。
+## 验证
 
-| 现象 | 检查方法 |
-| --- | --- |
-| 助手提示“已安装，尚未确认加载” | 文件存在不代表 Loader 已启用；检查 Loader 版本、插件目录，完整重启客户端 |
-| 没有右下角 `✦` | 使用 Loader 的客户端开发者工具检查加载错误；确认入口文件为 UTF-8 无 BOM |
-| 看得到 `✦`，点击无反应 | 更新插件后重新加载客户端；插件会检测客户端重建页面造成的节点替换，重新绑定交互 |
-| 面板已显示但数据为 0，提示 HTTP / 超时 | 检查 OP.GG 网络访问；插件会重试，也可手动刷新 |
-| 有数据但找到 0 个头像 | 先进入选人页；若仍为 0，当前客户端 DOM 可能变化，需要适配挂载选择器 |
-| 有头像但没有角标 | 确认角标开关、模式及英雄统计是否存在；查看面板错误信息 |
-| 客户端有面板，助手未确认加载 | `runtime.json` 需要 Loader 提供 `context.fs.write` 接口及插件目录写权限 |
-
-Loader 提供文件写入接口时，插件每 10 秒向自身目录写入 `runtime.json`，只包含版本、时间、面板状态、模式、头像与角标数量和数据错误；不包含账号、令牌或聊天内容。助手只把 35 秒内的有效活动心跳视为“已加载”，不将其当作所有功能兼容的证明。
-
-## 开发与验证
-
-```powershell
-# 无浏览器依赖的缓存竞态测试
-node --test PenguPlugin/tests/tier-cache.test.cjs
-
-# 安装开发依赖与测试浏览器（从仓库根目录运行）
-npm ci --prefix PenguPlugin
-node PenguPlugin/node_modules/playwright/cli.js install chromium
-npm test --prefix PenguPlugin
-
-# 或使用本机 Edge，省去 Chromium 下载
-$env:PENGU_TEST_BROWSER_CHANNEL = 'msedge'
-npm test --prefix PenguPlugin
-
-dotnet test LOL-GameAssistant.UiTests/LOL-GameAssistant.UiTests.csproj --filter "FullyQualifiedName~PenguLoaderDownloadTests|FullyQualifiedName~PenguPluginTests|FullyQualifiedName~ClientToolsCategoriesFitAndRemovedToolsAreAbsent"
-```
-
-浏览器测试使用模拟客户端 HTML 和网络响应，验证真实 DOM 渲染、模式切换、动态头像、失败重试和卸载，并输出 `PenguPlugin/test-results/client-preview.png`。它不能替代当前 LOL 客户端、实际 OP.GG 网络以及 Loader 环境的实测。
-
-接入依据：[Pengu 插件入口](https://pengu.lol/guide/javascript-plugin)、[LCU 请求](https://pengu.lol/guide/lcu-request)、[Socket 观察](https://pengu.lol/runtime-api/socket)、[PluginFS](https://pengu.lol/runtime-api/fs)。
+`npm test --prefix PenguPlugin` 运行浏览器 DOM 和缓存竞态测试；浏览器依赖使用 `npm ci --prefix PenguPlugin` 和 `node PenguPlugin/node_modules/playwright/cli.js install chromium` 安装。包括直接控制、坏配置保留上次状态、导航/壁纸独立、关闭功能和卸载清理。

@@ -80,6 +80,22 @@ public sealed class PenguPluginTests : IDisposable
     }
 
     [Fact]
+    public void HeadlessHeartbeatRequiresMatchingRevisionToConfirmSettingsApplied()
+    {
+        _service.Install();
+        File.WriteAllText(Path.Combine(_target, "settings.json"), "{\"revision\":\"new\"}");
+        void Heartbeat(string revision) => File.WriteAllText(Path.Combine(_target, "runtime.json"),
+            JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow, active = true, managed = true, panelMounted = false, revision }));
+        Heartbeat("old");
+        Assert.True(_service.Inspect().Loaded);
+        Assert.Contains("设置等待客户端应用", _service.Inspect().Message);
+        Heartbeat("new");
+        Assert.Contains("客户端已连接 sc助手控制", _service.Inspect().Message);
+        Assert.Contains("设置已应用", _service.Inspect().Message);
+        Assert.DoesNotContain("面板尚未挂载", _service.Inspect().Message);
+    }
+
+    [Fact]
     public void DirectorySelectionRequiresAnExistingPluginsFolder()
     {
         Assert.Throws<InvalidOperationException>(() => _service.SelectDirectory(Path.Combine(_root, "missing")));
@@ -99,7 +115,7 @@ public sealed class PenguPluginTests : IDisposable
         Assert.Contains("LOL 客户端：正在运行", status.Message);
         Assert.Contains("Loader 模块：未在客户端进程中检测到", status.Message);
         Assert.Contains("所选 Loader 版本：1.1.6+test", status.Message);
-        Assert.Contains("请接受 Loader 的客户端重启提示", status.Message);
+        Assert.Contains("请完整重启 LOL 客户端", status.Message);
     }
 
     [Fact]
@@ -130,8 +146,8 @@ public sealed class PenguPluginTests : IDisposable
         _service.Install();
         var service = new PenguPluginService(Path.Combine(_root, "bundle"), Path.Combine(_root, "settings.json"),
             _ => new(true, null), _ => new(false, "未激活（Active Status 为 OFF）"));
-        Assert.Contains("从 OFF 切换为 ON", service.Check().Message);
-        Assert.Contains("不会自动开启此开关", service.Check().Message);
+        Assert.Contains("激活客户端加载", service.Check().Message);
+        Assert.Contains("然后重启 LOL 客户端", service.Check().Message);
     }
 
     [Fact]
@@ -141,6 +157,23 @@ public sealed class PenguPluginTests : IDisposable
         Assert.True(PenguLoaderActivation.MatchesDebugger($"rundll32 \"{core}\", #6000 ", core));
         Assert.False(PenguLoaderActivation.MatchesDebugger($"rundll32 \"{core}.other\", #6000 ", core));
         Assert.False(PenguLoaderActivation.MatchesDebugger(null, core));
+    }
+
+    [Fact]
+    public void InstallationUsesSelectedLocalCloneSourceAndCustomPluginDirectory()
+    {
+        string source = Path.Combine(_root, "clone-source");
+        Directory.CreateDirectory(source);
+        foreach (string name in new[] { "index.js", "pengu.yml", "README.md" })
+            File.Copy(Path.Combine(_root, "bundle", name), Path.Combine(source, name));
+        File.AppendAllText(Path.Combine(source, "index.js"), "// local clone payload");
+        string custom = Path.Combine(_root, "custom-visuals");
+        Directory.CreateDirectory(custom);
+        var service = new PenguPluginService("missing-fallback", Path.Combine(_root, "local-settings.json"), bundleProvider: () => source);
+        service.SelectDirectory(custom);
+        service.Install();
+        Assert.Equal(custom, service.PluginsDirectory);
+        Assert.Contains("local clone payload", File.ReadAllText(Path.Combine(custom, PenguPluginService.PluginId, "index.js")));
     }
 
     public void Dispose() => Directory.Delete(_root, recursive: true);

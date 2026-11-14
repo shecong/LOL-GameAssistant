@@ -36,11 +36,20 @@ namespace LOL_GameAssistant.Bootstrap;
 /// </summary>
 public static class AppCompositionRoot
 {
-    public static IPenguLoaderDownloadService PenguLoaderDownload { get; } = new Infrastructure.Pengu.PenguLoaderDownloadService(
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "PenguLoader"));
-    public static IPenguPluginService PenguPlugin { get; } = new Infrastructure.Pengu.PenguPluginService(
-        Path.Combine(AppContext.BaseDirectory, "Tools", "PenguPlugin"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "pengu-plugin.json"));
+    public static IPenguLocalLoaderService PenguLocalLoader { get; } = new Infrastructure.Pengu.PenguLocalLoaderService(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "pengu-loader-local.json"));
+    public static IPenguPluginService PenguPlugin { get; } = CreatePenguPlugin();
+    private static IPenguPluginService CreatePenguPlugin()
+    {
+        var plugin = new Infrastructure.Pengu.PenguPluginService(
+            Path.Combine(AppContext.BaseDirectory, "Tools", "PenguPlugin"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "pengu-plugin.json"),
+            bundleProvider: () => Path.Combine(PenguLocalLoader.SourceDirectory, "extensions", "lol-game-assistant-visuals"));
+        try { plugin.SelectDirectory(PenguLocalLoader.Prepare().PluginsDirectory); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException)
+        { /* The settings card reports the missing local build and offers source selection. */ }
+        return plugin;
+    }
     static AppCompositionRoot()
     {
         System.Windows.Forms.Application.ApplicationExit += (_, _) => TclsLoginLauncher.Cancel();
