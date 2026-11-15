@@ -15,6 +15,16 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class LoungeTests
 {
     [Fact]
+    public void MemberRowsDisplayReportedVersionAndHandleOlderClients() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var client = new LoungeClient(new LoungeLcuReader(new LcuHttpRequestSender()));
+        using var page = new LoungeForm(client);
+        var method = typeof(LoungeForm).GetMethod("MemberVersionLabel", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.Equal("程序 v1.2.3", method.Invoke(page, [new LoungeMember("other", "玩家", "艾欧尼亚", "忙碌", AppVersion: "1.2.3")]));
+        Assert.Equal("版本未上报", method.Invoke(page, [new LoungeMember("other", "旧客户端", "艾欧尼亚", "忙碌")]));
+    });
+
+    [Fact]
     public void LoungeMenuImmediatelyPrecedesAboutAndPageSupportsBothThemes() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var main = new GameMain();

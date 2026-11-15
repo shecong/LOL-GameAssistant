@@ -410,3 +410,6 @@ output/
 /tmp/kda-paced-publish/
 /tmp/kda-three-player-publish/
 /tmp/optional-resource-probe-result/
+
+# Local lounge API publish output.
+/tmp/lounge-version-api/

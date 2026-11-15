@@ -14,6 +14,25 @@ public sealed class LoungeLazyLoadingTests
     private static LoungeMessage Message(long id, DateTimeOffset at) => new(id, "", "sender", "player", "region", "chat", "message", at);
 
     [Fact]
+    public async Task VersionHeartbeatDoesNotRequireLcuLoginOrOpeningLounge()
+    {
+        using var client = Client();
+        Assert.False(client.MessagesActive);
+        var unavailable = client.PresenceForHeartbeat();
+        Assert.Equal("", unavailable.Puuid);
+        Assert.Equal(LOL_GameAssistant.Domain.ApplicationInfo.AppVersion.Current.ToString(3), unavailable.AppVersion);
+        var reader = new LoungeLcuReader(SecondPhaseRegressionTests.Service<ILcuRequestSender>((_, _) => Task.FromResult<string?>(null)));
+        var loggedOut = await reader.ReadAsync(false, default);
+        typeof(LoungeClient).GetField("_presence", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(client, loggedOut.Presence);
+        var heartbeat = client.PresenceForHeartbeat();
+        Assert.Equal("未登录 LOL", heartbeat.Status);
+        Assert.False(heartbeat.ShareActivity);
+        Assert.Equal(unavailable.AppVersion, heartbeat.AppVersion);
+        Assert.False(client.MessagesActive);
+        Assert.Empty(client.Messages);
+    }
+
+    [Fact]
     public async Task StartupDoesNotSynchronizeOrAcceptLiveMessages()
     {
         using var client = Client();

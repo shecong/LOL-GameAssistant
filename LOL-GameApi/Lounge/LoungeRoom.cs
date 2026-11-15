@@ -53,7 +53,7 @@ public sealed class LoungeRoom(IOptionsMonitor<LoungeOptions> settings, TimeProv
             if (!_connections.TryGetValue(connection, out var old) || old.Closing) throw new HubException("请重新连接聊天室。");
             value = new(LoungeRules.Clean(value.Puuid, 128), LoungeRules.Clean(value.Name, 80),
                 LoungeRules.Clean(value.Platform, 40), LoungeRules.Clean(value.Region, 40),
-                LoungeRules.Clean(value.Status, 30), value.ShareActivity, LoungeRules.Clean(value.Rank, 80));
+                LoungeRules.Clean(value.Status, 30), value.ShareActivity, LoungeRules.Clean(value.Rank, 80), LoungeRules.Clean(value.AppVersion, 32));
             if (string.IsNullOrWhiteSpace(value.Name)) value = value with { Name = "未登录玩家" };
             if (!value.ShareActivity) value = value with { Status = "活动已隐藏" };
             _connections[connection] = old with { Presence = value, Seen = _clock.GetUtcNow() };
@@ -80,7 +80,7 @@ public sealed class LoungeRoom(IOptionsMonitor<LoungeOptions> settings, TimeProv
                 .Select(g =>
                 {
                     var latest = g.OrderByDescending(c => c.Seen).First().Presence;
-                    return new LoungeMember(g.Key, latest.Name, latest.Region, latest.Status, latest.Rank);
+                    return new LoungeMember(g.Key, latest.Name, latest.Region, latest.Status, latest.Rank, latest.AppVersion);
                 }).OrderBy(m => m.Name, StringComparer.Ordinal).ToArray();
         }
     }

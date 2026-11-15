@@ -221,7 +221,7 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
         var members = allMembers.Where(m => MatchesSelectedRegion(m.Region) && (_memberServerFilter.SelectedIndex <= 0 ||
             LeagueRegionNames.GetServerGroup(m.Region) == (_memberServerFilter.SelectedIndex switch
             { 1 => LeagueServerGroup.China, 2 => LeagueServerGroup.Other, _ => LeagueServerGroup.Unknown }))).ToArray();
-        string memberKey = SelectedRegion + ":" + _memberServerFilter.SelectedIndex + ":" + string.Join('|', members.Select(m => $"{m.Id}:{m.Name}:{m.Region}:{m.Status}:{m.Rank}:{_client.IsFollowed(m.Id)}"));
+        string memberKey = SelectedRegion + ":" + _memberServerFilter.SelectedIndex + ":" + string.Join('|', members.Select(m => $"{m.Id}:{m.Name}:{m.Region}:{m.Status}:{m.Rank}:{m.AppVersion}:{_client.IsFollowed(m.Id)}"));
         if (_memberKey != memberKey)
         {
             _memberKey = memberKey;
@@ -229,12 +229,19 @@ public sealed partial class LoungeForm : UserControl, IThemeAware
                 ? _visibleMembers[_members.SelectedIndex].Id : null;
             _visibleMembers = members;
             _members.DataSource = members.Select(member => new LoungeListRow(
-                $"{(_socialExperience.FavoriteTeammates.ContainsKey(member.Id) ? "♥" : _client.IsFollowed(member.Id) ? "★" : "●")} {member.Name}\n{MemberServerLabel(member.Region)} · {NormalizeRegion(member.Region)}{(string.IsNullOrWhiteSpace(member.Rank) ? "" : " · " + member.Rank)}\n{member.Status}")).ToArray();
+                $"{(_socialExperience.FavoriteTeammates.ContainsKey(member.Id) ? "♥" : _client.IsFollowed(member.Id) ? "★" : "●")} {member.Name}\n{MemberServerLabel(member.Region)} · {NormalizeRegion(member.Region)}{(string.IsNullOrWhiteSpace(member.Rank) ? "" : " · " + member.Rank)}\n{member.Status} · {MemberVersionLabel(member)}")).ToArray();
             _members.SelectedIndex = Array.FindIndex(members, m => m.Id == selected);
         }
         _memberCount.Text = SelectedRegion == null && _memberServerFilter.SelectedIndex <= 0 ? $"在线成员 · {members.Length} · 右键复制 ID"
             : $"在线成员 · {members.Length}/{allMembers.Length} · 右键复制 ID";
         RefreshTimeline();
+    }
+
+    private string MemberVersionLabel(LoungeMember member)
+    {
+        string version = member.Id == _client.CurrentPlayerId
+            ? LOL_GameAssistant.Domain.ApplicationInfo.AppVersion.Current.ToString(3) : LoungeRules.Clean(member.AppVersion, 32);
+        return string.IsNullOrWhiteSpace(version) ? "版本未上报" : "程序 v" + version;
     }
 
     private static string MemberServerLabel(string region) => UiLanguage.T(LeagueRegionNames.GetServerGroup(region) switch

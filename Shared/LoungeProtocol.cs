@@ -2,8 +2,8 @@ namespace LOL.Lounge;
 
 // Shared wire contract; deliberately independent of WinForms and LCU credentials.
 public sealed record LoungePresence(string Puuid, string Name, string Platform, string Region,
-    string Status, bool ShareActivity = true, string Rank = "");
-public sealed record LoungeMember(string Id, string Name, string Region, string Status, string Rank = "");
+    string Status, bool ShareActivity = true, string Rank = "", string AppVersion = "");
+public sealed record LoungeMember(string Id, string Name, string Region, string Status, string Rank = "", string AppVersion = "");
 public sealed record LoungeOnlineNotice(string Name, string Region, string Rank = "");
 public sealed record LoungeMessage(long Id, string ClientId, string SenderId, string Name,
     string Region, string Kind, string Text, DateTimeOffset SentAt);

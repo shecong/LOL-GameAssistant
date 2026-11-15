@@ -218,7 +218,7 @@ public sealed class LoungeTests
         var online = new TaskCompletionSource<LoungeOnlineNotice>(TaskCreationOptions.RunContinuationsAsynchronously);
         int onlineCount = 0;
         bob.On<LoungeOnlineNotice>("Online", notice => { Interlocked.Increment(ref onlineCount); online.TrySetResult(notice); });
-        var player = new LoungePresence("puuid", "Alice#123", "HN1", "艾欧尼亚", "游戏中", Rank: "单双排 黄金II 50点");
+        var player = new LoungePresence("puuid", "Alice#123", "HN1", "艾欧尼亚", "游戏中", Rank: "单双排 黄金II 50点", AppVersion: "1.2.3");
         await alice.InvokeAsync("UpdatePresence", player);
         var notice = await online.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(player.Name, notice.Name);
@@ -230,6 +230,7 @@ public sealed class LoungeTests
         var joined = await alice.InvokeAsync<LoungeSnapshot>("Sync", 0L);
         Assert.Equal(LoungeRules.ProtocolVersion, joined.ProtocolVersion);
         Assert.Equal(player.Rank, joined.Members.Single().Rank);
+        Assert.Equal("1.2.3", joined.Members.Single().AppVersion);
         Assert.Empty(joined.Messages);
         Assert.Equal(1, onlineCount);
 

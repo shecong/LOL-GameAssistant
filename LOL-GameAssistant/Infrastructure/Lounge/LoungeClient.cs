@@ -245,6 +245,16 @@ public sealed partial class LoungeClient(LoungeLcuReader local) : IDisposable
         }
     }
 
+    // 心跳属于程序生命周期，不依赖休息室页面、消息订阅或 LOL 登录状态。
+    internal LoungePresence PresenceForHeartbeat()
+    {
+        lock (_gate)
+        {
+            var presence = _presence ?? new("", "未登录玩家", "", "未知大区", "未登录 LOL", false);
+            return presence with { AppVersion = LOL_GameAssistant.Domain.ApplicationInfo.AppVersion.Current.ToString(3) };
+        }
+    }
+
     private async Task ConnectionLoopAsync(CancellationToken token)
     {
         int failures = 0;
@@ -330,8 +340,7 @@ public sealed partial class LoungeClient(LoungeLcuReader local) : IDisposable
                     if (Environment.TickCount64 >= nextPresence)
                     {
                         nextPresence = Environment.TickCount64 + 5000;
-                        LoungePresence presence;
-                        lock (_gate) presence = _presence ?? new("", "未登录玩家", "", "未知大区", "状态未知", false);
+                        var presence = PresenceForHeartbeat();
                         await hub.InvokeAsync("UpdatePresence", presence, tickTimeout.Token);
                         _publishedPresence = presence;
                         SetStatus(string.IsNullOrEmpty(presence.Puuid) ? "已连接 · 登录 LOL 后可以发言" :
