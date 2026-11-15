@@ -110,6 +110,33 @@ public sealed partial class LoungeClient(LoungeLcuReader local) : IDisposable
     }
     public LoungeMessage[] Messages { get { lock (_gate) return _messages.Values.ToArray(); } }
     public LoungeMember[] Members { get { lock (_gate) return _members.ToArray(); } }
+    public int? OnlineMemberCount { get { lock (_gate) return _memberBaseline ? _members.Length : null; } }
+    private int _refreshingMembers;
+
+    /// <summary>只校准在线成员，不订阅聊天或拉取历史；允许切换页面后继续刷新。</summary>
+    public async Task RefreshOnlineMembersAsync()
+    {
+        if (_disposed || Interlocked.CompareExchange(ref _refreshingMembers, 1, 0) != 0) return;
+        try
+        {
+            var hub = _hub;
+            if (hub?.State != HubConnectionState.Connected) return;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_stop?.Token ?? default);
+            timeout.CancelAfter(TimeSpan.FromSeconds(8));
+            var snapshot = await hub.InvokeAsync<LoungeSnapshot>("ConnectOnly", timeout.Token);
+            lock (_gate)
+            {
+                if (_disposed || !ReferenceEquals(_hub, hub) || hub.State != HubConnectionState.Connected) return;
+                UpdateMembers(snapshot.Members);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            RuntimeDiagnostics.Report("lol休息室", "在线人数刷新", ex.GetType().Name);
+        }
+        finally { Interlocked.Exchange(ref _refreshingMembers, 0); }
+    }
 
     public void Start()
     {
@@ -143,7 +170,7 @@ public sealed partial class LoungeClient(LoungeLcuReader local) : IDisposable
             _worker = null;
             if (serverChanged)
             {
-                lock (_gate) { _messages.Clear(); _onlineMessages.Clear(); _onlineNotice = null; _recruitments.Clear(); _members = []; _deleted.Clear(); _cursor = 0; _initialSync = false; _inbox.Clear(); }
+                lock (_gate) { _messages.Clear(); _onlineMessages.Clear(); _onlineNotice = null; _recruitments.Clear(); _members = []; _memberBaseline = false; _deleted.Clear(); _cursor = 0; _initialSync = false; _inbox.Clear(); }
                 ResetMessageWindow();
             }
             Start();

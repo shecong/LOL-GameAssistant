@@ -82,6 +82,7 @@ namespace LOL_GameAssistant
         private readonly AntdUI.TabPage _skinTab;
         private readonly AntdUI.TabPage _loungeTab;
         private readonly Infrastructure.Lounge.LoungeClient _lounge = AppCompositionRoot.CreateLoungeClient();
+        private readonly System.Windows.Forms.Timer _loungeOnlineTimer = new() { Interval = 10000 };
         private readonly SkinToolsForm _skinTools;
 
         /// <summary>判断用户当前是否停留在对局页面。</summary>
@@ -219,6 +220,7 @@ namespace LOL_GameAssistant
             tabs1.Controls.Add(_skinTab);
             tabs1.Pages.Add(_skinTab);
             _loungeTab = new AntdUI.TabPage { Text = "lol休息室", Name = "tabPageLounge", Dock = DockStyle.Fill };
+            _loungeOnlineTimer.Tick += async (_, _) => await RefreshLoungeOnlineCountAsync();
             tabs1.Controls.Add(_loungeTab);
             tabs1.Pages.Add(_loungeTab);
             tabs1.Pages.Add(tabPage4);
@@ -244,6 +246,7 @@ namespace LOL_GameAssistant
                 _diagnosticsForm?.Dispose();
                 _settingForm?.Dispose();
                 _lounge.Dispose();
+                _loungeOnlineTimer.Dispose();
                 _jungleRoute?.Dispose();
                 _rankedLpLifetime.Cancel();
             };
@@ -442,9 +445,37 @@ namespace LOL_GameAssistant
             }
         }
 
-        private void UpdateLoungeMessageActivity() => _lounge.SetMessagesActive(
-            !IsDisposed && Visible && WindowState != FormWindowState.Minimized &&
-            tabs1.SelectedIndex >= 0 && tabs1.SelectedIndex < tabs1.Pages.Count && tabs1.Pages[tabs1.SelectedIndex] == _loungeTab);
+        private void UpdateLoungeMessageActivity()
+        {
+            bool selected = tabs1.SelectedIndex >= 0 && tabs1.SelectedIndex < tabs1.Pages.Count &&
+                tabs1.Pages[tabs1.SelectedIndex] == _loungeTab;
+            if (!IsDisposed && selected && !_loungeOnlineTimer.Enabled)
+            {
+                // 首次打开后保持计时；按文字自适应宽度，避免在线人数被固定页签宽度裁掉。
+                tabs1.ItemSize = null;
+                _loungeOnlineTimer.Start();
+                _ = RefreshLoungeOnlineCountAsync();
+            }
+            _lounge.SetMessagesActive(!IsDisposed && Visible && WindowState != FormWindowState.Minimized && selected);
+        }
+
+        private async Task RefreshLoungeOnlineCountAsync()
+        {
+            UpdateLoungeTabCaption();
+            await _lounge.RefreshOnlineMembersAsync();
+            UpdateLoungeTabCaption();
+        }
+
+        private void UpdateLoungeTabCaption()
+        {
+            if (IsDisposed) return;
+            string online = _loungeOnlineTimer.Enabled
+                ? _lounge.OnlineMemberCount is { } count ? $" · 在线 {count}" : " · 连接中"
+                : "";
+            string unread = _lounge.UnreadCount > 0 ? $" · 未读 {_lounge.UnreadCount}" : "";
+            string caption = "lol休息室" + online + unread;
+            if (_loungeTab.Text != caption) _loungeTab.Text = caption;
+        }
 
         /// <summary>
         /// 用 LCU 返回的阶段字符串更新全局阶段与表头显示。
@@ -536,7 +567,7 @@ namespace LOL_GameAssistant
             _loungeTab.Controls.Add(new DeferredPageHost(() => new LoungeForm(_lounge)));
             _lounge.Changed += () => RunOnUiThread(() =>
             {
-                if (!IsDisposed) _loungeTab.Text = _lounge.UnreadCount > 0 ? $"lol休息室 ({_lounge.UnreadCount})" : "lol休息室";
+                UpdateLoungeTabCaption();
             });
             _lounge.Notification += (title, text) => RunOnUiThread(() =>
             {

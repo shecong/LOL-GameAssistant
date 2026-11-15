@@ -15,6 +15,33 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class LoungeTests
 {
     [Fact]
+    public void OnlineCounterStartsOnFirstOpenAndKeepsUpdatingAfterLeaving() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var main = new GameMain();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var tabs = (AntdUI.Tabs)typeof(GameMain).GetField("tabs1", flags)!.GetValue(main)!;
+        var tab = (AntdUI.TabPage)typeof(GameMain).GetField("_loungeTab", flags)!.GetValue(main)!;
+        var timer = (System.Windows.Forms.Timer)typeof(GameMain).GetField("_loungeOnlineTimer", flags)!.GetValue(main)!;
+        var client = (LoungeClient)typeof(GameMain).GetField("_lounge", flags)!.GetValue(main)!;
+        void Activity() => typeof(GameMain).GetMethod("UpdateLoungeMessageActivity", flags)!.Invoke(main, null);
+        void Caption() => typeof(GameMain).GetMethod("UpdateLoungeTabCaption", flags)!.Invoke(main, null);
+        void Members(params LoungeMember[] members) => typeof(LoungeClient).GetMethod("UpdateMembers", flags)!.Invoke(client, [members]);
+        Assert.False(timer.Enabled); Assert.Equal("lol休息室", tab.Text);
+        main.ShowLoungePage(); Activity();
+        Assert.True(timer.Enabled); Assert.Equal(10000, timer.Interval);
+        Assert.Equal("lol休息室 · 连接中", tab.Text);
+        Members(new("a", "玩家一", "艾欧尼亚", "忙碌"), new("b", "未登录玩家", "", "未登录 LOL")); Caption();
+        Assert.Equal("lol休息室 · 在线 2", tab.Text);
+        tabs.SelectedIndex = 0; Activity();
+        Members(new LoungeMember("a", "玩家一", "艾欧尼亚", "忙碌")); Caption();
+        Assert.True(timer.Enabled); Assert.Equal("lol休息室 · 在线 1", tab.Text);
+        Members(); Caption(); Assert.Equal("lol休息室 · 在线 0", tab.Text);
+        typeof(LoungeClient).GetField("_memberBaseline", flags)!.SetValue(client, false); Caption();
+        Assert.Equal("lol休息室 · 连接中", tab.Text);
+        main.Dispose(); Assert.False(timer.Enabled);
+    });
+
+    [Fact]
     public void MemberRowsDisplayReportedVersionAndHandleOlderClients() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var client = new LoungeClient(new LoungeLcuReader(new LcuHttpRequestSender()));

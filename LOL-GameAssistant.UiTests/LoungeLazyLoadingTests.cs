@@ -14,6 +14,19 @@ public sealed class LoungeLazyLoadingTests
     private static LoungeMessage Message(long id, DateTimeOffset at) => new(id, "", "sender", "player", "region", "chat", "message", at);
 
     [Fact]
+    public async Task CounterRefreshWhileDisconnectedDoesNotLoadMessagesOrInventZeroOnline()
+    {
+        using var client = Client();
+        await client.RefreshOnlineMembersAsync();
+        Assert.Null(client.OnlineMemberCount);
+        Assert.False(client.MessagesActive);
+        Assert.Empty(client.Messages);
+        client.Dispose();
+        await client.RefreshOnlineMembersAsync();
+        Assert.Null(client.OnlineMemberCount);
+    }
+
+    [Fact]
     public async Task VersionHeartbeatDoesNotRequireLcuLoginOrOpeningLounge()
     {
         using var client = Client();
