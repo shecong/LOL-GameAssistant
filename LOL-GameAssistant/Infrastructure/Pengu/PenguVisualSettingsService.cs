@@ -16,11 +16,13 @@ public sealed record PenguVisualSettings
     public string WallpaperName { get; init; } = "";
     public string Revision { get; init; } = "";
     public string RefreshNonce { get; init; } = "";
+    public PenguPlayerStatistics? PlayerStatistics { get; init; }
 }
 
 /// <summary>Settings live beside the plugin, so the client keeps them when the assistant exits.</summary>
 public sealed class PenguVisualSettingsService(Func<string> pluginsDirectory)
 {
+    private static readonly object WriteGate = new();
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
     private string Target()
     {
@@ -50,11 +52,27 @@ public sealed class PenguVisualSettingsService(Func<string> pluginsDirectory)
             if ((uri.Host == "unsplash.com" || uri.Host.EndsWith(".unsplash.com")) && uri.AbsolutePath.StartsWith("/photos/"))
                 throw new InvalidOperationException("这是 Unsplash 作品网页，请使用图片直链，或下载图片后选择本地图片。");
         }
-        var saved = settings with { Revision = Guid.NewGuid().ToString("N"), WallpaperUrl = url };
-        string target = Target();
-        Directory.CreateDirectory(target);
-        AtomicWrite(Path.Combine(target, "settings.json"), JsonSerializer.Serialize(saved, Json));
-        return saved;
+        lock (WriteGate)
+        {
+            var saved = settings with { Revision = Guid.NewGuid().ToString("N"), WallpaperUrl = url,
+                PlayerStatistics = Read().PlayerStatistics };
+            string target = Target();
+            Directory.CreateDirectory(target);
+            AtomicWrite(Path.Combine(target, "settings.json"), JsonSerializer.Serialize(saved, Json));
+            return saved;
+        }
+    }
+    public void PublishStatistics(PenguPlayerStatistics? statistics)
+    {
+        if (string.IsNullOrWhiteSpace(pluginsDirectory())) return;
+        lock (WriteGate)
+        {
+            string target = Target();
+            // Runtime results do not install a plugin or turn its visual options on.
+            if (!Directory.Exists(target)) return;
+            var saved = Read() with { PlayerStatistics = statistics };
+            AtomicWrite(Path.Combine(target, "settings.json"), JsonSerializer.Serialize(saved, Json));
+        }
     }
     public PenguVisualSettings ImportWallpaper(string source, PenguVisualSettings settings)
     {

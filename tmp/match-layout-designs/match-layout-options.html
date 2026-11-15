@@ -1,0 +1,125 @@
+<style>
+#match-layout-options .match-concept{--bg:#081421;--surface:#0d2032;--raised:#132b41;--line:#25425b;--ink:#e3effa;--muted:#9ab4cc;--blue:#4dbdff;--green:#3bddb0;--red:#ff8197;--row-gap:12px;background:var(--bg);color:var(--ink);font:14px/1.5 'Microsoft YaHei','Segoe UI',sans-serif;border:1px solid var(--line);border-radius:12px;overflow:clip;font-variant-numeric:tabular-nums;box-sizing:border-box}
+#match-layout-options .match-concept *{box-sizing:border-box}
+#match-layout-options .match-concept button{font:inherit;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+#match-layout-options .match-concept button:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+#match-layout-options .mc-top{padding:14px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+#match-layout-options .mc-brand{font-weight:700;letter-spacing:1px;color:var(--blue);margin-right:12px}
+#match-layout-options .mc-top small{color:var(--muted);margin-left:auto}
+#match-layout-options .mc-profile{display:flex;justify-content:space-between;gap:16px;padding:20px;flex-wrap:wrap;background:linear-gradient(115deg,#102b42,#0d2032)}
+#match-layout-options .mc-profile h2{font-size:22px;margin:0 0 4px}
+#match-layout-options .mc-profile p{margin:0;color:var(--muted)}
+#match-layout-options .mc-filter{padding:12px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);color:var(--muted)}
+#match-layout-options .mc-current{color:var(--blue);font-weight:700}
+#match-layout-options .mc-main{padding:16px 20px 24px}
+#match-layout-options .mc-listrow{display:grid;grid-template-columns:62px minmax(120px,1.3fr) 1fr 110px 80px 100px;align-items:center;gap:12px;padding:14px 12px;background:#0c1c2c;border-bottom:1px solid var(--line)}
+#match-layout-options .mc-listrow.selected{border-left:3px solid var(--green);background:#14334a}
+#match-layout-options .mc-listrow .mc-kda{font-size:17px;font-weight:700}
+#match-layout-options .mc-listrow button{background:transparent;border:0;padding:0;text-align:left;color:var(--blue)}
+#match-layout-options .mc-muted{color:var(--muted)}
+#match-layout-options .mc-win{color:var(--green)}
+#match-layout-options .mc-loss{color:var(--red)}
+#match-layout-options .mc-report{padding:22px 0 16px}
+#match-layout-options .mc-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+#match-layout-options h3{font-size:22px;margin:0 0 4px}
+#match-layout-options .mc-meta{font-size:12px;line-height:1.9;color:var(--muted)}
+#match-layout-options .mc-hero{display:inline-flex;align-items:center;gap:10px;min-width:0}
+#match-layout-options .mc-portrait{width:40px;height:44px;display:inline-grid;place-items:center;border:1px solid #a3804c;background:linear-gradient(145deg,#52372e,#182536);border-radius:5px;color:#f6dfae;flex-shrink:0;font-size:18px}
+#match-layout-options .mc-hero b{display:block;font-size:14px}
+#match-layout-options .mc-hero small{display:block;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+#match-layout-options .mc-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:0 0 22px}
+#match-layout-options .mc-summary div{background:var(--surface);padding:12px}
+#match-layout-options .mc-summary span{display:block;color:var(--muted);font-size:12px}
+#match-layout-options .mc-summary b{font-size:23px;display:block;margin-top:3px}
+#match-layout-options .mc-section-title{display:flex;align-items:center;gap:12px;margin:23px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+#match-layout-options .mc-section-title h4{margin:0;font-size:16px}
+#match-layout-options .mc-section-title span{font-size:12px;color:var(--muted);margin-left:auto}
+#match-layout-options .mc-section-title.enemy h4{color:var(--red)}
+#match-layout-options .mc-section-title.ally h4{color:var(--blue)}
+#match-layout-options .mc-scorehead{display:grid;grid-template-columns:minmax(160px,1.7fr) repeat(6,minmax(66px,1fr));gap:10px;font-size:11px;color:var(--muted);padding:8px 10px;background:#102538}
+#match-layout-options .mc-scorecard{padding:var(--row-gap) 10px;border-bottom:1px solid var(--line);background:#0b1b2a}
+#match-layout-options .mc-scorecard.self{background:#102a3d;box-shadow:inset 3px 0 var(--blue)}
+#match-layout-options .mc-scoremain{display:grid;grid-template-columns:minmax(160px,1.7fr) repeat(6,minmax(66px,1fr));gap:10px;align-items:center}
+#match-layout-options .mc-number{font-size:14px;font-weight:600}
+#match-layout-options .mc-number small{display:block;font-size:11px;font-weight:400;color:var(--muted)}
+#match-layout-options .mc-loadout{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+#match-layout-options .mc-slot{display:inline-grid;place-items:center;width:29px;height:29px;border-radius:4px;border:1px solid #47637a;background:#233845;color:#e0d4b5;font-size:11px;white-space:nowrap}
+#match-layout-options .mc-slot.spell{background:#715125;color:#ffe2a1}
+#match-layout-options .mc-items{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+#match-layout-options .mc-loadout-label{font-size:11px;color:var(--muted);margin-right:2px}
+#match-layout-options .mc-runes{font-size:11px;color:#a6c7e0;overflow-wrap:anywhere}
+#match-layout-options .mc-substats{font-size:11px;color:var(--muted);margin-top:8px;display:flex;gap:6px 17px;flex-wrap:wrap}
+#match-layout-options .mc-substats b{color:var(--ink);font-weight:500}
+#match-layout-options .mc-footer{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:18px 0 0;border-top:1px solid var(--line);margin-top:22px}
+#match-layout-options .mc-footer small{color:var(--muted);margin-left:auto;font-size:11px}
+#match-layout-options .mc-ban{padding:11px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;background:#102336;margin-top:8px}
+#match-layout-options .mc-ban .mc-muted{min-width:70px}
+#match-layout-options .mc-workspace .mc-report{border-top:2px solid var(--blue);margin-top:20px;padding-top:20px}
+#match-layout-options .mc-playercard{padding:15px 16px;margin:var(--row-gap) 0;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+#match-layout-options .mc-playercard.self{border-left:3px solid var(--blue)}
+#match-layout-options .mc-card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+#match-layout-options .mc-card-head strong{font-size:20px}
+#match-layout-options .mc-card-metrics{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin-top:13px}
+#match-layout-options .mc-card-metrics div{color:var(--muted);font-size:11px}
+#match-layout-options .mc-card-metrics b{color:var(--ink);display:block;font-size:15px}
+#match-layout-options .mc-chapter-label{font-size:11px;letter-spacing:2px;color:var(--blue);margin-bottom:5px}
+#match-layout-options .mc-chapter{margin:24px 0}
+#match-layout-options .mc-chapter h4{font-size:18px;margin:0 0 12px}
+#match-layout-options .mc-table{border-collapse:collapse;width:100%;font-size:12px;table-layout:fixed}
+#match-layout-options .mc-table th{font-weight:400;color:var(--muted);background:#102538;font-size:11px;text-align:right;padding:10px 5px}
+#match-layout-options .mc-table th:first-child{width:23%;text-align:left}
+#match-layout-options .mc-table td{padding:12px 5px;text-align:right;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+#match-layout-options .mc-table td:first-child{text-align:left}
+#match-layout-options .mc-teamlabel{padding:10px 0;color:var(--blue);font-size:12px;font-weight:700}
+#match-layout-options .mc-layout-note{font-size:12px;color:var(--muted);padding:10px 0}
+#match-layout-options .mc-minihead{font-size:11px;letter-spacing:2px;color:var(--muted);margin:14px 0 5px}
+#match-layout-options .mc-table .mc-hero b{font-size:12px}
+#match-layout-options .mc-table .mc-portrait{width:30px;height:34px;font-size:14px}
+#match-layout-options .mc-report[hidden]{display:none}
+@media(max-width:760px){#match-layout-options .mc-main{padding:12px}#match-layout-options .mc-listrow{grid-template-columns:55px minmax(110px,1fr) 95px}#match-layout-options .mc-listrow>span:nth-of-type(3),#match-layout-options .mc-listrow>span:nth-of-type(4){display:none}#match-layout-options .mc-summary{grid-template-columns:repeat(3,minmax(0,1fr))}#match-layout-options .mc-scorehead{display:none}#match-layout-options .mc-scoremain{grid-template-columns:repeat(3,minmax(0,1fr))}#match-layout-options .mc-scoremain>.mc-hero{grid-column:1/-1}#match-layout-options .mc-number small{display:block}#match-layout-options .mc-card-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}#match-layout-options .mc-table{font-size:11px}#match-layout-options .mc-table th:first-child{width:27%}#match-layout-options .mc-table .mc-portrait{display:none}}
+@media(max-width:420px){#match-layout-options .mc-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#match-layout-options .mc-summary b{font-size:19px}#match-layout-options .mc-listrow{grid-template-columns:45px 1fr 85px;gap:5px;padding:10px 5px}#match-layout-options .mc-listrow .mc-kda{font-size:14px}#match-layout-options .mc-card-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}#match-layout-options .mc-table .mc-hero small{display:none}#match-layout-options .mc-top,#match-layout-options .mc-profile{padding:13px}#match-layout-options .mc-table th,#match-layout-options .mc-table td{padding:10px 2px}#match-layout-options .mc-table .mc-hero b{font-size:11px}#match-layout-options .mc-hero{gap:5px}}
+</style>
+<div id="match-layout-options" class="viz-carousel" aria-label="战绩详情上下展开方案" data-previous-label="上一个方案" data-next-label="下一个方案">
+  <section data-variant="列表行内展开" aria-label="列表行内展开设计"><div id="match-concept-inline" class="match-concept"></div></section>
+  <section data-variant="上下工作区" aria-label="上下工作区设计" hidden><div id="match-concept-workspace" class="match-concept mc-workspace"></div></section>
+  <section data-variant="分段完整战报" aria-label="分段完整战报设计" hidden><div id="match-concept-report" class="match-concept"></div></section>
+</div>
+<script>
+(() => {
+  const root = document.getElementById('match-layout-options');
+  const data = [
+    ['我 · 墨言奇楠天','#67974','亚托克斯',16,1,7,32580,23400,12460,15180,221,24,138,3,1,0,0,7],
+    ['空城Superficial','#1024','阿狸',8,5,13,24360,14800,2560,12640,186,21,91,1,0,0,0,3],
+    ['咖啡里已冰冷','#0824','金克丝',12,3,10,28920,16420,1820,14290,246,18,42,2,1,0,0,5],
+    ['长远头漂砥','#4491','蕾欧娜',1,6,23,6840,28740,1740,8620,39,52,246,0,0,0,0,1],
+    ['召唤师32268','#0036','李青',5,4,17,17360,26800,6370,11780,164,33,112,1,0,0,0,3],
+    ['晚风与山海','#1207','德莱厄斯',6,9,4,19740,32100,8650,11020,192,17,89,1,0,0,0,3],
+    ['月色有点凉','#6631','辛德拉',7,7,6,22180,14520,1260,11850,201,23,87,1,0,0,0,3],
+    ['今天早点休息','#2145','卡莎',4,8,10,20560,15380,2300,12340,226,16,35,1,0,0,0,2],
+    ['一杯温水','#7384','诺提勒斯',0,9,17,5960,28300,1060,7900,32,48,238,0,0,0,0,0],
+    ['峡谷旅行者','#8876','佛耶戈',2,9,10,14820,24160,5340,10910,176,26,76,0,0,0,0,2]
+  ].map((p,i)=>({name:p[0],tag:p[1],hero:p[2],k:p[3],d:p[4],a:p[5],damage:p[6],taken:p[7],heal:p[8],gold:p[9],cs:p[10],vision:p[11],cc:p[12],double:p[13],triple:p[14],quad:p[15],penta:p[16],spree:p[17],level: i===3||i===8?14:17,team:i<5?'ally':'enemy',self:i===0,index:i+1}));
+  const fmt=n=>n.toLocaleString('en-US');
+  const kda=p=>((p.k+p.a)/Math.max(1,p.d)).toFixed(2);
+  const hero=p=>`<span class="mc-hero"><span class="mc-portrait">${p.hero.slice(0,1)}</span><span><b>${p.name}</b><small>${p.tag} · ${p.hero} · Lv.${p.level}</small></span></span>`;
+  const runeNames=['征服者','凯旋','传说：欢欣','坚毅不倒','复苏之风','坚定','攻速碎片','适应之力','生命值'];
+  const spells=p=>p.index===4||p.index===9?['闪现','点燃']:['闪现','传送'];
+  const items=p=>p.index===4||p.index===9?['钢肩','铁靴','鸟盾','骑誓','基克','空位','透镜']:['渴血','铁靴','黑切','死舞','血手','空位','饰品'];
+  function loadout(p,aug=false){return `<div class="mc-loadout"><span class="mc-loadout-label">技能</span><span class="mc-items">${spells(p).map(s=>`<span class="mc-slot spell" aria-label="${s}">${s}</span>`).join('')}</span><span class="mc-loadout-label">装备 · 7 格</span><span class="mc-items">${items(p).map(s=>`<span class="mc-slot" aria-label="${s}">${s}</span>`).join('')}</span></div><div class="mc-runes" style="margin-top:7px">符文：${runeNames.join(' · ')}</div>${aug?'<div class="mc-runes" style="margin-top:5px">强化：珠光护手 · 急救用具 · 巨像的勇气 <span class="mc-muted">（有强化数据时显示）</span></div>':''}`;}
+  function extras(p){return `<div class="mc-substats"><span>治疗 <b>${fmt(p.heal)}</b></span><span>控制 <b>${p.cc}s</b></span><span>连杀峰值 <b>${p.spree}</b></span><span>多杀 <b>${p.double}双 / ${p.triple}三 / ${p.quad}四 / ${p.penta}五</b></span><span>补刀明细 <b>线上 ${p.cs-20} / 野怪 20</b></span></div>`;}
+  function title(){return `<div class="mc-report-head"><div><div class="mc-chapter-label">MATCH REPORT</div><h3><span class="mc-win">胜利</span> · 亚托克斯 · 31:43</h3><div class="mc-meta">峡谷单双排 · 队列 420 · 11-15 12:06 · 艾欧尼亚 HN1<br>对局编号 7854210031 · 正常结束 · SGP 完整详情 · 10 / 10 人</div></div><button type="button" data-collapse>收起本局 ↑</button></div><div class="mc-summary"><div><span>我的 K / D / A</span><b>16 / 1 / 7</b></div><div><span>KDA</span><b>23.00</b></div><div><span>对英雄伤害</span><b>32,580</b></div><div><span>补刀 · 每分钟</span><b>221 <small style="font-size:12px;color:var(--muted)">/ 7.0</small></b></div><div><span>金币 · 视野</span><b>15,180 <small style="font-size:12px;color:var(--muted)">/ 24</small></b></div></div>`;}
+  function teamHead(team){const ps=data.filter(p=>p.team===team);return `<div class="mc-section-title ${team}"><h4>${team==='ally'?'我方 · 胜利':'敌方 · 失败'} · 5 人</h4><span>${ps.reduce((n,p)=>n+p.k,0)} 击杀 · ${fmt(ps.reduce((n,p)=>n+p.gold,0))} 金币 · ${fmt(ps.reduce((n,p)=>n+p.damage,0))} 伤害</span></div>`;}
+  function bans(){return `<div class="mc-minihead">双方禁用</div><div class="mc-ban"><span class="mc-muted">我方禁用</span>劫 · 永恩 · 莫甘娜 · 悠米 · 凯特琳</div><div class="mc-ban"><span class="mc-muted">敌方禁用</span>菲奥娜 · 亚索 · 阿卡丽 · 萨科 · 布里茨</div>`;}
+  function footer(){return `<div class="mc-footer"><button type="button" data-replay>下载回放</button><button type="button" data-replay>观看回放</button><span class="mc-muted" data-replay-state></span><small>布局示例 · 数值与人名为演示 · 按现有详情字段设计</small></div>`;}
+  function shell(){return `<div class="mc-top"><span class="mc-brand">SC 助手</span><b>战绩查询</b><small>当前大区 · 自动识别</small></div><div class="mc-profile"><div><h2>墨言奇楠天 <span class="mc-muted" style="font-size:13px">#67974</span></h2><p>等级 59 · 单双排 青铜 III · 92 LP</p></div><div><b>本页有效 17 场</b><p>12 胜 5 负 · 胜率 71%</p></div></div><div class="mc-filter"><span class="mc-current">对局记录</span><span>数据统计</span><span>英雄池档案</span><span style="margin-left:auto">全部模式 · 全部英雄 · 全部结果</span></div>`;}
+  function listrow(selected=false,previous=false){return `<div class="mc-listrow${selected?' selected':''}"><b class="mc-win">胜利</b><b>${selected?'亚托克斯':'德莱厄斯'}</b><span class="mc-muted">峡谷单双排</span><span class="mc-kda">${selected?'16 / 1 / 7':previous?'1 / 1 / 0':'14 / 9 / 11'}</span><span class="mc-muted">${selected?'31:43':previous?'7:27':'39:50'}</span>${selected?'<button type="button" data-collapse>展开详情 ↓</button>':'<span class="mc-muted">11-15 12:51</span>'}</div>`;}
+  function scorecard(p,aug){return `<article class="mc-scorecard${p.self?' self':''}"><div class="mc-scoremain">${hero(p)}<span class="mc-number">${p.k}/${p.d}/${p.a}<small>KDA ${kda(p)}</small></span><span class="mc-number">${fmt(p.damage)}<small>对英雄伤害</small></span><span class="mc-number">${fmt(p.taken)}<small>承受伤害</small></span><span class="mc-number">${fmt(p.gold)}<small>金币</small></span><span class="mc-number">${p.cs}<small>补刀 · ${(p.cs/31.7167).toFixed(1)}/分</small></span><span class="mc-number">${p.vision}<small>视野分</small></span></div>${loadout(p,aug)}${extras(p)}</article>`;}
+  function compactBody(aug){return title()+['ally','enemy'].map(team=>teamHead(team)+`<div class="mc-scorehead"><span>玩家 / 英雄 / 等级</span><span>K / D / A</span><span>伤害</span><span>承伤</span><span>金币</span><span>补刀</span><span>视野</span></div>`+data.filter(p=>p.team===team).map(p=>scorecard(p,aug)).join('')).join('')+bans()+footer();}
+  function playercard(p,aug){return `<article class="mc-playercard${p.self?' self':''}"><div class="mc-card-head">${hero(p)}<strong>${p.k} / ${p.d} / ${p.a} <small class="mc-muted" style="font-size:12px">KDA ${kda(p)}</small></strong></div><div class="mc-card-metrics">${[['伤害',p.damage],['承伤',p.taken],['治疗',p.heal],['金币',p.gold],['补刀',p.cs],['视野',p.vision],['控制',p.cc+'s']].map(([n,v])=>`<div>${n}<b>${typeof v==='number'?fmt(v):v}</b></div>`).join('')}</div>${loadout(p,aug)}${extras(p)}</article>`;}
+  function cardsBody(aug){return title()+['ally','enemy'].map(team=>teamHead(team)+data.filter(p=>p.team===team).map(p=>playercard(p,aug)).join('')).join('')+bans()+footer();}
+  function table(headers,rows){return `<table class="mc-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table>`;}
+  function chaptersBody(aug){const teamTables=(headers,row)=>['ally','enemy'].map(t=>`<div class="mc-teamlabel ${t==='enemy'?'mc-loss':''}">${t==='ally'?'我方 · 胜利':'敌方 · 失败'}</div>`+table(headers,data.filter(p=>p.team===t).map(row))).join('');return title()+`<section class="mc-chapter"><div class="mc-chapter-label">01 · 全员表现</div><h4>十名玩家的战斗数据</h4>${teamTables(['玩家 / 英雄','K / D / A','伤害','承伤','治疗','控制'],p=>[hero(p),`${p.k}/${p.d}/${p.a}<br><span class="mc-muted">${kda(p)}</span>`,fmt(p.damage),fmt(p.taken),fmt(p.heal),p.cc+'s'])}</section><section class="mc-chapter"><div class="mc-chapter-label">02 · 经济与视野</div><h4>金币、补刀与视野完整对照</h4>${teamTables(['玩家 / 英雄','金币','线上刀','野怪','CS / 分','视野'],p=>[p.name,fmt(p.gold),p.cs-20,20,(p.cs/31.7167).toFixed(1),p.vision])}</section><section class="mc-chapter"><div class="mc-chapter-label">03 · 全员配置</div><h4>召唤师技能、装备与符文${aug?' / 强化':''}</h4>${['ally','enemy'].map(t=>teamHead(t)+data.filter(p=>p.team===t).map(p=>`<article class="mc-scorecard">${hero(p)}${loadout(p,aug)}</article>`).join('')).join('')}</section><section class="mc-chapter"><div class="mc-chapter-label">04 · 击杀荣誉</div><h4>多杀与最高连续击杀</h4>${teamTables(['玩家','双杀','三杀','四杀','五杀','连杀峰值'],p=>[p.name,p.double,p.triple,p.quad,p.penta,p.spree])}</section>${bans()+footer()}`;}
+  const configs=[['match-concept-inline','inline'],['match-concept-workspace','workspace'],['match-concept-report','report']];
+  for(const [id,type] of configs){const el=document.getElementById(id);const state={spacing:type==='workspace'?14:12,augments:false};let closed=false;function render(){const report=type==='workspace'?cardsBody(state.augments):type==='report'?chaptersBody(state.augments):compactBody(state.augments);el.style.setProperty('--row-gap',state.spacing+'px');el.innerHTML=shell()+`<div class="mc-main">${type==='inline'?listrow(false,true)+listrow(true):listrow(false,true)+listrow(true)+listrow(false)}<div class="mc-report" ${closed?'hidden':''}>${report}</div>${type==='inline'?listrow(false):''}</div>`;el.querySelectorAll('[data-collapse]').forEach(b=>b.addEventListener('click',()=>{closed=!closed;render();globalThis.openai?.setWidgetState?.({modelContent:{layout:type,detailsExpanded:!closed},privateContent:null}).catch(()=>{});}));el.querySelectorAll('[data-replay]').forEach(b=>b.addEventListener('click',()=>{el.querySelector('[data-replay-state]').textContent='设计预览 · 不执行回放操作';}));}render();if(globalThis.Tweak){const tweak=new Tweak({container:el,onChange:render});tweak.addSlider(state,'spacing',{label:'信息行间距',min:8,max:22,step:2,unit:'px'});tweak.addToggle(state,'augments',{label:'预览带强化数据的对局'});}}
+})();
+</script>

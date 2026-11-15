@@ -13,6 +13,7 @@ using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Teams;
 using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.LiveGame;
+using LOL_GameAssistant.Infrastructure.Pengu;
 using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -333,6 +334,9 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         public void ResetRosterCache(bool clearPartySnapshots = true)
         {
+            _visualStatisticsContext = "";
+            _visualStatistics.Clear();
+            PublishVisualStatistics();
             ResetEncounterHistory();
             _rosterSnapshots.Clear();
             if (clearPartySnapshots) ClearPartySnapshots();
@@ -621,6 +625,7 @@ namespace LOL_GameAssistant.BaseViewForm
             CurrentPartyDetectionResult partyDetection)
         {
             string signature = BuildRosterSignature(team1, team2);
+            bool visualStatisticsChanged = PrepareVisualStatistics(team1, team2, myPuuid, queueId);
 
             _encounterSelfPuuid = myPuuid;
             if (IsHandleCreated && (signature != _lastSignature ||
@@ -637,7 +642,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 CanKeepPlayerCards(panelTeam2, team2, myPuuid, queueId, gameMode))
             {
                 PrepareChampSelectAssessments(signature, team1, team2, myPuuid);
-                if (force)
+                if (force || visualStatisticsChanged)
                 {
                     // 设置变更仍需重新准备公告，并用已加载的战绩补齐评估结果。
                     PrepareGameAssessments(signature, team1, team2);
@@ -912,6 +917,11 @@ namespace LOL_GameAssistant.BaseViewForm
         private void OnPlayerRecentPerformanceReady(object? sender, PlayerRecentPerformanceEventArgs result)
         {
             if (IsDisposed) return;
+            if (Program.GameMain.gameFlowPhase == GameFlowPhase.ChampSelect && _visualStatisticsPlayers.Contains(result.Puuid))
+            {
+                _visualStatistics[result.Puuid] = PenguPlayerStatistic.FromAssessment(result.Assessment);
+                PublishVisualStatistics();
+            }
             if (Program.GameMain.gameFlowPhase == GameFlowPhase.InProgress)
             {
                 if (!_expectedGameAssessmentPuuids.Contains(result.Puuid)) return;

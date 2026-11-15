@@ -1,257 +1,125 @@
-using Label = AntdUI.Label;
-using Panel = AntdUI.Panel;
-using ToolTip = LOL_GameAssistant.Helper.UiToolTip;
-using PictureBox = AntdUI.Avatar;
-using LOL_GameAssistant.Application.GameData;
+﻿using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Helper;
+using LOL_GameAssistant.Infrastructure.Settings;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-/// <summary>一局的紧凑详情。只使用已选中的领域详情，不自行查询战绩或开黑关系。</summary>
+/// <summary>列表行下方的完整对局详情，三种布局共享详情和静态资源。</summary>
 internal sealed class MatchHistoryDetailPane : UserControl, IThemeAware
 {
-    private readonly IGameAssetService _assets;
-    private readonly IChampionCatalog _champions;
-    private readonly System.Windows.Forms.Panel _content = new() { Dock = DockStyle.Fill, AutoScroll = true };
+    private readonly MatchDetailLayoutPreference _preference;
+    private readonly MatchScrollPanel _content = new() { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly AntdUI.Label _state = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter };
-    private readonly AntdUI.Label _title = new() { Text = "对局详情", Dock = DockStyle.Fill };
-    private readonly AntdUI.Button _close = new() { Text = "收起", Dock = DockStyle.Right, Width = 64 };
-    private readonly AntdUI.Button _expand = new() { Text = "完整详情", Dock = DockStyle.Right, Width = 100 };
-    private readonly AntdUI.Button _retry = new() { Text = "重试", Dock = DockStyle.Bottom, Height = 40, Visible = false };
-    private readonly FlowLayoutPanel _actions = new() { Dock = DockStyle.Bottom, Height = 48, WrapContents = false, Padding = new Padding(6) };
-    private readonly AntdUI.Segmented _tabs = new() { Dock = DockStyle.Top, Height = 38 };
-    private readonly ToolTip _tips = new();
-    private readonly List<AntdUI.Table> _grids = [];
-    private MatchRowImages? _images;
-    private TableLayoutPanel? _body;
-    private FlowLayoutPanel? _items;
-    private AntdUI.Label? _metrics;
-    private PictureBox? _heroImage;
-    private readonly List<AntdUI.Label> _metricTiles = [];
-    private int _itemsRow;
-    private long _version;
+    private readonly AntdUI.Label _title = new() { Dock = DockStyle.Fill };
+    private readonly AntdUI.Button _close = new() { Text = "收起", Dock = DockStyle.Right, Width = 62 };
+    private readonly AntdUI.Button _expand = new() { Text = "独立窗口", Dock = DockStyle.Right, Width = 90 };
+    private readonly AntdUI.Button _retry = new() { Text = "重试", Dock = DockStyle.Bottom, Height = 36, Visible = false };
+    private readonly FlowLayoutPanel _actions = new() { Dock = DockStyle.Bottom, Height = 42, WrapContents = true };
+    private readonly AntdUI.Segmented _layouts = new() { Dock = DockStyle.Right, Width = 430 };
+    private readonly MatchDetailStatisticsView _statistics;
+    private bool _resizing;
     internal MatchDetail? Detail { get; private set; }
     internal string ViewerPuuid { get; private set; } = "";
     internal string StateText => _state.Text ?? "";
+    internal MatchDetailLayout LayoutMode => _statistics.LayoutMode;
+    internal MatchDetailStatisticsView Statistics => _statistics;
     internal event Action? CloseRequested;
     internal event Action? RetryRequested;
     internal event Action<MatchDetail, string>? FullDetailRequested;
     internal event Action<string, string>? PlayerRequested;
+    internal event Action? PreferredHeightChanged;
 
-    internal MatchHistoryDetailPane(IGameAssetService assets, IChampionCatalog champions)
+    internal MatchHistoryDetailPane(IGameAssetService assets, IChampionCatalog champions, MatchDetailLayoutPreference? preference = null)
     {
-        _assets = assets; _champions = champions; MinimumSize = new(240, 0);
-        var header = new Panel { Dock = DockStyle.Top, Height = 42, Padding = new Padding(12, 2, 4, 2) };
-        header.Controls.Add(_title); header.Controls.Add(_expand); header.Controls.Add(_close);
-        Controls.Add(_content); Controls.Add(_actions); Controls.Add(header);
-        _content.Controls.Add(_state); _content.Controls.Add(_retry);
-        _tabs.Items.Add(new AntdUI.SegmentedItem { Text = "对局概览" });
-        _tabs.Items.Add(new AntdUI.SegmentedItem { Text = "数据分析" });
-        _tabs.SelectIndexChanged += (_, _) => UpdateMetricText();
+        _preference = preference ?? new();
+        _statistics = new(assets, champions);
+        _statistics.PlayerRequested += puuid => { if (Detail != null) PlayerRequested?.Invoke(puuid, Detail.PlatformId); };
+        var header = new System.Windows.Forms.Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 0, 0, 0) };
+        header.Controls.Add(_title); header.Controls.Add(_layouts); header.Controls.Add(_expand); header.Controls.Add(_close);
+        foreach (string name in new[] { "双队五行对照", "双行紧凑记分板", "全员字段矩阵" })
+            _layouts.Items.Add(new AntdUI.SegmentedItem { Text = name });
+        _statistics.LayoutMode = _preference.Read(); _layouts.SelectIndex = (int)_statistics.LayoutMode;
+        _layouts.SelectIndexChanged += (_, _) => SetLayout((MatchDetailLayout)_layouts.SelectIndex);
         _close.Click += (_, _) => CloseRequested?.Invoke();
         _retry.Click += (_, _) => RetryRequested?.Invoke();
         _expand.Click += (_, _) => { if (Detail is { } detail) FullDetailRequested?.Invoke(detail, ViewerPuuid); };
+        Controls.Add(_content); Controls.Add(_actions); Controls.Add(header);
+        _content.Controls.Add(_statistics); _content.Controls.Add(_state); _content.Controls.Add(_retry);
+        SizeChanged += (_, _) => ResizeBody();
         _content.SizeChanged += (_, _) => ResizeBody();
+        header.SizeChanged += (_, _) =>
+        {
+            bool narrow = header.Width < 800 * DeviceDpi / 96;
+            _layouts.Dock = narrow ? DockStyle.Bottom : DockStyle.Right;
+            header.Height = (narrow ? 76 : 40) * DeviceDpi / 96;
+            _layouts.Height = 36 * DeviceDpi / 96;
+        };
         ApplyTheme(UiTheme.Palette);
     }
-
+    internal void SetLayout(MatchDetailLayout mode)
+    {
+        if (!Enum.IsDefined(mode)) return;
+        _statistics.LayoutMode = mode;
+        if (_layouts.SelectIndex != (int)mode) _layouts.SelectIndex = (int)mode;
+        try { _preference.Save(mode); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { RuntimeDiagnostics.WriteException(error); }
+        _content.AutoScrollPosition = Point.Empty;
+        ResizeBody(); _statistics.Invalidate();
+    }
     private void Reset()
     {
-        _version++; Detail = null; _expand.Enabled = false; _retry.Visible = false;
-        if (_tabs.Parent != null) _tabs.Parent.Controls.Remove(_tabs);
-        // Dispose UI references before disposing their image storage.
-        if (_body != null) { _content.Controls.Remove(_body); _body.Dispose(); _body = null; }
-        _grids.Clear(); ControlLifetime.ClearAndDispose(_actions);
+        Detail = null; _expand.Enabled = false; _retry.Visible = false;
+        _statistics.Visible = false; _state.Visible = true; _state.BringToFront();
         _content.AutoScrollPosition = Point.Empty; _content.AutoScrollMinSize = Size.Empty;
-        _images?.Dispose(); _images = null;
-        _items = null; _metrics = null; _heroImage = null; _metricTiles.Clear();
-        if (_tabs.Parent != null) _tabs.Parent.Controls.Remove(_tabs);
-        _state.Visible = true; _state.BringToFront();
+        ControlLifetime.ClearAndDispose(_actions);
     }
     internal void SetLoading(MatchHistoryGame game, string puuid)
     {
         Reset(); ViewerPuuid = puuid; _title.Text = "对局详情 · 加载中";
-        _state.Text = $"正在读取本局详情…\n{game.GetModeText()}\n仅加载当前选中的对局";
+        _state.Text = $"正在读取本局详情… {game.GetModeText()}";
+        ResizeBody();
     }
     internal void SetError(string message)
     {
-        Reset(); _title.Text = "对局详情 · 暂不可用"; _state.Text = $"本局详情加载失败\n{message}\n列表仍可正常浏览，或选择其他对局。";
-        _retry.Visible = true; _retry.BringToFront();
+        Reset(); _title.Text = "对局详情 · 暂不可用"; _state.Text = $"本局详情加载失败：{message}";
+        _retry.Visible = true; _retry.BringToFront(); ResizeBody();
     }
     internal void SetDetail(MatchDetail detail, string puuid)
     {
-        // Tabs are reused, so detach before disposing the previous body.
-        if (_tabs.Parent != null) _tabs.Parent.Controls.Remove(_tabs);
         Reset(); Detail = detail; ViewerPuuid = puuid; _expand.Enabled = true;
-        _title.Text = "对局详情 · 已加载"; _state.Visible = false;
-        _images = new(_assets, UpdateImages);
-        var mine = detail.GetParticipant(puuid); var stats = mine?.stats;
-        string result = (detail.endOfGameResult.StartsWith("Abort", StringComparison.OrdinalIgnoreCase) || detail.gameDuration is > 0 and < 300)
-            ? "重开" : stats is not { HasWinResult: true } ? "胜负未提供" : stats.Win ? "胜利" : "失败";
-        _body = new TableLayoutPanel { AutoSize = false, ColumnCount = 1, Padding = new Padding(10, 4, 10, 12), BackColor = UiTheme.Palette.SurfaceRaised };
-        _body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var heading = Label($"{result}  ·  {(mine == null ? "英雄未知" : _champions.GetDisplayName(mine.championId))}  ·  {(stats?.HasKdaResult == true ? mine.GetKdaText() : "—")}\n{detail.GetModeText()} · {detail.GetDurationText()} · {detail.PlatformId}", 70);
-        heading.Font = new Font(UiMetrics.FontFamily, 11F, FontStyle.Bold);
-        var hero = new Panel { Height = 74, Padding = new Padding(0, 6, 0, 6) };
-        _heroImage = new PictureBox { Dock = DockStyle.Left, Width = 60, ImageFit = AntdUI.TFit.Contain, Margin = new Padding(0, 0, 10, 0) };
-        heading.Dock = DockStyle.Fill; hero.Controls.Add(heading); hero.Controls.Add(_heroImage);
-        var metricStrip = new TableLayoutPanel { Height = 62, ColumnCount = 4, RowCount = 1, BackColor = UiTheme.Palette.SurfaceMuted };
-        for (int i = 0; i < 4; i++)
-        {
-            metricStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-            var tile = Label("—", 58); tile.Dock = DockStyle.Fill; tile.TextAlign = ContentAlignment.MiddleCenter;
-            _metricTiles.Add(tile); metricStrip.Controls.Add(tile, i, 0);
-        }
-        _metrics = heading;
-        AddBody(hero); AddBody(metricStrip); AddBody(_tabs); _tabs.SelectIndex = 0;
-        var honors = MatchHonorCalculator.ForPlayer(detail, mine);
-        var badges = new MatchHonorBadges { Honors = honors, Height = 24, AccessibleName = honors.Text };
-        _tips.SetToolTip(badges, MatchHonorCalculator.Explanation);
-        if (honors.Labels.Count > 0) AddBody(badges);
-        else badges.Dispose();
-        foreach (var team in detail.participants.GroupBy(p => p.teamId).OrderBy(t => t.Key == mine?.teamId ? 0 : 1).ThenBy(t => t.Key))
-        {
-            bool own = team.Key == mine?.teamId;
-            string title = detail.participants.Select(p => p.teamId).Distinct().Count() <= 2 ? own ? "我方" : "敌方" : $"队伍 {team.Key}";
-            var label = Label(title + $" · {team.Count()} 人", 28);
-            label.Tag = own;
-            label.ForeColor = own ? UiTheme.Palette.Accent : Color.FromArgb(220, 106, 123);
-            AddBody(label);
-            var grid = CreateTeam(team.ToArray(), own); _grids.Add(grid); AddBody(grid);
-        }
-        AddBody(Label("出装与符文", 28));
-        _items = new FlowLayoutPanel { Dock = DockStyle.Fill, Height = 46, WrapContents = true, Padding = new Padding(0, 4, 0, 0) };
-        if (stats != null)
-        {
-            foreach (int id in new[] { stats.item0, stats.item1, stats.item2, stats.item3, stats.item4, stats.item5, stats.item6 }.Where(i => i > 0)) AddIcon("item", id);
-            foreach (int id in stats.RuneIds.Take(6)) AddIcon("rune", id);
-        }
-        _itemsRow = _body.RowCount; AddBody(_items);
-        if (stats?.AugmentIds.Count > 0)
-        {
-            var augments = Label("强化信息加载中…", 56); AddBody(augments);
-            _ = LoadAugmentsAsync(augments, stats.AugmentIds, _version);
-        }
-        _content.Controls.Add(_body); _body.BringToFront();
+        _title.Text = $"{detail.GetModeText()} · {detail.GetDurationText()} · {detail.PlatformId}";
+        _state.Visible = false; _statistics.Visible = true; _statistics.SetDetail(detail, puuid);
         if (!detail.IsCrossRegion) _actions.Controls.Add(new MatchReplayActions(detail.GameId) { Margin = Padding.Empty });
-        _actions.Controls.Add(new AntdUI.Label { Text = detail.IsCrossRegion ? "跨区回放不可用" : "仅加载当前选中的对局", Width = 200, Height = 32 });
-        UpdateMetricText(); ResizeBody(); UiTheme.Apply(this);
-        foreach (var player in detail.participants) _ = _images.LoadAsync("champion", player.championId);
-    }
-    private void AddBody(Control control)
-    {
-        int row = _body!.RowCount++; _body.RowStyles.Add(new RowStyle(SizeType.Absolute, control.Height));
-        control.Dock = DockStyle.Fill; control.Margin = new Padding(0, 0, 0, 4); _body.Controls.Add(control, 0, row);
-    }
-    private static AntdUI.Label Label(string text, int height) => new() { Text = text, Height = height, TextAlign = ContentAlignment.MiddleLeft, ForeColor = UiTheme.Palette.TextPrimary };
-    internal sealed record TeamRow(MatchParticipant Player, object? Icon, string Name, string Kda, AntdUI.ICell[] Damage, string Honors, string Identity);
-    private AntdUI.Table CreateTeam(IReadOnlyList<MatchParticipant> players, bool own)
-    {
-        var grid = new AntdUI.Table
-        {
-            Height = 34 + players.Count * 40, RowHeight = 40, RowHeightHeader = 34,
-            MultipleRows = false, Bordered = false, Tag = own, Gap = 4
-        };
-        foreach (var (key, title, width) in new[] { ("Icon", "", "34"), ("Name", "玩家", "28%"), ("Kda", "K / D / A", "20%"), ("Damage", "伤害", "25%"), ("Honors", "荣誉", "27%") })
-            grid.Columns.Add(new AntdUI.Column(key, title) { Width = width });
-        int maxDamage = Math.Max(1, players.Max(p => p.stats?.totalDamageDealtToChampions ?? 0));
-        grid.DataSource = players.Select(p =>
-        {
-            var identity = Detail!.participantIdentities.FirstOrDefault(i => i.participantId == p.participantId)?.player;
-            string name = identity?.GameName.Length > 0 ? identity.GameName : identity?.SummonerName ?? "未知玩家";
-            AntdUI.ICell[] damage = p.stats is { HasDamageResult: true } stats
-                ? [new AntdUI.CellProgress((float)stats.totalDamageDealtToChampions / maxDamage) { Size = new Size(38, 6), Fill = own ? UiTheme.Palette.Accent : Color.FromArgb(220, 100, 115) }, new AntdUI.CellText(stats.totalDamageDealtToChampions.ToString("N0"))]
-                : [new AntdUI.CellText("—")];
-            return new TeamRow(p, null, (identity?.Puuid == ViewerPuuid ? "我 · " : "") + name,
-                p.stats is { HasKdaResult: true } ? p.GetKdaText() : "—", damage, MatchHonorCalculator.ForPlayer(Detail, p).Text,
-                identity == null ? "身份未提供" : $"{identity.GameName}#{identity.TagLine}\n{identity.Puuid}");
-        }).ToArray();
-        grid.CellDoubleClick += (_, e) =>
-        {
-            if (e.Record is not TeamRow row || Detail == null) return;
-            string? id = Detail.participantIdentities.FirstOrDefault(i => i.participantId == row.Player.participantId)?.player?.Puuid;
-            if (!string.IsNullOrWhiteSpace(id)) PlayerRequested?.Invoke(id, Detail.PlatformId);
-        };
-        grid.CellHover += (_, e) => _tips.SetToolTip(grid, e.Record is TeamRow row
-            ? e.ColumnIndex == 4 ? row.Honors + "\n" + MatchHonorCalculator.Explanation : row.Identity : "");
-        return grid;
-    }
-    private void UpdateMetricText()
-    {
-        var mine = Detail?.GetParticipant(ViewerPuuid); var s = mine?.stats;
-        if (_metrics == null || s == null || _metricTiles.Count != 4) return;
-        string[] text = _tabs.SelectIndex == 1
-            ? [$"金币\n{s.goldEarned:N0}", $"承伤\n{s.totalDamageTaken:N0}", $"治疗\n{s.totalHeal:N0}", $"五杀\n{s.pentaKills}"]
-            : [$"KDA\n{(s.HasKdaResult ? mine.GetKdaRatio().ToString("0.00") : "—")}", $"伤害\n{(s.HasDamageResult ? s.totalDamageDealtToChampions.ToString("N0") : "—")}",
-                $"补刀\n{(s.HasFarmResult ? (s.totalMinionsKilled + s.neutralMinionsKilled).ToString() : "—")}", $"视野\n{(s.HasVisionResult ? s.visionScore.ToString() : "—")}"];
-        for (int i = 0; i < text.Length; i++) _metricTiles[i].Text = text[i];
-    }
-    private void AddIcon(string kind, int id)
-    {
-        var box = new PictureBox { Size = new(30, 30), ImageFit = AntdUI.TFit.Contain, Margin = new Padding(0, 0, 5, 0), Tag = (kind, id) };
-        _tips.SetToolTip(box, (kind == "item" ? "装备 " : "符文 ") + id); _items!.Controls.Add(box); _ = _images!.LoadAsync(kind, id);
-    }
-    private void UpdateImages()
-    {
-        if (IsDisposed || _images == null) return;
-        foreach (var grid in _grids)
-            if (grid.DataSource is TeamRow[] rows)
-                grid.DataSource = rows.Select(row => row with { Icon = _images.Get("champion", row.Player.championId) is Image icon ? new AntdUI.CellImage(icon, 28) : null }).ToArray();
-        if (_items != null)
-            foreach (PictureBox box in _items.Controls) if (box.Tag is ValueTuple<string, int> key) box.Image = _images.Get(key.Item1, key.Item2);
-        if (_heroImage != null && Detail?.GetParticipant(ViewerPuuid) is { } mine) _heroImage.Image = _images.Get("champion", mine.championId);
-    }
-    private async Task LoadAugmentsAsync(AntdUI.Label label, IReadOnlyList<int> ids, long version)
-    {
-        try
-        {
-            var names = await LOL_GameAssistant.Infrastructure.GameData.AugmentCatalog.ResolveAsync(ids);
-            if (!IsDisposed && !label.IsDisposed && version == _version) label.Text = "强化：" + string.Join(" / ", names.Select(a => a.Name));
-        }
-        catch { if (!label.IsDisposed && version == _version) label.Text = "强化信息暂不可用"; }
+        _actions.Controls.Add(new AntdUI.Label { Text = detail.IsCrossRegion ? "跨区回放不可用" : $"对局 {detail.GameId} · {detail.participants.Count} 人", Width = 290, Height = 32 });
+        ResizeBody(); ApplyTheme(UiTheme.Palette);
     }
     private void ResizeBody()
     {
-        if (_body == null) return;
-        if (_items != null && _itemsRow < _body.RowStyles.Count)
+        if (_resizing || IsDisposed) return;
+        _resizing = true;
+        try
         {
-            int columns = Math.Max(1, (_content.ClientSize.Width - 20) / 35);
-            _body.RowStyles[_itemsRow].Height = Math.Max(42, ((_items.Controls.Count + columns - 1) / columns) * 36 + 10);
+            int scale(int n) => n * DeviceDpi / 96;
+            int width = Math.Max(scale(300), _content.ClientSize.Width - scale(4));
+            int naturalWidth = Math.Max(width, _statistics.MinimumContentWidth);
+            int bodyHeight = Detail == null ? scale(100) : _statistics.MeasureContentHeight(naturalWidth);
+            _statistics.SetBounds(0, 0, naturalWidth, bodyHeight);
+            int horizontal = naturalWidth > width ? SystemInformation.HorizontalScrollBarHeight : 0;
+            int chrome = Controls.Cast<Control>().Where(c => c != _content && c.Visible).Sum(c => c.Height);
+            int height = bodyHeight + chrome + horizontal + scale(6);
+            if (Height != height) { Height = height; PreferredHeightChanged?.Invoke(); }
         }
-        _body.Size = new Size(Math.Max(220, _content.ClientSize.Width),
-            _body.Padding.Vertical + (int)_body.RowStyles.Cast<RowStyle>().Sum(r => r.Height));
+        finally { _resizing = false; }
     }
     public void ApplyTheme(ThemePalette palette)
     {
-        BackColor = _content.BackColor = palette.SurfaceRaised;
-        ForeColor = palette.TextPrimary; _title.ForeColor = _state.ForeColor = palette.TextPrimary;
+        BackColor = _content.BackColor = _actions.BackColor = palette.SurfaceRaised;
         var scheme = palette.IsDark ? AntdUI.TAMode.Dark : AntdUI.TAMode.Light;
-        _title.ColorScheme = _state.ColorScheme = _close.ColorScheme = _expand.ColorScheme = _retry.ColorScheme = _tabs.ColorScheme = scheme;
-        _tabs.BackColor = palette.SurfaceRaised;
-        _actions.BackColor = palette.SurfaceRaised;
-        if (_body != null)
-        {
-            _body.BackColor = palette.SurfaceRaised;
-            foreach (var label in _body.Controls.OfType<AntdUI.Label>())
-            {
-                label.ColorScheme = scheme;
-                label.ForeColor = label.Tag is bool own ? own ? palette.Accent : Color.FromArgb(220, 106, 123) : palette.TextPrimary;
-            }
-            foreach (var tile in _metricTiles) { tile.ColorScheme = scheme; tile.ForeColor = palette.TextPrimary; }
-            if (_metrics != null) { _metrics.ColorScheme = scheme; _metrics.ForeColor = palette.TextPrimary; }
-        }
+        _title.ColorScheme = _state.ColorScheme = _close.ColorScheme = _expand.ColorScheme = _retry.ColorScheme = _layouts.ColorScheme = scheme;
+        _title.ForeColor = _state.ForeColor = palette.TextPrimary;
+        _layouts.BackColor = palette.SurfaceRaised;
         foreach (var label in _actions.Controls.OfType<AntdUI.Label>()) { label.ColorScheme = scheme; label.ForeColor = palette.TextSecondary; }
-        foreach (var grid in _grids)
-        {
-            grid.ColorScheme = scheme;
-            grid.BackColor = palette.SurfaceRaised; grid.ForeColor = palette.TextPrimary;
-            grid.BorderColor = palette.Border; grid.ColumnBack = palette.SurfaceMuted; grid.ColumnFore = palette.TextSecondary;
-        }
-    }
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing) { _images?.Dispose(); _tips.Dispose(); if (_tabs.Parent == null) _tabs.Dispose(); }
-        base.Dispose(disposing);
+        _statistics.ApplyTheme(palette);
     }
 }

@@ -28,7 +28,9 @@ internal sealed class CachedGameAssetService : IGameAssetService
         _names.GetAsync(Key("item-description-zh-CN", id), () => _inner.GetItemDescriptionAsync(id), token);
     /// <summary>根据符文标识读取名称及详细作用文本。</summary>
     public Task<string?> GetRuneDetailsAsync(int id, CancellationToken token = default) =>
-        _names.GetAsync(Key("rune-details-zh-CN", id), () => _inner.GetRuneDetailsAsync(id), token);
+        RuneStatShards.Find(id) is { } shard
+            ? Task.FromResult<string?>(shard.Details)
+            : _names.GetAsync(Key("rune-details-zh-CN", id), () => _inner.GetRuneDetailsAsync(id), token);
     /// <summary>读取指定英雄的展示图标。</summary>
     public Task<GameAsset?> GetChampionIconAsync(int id, CancellationToken token = default) =>
         _icons.GetAsync(Key("champion", id), () => _inner.GetChampionIconAsync(id), token);

@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Helper;
+﻿using LOL_GameAssistant.Helper;
 using LOL_GameAssistant.Infrastructure.GameData;
 using LOL_GameAssistant.Infrastructure.LeagueClient;
 using LOL_GameAssistant.Entity;
@@ -8,6 +8,26 @@ namespace LOL_GameAssistant.UiTests;
 
 public sealed class AssetDetailTests
 {
+    [Theory]
+    [InlineData(5001, "成长生命值", "HealthScaling")]
+    [InlineData(5008, "适应之力", "AdaptiveForce")]
+    [InlineData(5005, "攻击速度", "AttackSpeed")]
+    [InlineData(5007, "技能急速", "CDRScaling")]
+    [InlineData(5010, "移动速度", "MovementSpeed")]
+    [InlineData(5011, "生命值", "HealthPlus")]
+    [InlineData(5013, "韧性与减速抗性", "Tenacity")]
+    [InlineData(5002, "护甲", "Armor")]
+    [InlineData(5003, "魔法抗性", "MagicRes")]
+    public async Task StatShardsHaveIconsAndOfflineChineseDescriptions(int id, string name, string icon)
+    {
+        var shard = LOL_GameAssistant.Domain.GameData.RuneStatShards.Find(id);
+        Assert.NotNull(shard);
+        Assert.Equal("perk-images/StatMods/StatMods" + icon + "Icon.png", shard.IconPath);
+        Assert.StartsWith(name + "\n", await LOL_GameAssistant.LoLApi.Game_Api.GetRuneDetailsAsync(id));
+        Assert.DoesNotContain(id.ToString(), shard.ShortName);
+        Assert.Null(LOL_GameAssistant.Domain.GameData.RuneStatShards.Find(8010));
+    }
+
     [Fact]
     public void GameMarkupBecomesReadableDescription()
     {

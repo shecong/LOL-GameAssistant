@@ -1,4 +1,5 @@
-using System.Reflection;
+﻿using System.Reflection;
+using LOL_GameAssistant.Infrastructure.Settings;
 using LOL_GameAssistant.Application.Files;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
@@ -151,7 +152,7 @@ public sealed class DenseBattleQueryTests
         using var query = Create((id, cache, _) => { useCache = cache; return ++calls == 1 ? Task.FromException<MatchDetail?>(new IOException("离线")) : Task.FromResult<MatchDetail?>(Detail(id)); });
         Pump(Render(query)); var list = Field<Control>(query, "stackMatches"); var row = list.Controls[0];
         Pump(query.SelectMatchAsync(Game(1))); Assert.Contains("离线", Field<MatchHistoryDetailPane>(query, "_detailPane").StateText);
-        Assert.Equal(20, list.Controls.Count); Pump(query.SelectMatchAsync(Game(1), true));
+        Assert.Equal(20, list.Controls.OfType<MatchHistoryListRow>().Count()); Pump(query.SelectMatchAsync(Game(1), true));
         Assert.False(useCache); Assert.Equal(1, Field<MatchHistoryDetailPane>(query, "_detailPane").Detail!.GameId); Assert.Same(row, list.Controls[0]);
     });
 
@@ -199,23 +200,21 @@ public sealed class DenseBattleQueryTests
     [InlineData(4)]
     [InlineData(8)]
     [InlineData(10)]
-    public void WorkspaceDefersOrientationChangeUntilBothPanelsFit(int height) => MatchListScrollingTests.OnUiThread(() =>
+    public void InlineDetailsSurviveVeryShortViewports(int height) => MatchListScrollingTests.OnUiThread(() =>
     {
         using var query = Create((id, _, _) => Task.FromResult<MatchDetail?>(Detail(id)));
+        Pump(Render(query)); Pump(query.SelectMatchAsync(Game(1)));
         var workspace = Field<SplitContainer>(query, "_matchWorkspace");
         workspace.Dock = DockStyle.None;
-        workspace.Size = new Size(1200, 600);
-        workspace.Panel2Collapsed = false;
-        workspace.Size = new Size(900, height);
-        Assert.Equal(Orientation.Vertical, workspace.Orientation);
-        workspace.Size = new Size(900, 600);
-        Assert.Equal(Orientation.Horizontal, workspace.Orientation);
-        Assert.InRange(workspace.SplitterDistance, 1, workspace.Height - workspace.SplitterWidth - 1);
-        workspace.Size = Size.Empty;
-        Assert.Equal(Orientation.Horizontal, workspace.Orientation);
-        workspace.Size = new Size(1400, 700);
-        Assert.Equal(Orientation.Vertical, workspace.Orientation);
-        Assert.InRange(workspace.SplitterDistance, 1, workspace.Width - workspace.SplitterWidth - 1);
+        var list = Field<Panel>(query, "stackMatches");
+        var pane = Field<MatchHistoryDetailPane>(query, "_detailPane");
+        foreach (var size in new[] { new Size(1200,600), new Size(900,height), Size.Empty, new Size(1400,700) })
+        {
+            workspace.Size = size;
+            Assert.True(workspace.Panel2Collapsed);
+            Assert.Same(list, pane.Parent);
+            Assert.False(pane.IsDisposed);
+        }
     });
 
     [Theory]
@@ -225,22 +224,19 @@ public sealed class DenseBattleQueryTests
     public void ScaledWorkspaceCanRepeatedlyResizeWithDetailPaneOpen(float scale) => MatchListScrollingTests.OnUiThread(() =>
     {
         using var query = Create((id, _, _) => Task.FromResult<MatchDetail?>(Detail(id)));
-        var workspace = Field<SplitContainer>(query, "_matchWorkspace");
-        workspace.Dock = DockStyle.None;
         query.Scale(new SizeF(scale, scale));
-        workspace.Panel2Collapsed = false;
-        int unit = query.DeviceDpi;
+        Pump(Render(query)); Pump(query.SelectMatchAsync(Game(1)));
+        var workspace = Field<SplitContainer>(query, "_matchWorkspace"); workspace.Dock = DockStyle.None;
+        var list = Field<Panel>(query, "stackMatches");
+        var pane = Field<MatchHistoryDetailPane>(query, "_detailPane");
         for (int i = 0; i < 3; i++)
-        {
-            workspace.Size = new Size(1600 * unit / 96, 700 * unit / 96);
-            Assert.Equal(Orientation.Vertical, workspace.Orientation);
-            workspace.Size = new Size(900 * unit / 96, workspace.SplitterWidth - 1);
-            Assert.Equal(Orientation.Vertical, workspace.Orientation);
-            workspace.Size = new Size(900 * unit / 96, 600 * unit / 96);
-            Assert.Equal(Orientation.Horizontal, workspace.Orientation);
-            Assert.InRange(workspace.SplitterDistance, 1, workspace.Height - workspace.SplitterWidth - 1);
-        }
-        Assert.False(workspace.Panel2Collapsed);
+            foreach (var size in new[] { new Size(1600,700), new Size(900,2), new Size(900,600) })
+            {
+                workspace.Size = size;
+                Assert.True(workspace.Panel2Collapsed);
+                Assert.Same(list, pane.Parent);
+                Assert.Equal(1, pane.Detail!.GameId);
+            }
     });
 
     [Theory]
@@ -264,7 +260,8 @@ public sealed class DenseBattleQueryTests
             Save(host, $"dense-query-list-{width}");
             list.AutoScrollPosition = new Point(0, 200); int scroll = list.AutoScrollPosition.Y;
             Pump(query.SelectMatchAsync(Game(3))); System.Windows.Forms.Application.DoEvents();
-            Assert.False(Field<SplitContainer>(query, "_matchWorkspace").Panel2Collapsed);
+            Assert.True(Field<SplitContainer>(query, "_matchWorkspace").Panel2Collapsed);
+            Assert.Same(list, Field<MatchHistoryDetailPane>(query, "_detailPane").Parent);
             Assert.Equal(3, Field<MatchHistoryDetailPane>(query, "_detailPane").Detail!.GameId);
             Assert.False(list.HorizontalScroll.Visible);
             if (width >= 1000) Assert.Equal(scroll, list.AutoScrollPosition.Y);
@@ -322,6 +319,47 @@ public sealed class DenseBattleQueryTests
         Assert.DoesNotContain(trend, result => result.kda <= 10);
         Assert.Equal(new[] { (3d, false), (8d, true) }, ChartDrawer.RecentKdaTrend([(8d, true), (3d, false)]));
     }
+
+    [Fact]
+    public void AllThreeLayoutsKeepCompletePlayersAndRememberSelectionWithoutFetchingAgain() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "match-layout-" + Guid.NewGuid());
+        string file = Path.Combine(directory, "layout.json");
+        try
+        {
+            var preference = new MatchDetailLayoutPreference(file);
+            Assert.Equal(MatchDetailLayout.Paired, preference.Read()); Assert.False(File.Exists(file));
+            int calls = 0;
+            using var query = Create((id, _, _) => { calls++; return Task.FromResult<MatchDetail?>(Detail(id)); });
+            using var host = new Form { ClientSize = new(1600, 1000), ShowInTaskbar = false };
+            query.Dock = DockStyle.Fill; host.Controls.Add(query); host.Show();
+            Pump(Render(query)); Pump(query.SelectMatchAsync(Game(3)));
+            var pane = Field<MatchHistoryDetailPane>(query, "_detailPane");
+            var payload = pane.Detail;
+            var previous = pane.LayoutMode;
+            foreach (var mode in Enum.GetValues<MatchDetailLayout>())
+            {
+                pane.SetLayout(mode); System.Windows.Forms.Application.DoEvents();
+                Assert.Same(payload, pane.Detail); Assert.Equal(10, pane.Statistics.Players.Count); Assert.Equal(1, calls);
+                var list = Field<Panel>(query, "stackMatches");
+                var selected = list.Controls.OfType<MatchHistoryListRow>().Single(row => row.Selected);
+                var next = list.Controls.OfType<MatchHistoryListRow>().Single(row => row.Game.GameId == 4);
+                Assert.True(pane.Top >= selected.Bottom); Assert.True(next.Top >= pane.Bottom);
+                Assert.Equal(selected.Width, pane.Width);
+                Assert.False(Field<ScrollableControl>(pane, "_content").VerticalScroll.Visible);
+                using var bitmap = new Bitmap(pane.Width, pane.Height);
+                pane.DrawToBitmap(bitmap, pane.ClientRectangle);
+                bitmap.Save(Path.Combine(AppContext.BaseDirectory, "match-layout-" + mode + ".png"));
+                preference.Save(mode); Assert.Equal(mode, new MatchDetailLayoutPreference(file).Read());
+            }
+            pane.SetLayout(previous);
+            query.CloseSelectedDetail();
+            Assert.DoesNotContain(pane, Field<Panel>(query, "stackMatches").Controls.Cast<Control>());
+            File.WriteAllText(file, "broken-json"); Assert.Equal(MatchDetailLayout.Paired, preference.Read());
+            host.Close();
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    });
 
     private static void Save(Form form, string name)
     {

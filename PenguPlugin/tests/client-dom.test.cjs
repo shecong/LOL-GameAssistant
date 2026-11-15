@@ -145,6 +145,37 @@ test('client bootstrap cloning panel markup restores interactive event handlers'
 
 
 const playerPanel = '[data-lol-game-assistant-player-stats]';
+test('managed roster uses chat assessments and never substitutes independent history', async t => {
+  const snapshot = { timestamp: Date.now(), queueId: 420, allies: ['alice'], players: {
+    alice: { kda: '2.03', winRate: '40%', count: 50, scope: '同模式', detail: '聊天评估：最近50场单双排' },
+  } };
+  const options = { queue: { id: 420, gameMode: 'CLASSIC' },
+    managed: { enabled: true, showPlayerStats: true, playerStatistics: snapshot },
+    playerSession: { myTeam: [{ cellId: 0, championId: 1, puuid: 'alice' }], theirTeam: [] },
+    history: [match('alice', 1)] };
+  const { page, errors } = await fixture(t, options);
+  await page.locator('main').evaluate(node => node.insertAdjacentHTML('beforeend', '<div data-cell-id="0"><div id="ally" class="champion-icon-container" style="width:80px;height:80px"></div></div>'));
+  const panel = page.locator('#ally ' + playerPanel);
+  await page.waitForFunction(() => document.querySelector('#ally [data-lol-game-assistant-player-stats]')?.textContent.includes('KDA 2.03'));
+  assert.match(await panel.textContent(), /胜率 40%/);
+  assert.match(await panel.getAttribute('title'), /与聊天评估一致.*最近50场单双排/);
+  assert.doesNotMatch(await panel.textContent(), /6.00/);
+  for (const invalid of [
+    { ...snapshot, allies: ['someone-else'] },
+    { ...snapshot, queueId: 440 },
+    { ...snapshot, timestamp: Date.now() - 700000 },
+    { ...snapshot, players: {} },
+    null,
+  ]) {
+    await page.evaluate(value => { window.controlText = JSON.stringify({ enabled: true, showPlayerStats: true, playerStatistics: value }); }, invalid);
+    await page.waitForFunction(() => document.querySelector('#ally [data-lol-game-assistant-player-stats]')?.textContent.includes('KDA —'));
+    assert.match(await panel.getAttribute('title'), /等待助手战绩评估/);
+    // Return to a valid result so each invalid snapshot independently proves rejection.
+    await page.evaluate(value => { window.controlText = JSON.stringify({ enabled: true, showPlayerStats: true, playerStatistics: value }); }, snapshot);
+    await page.waitForFunction(() => document.querySelector('#ally [data-lol-game-assistant-player-stats]')?.textContent.includes('KDA 2.03'));
+  }
+  assert.deepEqual(errors, []);
+});
 function match(puuid, id, overrides = {}) {
   return { gameId: id, queueId: 450, gameDuration: 1200, gameType: 'MATCHED_GAME',
     participantIdentities: [{ participantId: 2, player: { puuid } }],

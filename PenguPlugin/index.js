@@ -13,7 +13,7 @@ const STORAGE_KEY = 'lol-game-assistant.visuals.v1';
 const LOCAL_WALLPAPER_KEY = 'lol-game-assistant.wallpaper.local.v1';
 const BADGE_ATTR = 'data-lol-game-assistant-tier-badge';
 const POSITION_ATTR = 'data-lol-game-assistant-original-position';
-const VERSION = '0.4.4';
+const VERSION = '0.4.5';
 let managedConfig = null;
 let managedText = '';
 let configTimer = 0;
@@ -66,6 +66,7 @@ let active = false;
 let lifecycle = 0;
 let detectedMode = '';
 let detectedQueue = '';
+let detectedQueueId = 0;
 let retryTimer = 0;
 let refreshTimer = 0;
 let heartbeatTimer = 0;
@@ -247,10 +248,12 @@ async function detectMode() {
     }
     if (!active || epoch !== lifecycle) return;
     detectedMode = modeFromQueue(queue);
+    detectedQueueId = Number(queue?.id) || 0;
     detectedQueue = queue?.id ? `队列 ${queue.id}` : '等待进入大厅';
   } catch {
     if (!active || epoch !== lifecycle) return;
     detectedMode = '';
+    detectedQueueId = 0;
     detectedQueue = '等待客户端登录或大厅就绪';
   } finally {
     modePending = false;
@@ -800,6 +803,19 @@ function playerSummary(games, puuid, mode) {
   return { kda: ((totals.kills + totals.assists) / Math.max(1, totals.deaths)).toFixed(2), rate: Math.round(100 * totals.wins / sample.length), count: sample.length, scope: sameMode.length ? '同模式' : '全模式' };
 }
 
+// Managed cards consume the exact assessment sent to chat, including SGP-enriched
+// history, queue filtering, fallback scope and the chat formatter's truncation.
+function managedPlayerSummary(puuid) {
+  const snapshot = managedConfig?.playerStatistics;
+  if (!snapshot || !Number.isFinite(snapshot.timestamp) || Date.now() - snapshot.timestamp > 600000 || snapshot.timestamp > Date.now() + 5000) return null;
+  if (snapshot.queueId > 0 && detectedQueueId > 0 && snapshot.queueId !== detectedQueueId) return null;
+  const allies = [...new Set((playerSession?.myTeam || []).map(member => member.puuid).filter(validPlayerId))].sort();
+  if (!allies.length || !Array.isArray(snapshot.allies) || JSON.stringify([...snapshot.allies].sort()) !== JSON.stringify(allies)) return null;
+  const value = Object.hasOwn(snapshot.players || {}, puuid) ? snapshot.players[puuid] : null;
+  if (!value || typeof value.kda !== 'string' || typeof value.winRate !== 'string') return null;
+  return { kda: value.kda, rateText: value.winRate, count: value.count, scope: value.scope, detail: value.detail };
+}
+
 function playerPartyId(member) {
   const value = String(member.partyId || '').trim();
   return validPlayerId(value) ? value : '';
@@ -901,9 +917,10 @@ function injectPlayerStats() {
       const ally = playerSession.myTeam.includes(member);
       const party = (ally ? allyParties : enemyParties).get(member) || { text: '' };
       const history = playerHistory.get(member.puuid);
-      const summary = history?.games ? playerSummary(history.games, member.puuid, detectedMode) : null;
-      const statsLine = summary ? `KDA ${summary.kda} · 胜率 ${summary.rate}%` : 'KDA — · 胜率 —';
-      const lines = [party.text, statsLine, summary ? `近20场内 · ${summary.scope} ${summary.count}场` : !validPlayerId(member.puuid) ? '身份未公开' : history?.error ? '战绩暂不可用' : history?.games ? '暂无有效战绩' : '战绩加载中'].filter(Boolean);
+      const managed = Boolean(context?.visualControl);
+      const summary = managed ? managedPlayerSummary(member.puuid) : history?.games ? playerSummary(history.games, member.puuid, detectedMode) : null;
+      const statsLine = summary ? `KDA ${summary.kda} · 胜率 ${summary.rateText ?? `${summary.rate}%`}` : 'KDA — · 胜率 —';
+      const lines = [party.text, statsLine, summary ? `${managed ? '与聊天评估一致 · 最近50场有效记录' : '近20场内'} · ${summary.scope} ${summary.count}场` : !validPlayerId(member.puuid) ? '身份未公开' : managed ? '等待助手战绩评估' : history?.error ? '战绩暂不可用' : history?.games ? '暂无有效战绩' : '战绩加载中'].filter(Boolean);
       if (!panel) {
         ensurePositionContext(host);
         panel = document.createElement('span');
@@ -919,7 +936,7 @@ function injectPlayerStats() {
       panel.style.top = nameBox?.height && scale > 0
         ? `${(nameBox.bottom - portraitBox.top) / scale + 1}px` : '';
 
-      const title = `${lines.join('；')}。KDA=(击杀+助攻)/死亡；仅统计返回的最近20场中时长至少5分钟的有效非自定义对局。${party.detail || '未识别到开黑分组'}。`;
+      const title = `${lines.join('；')}。${managed ? summary?.detail || '统计结果由 sc助手统一计算，与聊天评估共用。' : 'KDA=(击杀+助攻)/死亡；仅统计返回的最近20场中时长至少5分钟的有效非自定义对局。'}${party.detail || '未识别到开黑分组'}。`;
       if (panel.title !== title) {
         panel.title = title;
         panel.replaceChildren(...[...(party.text ? [party.text] : []), statsLine].map((line, index) => {

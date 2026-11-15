@@ -500,6 +500,11 @@ namespace LOL_GameAssistant.BaseViewForm
                 .OrderBy(row => row.Tag is int index ? index : int.MaxValue)
                 .ToList();
             if (rows.Count == 0 || stackMatches.ClientSize.Width <= 0) return;
+            if (_detailPane?.Parent == stackMatches && _selectedGame != null)
+            {
+                int selected = rows.FindIndex(row => row is MatchHistoryListRow item && item.Game.GameId == _selectedGame.GameId);
+                if (selected >= 0) rows.Insert(selected + 1, _detailPane);
+            }
             _resizingMatchRows = true;
             try
             {
@@ -1079,6 +1084,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// <summary>清空战绩卡片并释放已创建的控件资源。</summary>
         private void ClearMatchControls()
         {
+            if (_detailPane?.Parent == stackMatches) CloseSelectedDetail();
             foreach (Control control in stackMatches.Controls.Cast<Control>().ToArray())
             {
                 stackMatches.Controls.Remove(control);

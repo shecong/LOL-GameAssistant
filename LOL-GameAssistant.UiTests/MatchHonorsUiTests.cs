@@ -92,10 +92,7 @@ public sealed class MatchHonorsUiTests
         using var host = new Form { ClientSize = new Size(700, 760), ShowInTaskbar = false };
         host.Controls.Add(pane); host.Show();
         pane.SetDetail(Game().ToSummaryDetail(), "honor-player-1");
-        var grids = Children(pane).OfType<AntdUI.Table>().ToArray();
-        Assert.Equal(2, grids.Length);
-        var awards = grids.SelectMany(grid => Assert.IsType<MatchHistoryDetailPane.TeamRow[]>(grid.DataSource))
-            .Select(row => row.Honors).ToArray();
+        var awards = pane.Statistics.Honors;
         Assert.Single(awards, text => text?.Contains("胜方 MVP") == true);
         Assert.Single(awards, text => text?.Contains("败方 MVP") == true);
         Assert.Contains(awards, text => text?.Contains("四杀") == true);

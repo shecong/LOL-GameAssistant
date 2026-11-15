@@ -1,4 +1,5 @@
-﻿using LOL_GameAssistant.Entity;
+﻿using LOL_GameAssistant.Domain.GameData;
+using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Helper;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
@@ -161,14 +162,9 @@ namespace LOL_GameAssistant.LoLApi
         /// <summary>根据符文标识读取名称及详细作用文本。</summary>
         public static async Task<string?> GetRuneDetailsAsync(int perkId)
         {
+            if (RuneStatShards.Find(perkId) is { } shard) return shard.Details;
             await GetRuneIconPathsAsync().ConfigureAwait(false);
-            return RuneDetails.GetValueOrDefault(perkId) ?? perkId switch
-            {
-                5001 => "生命值\n增加生命值。", 5010 => "成长生命值\n随等级增加生命值。",
-                5011 => "生命值\n增加基础生命值。", 5002 => "护甲\n增加护甲。", 5003 => "魔法抗性\n增加魔法抗性。",
-                5005 => "攻击速度\n增加攻击速度。", 5007 => "技能急速\n增加技能急速。", 5008 => "适应之力\n提供适应之力。",
-                5013 => "韧性与减速抗性\n提高对控制与减速效果的抗性。", _ => null
-            };
+            return RuneDetails.GetValueOrDefault(perkId);
         }
 
         /// <summary>
@@ -226,9 +222,12 @@ namespace LOL_GameAssistant.LoLApi
         public static async Task<Stream> GetGameRuneImg(int perkId)
         {
             if (perkId <= 0) return Stream.Null;
-            IReadOnlyDictionary<int, string> paths = await GetRuneIconPathsAsync().ConfigureAwait(false);
-            if (!paths.TryGetValue(perkId, out string? iconPath) || string.IsNullOrWhiteSpace(iconPath))
-                return Stream.Null;
+            string? iconPath = RuneStatShards.Find(perkId)?.IconPath;
+            if (iconPath == null)
+            {
+                var paths = await GetRuneIconPathsAsync().ConfigureAwait(false);
+                if (!paths.TryGetValue(perkId, out iconPath) || string.IsNullOrWhiteSpace(iconPath)) return Stream.Null;
+            }
 
             HttpClientHelper client = new HttpClientHelper();
             // 符文图片位于 Data Dragon 的共享 /cdn/img/perk-images 目录，

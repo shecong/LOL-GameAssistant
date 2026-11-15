@@ -1,4 +1,4 @@
-using SplitContainer = AntdUI.Splitter;
+﻿using SplitContainer = AntdUI.Splitter;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Bootstrap;
@@ -71,12 +71,12 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         stackMatches.Invalidate(true);
         UpdateResponsiveLayout();
     }
-    private bool _adjustingSplit;
 
     private void InitializeListWorkspace()
     {
         LOL_GameAssistant.Infrastructure.GameData.LocalCacheRegistry.Register(this);
-        _detailPane = new(_listAssets, _listChampions) { Dock = DockStyle.Fill };
+        _detailPane = new(_listAssets, _listChampions) { Dock = DockStyle.None, Visible = false };
+        _detailPane.PreferredHeightChanged += ResizeMatchRows;
         _detailPane.CloseRequested += CloseSelectedDetail;
         _detailPane.RetryRequested += () => { if (_selectedGame is { } game) _ = SelectMatchAsync(game, true); };
         _detailPane.FullDetailRequested += (detail, puuid) => MatchDetailForm.OpenAndHandle(detail, puuid, this);
@@ -182,30 +182,9 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
     }
     private void LayoutMatchWorkspace(bool reset = false)
     {
-        if (_adjustingSplit || IsDisposed || _matchWorkspace.Panel2Collapsed) return;
-        _adjustingSplit = true;
-        try
-        {
-            // Orientation revalidates SplitterDistance immediately. During docking,
-            // hiding or resizing either axis can briefly be smaller than the splitter.
-            // Wait for the next SizeChanged instead of changing orientation in that state.
-            if (Math.Min(_matchWorkspace.ClientSize.Width, _matchWorkspace.ClientSize.Height) <=
-                _matchWorkspace.SplitterWidth + 2) return;
-            int S(int n) => n * DeviceDpi / 96;
-            bool narrow = _matchWorkspace.Width < S(1000);
-            _matchWorkspace.Panel1MinSize = _matchWorkspace.Panel2MinSize = 0;
-            var orientation = narrow ? Orientation.Horizontal : Orientation.Vertical;
-            bool change = _matchWorkspace.Orientation != orientation;
-            // 换向时 AntdUI.Splitter 会按当前分隔距离重新校验，目标方向装不下时留到下次 SizeChanged。
-            int dimension = narrow ? _matchWorkspace.Height : _matchWorkspace.Width;
-            if (change && dimension < _matchWorkspace.SplitterDistance + _matchWorkspace.SplitterWidth + 1) return;
-            _matchWorkspace.Orientation = orientation;
-            int preferred = narrow ? dimension / 2 : dimension - Math.Clamp((int)(dimension * .40), S(430), S(670));
-            if (reset || change || _matchWorkspace.SplitterDistance < S(180) || dimension - _matchWorkspace.SplitterDistance < S(160))
-                _matchWorkspace.SplitterDistance = Math.Clamp(preferred, 1, dimension - _matchWorkspace.SplitterWidth - 1);
-            ResizeMatchRows();
-        }
-        finally { _adjustingSplit = false; }
+        // Details belong to the selected row. The second split panel stays closed,
+        // so there is one full-width list and one vertical scrollbar at every size.
+        if (!IsDisposed) ResizeMatchRows();
     }
     internal async Task SelectMatchAsync(MatchHistoryGame game, bool refresh = false)
     {
@@ -213,12 +192,14 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
             _matchHistory?.Games?.Games.Any(g => g.GameId == game.GameId) != true) return;
         var source = _matchHistoryService; string puuid = _currentPlayer.Puuid;
         using var request = _detailScope.Begin();
+        int previousScroll = -stackMatches.AutoScrollPosition.Y;
         _selectedGame = game;
         foreach (var row in stackMatches.Controls.OfType<MatchHistoryListRow>()) row.Selected = row.Game.GameId == game.GameId;
-        bool opening = _matchWorkspace.Panel2Collapsed;
-        _matchWorkspace.Panel2Collapsed = false;
-        LayoutMatchWorkspace(opening);
+        if (_detailPane.Parent != stackMatches) stackMatches.Controls.Add(_detailPane);
+        _detailPane.Visible = true;
         _detailPane.SetLoading(game, puuid);
+        ResizeMatchRows();
+        stackMatches.AutoScrollPosition = new Point(0, previousScroll);
         var key = (Source: (object)source, Session: PlayerHistorySession.Key, Puuid: puuid, Id: game.GameId);
         long generation = Volatile.Read(ref _detailCacheGeneration);
         try
@@ -250,8 +231,11 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
     internal void CloseSelectedDetail()
     {
         _detailScope.Cancel(); _selectedGame = null;
+        _detailPane.Visible = false;
+        if (_detailPane.Parent == stackMatches) _matchWorkspace.Panel2.Controls.Add(_detailPane);
         foreach (var row in stackMatches.Controls.OfType<MatchHistoryListRow>()) row.Selected = false;
         if (!_matchWorkspace.IsDisposed) _matchWorkspace.Panel2Collapsed = true;
+        ResizeMatchRows();
     }
     private void UpdateSummaryWidgets(IReadOnlyList<MatchHistoryGame> games, string puuid)
     {

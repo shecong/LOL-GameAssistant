@@ -46,13 +46,14 @@ public static class ChampSelectKdaAnnouncementBuilder
         string winRate = assessment.HasWinRate
             ? assessment.WinRate.ToString("F0", CultureInfo.InvariantCulture) + "%" : "--";
         // 与现有 KDA 分档一致，截断而非四舍五入，避免 4.499 显示成 4.50。
-        string kda = hasKda
-            ? (Math.Truncate(decimal.Parse(Math.Max(0, assessment.Kda).ToString("G15", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture) * 100m) / 100m)
-                .ToString("F2", CultureInfo.InvariantCulture) : "--";
+        string kda = hasKda ? FormatKda(assessment.Kda) : "--";
         string score = hasKda && assessment.HasEnoughSample
             ? assessment.Score.ToString(CultureInfo.InvariantCulture) + "分" : "";
         string scope = assessment.UsesAllModes ? " [全模式参考]" : "";
         return $"{prefix}：{label}{score}｜KDA{kda}｜胜率{winRate}{scope}";
     }
 
+    public static string FormatKda(double kda) =>
+        (Math.Truncate(decimal.Parse(Math.Max(0, kda).ToString("G15", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture) * 100m) / 100m)
+            .ToString("F2", CultureInfo.InvariantCulture);
 }
