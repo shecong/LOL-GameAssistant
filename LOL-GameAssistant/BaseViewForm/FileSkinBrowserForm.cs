@@ -57,6 +57,10 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private bool _loaded, _busy, _disposing;
     private readonly AntdUI.Select _resourceSource = new() { Name = "FileSkinResourceSource", Width = 120, Height = 38, List = true };
     private int _page;
+    private readonly UiToolTip _resourceTips = new();
+    private bool _checkingResources;
+    private DateTime _lastResourceCheck;
+    private readonly AntdUI.Label _resourceUpdate = new() { Name = "FileSkinResourceUpdate", Text = "打开页面时检查资源更新", Width = 330, Height = 38, TextMultiLine = false, AutoEllipsis = true };
 
     public FileSkinBrowserForm(ICslolSkinService files, ISkinEngineCoordinator engines, IApplicationSettingsStore settings,
         IFileSkinPreferencesStore preferences, IFileSkinArtworkService artwork, Func<bool>? gameRunning = null)
@@ -87,9 +91,9 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
             if (_preferences.Presets.TryGetValue(key, out var picks)) { _model.Restore(picks); RefreshSelection(); FilterCards(); }
         };
         _files.StatusChanged += Progress;
-        Load += async (_, _) => await LoadCatalogAsync();
+        Load += async (_, _) => { await LoadCatalogAsync(); await CheckResourceUpdatesAsync(); };
         _watch.Tick += (_, _) => { SyncEnabled(); UpdateControls(); }; _watch.Start();
-        VisibleChanged += (_, _) => { SyncEnabled(); UpdateControls(); };
+        VisibleChanged += async (_, _) => { SyncEnabled(); UpdateControls(); if (Visible && DateTime.UtcNow - _lastResourceCheck > TimeSpan.FromMinutes(10)) await CheckResourceUpdatesAsync(); };
         _cards.Resize += (_, _) => ResizeCards();
         Resize += (_, _) => _body.ColumnStyles[0].Width = Width >= 1200 ? 300 : Width < 850 ? 170 : 260;
         UiTheme.Apply(this); SyncEnabled(); UpdateControls();
@@ -119,6 +123,8 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
             header.Height += 44;
             var resources = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, WrapContents = false };
             var download = new AntdUI.Button { Name = "FileSkinDownloadResources", Text = "下载资源", Width = 110, Height = 38 };
+            var check = new AntdUI.Button { Name = "FileSkinCheckResourceUpdates", Text = "检查更新", Width = 110, Height = 38 };
+            check.Click += async (_, _) => await CheckResourceUpdatesAsync();
             var import = new AntdUI.Button { Name = "FileSkinImportResources", Text = "导入资源包", Width = 130, Height = 38 };
             download.Click += async (_, _) => await InstallResourcesAsync(installer, null);
             import.Click += async (_, _) =>
@@ -127,9 +133,9 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
                 using var dialog = new OpenFileDialog { Title = "选择独立换肤资源包", Filter = "换肤资源包 (*.zip)|*.zip" };
                 if (dialog.ShowDialog(FindForm()) == DialogResult.OK) await InstallResourcesAsync(installer, dialog.FileName);
             };
-            _resourceSource.Items.AddRange(["服务器", "GitHub"]); _resourceSource.SelectedIndex = 0;
+            _resourceSource.Items.AddRange(["自动选源", "GitHub"]); _resourceSource.SelectedIndex = 0;
             resources.Controls.Add(_resourceSource); resources.Controls.Add(download); resources.Controls.Add(import);
-            resources.Controls.Add(new AntdUI.Label { Text = "首次使用下载一次，更新助手无需重复下载", Width = 380, Height = 38 });
+            resources.Controls.Add(check); resources.Controls.Add(_resourceUpdate);
             header.Controls.Add(resources);
         }
         header.Controls.Add(_status); header.Controls.Add(tools); header.Controls.Add(title);
@@ -193,8 +199,28 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         catch (OperationCanceledException) { if (!_disposing) _status.Text = "已取消资源安装。"; }
         catch (Exception error) { if (!_disposing) _status.Text = "资源安装失败：" + error.Message; }
         finally { _resourceRequest = null; _busy = false; if (!_disposing) UpdateControls(); }
-        if (installed && !_disposing) await LoadCatalogAsync();
+        if (installed && !_disposing) { await LoadCatalogAsync(); await CheckResourceUpdatesAsync(); }
     }
+    internal async Task CheckResourceUpdatesAsync()
+    {
+        if (_checkingResources || _busy || _disposing || _files is not IFileSkinResourceInstaller installer) return;
+        _checkingResources = true; _resourceUpdate.Text = "正在检查资源更新…";
+        try
+        {
+            var update = await installer.CheckForUpdatesAsync(_lifetime.Token);
+            if (_disposing || update == null) return;
+            string patch = string.IsNullOrWhiteSpace(update.Release.GamePatch) ? "" : " · 游戏 " + update.Release.GamePatch;
+            _resourceUpdate.Text = !update.CheckedOnline ? update.Message + " · " + update.Release.Version
+                : update.UpdateAvailable ? $"可更新：{update.InstalledVersion} → {update.Release.Version}{patch}"
+                : $"资源已是最新：{update.Release.Version}{patch}";
+            _resourceUpdate.AccessibleDescription = update.Message + "；" + update.Release.Notes;
+            _resourceTips.SetToolTip(_resourceUpdate, _resourceUpdate.Text + "\n" + update.Release.Notes);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { if (!_disposing) _resourceUpdate.Text = "资源更新检查失败：" + error.Message; }
+        finally { _checkingResources = false; _lastResourceCheck = DateTime.UtcNow; }
+    }
+
     private void RenderHeroes()
     {
         if (_disposing) return;
@@ -378,7 +404,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     {
         if (disposing && !_disposing)
         {
-            _disposing = true; _files.StatusChanged -= Progress; _engines.Changed -= EngineChanged; _watch.Dispose(); _heroSearchDelay.Dispose(); _lifetime.Cancel();
+            _disposing = true; _files.StatusChanged -= Progress; _engines.Changed -= EngineChanged; _watch.Dispose(); _heroSearchDelay.Dispose(); _resourceTips.Dispose(); _lifetime.Cancel();
             _cardsRequest?.Cancel(); _cardsRequest?.Dispose(); _applyRequest?.Cancel(); _lifetime.Dispose();
             _heroesRequest?.Cancel(); _heroesRequest?.Dispose();
         }
