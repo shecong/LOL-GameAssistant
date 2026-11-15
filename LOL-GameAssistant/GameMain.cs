@@ -451,8 +451,7 @@ namespace LOL_GameAssistant
                 tabs1.Pages[tabs1.SelectedIndex] == _loungeTab;
             if (!IsDisposed && selected && !_loungeOnlineTimer.Enabled)
             {
-                // 首次打开后保持计时；按文字自适应宽度，避免在线人数被固定页签宽度裁掉。
-                tabs1.ItemSize = null;
+                // 首次打开后保持计时，导航继续使用原来的固定宽度。
                 _loungeOnlineTimer.Start();
                 _ = RefreshLoungeOnlineCountAsync();
             }
@@ -469,11 +468,15 @@ namespace LOL_GameAssistant
         private void UpdateLoungeTabCaption()
         {
             if (IsDisposed) return;
-            string online = _loungeOnlineTimer.Enabled
-                ? _lounge.OnlineMemberCount is { } count ? $" · 在线 {count}" : " · 连接中"
-                : "";
+            int? count = _lounge.OnlineMemberCount;
+            // 人数使用页签旁的绿色徽标，避免加长标题或改变整条导航的布局。
+            _loungeTab.Badge = _loungeOnlineTimer.Enabled ? count?.ToString() ?? "…" : null;
+            _loungeTab.BadgeBack = count.HasValue ? Color.SeaGreen : Color.SlateGray;
+            _loungeTab.AccessibleDescription = _loungeOnlineTimer.Enabled
+                ? count.HasValue ? $"休息室当前在线 {count} 人" : "休息室连接中"
+                : "休息室";
             string unread = _lounge.UnreadCount > 0 ? $" · 未读 {_lounge.UnreadCount}" : "";
-            string caption = "lol休息室" + online + unread;
+            string caption = "lol休息室" + unread;
             if (_loungeTab.Text != caption) _loungeTab.Text = caption;
         }
 

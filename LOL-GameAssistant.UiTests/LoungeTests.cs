@@ -27,17 +27,33 @@ public sealed class LoungeTests
         void Caption() => typeof(GameMain).GetMethod("UpdateLoungeTabCaption", flags)!.Invoke(main, null);
         void Members(params LoungeMember[] members) => typeof(LoungeClient).GetMethod("UpdateMembers", flags)!.Invoke(client, [members]);
         Assert.False(timer.Enabled); Assert.Equal("lol休息室", tab.Text);
+        Assert.Equal(112, tabs.ItemSize);
         main.ShowLoungePage(); Activity();
         Assert.True(timer.Enabled); Assert.Equal(10000, timer.Interval);
-        Assert.Equal("lol休息室 · 连接中", tab.Text);
+        Assert.Equal("lol休息室", tab.Text); Assert.Equal("…", tab.Badge);
+        Assert.Equal(112, tabs.ItemSize);
         Members(new("a", "玩家一", "艾欧尼亚", "忙碌"), new("b", "未登录玩家", "", "未登录 LOL")); Caption();
-        Assert.Equal("lol休息室 · 在线 2", tab.Text);
+        Assert.Equal("lol休息室", tab.Text); Assert.Equal("2", tab.Badge);
+        Assert.Equal("休息室当前在线 2 人", tab.AccessibleDescription);
         tabs.SelectedIndex = 0; Activity();
         Members(new LoungeMember("a", "玩家一", "艾欧尼亚", "忙碌")); Caption();
-        Assert.True(timer.Enabled); Assert.Equal("lol休息室 · 在线 1", tab.Text);
-        Members(); Caption(); Assert.Equal("lol休息室 · 在线 0", tab.Text);
+        Assert.True(timer.Enabled); Assert.Equal("1", tab.Badge);
+        Assert.Equal(112, tabs.ItemSize);
+        Members(); Caption(); Assert.Equal("0", tab.Badge);
+        string? preview = Environment.GetEnvironmentVariable("LOL_LOUNGE_COUNTER_PREVIEW_PATH");
+        if (!string.IsNullOrWhiteSpace(preview))
+        {
+            main.ShowLoungePage(); Activity();
+            Members(new LoungeMember("a", "玩家一", "艾欧尼亚", "忙碌")); Caption();
+            using var host = new Form { ClientSize = new Size(1400, 750), ShowInTaskbar = false };
+            host.Controls.Add(tabs); tabs.Dock = DockStyle.Fill; host.Show();
+            using var bitmap = new Bitmap(tabs.Width, 60);
+            tabs.DrawToBitmap(bitmap, new Rectangle(Point.Empty, tabs.Size));
+            bitmap.Save(preview, System.Drawing.Imaging.ImageFormat.Png);
+            host.Controls.Remove(tabs);
+        }
         typeof(LoungeClient).GetField("_memberBaseline", flags)!.SetValue(client, false); Caption();
-        Assert.Equal("lol休息室 · 连接中", tab.Text);
+        Assert.Equal("…", tab.Badge); Assert.Equal(112, tabs.ItemSize);
         main.Dispose(); Assert.False(timer.Enabled);
     });
 
