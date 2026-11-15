@@ -1,8 +1,18 @@
 namespace LOL_GameAssistant.Application.ChampionSelect;
 
-/// <summary>名单就绪后延迟三秒发送；同一名单只允许一个任务，临时失败后重试。</summary>
-internal sealed class ChampionSelectAnnouncementDelivery
+/// <summary>从进入选人开始计时三秒；刷新与数据回调不重置截止时间，临时失败后重试。</summary>
+internal sealed class ChampionSelectAnnouncementDelivery(TimeProvider? timeProvider = null)
 {
+    private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
+    private readonly long _enteredAt = (timeProvider ?? TimeProvider.System).GetTimestamp();
+    internal TimeSpan RemainingInitialDelay
+    {
+        get
+        {
+            var remaining = TimeSpan.FromSeconds(3) - _clock.GetElapsedTime(_enteredAt);
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+    }
     public bool IsSent { get; private set; }
     public bool IsSending { get; private set; }
 
@@ -13,8 +23,8 @@ internal sealed class ChampionSelectAnnouncementDelivery
         IsSending = true;
         try
         {
-            // 留出队友进入选人聊天的时间；等待期间名单失效或退出选人时不再发送。
-            await Task.Delay(initialDelay ?? TimeSpan.FromSeconds(3), token);
+            // 计时起点是阶段进入，不是数据就绪；迟到的触发立即尝试，不再额外等三秒。
+            await Task.Delay(initialDelay ?? RemainingInitialDelay, _clock, token);
             while (!token.IsCancellationRequested && isCurrent())
             {
                 if (await attempt(token))

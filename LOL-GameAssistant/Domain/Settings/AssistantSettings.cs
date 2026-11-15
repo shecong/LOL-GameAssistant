@@ -1,4 +1,4 @@
-using LOL_GameAssistant.Domain.Builds;
+﻿using LOL_GameAssistant.Domain.Builds;
 using LOL_GameAssistant.Domain.MatchAnalysis;
 
 namespace LOL_GameAssistant.Domain.Settings;
@@ -56,7 +56,7 @@ public sealed class AssistantSettings
     /// <summary>在选人阶段选定英雄后，显示 OP.GG 图文出装/符文选择器。</summary>
     public bool OpggBuildAssistantEnabled { get; set; }
 
-    /// <summary>选人阵容加载完成后，汇总近期 KDA 并通过 LCU 发送到选人聊天。</summary>
+    /// <summary>进入选人三秒后，使用已取得的近期 KDA 通过 LCU 发送到选人聊天。</summary>
     public bool ChampSelectKdaAnnouncementEnabled { get; set; }
 
     /// <summary>对局中双方近期 KDA 评估齐备后，通过游戏内喊话发送一次。</summary>

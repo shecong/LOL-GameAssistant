@@ -8,6 +8,7 @@ using static LOL_GameAssistant.UiTests.SecondPhaseRegressionTests;
 
 namespace LOL_GameAssistant.UiTests;
 
+[Collection("Window theme")]
 public sealed class ChampSelectKdaReadinessTests
 {
     [Fact]
@@ -109,27 +110,41 @@ public sealed class ChampSelectKdaReadinessTests
         Assert.False(delivery.IsSent);
     }
 
-    private static PlayerRecentPerformanceEventArgs Ready(string puuid, bool ally = true) => new(puuid, puuid, ally,
-        new RecentModePerformanceAssessment(MatchPerformanceTier.Upper, 88, 20, 55, "", 4.9, true, RecentPerformanceLabel.Upper));
+    private sealed class EntryClock : TimeProvider
+    {
+        internal TimeSpan Elapsed;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => Elapsed.Ticks;
+    }
 
     [Fact]
-    public void MustWaitForEveryAllysCalculatedResultAndIgnoreEnemyEvents()
+    public async Task LateDataDoesNotAddAnotherThreeSecondsAfterEntry()
     {
-        HashSet<string> expected = ["a", "b"];
-        var results = new Dictionary<string, PlayerRecentPerformanceEventArgs>();
-        bool ReadyToSend() => LiveGameForm.AreChampSelectAssessmentsReady(expected, results);
-        Assert.False(ReadyToSend());
-        results["a"] = Ready("a"); Assert.False(ReadyToSend());
-        results["enemy"] = Ready("enemy", false); Assert.False(ReadyToSend());
-        results["b"] = new("b", "b", true, null); Assert.False(ReadyToSend());
-        // A failed load is not a completed KDA calculation; a successful retry unlocks the announcement.
-        results["b"] = Ready("b"); Assert.True(ReadyToSend());
-        results["b"] = new("b", "", true, Ready("b").Assessment, isDisplayNameReady: false);
-        Assert.False(ReadyToSend());
-        results["b"] = Ready("b"); Assert.True(ReadyToSend());
-        results["b"] = Ready("b", false); Assert.False(ReadyToSend());
-        Assert.False(LiveGameForm.AreChampSelectAssessmentsReady(new HashSet<string>(), results));
+        var clock = new EntryClock(); var delivery = new ChampionSelectAnnouncementDelivery(clock);
+        clock.Elapsed = TimeSpan.FromSeconds(2);
+        Assert.Equal(TimeSpan.FromSeconds(1), delivery.RemainingInitialDelay);
+        clock.Elapsed = TimeSpan.FromSeconds(4); int attempts = 0;
+        await delivery.SendAsync(_ => { attempts++; return Task.FromResult(true); }, () => true, default);
+        Assert.Equal(1, attempts); Assert.True(delivery.IsSent);
+        Assert.Equal(TimeSpan.Zero, delivery.RemainingInitialDelay);
     }
+
+    [Fact]
+    public void RepeatedPhaseAndRosterRefreshKeepDeadlineAndSentFlagButNewPhaseResets() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var page = new LiveGameForm();
+        ChampionSelectAnnouncementDelivery Current() => (ChampionSelectAnnouncementDelivery)typeof(LiveGameForm)
+            .GetField("_champSelectAnnouncementDelivery", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(page)!;
+        page.OnChampionSelectPhaseChanged(true);
+        var first = Current();
+        Pump(first.SendAsync(_ => Task.FromResult(true), () => true, default, initialDelay: TimeSpan.Zero));
+        page.OnChampionSelectPhaseChanged(true);
+        typeof(LiveGameForm).GetMethod("ResetChampSelectAssessments", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(page, null);
+        Assert.Same(first, Current()); Assert.True(Current().IsSent);
+        page.OnChampionSelectPhaseChanged(false); page.OnChampionSelectPhaseChanged(true);
+        Assert.NotSame(first, Current()); Assert.False(Current().IsSent);
+        Assert.InRange(Current().RemainingInitialDelay.TotalSeconds, 2, 3);
+    });
 
     [Fact]
     public async Task StageRosterOrSettingChangeDuringChatLookupPreventsPost()

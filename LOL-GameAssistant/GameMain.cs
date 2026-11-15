@@ -465,6 +465,7 @@ namespace LOL_GameAssistant
             }
             if (expectedRevision.HasValue && expectedRevision.Value != GameFlowRevision) return;
             gameFlowPhase = parsed;
+            liveGameForm.OnChampionSelectPhaseChanged(parsed == GameFlowPhase.ChampSelect);
             _skinTools.OnGamePhaseChanged(parsed == GameFlowPhase.InProgress, parsed == GameFlowPhase.ChampSelect);
             Interlocked.Increment(ref _gameFlowRevision);
             gameFlowPhaseName.Text = parsed.GetChineseName();
@@ -814,6 +815,7 @@ namespace LOL_GameAssistant
             if (Enum.TryParse(statustype, true, out GameFlowPhase parsedPhase))
             {
                 gameFlowPhase = parsedPhase;
+                liveGameForm.OnChampionSelectPhaseChanged(parsedPhase == GameFlowPhase.ChampSelect);
                 _skinTools.OnGamePhaseChanged(parsedPhase == GameFlowPhase.InProgress, parsedPhase == GameFlowPhase.ChampSelect);
                 // 离开结束状态后重置“已通知”标记，保证下一局还能再次提醒
                 if (parsedPhase != GameFlowPhase.WaitingForStats && parsedPhase != GameFlowPhase.EndOfGame)
