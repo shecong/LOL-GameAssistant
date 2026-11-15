@@ -28,19 +28,38 @@ async function fixture(t, options = {}) {
     const url = route.request().url();
     if (url.includes('/wallpaper.svg')) return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#c33960"/></svg>' });
     if (url.includes('/broken-wallpaper.png')) return route.fulfill({ status: 404, body: '' });
+    if (url.includes('/champion-summary.json')) return route.fulfill({ json: [ { id: 1, name: '安妮' }, { id: 2, name: '奥拉夫' }, { id: 3, name: '加里奥' } ] });
+    if (url.includes('/session/actions/')) {
+      (options.patches ||= []).push({ url, method: route.request().method(), body: route.request().postDataJSON() });
+      return route.fulfill({ status: options.patchError ? 409 : 204, body: '' });
+    }
+    if (url.includes('/pickable-champion-ids')) {
+      if (options.pickGate) await options.pickGate;
+      return route.fulfill({ json: options.pickable || [1, 2, 3] });
+    }
+    if (url.includes('/disabled-champion-ids')) return route.fulfill({ json: options.disabled || [] });
+    if (url.includes('/counters?')) {
+      options.counterRequests = (options.counterRequests || 0) + 1;
+      if (options.counterGate) await options.counterGate;
+      return route.fulfill({ status: options.counterError ? 503 : 200, json: { data: options.counterData || [
+        { champion_id: 2, play: 200, win: 80 }, { champion_id: 3, play: 300, win: 180 },
+        { champion_id: 4, play: 2, win: 0 }, { champion_id: 5, play: 300, win: null },
+      ] } });
+    }
     if (url.includes('lol-api-champion.op.gg')) {
       requests++;
       if (options.failFirst && requests === 1) return route.fulfill({ status: 503, body: '{}' });
       const tier = url.includes('/ranked?') ? 3 : 1;
-      return route.fulfill({ json: { data: [1, 2].map(id => ({ id, average_stats: { tier }, positions: [{ stats: { tier_data: { tier } } }] })) } });
+      return route.fulfill({ json: { data: [1, 2].map(id => ({ id, average_stats: { tier }, positions: [{ name: 'MID', stats: { play: 1000, tier_data: { tier } } }, { name: 'TOP', stats: { play: 200, tier_data: { tier } } }] })) } });
     }
     if (url.includes('/lol-champ-select/v1/session')) return route.fulfill({ status: options.playerSession ? 200 : 404, json: options.playerSession || {} });
     if (url.includes('/lol-match-history/')) {
       options.historyRequests = (options.historyRequests || 0) + 1;
       if (options.historyGate) await options.historyGate;
-      return route.fulfill({ status: options.historyError ? 503 : 200, json: { games: { games: options.history || [] } } });
+      const puuid = decodeURIComponent(new URL(url).pathname.split('/').at(-2));
+      return route.fulfill({ status: options.historyError ? 503 : 200, json: { games: { games: options.histories?.[puuid] || options.history || [] } } });
     }
-    if (url.includes('/lol-gameflow/v1/session')) return route.fulfill({ json: { gameData: { queue: { id: 450, gameMode: 'ARAM' } } } });
+    if (url.includes('/lol-gameflow/v1/session')) return route.fulfill({ json: { gameData: { queue: options.queue || { id: 450, gameMode: 'ARAM' } } } });
     if (url.includes('/lol-lobby/v2/lobby')) return route.fulfill({ json: { gameConfig: { queueId: 450 } } });
     return route.fulfill({ contentType: 'text/html', body: html });
   });
@@ -148,14 +167,16 @@ test('roster information follows cell identity, supports hidden players and leav
       <div data-cell-id="5"><div id="enemy" class="champion-icon-container" data-champion-id="1" style="width:48px;height:64px;background:#523">安妮</div></div>
     </div>`));
   await page.waitForFunction(() => document.querySelector('#ally [data-lol-game-assistant-player-stats]')?.textContent.includes('KDA 6.00'));
-  assert.match(await page.locator('#ally ' + playerPanel).textContent(), /开黑1 · 2人.*胜率 100%.*同模式 1场/);
-  assert.match(await page.locator('#enemy ' + playerPanel).textContent(), /开黑未知.*KDA —.*身份未公开/);
+  assert.match(await page.locator('#ally ' + playerPanel).textContent(), /开黑1 · 2人.*胜率 100%/);
+  assert.match(await page.locator('#enemy ' + playerPanel).getAttribute('title'), /KDA —.*身份未公开/);
+  assert.equal(await page.locator('#enemy .lga-party').count(), 0);
+  assert.doesNotMatch(await page.locator('#enemy ' + playerPanel).textContent(), /开黑|未见组队/);
   assert.equal(await page.locator('#enemy ' + playerPanel).getAttribute('data-side'), 'enemy');
   assert.equal(await page.locator('#hero ' + playerPanel).count(), 0);
   await page.screenshot({ path: path.join(__dirname, '..', 'test-results', 'champ-select-player-preview.png') });
   // A row recycled for a hidden player must lose its previous player's statistics.
   await page.locator('#ally').evaluate(node => node.parentElement.setAttribute('data-cell-id', '5'));
-  await page.waitForFunction(() => document.querySelector('#ally [data-lol-game-assistant-player-stats]')?.textContent.includes('身份未公开'));
+  await page.waitForFunction(() => document.querySelector('#ally [data-lol-game-assistant-player-stats]')?.title.includes('身份未公开'));
   await page.locator(root + ' .lga-toggle').click();
   await page.locator('[data-key="showPlayerStats"]').uncheck();
   assert.equal(await page.locator(playerPanel).count(), 0);
@@ -170,11 +191,37 @@ test('roster information follows cell identity, supports hidden players and leav
   assert.deepEqual(errors, []);
 });
 
+test('missing party IDs infer a group from owner-only histories and remove stale labels after refresh', async t => {
+  const ownerMatch = (puuid, id, teamId) => match(puuid, id, {
+    participantIdentities: [{ participantId: 2, player: { puuid } }],
+    participants: [{ participantId: 2, teamId, stats: { kills: 4, deaths: 2, assists: 8, win: true } }],
+  });
+  const options = {
+    playerSession: { myTeam: ['alice', 'bob', 'carol'].map((puuid, cellId) => ({ cellId, puuid })), theirTeam: [{ cellId: 5, puuid: 'eve' }] },
+    histories: Object.fromEntries(['alice', 'bob', 'carol', 'eve'].map(puuid => [puuid, [1, 2].map(id => ownerMatch(puuid, id, puuid === 'carol' ? 200 : 100))])),
+  };
+  const { page, errors } = await fixture(t, options);
+  await page.locator('main').evaluate(node => node.insertAdjacentHTML('beforeend', [0, 1, 2, 5].map(id =>
+    `<div data-cell-id="${id}"><div id="player-${id}" class="champion-icon-container"></div></div>`).join('')));
+  await page.waitForFunction(() => document.querySelector('#player-0 .lga-party')?.textContent === '疑似开黑1 · 2人');
+  assert.equal(await page.locator('#player-1 .lga-party').textContent(), '疑似开黑1 · 2人');
+  assert.equal(await page.locator('#player-2 .lga-party, #player-5 .lga-party').count(), 0);
+  assert.match(await page.locator('#player-0 ' + playerPanel).getAttribute('title'), /整组共同同队2场，不能确认本局预组队/);
+  assert.equal(await page.locator('#player-2 ' + playerPanel + ' > div').count(), 1);
+  assert.match(await page.locator('#player-2 ' + playerPanel).textContent(), /^KDA 6.00/);
+  options.histories.bob = [];
+  await page.locator(root + ' .lga-toggle').click();
+  await page.locator('[data-action="refresh"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('.lga-party').length === 0);
+  assert.match(await page.locator('#player-0 ' + playerPanel).textContent(), /KDA/);
+  assert.deepEqual(errors, []);
+});
+
 test('failed history shows unavailable and manual refresh retries successfully', async t => {
   const options = { playerSession: { myTeam: [{ cellId: 0, championId: 1, puuid: 'alice' }], theirTeam: [] }, historyError: true, history: [match('alice', 1)] };
   const { page, errors } = await fixture(t, options);
   await page.locator('main').evaluate(node => node.insertAdjacentHTML('beforeend', '<div data-cell-id="0"><div class="champion-icon-container"></div></div>'));
-  await page.waitForFunction(() => document.querySelector('[data-lol-game-assistant-player-stats]')?.textContent.includes('战绩暂不可用'));
+  await page.waitForFunction(() => document.querySelector('[data-lol-game-assistant-player-stats]')?.title.includes('战绩暂不可用'));
   options.historyError = false;
   await page.locator(root + ' .lga-toggle').click();
   await page.locator('[data-action="refresh"]').click();
@@ -354,4 +401,169 @@ test('assistant refresh command bypasses successful tier cache', async t => {
   await state.page.waitForTimeout(1200);
   assert.equal(state.requests(), after);
   assert.deepEqual(state.errors, []);
+});
+
+
+test('native grid IDs and halo identities work before picking, with transparent text clear of native names', async t => {
+  const { page, errors } = await fixture(t, { queue: { id: 3140, gameMode: 'PRACTICETOOL' },
+    playerSession: { myTeam: [{ cellId: 0, championId: 0, puuid: 'alice' }], theirTeam: [] }, history: [match('alice', 1)] });
+  await page.locator('main').evaluate(node => node.insertAdjacentHTML('beforeend', `
+    <div class="grid-champion" data-id="1"><div class="grid-champion-hitbox"><div id="native-hero" class="champion-grid-champion-thumbnail"></div></div></div>
+    <div class="summoner-object" style="position:relative;width:320px;height:78px;margin-top:40px">
+      <div style="position:absolute;left:40px;top:8px"><lol-parties-comm-halo puuid="alice"><div id="blank-portrait" class="champion-icon-container" style="width:62px;height:62px"></div></lol-parties-comm-halo></div>
+      <div class="player-details" style="position:absolute;left:112px;top:20px;font:12px/14px Arial"><div>正在选用……</div><div class="summoner-name">玩家名字</div></div>
+    </div>`));
+  await page.waitForFunction(() => document.querySelector('#native-hero [data-lol-game-assistant-tier-badge]')?.textContent === 'T3');
+  await page.waitForFunction(() => document.querySelector('#blank-portrait [data-lol-game-assistant-player-stats]')?.textContent.includes('KDA 6.00'));
+  const layout = await page.locator('#blank-portrait ' + playerPanel).evaluate(panel => {
+    const row = panel.closest('.summoner-object'), p = panel.getBoundingClientRect(), n = row.querySelector('.summoner-name').getBoundingClientRect(), r = row.getBoundingClientRect(), css = getComputedStyle(panel);
+    return { clear: p.top >= n.bottom, within: p.bottom <= r.bottom && p.right < r.right - 40, bg: css.backgroundColor, border: css.borderTopWidth, lines: panel.children.length };
+  });
+  assert.deepEqual(layout, { clear: true, within: true, bg: 'rgba(0, 0, 0, 0)', border: '0px', lines: 1 });
+  assert.deepEqual(errors, []);
+});
+
+test('wallpaper switch restores the saved image without clearing its URL', async t => {
+  const config = { revision: 'on', wallpaperUrl: 'http://client.test/wallpaper.svg' };
+  const { page, errors } = await fixture(t, { managed: config });
+  await page.waitForSelector('#lol-game-assistant-wallpaper', { state: 'attached' });
+  await page.evaluate(config => { window.controlText = JSON.stringify({ ...config, revision: 'off', wallpaperEnabled: false }); }, config);
+  await page.waitForFunction(() => !document.querySelector('#lol-game-assistant-wallpaper'));
+  assert.equal(await page.evaluate(() => JSON.parse(window.controlText).wallpaperUrl), config.wallpaperUrl);
+  await page.evaluate(config => { window.controlText = JSON.stringify({ ...config, revision: 'restored', wallpaperEnabled: true }); }, config);
+  await page.waitForSelector('#lol-game-assistant-wallpaper', { state: 'attached' });
+  assert.deepEqual(errors, []);
+});
+
+
+const counterPanel = '#lol-game-assistant-counters';
+function counterSession() {
+  return { gameId: 123, localPlayerCellId: 0, myTeam: [{ cellId: 0, championId: 1, puuid: 'alice' }], theirTeam: [],
+    actions: [[{ id: 99, actorCellId: 1, type: 'pick', isInProgress: true, completed: false },
+      { id: 42, actorCellId: 0, type: 'pick', isInProgress: true, completed: false }]] };
+}
+async function counterFixture(t, options = {}) {
+  Object.assign(options, { managed: { showBadges: false, showPlayerStats: false, ...(options.managed || {}) }, queue: options.queue || { id: 420, gameMode: 'CLASSIC' } });
+  const result = await fixture(t, options);
+  await result.page.locator('main').evaluate(node => node.classList.add('champion-select'));
+  return { ...result, options };
+}
+
+test('counter hover separates matchup directions, filters bad samples, caches and explicitly preselects own action', async t => {
+  const options = { playerSession: counterSession() };
+  const { page, errors } = await counterFixture(t, options);
+  await page.locator('#hero').hover();
+  await page.waitForSelector(`${counterPanel} button[data-champion-id="2"]`);
+  assert.match(await page.locator(counterPanel).textContent(), /列表英雄对 安妮 的对位胜率.*克制他的英雄.*奥拉夫60.0%.*他克制的英雄.*加里奥40.0%/);
+  assert.equal(await page.locator(`${counterPanel} button[data-champion-id]`).count(), 2);
+  assert.equal(options.patches?.length || 0, 0);
+  await page.screenshot({ path: path.join(__dirname, '..', 'test-results', 'counter-hover-preview.png') });
+  await page.locator(`${counterPanel} button[data-champion-id="2"]`).click();
+  await page.waitForFunction(() => document.querySelector('#lol-game-assistant-counters [role="status"]')?.textContent.includes('已预选'));
+  assert.deepEqual(options.patches.map(p => ({ method: p.method, action: p.url.split('/').at(-1), body: p.body })), [{ method: 'PATCH', action: '42', body: { championId: 2, completed: false } }]);
+  await page.mouse.move(10, 10);
+  await page.waitForSelector(counterPanel, { state: 'detached' });
+  await page.locator('#hero').hover();
+  await page.waitForSelector(`${counterPanel} button[data-champion-id="2"]`);
+  assert.equal(options.counterRequests, 1);
+  await page.locator(`${counterPanel} select`).selectOption('top');
+  await page.waitForSelector(`${counterPanel} button[data-champion-id="2"]`);
+  assert.equal(options.counterRequests, 2);
+  assert.deepEqual(errors, []);
+});
+
+test('counter selection rejects bans, unavailable heroes, completed and nonlocal actions', async t => {
+  const options = { playerSession: counterSession(), disabled: [2] };
+  const { page, errors } = await counterFixture(t, options);
+  await page.locator('#hero').hover();
+  const button = page.locator(`${counterPanel} button[data-champion-id="2"]`);
+  await button.click();
+  await page.waitForFunction(() => document.querySelector('#lol-game-assistant-counters [role="status"]')?.textContent.includes('不可选'));
+  options.disabled = []; options.playerSession.actions[0][1].completed = true;
+  await button.click();
+  await page.waitForFunction(() => document.querySelector('#lol-game-assistant-counters [role="status"]')?.textContent.includes('已经锁定'));
+  options.playerSession.actions[0][1].completed = false; options.playerSession.bans = { myTeamBans: [2] };
+  await button.click();
+  await page.waitForFunction(() => document.querySelector('#lol-game-assistant-counters [role="status"]')?.textContent.includes('不可选'));
+  assert.equal(options.patches?.length || 0, 0);
+  assert.deepEqual(errors, []);
+});
+
+test('counter pick rechecks session after waiting and does not write a stale action', async t => {
+  let release;
+  const options = { playerSession: counterSession(), pickGate: new Promise(resolve => { release = resolve; }) };
+  const { page, errors } = await counterFixture(t, options);
+  await page.locator('#hero').hover();
+  await page.locator(`${counterPanel} button[data-champion-id="2"]`).click();
+  await page.waitForFunction(() => document.querySelector('#lol-game-assistant-counters button[data-champion-id]')?.disabled);
+  options.playerSession = { ...counterSession(), gameId: 456 };
+  release();
+  await page.waitForFunction(() => document.querySelector('#lol-game-assistant-counters [role="status"]')?.textContent.includes('状态已变化'));
+  assert.equal(options.patches?.length || 0, 0);
+  assert.deepEqual(errors, []);
+});
+
+test('counter hover discards late responses, reports failure, retries and respects the master switch', async t => {
+  let release;
+  const options = { counterGate: new Promise(resolve => { release = resolve; }), counterError: true };
+  const { page, errors } = await counterFixture(t, options);
+  await page.locator('#hero').hover();
+  await page.waitForSelector(counterPanel);
+  await page.mouse.move(10, 10);
+  await page.waitForSelector(counterPanel, { state: 'detached' });
+  release();
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator(counterPanel).count(), 0);
+  await page.locator('#hero').hover();
+  await page.waitForSelector(`${counterPanel} button:text("重试")`);
+  options.counterError = false;
+  await page.locator(`${counterPanel} button:text("重试")`).click();
+  await page.waitForSelector(`${counterPanel} button[data-champion-id="2"]`);
+  await page.evaluate(() => { window.controlText = JSON.stringify({ enabled: false }); });
+  await page.waitForSelector(counterPanel, { state: 'detached' });
+  await page.locator('#hero').hover();
+  assert.equal(await page.locator(counterPanel).count(), 0);
+  await page.evaluate(() => window.plugin.unload());
+  assert.deepEqual(errors, []);
+});
+
+test('counter switch suppresses only native skill previews, including new media, and restores on disable or unload', async t => {
+  const { page, errors } = await counterFixture(t);
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<div class="champion-preview"><div class="champion-preview-abilities"><video id="native-skill"></video></div></div><video id="splash"></video>');
+    window.pausedMedia = [];
+    HTMLMediaElement.prototype.pause = function () { window.pausedMedia.push(this.id); };
+  });
+  assert.equal(await page.locator('.champion-preview').isVisible(), false);
+  await page.evaluate(() => {
+    document.querySelector('#native-skill').dispatchEvent(new Event('play'));
+    document.querySelector('#splash').dispatchEvent(new Event('play'));
+  });
+  assert.deepEqual(await page.evaluate(() => window.pausedMedia), ['native-skill']);
+  await page.evaluate(() => { window.controlText = JSON.stringify({ enabled: true, showCounters: false }); });
+  await page.waitForFunction(() => !document.body.classList.contains('lga-counters'));
+  assert.equal(await page.locator('.champion-preview').evaluate(node => getComputedStyle(node).display), 'block');
+  await page.evaluate(() => document.querySelector('#native-skill').dispatchEvent(new Event('play')));
+  assert.deepEqual(await page.evaluate(() => window.pausedMedia), ['native-skill']);
+  await page.evaluate(() => { window.controlText = JSON.stringify({ enabled: true, showCounters: true }); });
+  await page.waitForFunction(() => document.body.classList.contains('lga-counters'));
+  await page.evaluate(() => { window.controlText = JSON.stringify({ enabled: false }); });
+  await page.waitForFunction(() => !document.body.classList.contains('lga-counters'));
+  await page.evaluate(() => { window.controlText = JSON.stringify({ enabled: true, showCounters: true }); });
+  await page.waitForFunction(() => document.body.classList.contains('lga-counters'));
+  await page.evaluate(() => window.plugin.unload());
+  assert.equal(await page.locator('body').evaluate(node => node.classList.contains('lga-counters')), false);
+  await page.evaluate(() => document.querySelector('#native-skill').dispatchEvent(new Event('play')));
+  assert.deepEqual(await page.evaluate(() => window.pausedMedia), ['native-skill']);
+  assert.deepEqual(errors, []);
+});
+
+test('unsupported counter modes show no ranked matchup recommendations', async t => {
+  const options = { queue: { id: 450, gameMode: 'ARAM' } };
+  const { page, errors } = await counterFixture(t, options);
+  await page.locator('#hero').hover();
+  await page.waitForSelector(counterPanel);
+  assert.match(await page.locator(counterPanel).textContent(), /当前模式暂无分路克制数据/);
+  assert.equal(options.counterRequests || 0, 0);
+  assert.deepEqual(errors, []);
 });

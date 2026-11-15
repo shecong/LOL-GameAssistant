@@ -248,6 +248,8 @@ public sealed class SettingsToolsTests
         host.Show();
         var navigation = Children(tools).OfType<AntdUI.Segmented>().Single();
         Assert.Equal(6, navigation.Items.Count);
+        foreach (string option in new[] { "客户端优化", "低配模式", "静默模式", "Riot Client API", "不安全模式" })
+            Assert.Single(Children(tools).OfType<AntdUI.Checkbox>(), checkbox => checkbox.Text == option);
         Assert.DoesNotContain(Children(tools).OfType<AntdUI.Button>(), button =>
             button.Text is "保存自动化设置" or "快速创建大厅" or "取消当前匹配" or "退出英雄选择" or "交换极地大乱斗备战英雄");
         for (int index = 0; index < navigation.Items.Count; index++)

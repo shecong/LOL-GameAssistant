@@ -8,6 +8,8 @@ public sealed record PenguVisualSettings
     public bool Enabled { get; init; } = true;
     public bool ShowBadges { get; init; } = true;
     public bool ShowPlayerStats { get; init; } = true;
+    public bool ShowCounters { get; init; } = true;
+    public bool WallpaperEnabled { get; init; } = true;
     public bool HideNavigation { get; init; }
     public string TierMode { get; init; } = "auto";
     public string WallpaperUrl { get; init; } = "";

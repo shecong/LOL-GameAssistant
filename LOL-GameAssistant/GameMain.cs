@@ -343,7 +343,7 @@ namespace LOL_GameAssistant
             SettingForm.ApplyStartupSetting(startupSettings.LaunchOnStartup);
             using (new StartupDiagnostics("窗口设置与快捷键")) ApplyWindowSettings(startupSettings);
             _recommendationCoordinator.Start(startupSettings);
-            TryAutoLaunchLeagueClient(startupSettings);
+            _ = InitializeClientVisualsAsync(startupSettings);
             // 首页优先；只读页面和设置编辑器首次打开时再创建。
             using (new StartupDiagnostics("挂载页面与后台服务")) LoadAllForm();
             using (new StartupDiagnostics("界面翻译")) UiLanguage.Refresh();
@@ -352,10 +352,24 @@ namespace LOL_GameAssistant
             _ = InitializeLiveGameAsync();
         }
 
-        /// <summary>
-        /// 自动启动属于主窗口生命周期，而不是设置页生命周期。
-        /// 这样即使用户从未切换到“设置”标签，保存过的开关也会在助手启动时执行一次。
-        /// </summary>
+        /// <summary>后台完成首次视觉安装，再按设置启动客户端，使加载入口提前生效。</summary>
+        private async Task InitializeClientVisualsAsync(AssistantSettings settings)
+        {
+            try
+            {
+                bool installed = await Task.Run(() => AppCompositionRoot.PenguFirstRun.EnsureInitializedAsync(_rankedLpLifetime.Token));
+                if (installed && !IsDisposed)
+                    infoMsg.AddMsg("客户端视觉组件已从 Gitee 安装并启用；已打开的 LOL 客户端需重启后生效。");
+            }
+            catch (OperationCanceledException) when (_rankedLpLifetime.IsCancellationRequested) { return; }
+            catch (Exception error)
+            {
+                RuntimeDiagnostics.WriteException(error);
+                if (!IsDisposed) infoMsg.AddMsg("客户端视觉自动安装失败，下次启动会重试。可在设置 → 客户端工具中从 Gitee 安装：" + error.Message);
+            }
+            if (!IsDisposed) TryAutoLaunchLeagueClient(settings);
+        }
+
         private void TryAutoLaunchLeagueClient(AssistantSettings settings)
         {
             if (_autoClientLaunchAttempted) return;

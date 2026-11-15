@@ -1,7 +1,7 @@
 id: lol-game-assistant-visuals
 name: LOL GameAssistant Visuals
 description: Optional Pengu visual layer for in-client tier badges, champion-select party/KDA/win-rate summaries, wallpaper, and navigation hiding.
-version: 0.4.0
+version: 0.4.4
 
 author:
   name: LOL GameAssistant contributors

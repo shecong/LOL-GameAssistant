@@ -36,6 +36,22 @@ namespace LOL_GameAssistant.Bootstrap;
 /// </summary>
 public static class AppCompositionRoot
 {
+    // Capture eligibility before selecting a loader creates the persisted plugin path.
+    public static Infrastructure.Pengu.PenguFirstRunSetup PenguFirstRun { get; } = new(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant"),
+        InitializePenguAsync);
+    private static async Task InitializePenguAsync(CancellationToken cancellationToken)
+    {
+        var loader = await PenguLocalLoader.InstallFromGiteeAsync(cancellationToken).ConfigureAwait(false);
+        PenguPlugin.SelectDirectory(loader.PluginsDirectory);
+        PenguPlugin.Install();
+        new Infrastructure.Pengu.PenguVisualSettingsService(() => loader.PluginsDirectory)
+            .Save(Infrastructure.Pengu.PenguFirstRunSetup.VisualDefaults);
+        new Infrastructure.Pengu.PenguClientOptionsService(() => Path.Combine(Path.GetDirectoryName(loader.CorePath)!, "config"))
+            .Save(Infrastructure.Pengu.PenguFirstRunSetup.ClientDefaults, developerTools: true);
+        PenguPlugin.SetEnabled(true);
+        PenguLocalLoader.SetActivated(true);
+    }
     public static IPenguLocalLoaderService PenguLocalLoader { get; } = new Infrastructure.Pengu.PenguLocalLoaderService(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "pengu-loader-local.json"));
     public static IPenguPluginService PenguPlugin { get; } = CreatePenguPlugin();
@@ -44,7 +60,10 @@ public static class AppCompositionRoot
         var plugin = new Infrastructure.Pengu.PenguPluginService(
             Path.Combine(AppContext.BaseDirectory, "Tools", "PenguPlugin"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "pengu-plugin.json"),
-            bundleProvider: () => Path.Combine(PenguLocalLoader.SourceDirectory, "extensions", "lol-game-assistant-visuals"));
+            bundleProvider: () => Path.GetFullPath(PenguLocalLoader.SourceDirectory).Equals(
+                Path.GetFullPath(Infrastructure.Pengu.PenguReleaseInstaller.DefaultDirectory), StringComparison.OrdinalIgnoreCase)
+                ? Path.Combine(AppContext.BaseDirectory, "Tools", "PenguPlugin")
+                : Path.Combine(PenguLocalLoader.SourceDirectory, "extensions", "lol-game-assistant-visuals"));
         try { plugin.SelectDirectory(PenguLocalLoader.Prepare().PluginsDirectory); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException)
         { /* The settings card reports the missing local build and offers source selection. */ }

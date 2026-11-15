@@ -7,5 +7,6 @@ public interface IPenguLocalLoaderService
     string SourceDirectory { get; }
     PreparedPenguLoader Prepare();
     void SelectDirectory(string directory);
+    Task<PreparedPenguLoader> InstallFromGiteeAsync(CancellationToken cancellationToken = default);
     void SetActivated(bool enabled);
 }

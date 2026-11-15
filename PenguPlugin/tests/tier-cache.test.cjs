@@ -97,6 +97,7 @@ test('unsupported queues stay unknown instead of borrowing ranked data', () => {
   assert.equal(f.run('modeFromQueue({ gameMode: "CHERRY" })'), 'arena');
   assert.equal(f.run('modeFromQueue({ id: 1900 })'), 'urf');
   assert.equal(f.run('modeFromQueue({ id: 420 })'), 'ranked');
+  assert.equal(f.run('modeFromQueue({ id: 3140, gameMode: "PRACTICETOOL" })'), 'ranked');
   assert.equal(f.run('modeFromQueue({ id: 99999, gameMode: "UNKNOWN" })'), '');
 });
 
@@ -125,13 +126,60 @@ test('player statistics use matching identity and mode, exclude invalid games, a
   assert.equal(f.run(`playerSummary([{ gameDuration: 900, queueId: 420, participants: [{stats: {kills: 1, deaths: 2, assists: 3, win: false}}] }], 'a', 'aram').scope`), '全模式');
 });
 
-test('party groups stay within a team and missing party metadata stays unknown', () => {
+test('party labels omit missing and solo metadata and distinguish confirmed groups', () => {
   const f = fixture();
-  assert.equal(f.run(`partyLabel({ partyId: '0' }, []).text`), '开黑未知');
-  assert.equal(f.run(`partyLabel({ partyId: 'x' }, [{partyId:'x'}, {partyId:'x'}]).text`), '开黑1 · 2人');
-  assert.equal(f.run(`partyLabel({ partyId: 'x' }, [{partyId:'x'}]).text`), '未见组队');
+  assert.equal(f.run(`partyLabels([{partyId:'0'}, {partyId:'00000000-0000-0000-0000-000000000000'}]).size`), 0);
+  assert.equal(f.run(`[...partyLabels([{partyId:'x'}, {partyId:'x'}]).values()][0].text`), '开黑1 · 2人');
+  assert.equal(f.run(`partyLabels([{partyId:'x'}, {partyId:'y'}]).size`), 0);
 });
 
+test('premade fallback merges owner-only histories and requires two entire-group same-team matches', () => {
+  const f = fixture();
+  f.run(`
+    function sample(puuid, gameId, teamId = 100, overrides = {}) {
+      return {gameId, gameType:'MATCHED_GAME', gameDuration:1200,
+        participantIdentities:[{participantId:1,player:{puuid}}], participants:[{participantId:1,teamId,stats:{}}], ...overrides};
+    }
+    const team = ['alice','bob','carol','dan'].map(puuid => ({puuid}));
+    playerHistory.set('alice',{games:[sample('alice',1),sample('alice',2),sample('alice',1)]});
+    playerHistory.set('bob',{games:[sample('bob',1),sample('bob',2),sample('bob',3),sample('bob',4)]});
+    playerHistory.set('carol',{games:[sample('carol',3),sample('carol',4)]});
+    playerHistory.set('dan',{games:[sample('dan',1,200),sample('dan',2,200)]});
+  `);
+  assert.equal(f.run(`partyLabels(team).get(team[0]).text`), '疑似开黑1 · 2人');
+  assert.equal(f.run(`partyLabels(team).get(team[1]).text`), '疑似开黑1 · 2人');
+  assert.equal(f.run(`partyLabels(team).has(team[2])`), false); // A-B and B-C do not imply a trio.
+  assert.equal(f.run(`partyLabels(team).has(team[3])`), false); // Same matches, opposing side.
+  f.run(`playerHistory.set('bob',{games:[sample('bob',1),sample('bob',1)]});`);
+  assert.equal(f.run(`partyLabels(team).size`), 0); // Duplicates cannot reach the threshold.
+  f.run(`playerHistory.set('bob',{games:[sample('bob',1),sample('bob',2,100,{gameType:'CUSTOM_GAME'})]});`);
+  assert.equal(f.run(`partyLabels(team).size`), 0);
+  f.run(`playerHistory.set('bob',{games:[sample('bob',1),sample('bob',2)]}); team[0].partyId='a'; team[1].partyId='b';`);
+  assert.equal(f.run(`partyLabels(team).size`), 0); // Explicit different parties override inference.
+  f.run(`delete team[0].partyId; delete team[1].partyId;`);
+  assert.equal(f.run(`partyLabels([team[0]]).size`), 0); // Never join members of different current teams.
+});
+
+
+test('premade fallback keeps two separate duos separate and excludes remakes and conflicting summaries', () => {
+  const f = fixture();
+  f.run(`
+    const members = ['a','b','c','d','e'].map(puuid => ({puuid}));
+    function record(id, puuid, teamId = 100) {
+      return {gameId:id,gameType:'MATCHED_GAME',gameDuration:1200,
+        participantIdentities:[{participantId:1,player:{puuid}}],participants:[{participantId:1,teamId,stats:{}}]};
+    }
+    for (const [puuid,ids] of [['a',[1,2]],['b',[1,2]],['c',[3,4]],['d',[3,4]],['e',[]]])
+      playerHistory.set(puuid,{games:ids.map(id=>record(id,puuid))});
+  `);
+  assert.equal(f.run(`partyLabels(members).size`), 4);
+  assert.equal(f.run(`partyLabels(members).get(members[0]).group === partyLabels(members).get(members[1]).group`), true);
+  assert.equal(f.run(`partyLabels(members).get(members[0]).group === partyLabels(members).get(members[2]).group`), false);
+  f.run(`playerHistory.get('b').games[1].participants[0].stats.gameEndedInEarlySurrender = true;`);
+  assert.equal(f.run(`partyLabels(members).has(members[0])`), false);
+  f.run(`playerHistory.get('b').games[1] = record(2,'b'); playerHistory.get('a').games.push(record(2,'b',200));`);
+  assert.equal(f.run(`partyLabels(members).has(members[0])`), false);
+});
 
 test('Unsplash photo pages are distinguished from actual image URLs', () => {
   const f = fixture();

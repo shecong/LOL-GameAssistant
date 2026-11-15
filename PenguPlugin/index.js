@@ -1,8 +1,8 @@
 /**
  * Optional Pengu Loader visual layer.
  *
- * This plugin deliberately only changes Chromium client DOM/CSS. Match automation,
- * LCU writes and account configuration remain in the external C# app. Player
+ * This plugin changes client DOM/CSS and reads local champion-select data.
+ * Explicit counter-card clicks may preselect a champion through the LCU pick action. Player
  * summaries read only the local client's champion-select session and match history.
  * The panel uses localStorage so Pengu upgrades do not require a custom config file.
  */
@@ -13,7 +13,7 @@ const STORAGE_KEY = 'lol-game-assistant.visuals.v1';
 const LOCAL_WALLPAPER_KEY = 'lol-game-assistant.wallpaper.local.v1';
 const BADGE_ATTR = 'data-lol-game-assistant-tier-badge';
 const POSITION_ATTR = 'data-lol-game-assistant-original-position';
-const VERSION = '0.4.0';
+const VERSION = '0.4.4';
 let managedConfig = null;
 let managedText = '';
 let configTimer = 0;
@@ -33,6 +33,7 @@ function pollManagedConfig() {
     configError = '';
     applyVisuals();
     if (forceRefresh) {
+      counterCache.clear(); counterIndexAt = 0; closeCounter();
       void detectMode(); refreshTiers(true); void refreshPlayerSession(true);
       applyWallpaper(readConfig().wallpaperUrl, true);
     }
@@ -80,6 +81,7 @@ const requests = new Set();
 const defaults = {
   showBadges: true,
   showPlayerStats: true,
+  showCounters: true,
   tierMode: 'auto',
   hideNavigation: false,
   wallpaperUrl: '',
@@ -89,13 +91,14 @@ const defaults = {
 function readConfig() {
   try {
     const saved = managedConfig || JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    if (managedConfig?.enabled === false) return { ...defaults, showBadges: false, showPlayerStats: false };
+    if (managedConfig?.enabled === false) return { ...defaults, showBadges: false, showPlayerStats: false, showCounters: false };
     return {
       showBadges: typeof saved?.showBadges === 'boolean' ? saved.showBadges : defaults.showBadges,
       showPlayerStats: saved?.showPlayerStats !== false,
+      showCounters: saved?.showCounters !== false,
       tierMode: ['auto', ...Object.keys(MODE_NAMES)].includes(saved?.tierMode) ? saved.tierMode : 'auto',
       hideNavigation: saved?.hideNavigation === true,
-      wallpaperUrl: saved?.wallpaperUrl === 'local' ? 'local' : validWallpaper(saved?.wallpaperUrl),
+      wallpaperUrl: saved?.wallpaperEnabled === false ? '' : saved?.wallpaperUrl === 'local' ? 'local' : validWallpaper(saved?.wallpaperUrl),
       wallpaperName: typeof saved?.wallpaperName === 'string' ? saved.wallpaperName : '',
     };
   } catch {
@@ -144,6 +147,8 @@ export function load() {
     scheduleBadgeInjection();
     schedulePlayerInjection();
     scheduleWallpaperSync();
+    suppressNativeChampionPreview();
+    if (counterHost && (!counterHost.isConnected || resolveChampionId(counterHost) !== counterChampion)) closeCounter();
   });
   observeDom();
   if (context?.socket?.observe) {
@@ -152,6 +157,7 @@ export function load() {
       catch { /* Polling remains available on older loaders. */ }
     }
   }
+  startCounters();
   startPlayerStats();
   void detectMode();
   refreshTimer = window.setInterval(() => {
@@ -166,6 +172,7 @@ export function load() {
 
 export function unload() {
   active = false;
+  stopCounters();
   stopPlayerStats();
   stopWallpaper();
   lifecycle++;
@@ -189,7 +196,7 @@ export function unload() {
   document.getElementById(STYLE_ID)?.remove();
   document.querySelectorAll(`[${BADGE_ATTR}]`).forEach((node) => node.remove());
   restorePositions();
-  document.body?.classList.remove('lga-wallpaper', 'lga-hide-navigation');
+  document.body?.classList.remove('lga-wallpaper', 'lga-hide-navigation', 'lga-counters');
   void reportRuntime();
 }
 
@@ -198,18 +205,18 @@ function onStorage(event) { if (event.key === STORAGE_KEY) { syncPanel(); applyV
 function observeDom() {
   observer?.observe(document.documentElement, {
     childList: true, subtree: true, attributes: true,
-    attributeFilter: ['class', 'src', 'style', 'data-champion-id', 'data-champion-id-value', 'data-champion-id-string', 'champion-id', 'data-cell-id', 'cell-id', 'data-summoner-id', 'data-puuid'],
+    attributeFilter: ['class', 'src', 'style', 'data-champion-id', 'data-champion-id-value', 'data-champion-id-string', 'champion-id', 'data-cell-id', 'cell-id', 'data-summoner-id', 'data-puuid', 'puuid', 'data-id'],
   });
 }
 
-async function fetchJson(url) {
+async function fetchJson(url, options = {}) {
   const controller = new AbortController();
   requests.add(controller);
   const timeout = window.setTimeout(() => controller.abort(), 10000);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { ...options, signal: controller.signal });
     if (!response.ok) throw new Error(`请求失败：HTTP ${response.status}`);
-    return await response.json();
+    return response.status === 204 ? null : await response.json();
   } finally { window.clearTimeout(timeout); requests.delete(controller); }
 }
 
@@ -219,7 +226,7 @@ function modeFromQueue(queue) {
   if (mode.includes('ARAM') || [450, 2400].includes(id)) return 'aram';
   if (mode === 'CHERRY' || [1700, 1710].includes(id)) return 'arena';
   if (mode.includes('URF') || [900, 1900].includes(id)) return 'urf';
-  if (mode === 'CLASSIC' || [400, 420, 430, 440, 490, 700, 830, 840, 850].includes(id)) return 'ranked';
+  if (mode === 'CLASSIC' || mode === 'PRACTICETOOL' || [400, 420, 430, 440, 490, 700, 830, 840, 850, 3140].includes(id)) return 'ranked';
   return '';
 }
 
@@ -304,6 +311,7 @@ function mountPanel() {
       <strong>LOL GameAssistant · 视觉层</strong>
       <label><input data-key="showBadges" type="checkbox"> 选人 T 级角标</label>
       <label><input data-key="showPlayerStats" type="checkbox"> 选人开黑 / KDA / 胜率</label>
+      <label><input data-key="showCounters" type="checkbox"> 英雄克制悬停卡片</label>
       <label>角标模式<select data-key="tierMode"><option value="auto">自动跟随客户端</option><option value="ranked">峡谷 / 排位</option><option value="aram">极地大乱斗</option><option value="arena">斗魂竞技场</option><option value="urf">无限火力</option></select></label>
       <label><input data-key="hideNavigation" type="checkbox"> 隐藏客户端导航菜单</label>
       <label>壁纸图片直链<input data-key="wallpaperUrl" type="url" placeholder="https://…/wallpaper.jpg"></label>
@@ -439,6 +447,9 @@ function runtimeSnapshot() {
     badgesEnabled: readConfig().showBadges,
     targets: document.querySelectorAll(BADGE_TARGET_SELECTOR).length,
     badges: document.querySelectorAll(`[${BADGE_ATTR}]`).length,
+    countersEnabled: readConfig().showCounters, counterMounted: Boolean(counterRoot?.isConnected),
+    playerTargets: document.querySelectorAll(PLAYER_TARGETS).length,
+    playerPanels: document.querySelectorAll(`[${PLAYER_ATTR}]`).length, playerError,
     entries: tierCache.size, updatedAt: tierUpdatedAt ? new Date(tierUpdatedAt).toISOString() : null,
     error: lastError || storageError,
   };
@@ -479,7 +490,10 @@ function reportRuntime() {
 function applyVisuals() {
   const config = readConfig();
   document.body?.classList.toggle('lga-hide-navigation', config.hideNavigation);
+  document.body?.classList.toggle('lga-counters', config.showCounters);
   ensureStyle();
+  suppressNativeChampionPreview();
+  if (!config.showCounters) closeCounter();
   applyWallpaper(config.wallpaperUrl);
   if (config.showPlayerStats) { void refreshPlayerSession(); schedulePlayerInjection(); }
   else clearPlayerStats();
@@ -503,6 +517,7 @@ function ensureStyle() {
     document.head.appendChild(style);
   }
   style.textContent = `
+    body.lga-counters .champion-preview { display: none !important; }
     body.lga-wallpaper { isolation: isolate; background: #07101b !important; }
     #${WALLPAPER_ID} { position: fixed; inset: 0; z-index: -1; pointer-events: none; background-position: center; background-size: cover; background-repeat: no-repeat; }
     body.lga-wallpaper #rcp-fe-viewport-root,
@@ -532,12 +547,25 @@ function ensureStyle() {
     #${ROOT_ID} .lga-file { display: none !important; }
     #${ROOT_ID} .lga-panel button { margin: 10px 6px 0 0; padding: 5px 8px; background: #163c58; color: #eaf6ff; border: 1px solid #397da4; border-radius: 4px; cursor: pointer; }
     #${ROOT_ID} .lga-status { display: block; margin-top: 10px; color: #a9d5ec; white-space: pre-line; overflow-wrap: anywhere; }
-    [${PLAYER_ATTR}] { position: absolute; left: calc(100% + 6px); top: 0; z-index: 9; box-sizing: border-box; min-width: 108px; padding: 4px 6px; border: 1px solid #456074; border-radius: 4px; background: #081522ed; color: #dce9f7; font: 11px/1.5 Arial,sans-serif; white-space: nowrap; pointer-events: none; }
-    [${PLAYER_ATTR}][data-side="enemy"] { left: auto; right: calc(100% + 6px); }
+    #lol-game-assistant-counters { position: fixed; z-index: 2147483646; width: 310px; max-height: min(620px, calc(100vh - 16px)); overflow: auto; box-sizing: border-box; padding: 12px; background: #091724f5; border: 1px solid #7b6942; border-radius: 4px; color: #dce9f7; font: 12px/1.4 Arial,sans-serif; box-shadow: 0 4px 18px #0009; }
+    #lol-game-assistant-counters header { display: flex; align-items: center; gap: 8px; padding: 0; background: transparent; }
+    #lol-game-assistant-counters strong { flex: 1; color: #f0e6d2; }
+    #lol-game-assistant-counters button, #lol-game-assistant-counters select { background: #123046; border: 1px solid #456074; color: #e5d39c; border-radius: 3px; padding: 3px 6px; cursor: pointer; font: inherit; }
+    #lol-game-assistant-counters button:disabled { opacity: .45; cursor: default; }
+    #lol-game-assistant-counters h4 { font-size: 12px; margin: 10px 0 4px; color: #e5c77b; }
+    #lol-game-assistant-counters .lga-counter-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+    #lol-game-assistant-counters .lga-counter-row img { width: 25px; height: 25px; }
+    #lol-game-assistant-counters .lga-counter-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #lol-game-assistant-counters .lga-counter-rate { font-variant-numeric: tabular-nums; color: #a9d5ec; }
+    #lol-game-assistant-counters .lga-counter-note { color: #a9bfd0; margin-top: 7px; font-size: 11px; }
+    #lol-game-assistant-counters [role="status"] { min-height: 17px; margin-top: 5px; overflow-wrap: anywhere; }
+    [${PLAYER_ATTR}] { position: absolute; left: calc(100% + 10px); top: calc(100% - 18px); z-index: 2; box-sizing: border-box; width: 110px; padding: 0; border: 0; background: transparent; color: #dce9f7; font: 10px/1 Arial,sans-serif; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px #000; }
+    [${PLAYER_ATTR}][data-side="enemy"] { left: auto; right: calc(100% + 10px); text-align: right; }
+    [${PLAYER_ATTR}] > div { overflow: hidden; text-overflow: ellipsis; }
     [${PLAYER_ATTR}] .lga-party { color: #e5c77b; }
     [${PLAYER_ATTR}] .lga-party[data-group="1"] { color: #72ddcf; }
     [${PLAYER_ATTR}] .lga-party[data-group="2"] { color: #d1a1ff; }
-    [${BADGE_ATTR}] { position: absolute; z-index: 8; padding: 2px 4px; border: 1px solid #ffd56a; border-radius: 9px; color: #1d1600; background: #ffd56a; font: 700 10px/1 Arial; pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.95)); }
+    [${BADGE_ATTR}] { position: absolute; z-index: 8; padding: 1px 2px; border: 0; color: #ffd56a; background: transparent; font: 700 10px/1 Arial; pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.95)); }
   `;
 }
 
@@ -591,11 +619,14 @@ function resolveChampionId(target) {
     target.closest('.champion-card-component'),
     target.closest('.bench-champion'),
     target.closest('.champion-grid-champion'),
+    target.closest('.grid-champion'),
     target.closest('[data-champion-id]'),
     target.closest('[data-champion-id-value]'),
     target.closest('[data-champion-id-string]'),
   ].filter(Boolean);
 
+  const gridId = target.closest('.grid-champion')?.getAttribute('data-id');
+  if (gridId && /^\d+$/.test(gridId)) return Number(gridId);
   for (const element of candidates) {
     for (const attribute of ['data-champion-id', 'data-champion-id-value', 'data-champion-id-string', 'champion-id']) {
       const value = element.getAttribute(attribute);
@@ -769,13 +800,65 @@ function playerSummary(games, puuid, mode) {
   return { kda: ((totals.kills + totals.assists) / Math.max(1, totals.deaths)).toFixed(2), rate: Math.round(100 * totals.wins / sample.length), count: sample.length, scope: sameMode.length ? '同模式' : '全模式' };
 }
 
-function partyLabel(member, team) {
-  const party = String(member.partyId || '').trim();
-  const valid = value => value && value !== '0' && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(value);
-  if (!valid(party)) return { text: '开黑未知' };
-  const groups = [...new Set(team.map(item => String(item.partyId || '').trim()).filter(valid))].filter(key => team.filter(item => String(item.partyId || '').trim() === key).length >= 2).sort();
-  const index = groups.indexOf(party);
-  return index >= 0 ? { text: `开黑${index + 1} · ${team.filter(item => String(item.partyId || '').trim() === party).length}人`, group: String(index + 1) } : { text: '未见组队' };
+function playerPartyId(member) {
+  const value = String(member.partyId || '').trim();
+  return validPlayerId(value) ? value : '';
+}
+
+function partyLabels(team) {
+  const labels = new Map();
+  const groups = [...new Set(team.map(playerPartyId).filter(Boolean))].sort();
+  let index = 0;
+  for (const id of groups) {
+    const members = team.filter(member => playerPartyId(member) === id);
+    if (members.length < 2) continue;
+    index++;
+    for (const member of members) labels.set(member, { text: `开黑${index} · ${members.length}人`, group: String(index), detail: '本局相同房间标识' });
+  }
+  // LCU history summaries often contain just their owner's participant. Merge them
+  // by game ID and team ID, rather than requiring a complete ten-player match.
+  const games = new Map();
+  const identities = new Set(team.map(member => member.puuid).filter(validPlayerId));
+  for (const puuid of identities) {
+    for (const game of (playerHistory.get(puuid)?.games || []).slice(0, 20)) {
+      if (!(Number(game.gameId) > 0) || String(game.gameId) === String(playerSession?.gameId) || game.gameType !== 'MATCHED_GAME' || !(game.gameDuration >= 300)) continue;
+      const key = `${game.platformId || ''}:${game.gameId}`;
+      let players = games.get(key);
+      if (!players) games.set(key, players = new Map());
+      for (const identity of game.participantIdentities || []) {
+        const id = identity.player?.puuid;
+        if (!identities.has(id)) continue;
+        const participant = game.participants?.find(item => item.participantId === identity.participantId);
+        const side = Number(participant?.teamId);
+        if (![100, 200].includes(side) || participant?.stats?.gameEndedInEarlySurrender === true) continue;
+        // Conflicting summaries are not evidence of being on the same team.
+        players.set(id, players.has(id) && players.get(id) !== side ? 0 : side);
+      }
+    }
+  }
+  let remaining = team.filter(member => !labels.has(member) && validPlayerId(member.puuid))
+    .filter((member, i, all) => all.findIndex(other => other.puuid === member.puuid) === i)
+    .sort((a, b) => a.puuid.localeCompare(b.puuid));
+  if (remaining.length > 10) return labels;
+  while (remaining.length >= 2) {
+    let best = null;
+    for (let mask = 1; mask < (1 << remaining.length); mask++) {
+      const members = remaining.filter((_, i) => mask & (1 << i));
+      if (members.length < 2 || (best && members.length <= best.members.length)) continue;
+      if (new Set(members.map(playerPartyId).filter(Boolean)).size > 1) continue;
+      const count = [...games.values()].filter(players => {
+        const side = players.get(members[0].puuid);
+        return side > 0 && members.every(member => players.get(member.puuid) === side);
+      }).length;
+      // Require the entire group to share two matches; a chain of pairs is not a trio.
+      if (count >= 2) best = { members, count };
+    }
+    if (!best) break;
+    index++;
+    for (const member of best.members) labels.set(member, { text: `疑似开黑${index} · ${best.members.length}人`, group: String(index), detail: `近期20场内整组共同同队${best.count}场，不能确认本局预组队` });
+    remaining = remaining.filter(member => !labels.has(member));
+  }
+  return labels;
 }
 
 function resolvePlayer(host) {
@@ -785,7 +868,7 @@ function resolvePlayer(host) {
   let row = host;
   for (let depth = 0; row && depth < 4; depth++, row = row.parentElement) {
     if (depth && row.querySelectorAll(PLAYER_TARGETS).length > 1) break;
-    for (const [attributes, field] of [[['data-cell-id', 'cell-id'], 'cellId'], [['data-puuid'], 'puuid'], [['data-summoner-id'], 'summonerId']]) {
+    for (const [attributes, field] of [[['data-cell-id', 'cell-id'], 'cellId'], [['data-puuid', 'puuid'], 'puuid'], [['data-summoner-id'], 'summonerId']]) {
       for (const attribute of attributes) {
         const value = row.getAttribute(attribute);
         if (value === null || (field !== 'cellId' && (!value || value === '0'))) continue;
@@ -809,16 +892,18 @@ function injectPlayerStats() {
   if (!active || !readConfig().showPlayerStats) return;
   observer?.disconnect();
   try {
+    const allyParties = partyLabels(playerSession?.myTeam || []);
+    const enemyParties = partyLabels(playerSession?.theirTeam || []);
     document.querySelectorAll(PLAYER_TARGETS).forEach(host => {
       const member = resolvePlayer(host);
       let panel = host.querySelector(`:scope > [${PLAYER_ATTR}]`);
       if (!member) { panel?.remove(); restorePosition(host); return; }
       const ally = playerSession.myTeam.includes(member);
-      const team = ally ? playerSession.myTeam : playerSession.theirTeam;
-      const party = partyLabel(member, team);
+      const party = (ally ? allyParties : enemyParties).get(member) || { text: '' };
       const history = playerHistory.get(member.puuid);
       const summary = history?.games ? playerSummary(history.games, member.puuid, detectedMode) : null;
-      const lines = [party.text, summary ? `KDA ${summary.kda} · 胜率 ${summary.rate}%` : 'KDA — · 胜率 —', summary ? `近20场内 · ${summary.scope} ${summary.count}场` : !validPlayerId(member.puuid) ? '身份未公开' : history?.error ? '战绩暂不可用' : history?.games ? '暂无有效战绩' : '战绩加载中'];
+      const statsLine = summary ? `KDA ${summary.kda} · 胜率 ${summary.rate}%` : 'KDA — · 胜率 —';
+      const lines = [party.text, statsLine, summary ? `近20场内 · ${summary.scope} ${summary.count}场` : !validPlayerId(member.puuid) ? '身份未公开' : history?.error ? '战绩暂不可用' : history?.games ? '暂无有效战绩' : '战绩加载中'].filter(Boolean);
       if (!panel) {
         ensurePositionContext(host);
         panel = document.createElement('span');
@@ -826,13 +911,21 @@ function injectPlayerStats() {
         host.appendChild(panel);
       }
       panel.dataset.side = ally ? 'ally' : 'enemy';
-      const title = `${lines.join('；')}。KDA=(击杀+助攻)/死亡；仅统计返回的最近20场中时长至少5分钟的有效非自定义对局。开黑依据本局房间标识，缺失时无法确认。`;
+      // Use the native name's bottom edge; client UI scaling must not change offsets.
+      const name = host.closest('.summoner-object')?.querySelector('.player-details .summoner-name');
+      const portraitBox = host.getBoundingClientRect();
+      const nameBox = name?.getBoundingClientRect();
+      const scale = host.offsetHeight ? portraitBox.height / host.offsetHeight : 0;
+      panel.style.top = nameBox?.height && scale > 0
+        ? `${(nameBox.bottom - portraitBox.top) / scale + 1}px` : '';
+
+      const title = `${lines.join('；')}。KDA=(击杀+助攻)/死亡；仅统计返回的最近20场中时长至少5分钟的有效非自定义对局。${party.detail || '未识别到开黑分组'}。`;
       if (panel.title !== title) {
         panel.title = title;
-        panel.replaceChildren(...lines.map((line, index) => {
+        panel.replaceChildren(...[...(party.text ? [party.text] : []), statsLine].map((line, index) => {
           const node = document.createElement('div');
           node.textContent = line;
-          if (index === 0) { node.className = 'lga-party'; node.dataset.group = party.group || ''; }
+          if (party.text && index === 0) { node.className = 'lga-party'; node.dataset.group = party.group || ''; }
           return node;
         }));
       }
@@ -841,6 +934,252 @@ function injectPlayerStats() {
   } finally { if (active) observeDom(); }
 }
 
+
+const COUNTER_ID = 'lol-game-assistant-counters';
+const COUNTER_ROLES = { top: '上路', jungle: '打野', mid: '中路', adc: '下路', support: '辅助' };
+let counterHost = null;
+let counterChampion = 0;
+let counterRoot = null;
+let counterHideTimer = 0;
+let counterGeneration = 0;
+let counterCatalog = null;
+let counterCatalogPending = null;
+let counterIndex = null;
+let counterIndexPending = null;
+let counterIndexAt = 0;
+let counterPickPending = false;
+const counterCache = new Map();
+
+function startCounters() {
+  document.addEventListener('play', onNativePreviewPlay, true);
+  document.addEventListener('mouseover', onCounterOver);
+  document.addEventListener('mouseout', onCounterOut);
+  document.addEventListener('keydown', onCounterKey);
+  window.addEventListener('resize', closeCounter);
+}
+
+function stopCounters() {
+  document.removeEventListener('play', onNativePreviewPlay, true);
+  document.removeEventListener('mouseover', onCounterOver);
+  document.removeEventListener('mouseout', onCounterOut);
+  document.removeEventListener('keydown', onCounterKey);
+  window.removeEventListener('resize', closeCounter);
+  closeCounter();
+}
+
+// Only the native hover skill preview is suppressed; champion splashes and wallpapers
+// retain their playback. Capture play because media events do not bubble.
+function onNativePreviewPlay(event) {
+  if (active && readConfig().showCounters && event.target instanceof HTMLMediaElement && event.target.closest('.champion-preview')) event.target.pause();
+}
+
+function suppressNativeChampionPreview() {
+  if (!active || !readConfig().showCounters) return;
+  document.querySelectorAll('.champion-preview video, .champion-preview audio').forEach(media => {
+    if (!media.paused) media.pause();
+  });
+}
+
+function closeCounter() {
+  window.clearTimeout(counterHideTimer);
+  counterHideTimer = 0;
+  counterGeneration++;
+  counterRoot?.remove();
+  counterRoot = counterHost = null;
+  counterChampion = 0;
+}
+
+function onCounterKey(event) { if (event.key === 'Escape') closeCounter(); }
+function onCounterOut(event) {
+  if (!counterRoot) return;
+  if (counterRoot.contains(event.relatedTarget) || counterHost?.contains(event.relatedTarget)) return;
+  window.clearTimeout(counterHideTimer);
+  counterHideTimer = window.setTimeout(closeCounter, 350);
+}
+
+function onCounterOver(event) {
+  if (!active || !readConfig().showCounters || !(event.target instanceof Element)) return;
+  if (counterRoot?.contains(event.target)) { window.clearTimeout(counterHideTimer); return; }
+  const host = event.target.closest(BADGE_TARGET_SELECTOR);
+  if (!host || !host.closest('.champion-select, .champion-select-summoner-array-container, .champion-grid, .summoner-object')) return;
+  const championId = resolveChampionId(host);
+  if (!championId) return;
+  window.clearTimeout(counterHideTimer);
+  if (host === counterHost && championId === counterChampion) return;
+  closeCounter();
+  counterHost = host;
+  counterChampion = championId;
+  counterRoot = document.createElement('section');
+  counterRoot.id = COUNTER_ID;
+  counterRoot.setAttribute('aria-label', '英雄克制');
+  document.body.appendChild(counterRoot);
+  void renderCounter(championId);
+}
+
+function counterText(tag, text, className = '') {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function positionCounter() {
+  if (!counterHost?.isConnected || !counterRoot) return;
+  const host = counterHost.getBoundingClientRect(), card = counterRoot.getBoundingClientRect();
+  const width = window.innerWidth, height = window.innerHeight;
+  let left = host.right + 8;
+  if (left + card.width > width - 8) left = host.left - card.width - 8;
+  counterRoot.style.left = `${Math.max(8, Math.min(left, width - card.width - 8))}px`;
+  counterRoot.style.top = `${Math.max(8, Math.min(host.top, height - card.height - 8))}px`;
+}
+
+async function loadCounterCatalog() {
+  if (counterCatalog) return counterCatalog;
+  if (!counterCatalogPending) {
+    counterCatalogPending = fetchJson('/lol-game-data/assets/v1/champion-summary.json').then(data => {
+      if (!Array.isArray(data)) throw new Error('英雄名称暂不可用');
+      return counterCatalog = new Map(data.filter(item => item.id > 0).map(item => [item.id, item.name]));
+    }).finally(() => { counterCatalogPending = null; });
+  }
+  return counterCatalogPending;
+}
+
+async function loadCounterIndex() {
+  if (counterIndex && Date.now() - counterIndexAt < CACHE_TTL) return counterIndex;
+  if (!counterIndexPending) {
+    counterIndexPending = fetchJson('https://lol-api-champion.op.gg/api/global/champions/ranked?tier=gold_plus').then(payload => {
+      if (!Array.isArray(payload?.data)) throw new Error('对位数据格式不兼容');
+      counterIndexAt = Date.now();
+      return counterIndex = new Map(payload.data.map(item => [item.id, item]));
+    }).finally(() => { counterIndexPending = null; });
+  }
+  return counterIndexPending;
+}
+
+function normalizeCounters(entries, championId) {
+  if (!Array.isArray(entries)) throw new Error('对位数据格式不兼容');
+  const seen = new Set();
+  return entries.filter(item => Number.isInteger(item.champion_id) && item.champion_id > 0 && item.champion_id !== championId &&
+    Number.isFinite(item.play) && item.play >= 100 && Number.isFinite(item.win) && item.win >= 0 && item.win <= item.play)
+    .filter(item => !seen.has(item.champion_id) && seen.add(item.champion_id))
+    .map(item => ({ id: item.champion_id, games: item.play, rate: 100 * (1 - item.win / item.play) }));
+}
+
+async function loadCounters(championId, role) {
+  const key = `${championId}:${role}`;
+  const cached = counterCache.get(key);
+  if (cached && Date.now() - cached.at < CACHE_TTL) return cached.pending;
+  const entry = { at: Date.now(), pending: null };
+  entry.pending = fetchJson(`https://lol-api-champion.op.gg/api/global/champions/ranked/${championId}/${role}/counters?tier=gold_plus`)
+    .then(payload => normalizeCounters(payload?.data, championId)).catch(error => { if (counterCache.get(key) === entry) counterCache.delete(key); throw error; });
+  if (counterCache.size >= 100) counterCache.delete(counterCache.keys().next().value);
+  counterCache.set(key, entry);
+  return entry.pending;
+}
+
+async function renderCounter(championId, requestedRole = '') {
+  const generation = ++counterGeneration, root = counterRoot;
+  if (!root) return;
+  const current = () => active && readConfig().showCounters && generation === counterGeneration && root === counterRoot;
+  root.replaceChildren(counterText('strong', '英雄克制'), counterText('div', '加载对位数据…', 'lga-counter-note'));
+  positionCounter();
+  if (selectedMode() !== 'ranked') {
+    root.replaceChildren(counterText('strong', '英雄克制'), counterText('div', '当前模式暂无分路克制数据', 'lga-counter-note'));
+    positionCounter(); return;
+  }
+  try {
+    const [catalog, index] = await Promise.all([loadCounterCatalog(), loadCounterIndex()]);
+    if (!current()) return;
+    const positions = (index.get(championId)?.positions || []).filter(item => COUNTER_ROLES[String(item.name).toLowerCase()])
+      .sort((a, b) => (b.stats?.play || 0) - (a.stats?.play || 0));
+    const role = requestedRole || String(positions[0]?.name || '').toLowerCase();
+    if (!role) throw new Error('该英雄暂无分路克制数据');
+    const rows = await loadCounters(championId, role);
+    if (!current()) return;
+    const name = catalog.get(championId) || `英雄 ${championId}`;
+    const header = document.createElement('header');
+    header.appendChild(counterText('strong', `${name} · 英雄克制`));
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', '克制数据分路');
+    for (const position of positions) {
+      const value = String(position.name).toLowerCase();
+      const option = counterText('option', COUNTER_ROLES[value]); option.value = value; select.appendChild(option);
+    }
+    select.value = role;
+    select.addEventListener('change', () => { void renderCounter(championId, select.value); });
+    const close = counterText('button', '×'); close.type = 'button'; close.setAttribute('aria-label', '关闭英雄克制'); close.addEventListener('click', closeCounter);
+    header.append(select, close);
+    root.replaceChildren(header, counterText('div', `列表英雄对 ${name} 的对位胜率`, 'lga-counter-note'));
+    const status = counterText('div', ''); status.setAttribute('role', 'status');
+    const addGroup = (title, values) => {
+      root.appendChild(counterText('h4', title));
+      if (!values.length) root.appendChild(counterText('div', '暂无足够样本', 'lga-counter-note'));
+      for (const row of values.slice(0, 5)) {
+        const node = document.createElement('div'); node.className = 'lga-counter-row';
+        const image = document.createElement('img'); image.src = `/lol-game-data/assets/v1/champion-icons/${row.id}.png`; image.alt = '';
+        const button = counterText('button', '选用'); button.type = 'button'; button.dataset.championId = row.id;
+        button.title = '预选该英雄，保留手动锁定'; button.disabled = counterPickPending;
+        button.addEventListener('click', async () => {
+          status.textContent = '正在检查选人状态…';
+          try { await pickCounterChampion(row.id); status.textContent = `已预选 ${catalog.get(row.id) || row.id}`; }
+          catch (error) { status.textContent = error.message || '选用失败，请重试'; }
+        });
+        const rate = counterText('span', `${row.rate.toFixed(1)}%`, 'lga-counter-rate'); rate.title = `${row.games.toLocaleString()} 场对位样本`;
+        node.append(image, counterText('span', catalog.get(row.id) || `英雄 ${row.id}`, 'lga-counter-name'), rate, button);
+        root.appendChild(node);
+      }
+    };
+    addGroup('克制他的英雄', rows.filter(row => row.rate > 50).sort((a, b) => b.rate - a.rate || b.games - a.games));
+    addGroup('他克制的英雄', rows.filter(row => row.rate < 50).sort((a, b) => a.rate - b.rate || b.games - a.games));
+    root.append(counterText('div', 'OP.GG · 全球黄金以上 · 至少100场 · 点击选用后手动锁定', 'lga-counter-note'), status);
+    positionCounter();
+  } catch (error) {
+    if (!current()) return;
+    const retry = counterText('button', '重试'); retry.type = 'button'; retry.addEventListener('click', () => { void renderCounter(championId, requestedRole); });
+    root.replaceChildren(counterText('strong', '英雄克制'), counterText('div', error.message || '对位数据暂不可用', 'lga-counter-note'), retry);
+    positionCounter();
+  }
+}
+
+function localPickAction(session) {
+  if (!Number.isInteger(session?.localPlayerCellId) || !Array.isArray(session?.actions)) return null;
+  return session.actions.flat().find(action => Number.isInteger(action?.id) && action.actorCellId === session.localPlayerCellId &&
+    action.type === 'pick' && action.isInProgress === true && action.completed === false) || null;
+}
+
+function assertPickable(session, championId, allowed, disabled) {
+  const action = localPickAction(session);
+  if (!action) throw new Error('当前未轮到你选英雄，或已经锁定');
+  if (!Array.isArray(allowed) || !Array.isArray(disabled)) throw new Error('无法确认英雄是否可选');
+  const banned = [...(session.bans?.myTeamBans || []), ...(session.bans?.theirTeamBans || []),
+    ...session.actions.flat().filter(item => item.type === 'ban' && item.completed).map(item => item.championId)];
+  const picked = [...(session.myTeam || []), ...(session.theirTeam || [])].filter(member => member.cellId !== session.localPlayerCellId).map(member => member.championId);
+  if (!allowed.includes(championId) || disabled.includes(championId) || banned.includes(championId) || picked.includes(championId)) throw new Error('该英雄不可选、已被禁用或已被选用');
+  return action;
+}
+
+async function pickCounterChampion(championId) {
+  if (counterPickPending) throw new Error('正在选用，请稍候');
+  if (!active || !readConfig().showCounters || !Number.isInteger(championId) || championId <= 0) throw new Error('英雄克制功能已关闭');
+  counterPickPending = true;
+  document.querySelectorAll(`#${COUNTER_ID} button[data-champion-id]`).forEach(button => { button.disabled = true; });
+  const epoch = lifecycle;
+  try {
+    const [session, allowed, disabled] = await Promise.all([
+      fetchJson('/lol-champ-select/v1/session'), fetchJson('/lol-champ-select/v1/pickable-champion-ids'), fetchJson('/lol-champ-select/v1/disabled-champion-ids'),
+    ]);
+    const originalAction = assertPickable(session, championId, allowed, disabled);
+    const fresh = await fetchJson('/lol-champ-select/v1/session');
+    const action = assertPickable(fresh, championId, allowed, disabled);
+    if (!active || lifecycle !== epoch || !readConfig().showCounters || originalAction.id !== action.id || session.localPlayerCellId !== fresh.localPlayerCellId || session.gameId !== fresh.gameId) throw new Error('选人状态已变化，请重试');
+    // Same action endpoint as Select_Api.PerformActionAsync; an explicit click only preselects.
+    await fetchJson(`/lol-champ-select/v1/session/actions/${action.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ championId, completed: false }) });
+    void refreshPlayerSession();
+  } finally {
+    counterPickPending = false;
+    document.querySelectorAll(`#${COUNTER_ID} button[data-champion-id]`).forEach(button => { button.disabled = false; });
+  }
+}
 
 let wallpaperUrl = '';
 let wallpaperLoaded = '';

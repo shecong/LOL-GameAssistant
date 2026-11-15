@@ -429,21 +429,28 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
                 }
                 if (pixels != null)
                 {
-                    var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-                    try
-                    {
-                        var data = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-                        try { for (int row = 0; row < height; row++) Marshal.Copy(pixels, row * width * 4, data.Scan0 + row * data.Stride, width * 4); }
-                        finally { bitmap.UnlockBits(data); }
-                        return new GameOverlayCapture(bitmap, gameSize);
-                    }
-                    catch { bitmap.Dispose(); throw; }
+                    return new GameOverlayCapture(CreateCaptureBitmap(pixels, width, height), gameSize);
                 }
                 await Task.Delay(25, cancellationToken).ConfigureAwait(false);
             }
             throw new TimeoutException("游戏帧取图超时，请保持游戏在前台");
         }
         finally { _captureGate.Release(); }
+    }
+
+    // Swap-chain BGRX frames can contain zero in the unused alpha byte. Treat
+    // them as opaque RGB; otherwise OCR's DrawImage resize erases all the text.
+    internal static Bitmap CreateCaptureBitmap(byte[] pixels, int width, int height)
+    {
+        var bitmap = new Bitmap(width, height, PixelFormat.Format32bppRgb);
+        try
+        {
+            var data = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
+            try { for (int row = 0; row < height; row++) Marshal.Copy(pixels, row * width * 4, data.Scan0 + row * data.Stride, width * 4); }
+            finally { bitmap.UnlockBits(data); }
+            return bitmap;
+        }
+        catch { bitmap.Dispose(); throw; }
     }
 
     public void Dispose()

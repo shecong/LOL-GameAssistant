@@ -19,6 +19,14 @@ public sealed class PenguLocalLoaderTests : IDisposable
     }
 
     [Fact]
+    public void NewInstallDefaultsToGiteePackageDirectory()
+    {
+        Assert.Equal(PenguReleaseInstaller.DefaultDirectory, new PenguLocalLoaderService(Settings).SourceDirectory);
+        Assert.Contains("Gitee", Assert.Throws<InvalidOperationException>(() =>
+            new PenguLocalLoaderService(Settings, Path.Combine(_root, "missing")).Prepare()).Message);
+    }
+
+    [Fact]
     public void UsesLocalBinAndPersistsSourceSelection()
     {
         string clone = CreateClone();

@@ -9,7 +9,7 @@ public sealed class PenguVisualSettingsTests : IDisposable
     public void PersistsAllControlsAcrossInstancesAndChangesRevision()
     {
         Assert.True(Service().Read().Enabled);
-        var saved = Service().Save(new() { ShowBadges = false, ShowPlayerStats = false, HideNavigation = true, TierMode = "aram", WallpaperUrl = "https://images.example/test.png" });
+        var saved = Service().Save(new() { ShowBadges = false, ShowPlayerStats = false, ShowCounters = false, HideNavigation = true, TierMode = "aram", WallpaperUrl = "https://images.example/test.png" });
         Assert.Equal(saved, Service().Read());
         Assert.NotEqual(saved.Revision, Service().Save(saved with { Enabled = false }).Revision);
         Assert.False(Service().Read().Enabled);

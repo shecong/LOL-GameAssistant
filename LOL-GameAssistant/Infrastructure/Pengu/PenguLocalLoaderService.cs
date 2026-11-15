@@ -3,10 +3,10 @@ using LOL_GameAssistant.Application.ClientFeatures;
 
 namespace LOL_GameAssistant.Infrastructure.Pengu;
 
-/// <summary>只使用用户本地克隆的构建产物，不查询或下载远程发行版。</summary>
-public sealed class PenguLocalLoaderService(string settingsFile, string defaultDirectory = @"E:\code\PenguLoader") : IPenguLocalLoaderService
+/// <summary>使用选定的本地组件，并支持从 Gitee 安装已校验的发行包。</summary>
+public sealed class PenguLocalLoaderService(string settingsFile, string? defaultDirectory = null) : IPenguLocalLoaderService
 {
-    public string SourceDirectory { get; private set; } = ReadDirectory(settingsFile, defaultDirectory);
+    public string SourceDirectory { get; private set; } = ReadDirectory(settingsFile, defaultDirectory ?? PenguReleaseInstaller.DefaultDirectory);
 
     public void SelectDirectory(string directory)
     {
@@ -18,6 +18,38 @@ public sealed class PenguLocalLoaderService(string settingsFile, string defaultD
     }
 
     public PreparedPenguLoader Prepare() => Resolve(SourceDirectory);
+
+    public async Task<PreparedPenguLoader> InstallFromGiteeAsync(CancellationToken cancellationToken = default)
+    {
+        string? previousPlugins = null;
+        string? previousConfig = null;
+        try
+        {
+            var previous = Prepare();
+            previousPlugins = previous.PluginsDirectory;
+            string config = Path.Combine(Path.GetDirectoryName(previous.CorePath)!, "config");
+            if (File.Exists(config)) previousConfig = File.ReadAllText(config);
+        }
+        catch (Exception error) when (error is IOException or InvalidOperationException or JsonException) { }
+        string directory = await new PenguReleaseInstaller().InstallAsync(cancellationToken).ConfigureAwait(false);
+        if (previousPlugins != null && !Path.GetFullPath(SourceDirectory).Equals(directory, StringComparison.OrdinalIgnoreCase))
+            PreserveConfiguration(Path.Combine(directory, "bin", "config"), previousConfig ?? "", previousPlugins);
+        SelectDirectory(directory);
+        return Prepare();
+    }
+
+    internal static void PreserveConfiguration(string file, string config, string plugins)
+    {
+        var lines = config.Replace("\r\n", "\n").Split('\n').ToList();
+        int app = lines.FindIndex(line => line.Trim().Equals("[app]", StringComparison.OrdinalIgnoreCase));
+        if (app < 0) { lines.Add("[app]"); app = lines.Count - 1; }
+        int end = lines.FindIndex(app + 1, line => line.Trim().StartsWith('['));
+        if (end < 0) end = lines.Count;
+        int key = lines.FindIndex(app + 1, end - app - 1, line => line.Split('=', 2)[0].Trim() == "plugins_dir");
+        string value = "plugins_dir = " + plugins;
+        if (key >= 0) lines[key] = value; else lines.Insert(end, value);
+        File.WriteAllText(file, string.Join(Environment.NewLine, lines));
+    }
 
     public void SetActivated(bool enabled)
     {
@@ -35,7 +67,7 @@ public sealed class PenguLocalLoaderService(string settingsFile, string defaultD
     {
         string bin = Path.Combine(source, "bin");
         string metadata = Path.Combine(source, "loader", "src-tauri", "tauri.conf.json");
-        if (!File.Exists(metadata)) throw new InvalidOperationException("请选择本地 PenguLoader 源码根目录（包含 loader/src-tauri/tauri.conf.json）。");
+        if (!File.Exists(metadata)) throw new InvalidOperationException("请先从 Gitee 安装视觉组件，或选择本地 PenguLoader 组件 / 源码根目录。");
         string core = Path.Combine(bin, "core.dll");
         if (!File.Exists(core))
             throw new InvalidOperationException("本地 Loader 尚未构建完成，请运行源码目录中的 scripts/prepare-game-assistant.ps1 -BuildCore，生成 bin/core.dll。");
