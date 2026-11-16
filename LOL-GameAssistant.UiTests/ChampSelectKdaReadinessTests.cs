@@ -110,40 +110,86 @@ public sealed class ChampSelectKdaReadinessTests
         Assert.False(delivery.IsSent);
     }
 
-    private sealed class EntryClock : TimeProvider
+    private sealed class RecordingClock : TimeProvider
     {
+        internal TimeSpan DueTime;
         internal TimeSpan Elapsed;
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
         public override long GetTimestamp() => Elapsed.Ticks;
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            DueTime = dueTime;
+            return base.CreateTimer(callback, state, Timeout.InfiniteTimeSpan, period);
+        }
     }
 
     [Fact]
-    public async Task LateDataDoesNotAddAnotherThreeSecondsAfterEntry()
+    public async Task LateDataStillWaitsFourSecondsFromReadiness()
     {
-        var clock = new EntryClock(); var delivery = new ChampionSelectAnnouncementDelivery(clock);
-        clock.Elapsed = TimeSpan.FromSeconds(2);
-        Assert.Equal(TimeSpan.FromSeconds(1), delivery.RemainingInitialDelay);
-        clock.Elapsed = TimeSpan.FromSeconds(4); int attempts = 0;
-        await delivery.SendAsync(_ => { attempts++; return Task.FromResult(true); }, () => true, default);
-        Assert.Equal(1, attempts); Assert.True(delivery.IsSent);
-        Assert.Equal(TimeSpan.Zero, delivery.RemainingInitialDelay);
+        var clock = new RecordingClock();
+        var delivery = new ChampionSelectAnnouncementDelivery(clock);
+        clock.Elapsed = TimeSpan.FromMinutes(1);
+        using var cancellation = new CancellationTokenSource();
+        int attempts = 0;
+        Task<bool> Attempt(CancellationToken _) { attempts++; return Task.FromResult(true); }
+        var sending = delivery.SendAsync(Attempt, () => true, cancellation.Token);
+        Assert.Equal(TimeSpan.FromSeconds(4), clock.DueTime);
+        Assert.Equal(0, attempts);
+        Assert.True(delivery.IsSending);
+        await delivery.SendAsync(Attempt, () => true, cancellation.Token, initialDelay: TimeSpan.Zero);
+        Assert.Equal(0, attempts);
+        cancellation.Cancel();
+        await sending;
+        Assert.False(delivery.IsSent);
     }
 
     [Fact]
-    public void RepeatedPhaseAndRosterRefreshKeepDeadlineAndSentFlagButNewPhaseResets() => MatchListScrollingTests.OnUiThread(() =>
+    public void ReadinessRequiresEveryAllyButNotEnemiesAndAllowsEmptyHistory() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var page = new LiveGameForm();
-        ChampionSelectAnnouncementDelivery Current() => (ChampionSelectAnnouncementDelivery)typeof(LiveGameForm)
-            .GetField("_champSelectAnnouncementDelivery", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(page)!;
+        T Field<T>(string name) => (T)typeof(LiveGameForm).GetField(name,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(page)!;
+        var expected = Field<HashSet<string>>("_expectedChampSelectAssessmentPuuids");
+        var results = Field<Dictionary<string, PlayerRecentPerformanceEventArgs>>("_champSelectAssessments");
+        Assert.False(page.AreChampSelectAssessmentsReady);
+        expected.UnionWith(["ally1", "ally2"]);
+        var assessment = new RecentModePerformanceAssessment(MatchPerformanceTier.Upper, 88, 20, 55, "", 4.9, true, RecentPerformanceLabel.Upper);
+        results["ally1"] = new("ally1", "甲", true, assessment);
+        results["enemy"] = new("enemy", "敌方", false, assessment);
+        Assert.False(page.AreChampSelectAssessmentsReady);
+        results["ally2"] = new("ally2", "乙", true, null);
+        Assert.False(page.AreChampSelectAssessmentsReady);
+        results["ally2"] = new("ally2", "乙", true, assessment with { SampleSize = 0 });
+        Assert.True(page.AreChampSelectAssessmentsReady);
+    });
+
+    [Fact]
+    public void RosterResetCancelsPendingDelayButKeepsSuccessfulDeliveryAndNewPhaseResets() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var page = new LiveGameForm();
+        T Field<T>(string name) => (T)typeof(LiveGameForm).GetField(name,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(page)!;
+        ChampionSelectAnnouncementDelivery Current() => Field<ChampionSelectAnnouncementDelivery>("_champSelectAnnouncementDelivery");
+        void Reset() => typeof(LiveGameForm).GetMethod("ResetChampSelectAssessments",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(page, null);
         page.OnChampionSelectPhaseChanged(true);
         var first = Current();
-        Pump(first.SendAsync(_ => Task.FromResult(true), () => true, default, initialDelay: TimeSpan.Zero));
+        var token = Field<CancellationTokenSource>("_champSelectAnnouncementLifetime").Token;
+        int attempts = 0;
+        var pending = first.SendAsync(_ => { attempts++; return Task.FromResult(true); }, () => true, token);
         page.OnChampionSelectPhaseChanged(true);
-        typeof(LiveGameForm).GetMethod("ResetChampSelectAssessments", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(page, null);
-        Assert.Same(first, Current()); Assert.True(Current().IsSent);
+        Assert.Same(first, Current());
+        Reset();
+        Pump(pending);
+        Assert.True(token.IsCancellationRequested);
+        Assert.Equal(0, attempts);
+        Assert.NotSame(first, Current());
+        var ready = Current();
+        Pump(ready.SendAsync(_ => Task.FromResult(true), () => true, default, initialDelay: TimeSpan.Zero));
+        Reset();
+        Assert.Same(ready, Current()); Assert.True(Current().IsSent);
         page.OnChampionSelectPhaseChanged(false); page.OnChampionSelectPhaseChanged(true);
-        Assert.NotSame(first, Current()); Assert.False(Current().IsSent);
-        Assert.InRange(Current().RemainingInitialDelay.TotalSeconds, 2, 3);
+        Assert.NotSame(ready, Current()); Assert.False(Current().IsSent);
     });
 
     [Fact]

@@ -135,7 +135,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly AntdUI.Input _enemyJungleRouteHotkey = new() { Name = "enemyJungleRouteHotkey", ReadOnly = true, Width = 200, Text = "F10", TabStop = true };
         private readonly AntdUI.Checkbox _autoSwapAramBench = new() { Text = "按优先级自动交换备战席英雄", AutoSize = true };
         private readonly AntdUI.SelectMultiple _aramBenchPriority = new() { Dock = DockStyle.Fill };
-        private readonly AntdUI.Checkbox _champSelectKdaAnnouncementEnabled = new() { Text = "进入选人 3 秒后发送 KDA 评估到聊天", AutoSize = true };
+        private readonly AntdUI.Checkbox _champSelectKdaAnnouncementEnabled = new() { Text = "战绩齐全 4 秒后发送 KDA 评估到聊天", AutoSize = true };
         private readonly AntdUI.Checkbox _gameKdaAnnouncementEnabled = new() { Text = "对局中发送双方玩家近期 KDA 评估", AutoSize = true };
         private readonly AntdUI.Checkbox _gameKdaPremadeAnnouncementEnabled = new() { Name = "gameKdaPremadeAnnouncementEnabled", Text = "发送前提示双方开黑", AutoSize = true };
         private readonly AntdUI.Checkbox _gameKdaOnePlayerPerLine = new() { Text = "每名玩家单独发送一条（单人一行）", AutoSize = true, Visible = false };
@@ -769,7 +769,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AddSegmentRow(performance, 1, "评级样本下限：", ratingPolicyPanel,
                 "首页、对局、伴随窗和浮窗共用；默认至少10场同模式有效KDA才评级。无同模式有效KDA时自动统计全模式，排除自定义。");
             AddSegmentRow(performance, 2, "选人 KDA 发送：", _champSelectKdaAnnouncementEnabled,
-                "进入选人界面后固定等待 3 秒，通过客户端聊天发送我方 KDA；未返回的统计显示“战绩暂未获取”，不再等待数据齐全。");
+                "选人阶段我方战绩全部返回后，再等待 4 秒，通过客户端聊天发送一次我方 KDA。");
             AddSegmentRow(performance, 3, "发送文案：", _champSelectKdaAnnouncementTemplate,
                 "支持 {players} 与 {allies}：按选人顺序每人一行，显示玩家名、评级评分、KDA 和胜率；长昵称缩写，全模式参考和样本不足另行标注。");
             AddSegmentRow(performance, 4, "对局 KDA 发送：", _gameKdaAnnouncementEnabled,

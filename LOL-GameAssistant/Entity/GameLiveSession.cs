@@ -29,6 +29,9 @@
         [Newtonsoft.Json.JsonProperty("queue")]
         public GameQueue? Queue { get; set; }
 
+        [Newtonsoft.Json.JsonProperty("playerChampionSelections")]
+        public List<TeamMember> PlayerChampionSelections { get; set; } = new();
+
         [Newtonsoft.Json.JsonProperty("teamOne")]
         public List<TeamMember> TeamOne { get; set; } = new();
 
@@ -39,6 +42,9 @@
     /// <summary>客户端游戏会话中的队列信息。</summary>
     public class GameQueue
     {
+        [Newtonsoft.Json.JsonProperty("numPlayersPerTeam")]
+        public int NumPlayersPerTeam { get; set; }
+
         [Newtonsoft.Json.JsonProperty("id")]
         public int Id { get; set; }
 

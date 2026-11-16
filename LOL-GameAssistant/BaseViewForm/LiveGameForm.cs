@@ -35,7 +35,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly CancellationTokenSource _dataLifetime = new();
         private int _dataDisposed;
 
-        // 进入选人三秒后发送一次，使用当时已取得的统计。
+        // 我方战绩齐备后等待四秒发送一次。
         private readonly Dictionary<string, PlayerRecentPerformanceEventArgs> _champSelectAssessments = new(StringComparer.Ordinal);
 
         private readonly HashSet<string> _expectedChampSelectAssessmentPuuids = new(StringComparer.Ordinal);
@@ -826,22 +826,24 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
-        /// <summary>阶段进入立即启动计时；重复事件和名单刷新都不重新计时。</summary>
+        /// <summary>切换选人阶段时取消待发送任务并重置本局发送状态。</summary>
         internal void OnChampionSelectPhaseChanged(bool active)
         {
             if (_champSelectPhaseActive == active) return;
             _champSelectPhaseActive = active;
-            _champSelectAnnouncementLifetime.Cancel();
-            _champSelectAnnouncementLifetime.Dispose();
-            _champSelectAnnouncementLifetime = new();
             _champSelectAnnouncementDelivery = new();
             ResetChampSelectAssessments();
             if (active) TrySendChampSelectKdaAnnouncement();
         }
 
-        /// <summary>仅清理阵容结果，不重置本次选人的三秒截止时间或已发送标记。</summary>
+        /// <summary>清理阵容结果并取消旧阵容的等待，保留本次选人已发送标记。</summary>
         private void ResetChampSelectAssessments()
         {
+            _champSelectAnnouncementLifetime.Cancel();
+            _champSelectAnnouncementLifetime.Dispose();
+            _champSelectAnnouncementLifetime = new();
+            if (!_champSelectAnnouncementDelivery.IsSent)
+                _champSelectAnnouncementDelivery = new();
             _champSelectAssessments.Clear();
             _champSelectAssessmentOrder.Clear();
             _expectedChampSelectAssessmentPuuids.Clear();
@@ -943,14 +945,19 @@ namespace LOL_GameAssistant.BaseViewForm
             TrySendChampSelectKdaAnnouncement();
         }
 
+        internal bool AreChampSelectAssessmentsReady =>
+            _expectedChampSelectAssessmentPuuids.Count > 0 &&
+            _expectedChampSelectAssessmentPuuids.All(puuid =>
+                _champSelectAssessments.GetValueOrDefault(puuid)?.Assessment != null);
+
         private void TrySendChampSelectKdaAnnouncement()
         {
             if (IsDisposed || !_champSelectPhaseActive || _champSelectAnnouncementDelivery.IsSent ||
-                Program.GameMain?.gameFlowPhase != GameFlowPhase.ChampSelect) return;
+                !AreChampSelectAssessmentsReady || Program.GameMain?.gameFlowPhase != GameFlowPhase.ChampSelect) return;
             var token = _champSelectAnnouncementLifetime.Token;
             _ = _champSelectAnnouncementDelivery.SendAsync(
                 SendChampSelectKdaAnnouncementAsync,
-                () => !IsDisposed && _champSelectPhaseActive &&
+                () => !IsDisposed && _champSelectPhaseActive && AreChampSelectAssessmentsReady &&
                     Program.GameMain?.gameFlowPhase == GameFlowPhase.ChampSelect &&
                     AppCompositionRoot.ApplicationSettingsStore.Load().ChampSelectKdaAnnouncementEnabled,
                 token);
@@ -1153,13 +1160,14 @@ namespace LOL_GameAssistant.BaseViewForm
         private async Task<bool> SendChampSelectKdaAnnouncementAsync(CancellationToken token)
         {
             bool CanSend() => !IsDisposed && !token.IsCancellationRequested && _champSelectPhaseActive &&
+                AreChampSelectAssessmentsReady &&
                 Program.GameMain.gameFlowPhase == GameFlowPhase.ChampSelect &&
                 AppCompositionRoot.ApplicationSettingsStore.Load().ChampSelectKdaAnnouncementEnabled &&
                 !AppCompositionRoot.Automation.IsPaused;
             try
             {
                 if (!CanSend()) return false;
-                // 固定三秒发送：使用已确认的开黑信息，不再等待历史开黑查询或战绩加载。
+                // 战绩齐备并等待四秒后发送，使用已确认的开黑信息。
                 var session = await _championSelectService.GetSessionAsync(token);
                 if (!CanSend()) return false;
                 if (session == null || session.MyTeam.Count == 0)
@@ -1167,6 +1175,9 @@ namespace LOL_GameAssistant.BaseViewForm
                     RuntimeDiagnostics.Report("选人 KDA 评估", "等待", "当前阵容尚未确认，等待下一次阵容刷新");
                     return false;
                 }
+                if (!_expectedChampSelectAssessmentPuuids.SetEquals(session.MyTeam
+                    .Where(member => !string.IsNullOrWhiteSpace(member.Puuid))
+                    .Select(member => member.Puuid))) return false;
                 // 发出前按最新 CellId 重新生成，避免等待聊天会话时换楼导致编号过期。
                 string message = BuildChampSelectKdaAnnouncement(session.MyTeam.OrderBy(member => member.CellId)
                     .Select(member => member.Puuid ?? "").ToArray());

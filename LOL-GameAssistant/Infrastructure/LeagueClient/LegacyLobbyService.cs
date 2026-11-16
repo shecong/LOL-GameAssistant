@@ -65,7 +65,31 @@ public sealed class LegacyLobbyService : ILobbyService
         cancellationToken.ThrowIfCancellationRequested();
         GameSessionResponse? legacy = await Game_Api.GameLineInfoServer(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return legacy == null ? null : new ActiveGameSnapshot
+        return legacy == null ? null : MapCurrentSession(legacy);
+    }
+
+    /// <summary>从本局完整选人记录补齐队伍列表省略的成员，不使用昵称或列表顺序猜测身份。</summary>
+    internal static ActiveGameSnapshot MapCurrentSession(GameSessionResponse legacy)
+    {
+        var teamOne = MapActiveMembers(legacy.GameData?.TeamOne).ToList();
+        var teamTwo = MapActiveMembers(legacy.GameData?.TeamTwo).ToList();
+        int teamSize = legacy.GameData?.Queue?.NumPlayersPerTeam ?? 0;
+        var selections = MapActiveMembers(legacy.GameData?.PlayerChampionSelections)
+            .Where(member => !string.IsNullOrWhiteSpace(member.Puuid)).ToArray();
+        var known = teamOne.Concat(teamTwo).Select(member => member.Puuid).ToArray();
+        var allIds = selections.Select(member => member.Puuid).ToHashSet(StringComparer.Ordinal);
+        // 只有完整的双方名单和一支人数齐全的队伍，才能确定缺失成员属于另一队。
+        if (teamSize > 0 && selections.Length == teamSize * 2 && allIds.Count == selections.Length &&
+            known.All(puuid => !string.IsNullOrWhiteSpace(puuid) && allIds.Contains(puuid)) &&
+            known.Distinct(StringComparer.Ordinal).Count() == known.Length)
+        {
+            var missing = selections.Where(member => !known.Contains(member.Puuid, StringComparer.Ordinal)).ToArray();
+            if (teamOne.Count == teamSize && teamTwo.Count < teamSize && missing.Length == teamSize - teamTwo.Count)
+                teamTwo.AddRange(missing);
+            else if (teamTwo.Count == teamSize && teamOne.Count < teamSize && missing.Length == teamSize - teamOne.Count)
+                teamOne.AddRange(missing);
+        }
+        return new ActiveGameSnapshot
         {
             GameId = legacy.GameData?.GameId ?? 0,
             Phase = legacy.Phase,
@@ -73,8 +97,8 @@ public sealed class LegacyLobbyService : ILobbyService
                 ? legacy.GameData.GameMode : legacy.GameData?.Queue?.GameMode ?? "",
             QueueId = legacy.GameData?.QueueId is > 0
                 ? legacy.GameData.QueueId : legacy.GameData?.Queue?.Id ?? 0,
-            TeamOne = MapActiveMembers(legacy.GameData?.TeamOne),
-            TeamTwo = MapActiveMembers(legacy.GameData?.TeamTwo)
+            TeamOne = teamOne,
+            TeamTwo = teamTwo
         };
     }
 
