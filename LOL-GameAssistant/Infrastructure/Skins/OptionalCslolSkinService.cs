@@ -214,7 +214,12 @@ public sealed class OptionalCslolSkinService : ICslolSkinService, IFileSkinResou
         try
         {
             if (File.Exists(cached) && new FileInfo(cached).Length <= 65536)
-                baseline = FileSkinResourceTransfer.Validate(JsonSerializer.Deserialize<FileSkinResourceRelease>(await File.ReadAllTextAsync(cached, token).ConfigureAwait(false), options)!, allowHttp);
+            {
+                var previous = FileSkinResourceTransfer.Validate(JsonSerializer.Deserialize<FileSkinResourceRelease>(await File.ReadAllTextAsync(cached, token).ConfigureAwait(false), options)!, allowHttp);
+                if (!Version.TryParse(baseline.Version, out var configured) ||
+                    Version.TryParse(previous.Version, out var cachedVersion) && cachedVersion >= configured)
+                    baseline = previous;
+            }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException) { }
         // 在线源失效或缓存被清理时，也不能把已安装的新资源降级到程序内置旧版本。
@@ -257,7 +262,8 @@ public sealed class OptionalCslolSkinService : ICslolSkinService, IFileSkinResou
         return (baseline, false, hasRemote ? "在线检查失败，使用上次记录或内置资源版本" : "使用内置资源版本，尚未配置在线清单", allowHttp);
     }
 
-    public async Task DownloadResourcesAsync(CancellationToken token = default, bool preferGitHub = false)
+    public async Task DownloadResourcesAsync(CancellationToken token = default, bool preferGitHub = false,
+        IProgress<FileSkinResourceDownloadProgress>? progress = null)
     {
         await _download.WaitAsync(token).ConfigureAwait(false);
         try
@@ -271,6 +277,7 @@ public sealed class OptionalCslolSkinService : ICslolSkinService, IFileSkinResou
             http.DefaultRequestHeaders.UserAgent.ParseAdd("sc-assistant/1.0");
             var (release, _, message, allowHttp) = await ResolveReleaseAsync(http, token).ConfigureAwait(false);
             StatusChanged?.Invoke(message);
+            progress?.Report(new(0, release.Size > 0 ? release.Size : null, "准备下载"));
             string installedMarker = Path.Combine(ResolveRoot(), "installed-resource.json");
             if (Required.All(path => File.Exists(Path.Combine(ResolveRoot(), path))) && File.Exists(installedMarker) && new FileInfo(installedMarker).Length <= 65536)
             {
@@ -278,12 +285,16 @@ public sealed class OptionalCslolSkinService : ICslolSkinService, IFileSkinResou
                 {
                     var installed = JsonSerializer.Deserialize<FileSkinResourceRelease>(await File.ReadAllTextAsync(installedMarker, token).ConfigureAwait(false), FileSkinResourceTransfer.Json);
                     if (string.Equals(installed?.Sha256, release.Sha256, StringComparison.OrdinalIgnoreCase))
-                    { StatusChanged?.Invoke("换肤资源已是当前可用版本，无需重复下载。"); return; }
+                    {
+                        progress?.Report(new(release.Size, release.Size > 0 ? release.Size : null, "资源已安装"));
+                        StatusChanged?.Invoke("换肤资源已是当前可用版本，无需重复下载。"); return;
+                    }
                 }
                 catch (Exception error) when (error is IOException or JsonException) { }
             }
             string download = Path.Combine(_cache, release.Sha256.ToLowerInvariant() + ".download");
-            var transfer = new FileSkinResourceTransfer(http, allowHttp, text => StatusChanged?.Invoke(text));
+            var transfer = new FileSkinResourceTransfer(http, allowHttp, text => StatusChanged?.Invoke(text),
+                reportProgress: value => progress?.Report(value));
             await transfer.DownloadAsync(release, download, preferGitHub, token).ConfigureAwait(false);
             await ImportCoreAsync(download, release, token).ConfigureAwait(false);
             try { File.Delete(download); }

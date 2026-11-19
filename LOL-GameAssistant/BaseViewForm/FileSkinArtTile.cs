@@ -57,7 +57,7 @@ internal sealed class FileSkinArtTile : Control, IThemeAware
         }
         else
         {
-            var art = new Rectangle(3, 3, Width - 7, Height - 68);
+            var art = new Rectangle(8, 42, Width - 16, Height - 104);
             var clip = g.Save(); g.SetClip(shape); g.SetClip(art, CombineMode.Intersect); DrawArt(g, art); g.Restore(clip);
             using var badgeBack = new SolidBrush(Color.FromArgb(190, 28, 34, 44));
             var badge = new Rectangle(10, 12, Math.Min(Width - 65, Math.Max(42, TextRenderer.MeasureText(Badge, Font).Width + 10)), 24);
@@ -66,9 +66,9 @@ internal sealed class FileSkinArtTile : Control, IThemeAware
             using var heartFont = new Font("Segoe UI Symbol", 16);
             TextRenderer.DrawText(g, Favorite ? "♥" : "♡", heartFont, new Rectangle(Width - 38, 10, 30, 30), Favorite ? Color.Coral : Color.White,
                 Color.FromArgb(45, 48, 56), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-            TextRenderer.DrawText(g, Caption, Font, new Rectangle(12, Height - 58, Width - 24, 48), _palette.TextPrimary,
+            TextRenderer.DrawText(g, Caption, Font, new Rectangle(10, Height - 54, Width - 48, 44), _palette.TextPrimary,
                 TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
-            var check = new Rectangle(Width - 34, art.Bottom - 30, 23, 23);
+            var check = new Rectangle(Width - 34, Height - 44, 23, 23);
             using var brush = new SolidBrush(Selected ? _palette.Accent : Color.FromArgb(170, 35, 40, 50));
             g.FillEllipse(brush, check);
             TextRenderer.DrawText(g, Selected ? "✓" : "+", Font, check, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
@@ -86,8 +86,11 @@ internal sealed class FileSkinArtTile : Control, IThemeAware
                 _palette.TextSecondary, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             return;
         }
-        float scale = Math.Max((float)bounds.Width / _image.Width, (float)bounds.Height / _image.Height);
+        float scale = Compact
+            ? Math.Max((float)bounds.Width / _image.Width, (float)bounds.Height / _image.Height)
+            : Math.Min((float)bounds.Width / _image.Width, (float)bounds.Height / _image.Height);
         int width = (int)(_image.Width * scale), height = (int)(_image.Height * scale);
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
         g.DrawImage(_image, new Rectangle(bounds.X + (bounds.Width - width) / 2, bounds.Y + (bounds.Height - height) / 2, width, height));
     }
     private static GraphicsPath Rounded(Rectangle r, int radius)

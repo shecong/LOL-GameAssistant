@@ -2,15 +2,17 @@
   "serverBaseUrl": "http://159.75.148.241/",
   "allowHttp": true,
   "fileSkinResources": {
-    "sha256": "ce23c97e0d5c41ac840473fc4f85e703ad941c89324c8b7c03837a0f9e1c37fd",
+    "sha256": "ecc414df44e2a81994bd41c6836efc90bfba64fe3f50726047af65f2ce92cfd9",
+    "version": "26.1116.1",
     "urls": [
-      "https://github.com/shecong/LOL-GameAssistant/releases/download/file-skin-resources-26.1109/file-skin-resources.zip"
+      "http://159.75.148.241/file-skin-resources-26.1116.1.zip",
+      "https://github.com/shecong/LOL-GameAssistant/releases/download/file-skin-resources-26.1116.1/file-skin-resources-26.1116.1.zip"
     ],
-    "version": "26.1109",
-    "gamePatch": "16.20.1",
-    "size": 494220123,
-    "notes": "独立游戏外换肤资源包。",
+    "notes": "游戏外换肤资源：173 个英雄，9781 个皮肤、炫彩及形态条目。原始包生成于 2026-11-15；包内混合 16.19.1、16.20、16.21 及少量未标注版本，不声明全部适配某一游戏补丁。",
+    "gamePatch": "",
+    "size": 202485500,
     "manifestUrls": [
+      "http://159.75.148.241/file-skin-resources.json",
       "https://raw.githubusercontent.com/shecong/LOL-GameAssistant/master/build/file-skin-resources.json"
     ]
   }

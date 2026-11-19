@@ -16,14 +16,18 @@ static uint32_t skinRotateRight(uint32_t value,unsigned bits) {
     return (value>>bits)|(value<<(32-bits));
 }
 static uint32_t skinEncoded(int value) {
+    // 16.23 encoder: xor/sub/xor chain then ror 4 (inverse of the decoder).
+    if(runtimeGame.skinCodec==3)return skinRotateRight(((((uint32_t)value^0x0d37fa35u)+0x57e1606eu)^0x5050669bu),4);
     // 16.22 encoder and inverse decoder are independently fingerprinted.
     if(runtimeGame.skinCodec==2)return skinRotateRight((skinRotateRight((uint32_t)value,18)+0x54cd83aeu)^0x5f0510b1u,7);
     // Inspected encoder at RVA 0x2821d4; inverse of the game's two rotations.
     return skinRotateRight(skinRotateRight((uint32_t)value,13)^0x3dc9cb21u,11);
 }
 static bool skinValue(BYTE* field,int* value) {
-    // This build uses one encoded DWORD, not the old 24-byte rotating buffer.
-    uint32_t decoded=runtimeGame.skinCodec==2
+    // 16.23 keeps one encoded DWORD at 0xbec: ror 28, xor, sub, xor.
+    uint32_t decoded=runtimeGame.skinCodec==3
+        ? (((skinRotateRight(*(uint32_t*)field,28)^0x5050669bu)-0x57e1606eu)^0x0d37fa35u)
+        : runtimeGame.skinCodec==2
         ? skinRotateRight((skinRotateRight(*(uint32_t*)field,25)^0x5f0510b1u)-0x54cd83aeu,14)
         : skinRotateRight(skinRotateRight(*(uint32_t*)field,21)^0x3dc9cb21u,19);
     if(decoded>10000)return false;

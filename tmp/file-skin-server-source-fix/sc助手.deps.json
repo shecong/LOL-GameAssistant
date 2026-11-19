@@ -1,0 +1,441 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v11.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v11.0": {
+      "sc助手/26.1116.1": {
+        "dependencies": {
+          "AntdUI": "2.4.19",
+          "FlaUI.UIA3": "5.0.0",
+          "Microsoft.AspNetCore.SignalR.Client": "11.0.0",
+          "Newtonsoft.Json": "13.0.4",
+          "Sdcb.SimdPaddleOCR": "2.0.0",
+          "Sdcb.SimdPaddleOCR.Models.ChineseV6Small": "1.0.0",
+          "System.Management": "11.0.0",
+          "WindowsInput": "6.4.1",
+          "runtimepack.Microsoft.Windows.SDK.NET.Ref": "10.0.19041.87"
+        },
+        "runtime": {
+          "sc助手.dll": {}
+        }
+      },
+      "runtimepack.Microsoft.Windows.SDK.NET.Ref/10.0.19041.87": {
+        "runtime": {
+          "Microsoft.Windows.SDK.NET.dll": {
+            "assemblyVersion": "10.0.19041.38",
+            "fileVersion": "10.0.19041.86"
+          },
+          "WinRT.Runtime.dll": {
+            "assemblyVersion": "2.3.1.0",
+            "fileVersion": "2.3.1.54291"
+          }
+        }
+      },
+      "AntdUI/2.4.19": {
+        "runtime": {
+          "lib/net10.0-windows7.0/AntdUI.dll": {
+            "assemblyVersion": "2.4.19.0",
+            "fileVersion": "2.4.19.0",
+            "localPath": "AntdUI.dll"
+          }
+        }
+      },
+      "FlaUI.Core/5.0.0": {
+        "dependencies": {
+          "System.Management": "11.0.0"
+        },
+        "runtime": {
+          "lib/net8.0-windows7.0/FlaUI.Core.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.0.0",
+            "localPath": "FlaUI.Core.dll"
+          }
+        }
+      },
+      "FlaUI.UIA3/5.0.0": {
+        "dependencies": {
+          "FlaUI.Core": "5.0.0",
+          "Interop.UIAutomationClient": "10.19041.0"
+        },
+        "runtime": {
+          "lib/net8.0-windows7.0/FlaUI.UIA3.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.0.0",
+            "localPath": "FlaUI.UIA3.dll"
+          }
+        }
+      },
+      "Interop.UIAutomationClient/10.19041.0": {
+        "runtime": {
+          "lib/netcoreapp3.0/Interop.UIAutomationClient.dll": {
+            "assemblyVersion": "10.0.19041.0",
+            "fileVersion": "10.0.19041.0",
+            "localPath": "Interop.UIAutomationClient.dll"
+          }
+        }
+      },
+      "Microsoft.AspNetCore.Connections.Abstractions/11.0.0": {
+        "dependencies": {
+          "Microsoft.Extensions.Features": "11.0.0"
+        },
+        "runtime": {
+          "lib/net11.0/Microsoft.AspNetCore.Connections.Abstractions.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.AspNetCore.Connections.Abstractions.dll"
+          }
+        }
+      },
+      "Microsoft.AspNetCore.Http.Connections.Client/11.0.0": {
+        "dependencies": {
+          "Microsoft.AspNetCore.Http.Connections.Common": "11.0.0"
+        },
+        "runtime": {
+          "lib/net11.0/Microsoft.AspNetCore.Http.Connections.Client.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.AspNetCore.Http.Connections.Client.dll"
+          }
+        }
+      },
+      "Microsoft.AspNetCore.Http.Connections.Common/11.0.0": {
+        "dependencies": {
+          "Microsoft.AspNetCore.Connections.Abstractions": "11.0.0"
+        },
+        "runtime": {
+          "lib/net11.0/Microsoft.AspNetCore.Http.Connections.Common.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.AspNetCore.Http.Connections.Common.dll"
+          }
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Client/11.0.0": {
+        "dependencies": {
+          "Microsoft.AspNetCore.Http.Connections.Client": "11.0.0",
+          "Microsoft.AspNetCore.SignalR.Client.Core": "11.0.0"
+        },
+        "runtime": {
+          "lib/net11.0/Microsoft.AspNetCore.SignalR.Client.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.AspNetCore.SignalR.Client.dll"
+          }
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Client.Core/11.0.0": {
+        "dependencies": {
+          "Microsoft.AspNetCore.SignalR.Common": "11.0.0",
+          "Microsoft.AspNetCore.SignalR.Protocols.Json": "11.0.0",
+          "Microsoft.Extensions.DependencyInjection": "11.0.0",
+          "Microsoft.Extensions.Logging": "11.0.0"
+        },
+        "runtime": {
+          "lib/net11.0/Microsoft.AspNetCore.SignalR.Client.Core.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.AspNetCore.SignalR.Client.Core.dll"
+          }
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Common/11.0.0": {
+        "dependencies": {
+          "Microsoft.AspNetCore.Connections.Abstractions": "11.0.0"
+        },
+        "runtime": {
+          "lib/net11.0/Microsoft.AspNetCore.SignalR.Common.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.AspNetCore.SignalR.Common.dll"
+          }
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Protocols.Json/11.0.0": {
+        "dependencies": {
+          "Microsoft.AspNetCore.SignalR.Common": "11.0.0"
+        },
+        "runtime": {
+          "lib/net11.0/Microsoft.AspNetCore.SignalR.Protocols.Json.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.AspNetCore.SignalR.Protocols.Json.dll"
+          }
+        }
+      },
+      "Microsoft.Extensions.DependencyInjection/11.0.0": {
+        "runtime": {
+          "lib/net11.0/Microsoft.Extensions.DependencyInjection.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.Extensions.DependencyInjection.dll"
+          }
+        }
+      },
+      "Microsoft.Extensions.Features/11.0.0": {
+        "runtime": {
+          "lib/net11.0/Microsoft.Extensions.Features.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.Extensions.Features.dll"
+          }
+        }
+      },
+      "Microsoft.Extensions.Logging/11.0.0": {
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection": "11.0.0"
+        },
+        "runtime": {
+          "lib/net11.0/Microsoft.Extensions.Logging.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "Microsoft.Extensions.Logging.dll"
+          }
+        }
+      },
+      "Newtonsoft.Json/13.0.4": {
+        "runtime": {
+          "lib/net6.0/Newtonsoft.Json.dll": {
+            "assemblyVersion": "13.0.0.0",
+            "fileVersion": "13.0.4.30916",
+            "localPath": "Newtonsoft.Json.dll"
+          }
+        }
+      },
+      "Sdcb.SimdPaddleOCR/2.0.0": {
+        "dependencies": {
+          "Sdcb.SimdPaddleOCR.ModelProvider": "1.0.0"
+        },
+        "runtime": {
+          "lib/net10.0/Sdcb.SimdPaddleOCR.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.0.0.0",
+            "localPath": "Sdcb.SimdPaddleOCR.dll"
+          }
+        }
+      },
+      "Sdcb.SimdPaddleOCR.ModelProvider/1.0.0": {
+        "runtime": {
+          "lib/netstandard2.0/Sdcb.SimdPaddleOCR.ModelProvider.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0",
+            "localPath": "Sdcb.SimdPaddleOCR.ModelProvider.dll"
+          }
+        }
+      },
+      "Sdcb.SimdPaddleOCR.Models.ChineseV6Small/1.0.0": {
+        "dependencies": {
+          "Sdcb.SimdPaddleOCR.ModelProvider": "1.0.0",
+          "Sdcb.SimdPaddleOCR.Models.TextLineOrientation": "1.0.0"
+        },
+        "runtime": {
+          "lib/netstandard2.0/Sdcb.SimdPaddleOCR.Models.ChineseV6Small.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0",
+            "localPath": "Sdcb.SimdPaddleOCR.Models.ChineseV6Small.dll"
+          }
+        }
+      },
+      "Sdcb.SimdPaddleOCR.Models.TextLineOrientation/1.0.0": {
+        "dependencies": {
+          "Sdcb.SimdPaddleOCR.ModelProvider": "1.0.0"
+        },
+        "runtime": {
+          "lib/netstandard2.0/Sdcb.SimdPaddleOCR.Models.TextLineOrientation.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0",
+            "localPath": "Sdcb.SimdPaddleOCR.Models.TextLineOrientation.dll"
+          }
+        }
+      },
+      "System.Management/11.0.0": {
+        "runtime": {
+          "lib/net11.0/System.Management.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "System.Management.dll"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net11.0/System.Management.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.0.26.53018",
+            "localPath": "runtimes/win/lib/net11.0/System.Management.dll"
+          }
+        }
+      },
+      "WindowsInput/6.4.1": {
+        "runtime": {
+          "lib/net6.0-windows7.0/WindowsInput.dll": {
+            "assemblyVersion": "6.4.1.0",
+            "fileVersion": "6.4.1.0",
+            "localPath": "WindowsInput.dll"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "sc助手/26.1116.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "runtimepack.Microsoft.Windows.SDK.NET.Ref/10.0.19041.87": {
+      "type": "runtimepack",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AntdUI/2.4.19": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-iFw3qvZASfaPSxqHWnVPpzv/sKKybk9wgWS94/LzNV/6lTtECBDKo+sIBLR7SfE6nlvlW28IM7RpA2pmWm6+Dw==",
+      "path": "antdui/2.4.19",
+      "hashPath": "antdui.2.4.19.nupkg.sha512"
+    },
+    "FlaUI.Core/5.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-VWWYqwjsYkii2BrUsz5+bpXEp27NherKhLt19hTxHwJP4KrfyZoeo1FdBov4ZTh655wZAKDGIjR7NJLDesuzeg==",
+      "path": "flaui.core/5.0.0",
+      "hashPath": "flaui.core.5.0.0.nupkg.sha512"
+    },
+    "FlaUI.UIA3/5.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-s1Yy1RsRJ0OXvmtxQlNJd0cu4sfvN3PFFu6skBGK8VlwPl/b38E0V5kCbo2gvkuhRIu4Itfxjdo7DUMF7qJw4Q==",
+      "path": "flaui.uia3/5.0.0",
+      "hashPath": "flaui.uia3.5.0.0.nupkg.sha512"
+    },
+    "Interop.UIAutomationClient/10.19041.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Me5vKNZ1JSg6txTsPQXaWx7fVNh+fmcUPPwtDKJtqvbMM0N8aoa/l/QPolkJIRnasCabCNt4v2zG4p1Q9HU98A==",
+      "path": "interop.uiautomationclient/10.19041.0",
+      "hashPath": "interop.uiautomationclient.10.19041.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.Connections.Abstractions/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-kMSI9ZOX9ad2t6r//h/mpnwC6oFNtOMCaIaccgWVfQnn+Z/PtzouQgc61JpevVauHqFr+mFNugV+Hm7gp8sHSA==",
+      "path": "microsoft.aspnetcore.connections.abstractions/11.0.0",
+      "hashPath": "microsoft.aspnetcore.connections.abstractions.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.Http.Connections.Client/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-jgyXvTg7h+5a3XEfYfoOpO+E18uDvPiv/cEvsXwNGy43QK/WpkMjKCP5trsStmZw2R+y0qb6FirX1CeDI8UpIw==",
+      "path": "microsoft.aspnetcore.http.connections.client/11.0.0",
+      "hashPath": "microsoft.aspnetcore.http.connections.client.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.Http.Connections.Common/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-jjyZ5p6edFXXm365fc2KGeo9Spm1mByli9t30zdZM5AxIq6GGM4+2/1bCJPOr6y2BQqc/UY0Zdmwlo7taFJokA==",
+      "path": "microsoft.aspnetcore.http.connections.common/11.0.0",
+      "hashPath": "microsoft.aspnetcore.http.connections.common.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.SignalR.Client/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-YF2uLucbvnv6dsshXLMak1QrFu1D6d//LjH5NvgRdjQnCB5bnRrUqYZifpl5CKxLz+GWTIujOwEW0HDH240O3Q==",
+      "path": "microsoft.aspnetcore.signalr.client/11.0.0",
+      "hashPath": "microsoft.aspnetcore.signalr.client.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.SignalR.Client.Core/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-FbiklgvZrsBO9upxdPxx0Q+YOijpUszhzPu0LjDLITE9Tha+gEsFq69jyV97t8eUdb/5S35Jv0WNOXeGTz1Trw==",
+      "path": "microsoft.aspnetcore.signalr.client.core/11.0.0",
+      "hashPath": "microsoft.aspnetcore.signalr.client.core.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.SignalR.Common/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-SFKCqHrAbQlcyjEAW0ELAoMlnqSnkEu0QZHBhObv8hxJvZO+5PtVTQdJLfDLoiViGxLIM7zOd02GCvCvpXf4GA==",
+      "path": "microsoft.aspnetcore.signalr.common/11.0.0",
+      "hashPath": "microsoft.aspnetcore.signalr.common.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.SignalR.Protocols.Json/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-jymsVhNVQp0U6XlggRQQFhczHkviu/vNmt0gtJjJGEImKWDHzZgJgdPAtrWzDy/7/RAimVn650+mcH+VKYSsCA==",
+      "path": "microsoft.aspnetcore.signalr.protocols.json/11.0.0",
+      "hashPath": "microsoft.aspnetcore.signalr.protocols.json.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.Extensions.DependencyInjection/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-KygQMITBDDPXw7+AAgdwQvVAaTXuDsc1iCAuvhO73ERxKX+d92cdbgZmpoYF7DIUq2hfs/yO2KD87uIreRy3MA==",
+      "path": "microsoft.extensions.dependencyinjection/11.0.0",
+      "hashPath": "microsoft.extensions.dependencyinjection.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Features/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-gODUqX2PfYnTqu7uJW7/uuInBzrh+hewBkHO4aifVxiNmnvg/4bLPTYEz1FYvAJJr3UJFz6Kyyo3Nk7SEYfNZA==",
+      "path": "microsoft.extensions.features/11.0.0",
+      "hashPath": "microsoft.extensions.features.11.0.0.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Logging/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-zsse8MOgo0bj2KAEsSkg9WtNAfZbHbTlGeqfhy5PGozomM3zQM0XzumSQzQ0451IWNSJWLqYaSIQEpCi2j1sCA==",
+      "path": "microsoft.extensions.logging/11.0.0",
+      "hashPath": "microsoft.extensions.logging.11.0.0.nupkg.sha512"
+    },
+    "Newtonsoft.Json/13.0.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A==",
+      "path": "newtonsoft.json/13.0.4",
+      "hashPath": "newtonsoft.json.13.0.4.nupkg.sha512"
+    },
+    "Sdcb.SimdPaddleOCR/2.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ewb0TEBisxHWF0Khkgllair9wZ+Nij25mXvtLtg0wPLCZI0/PKLNJxwuuqzX7Men98rr5d3qeLZ9m5sDdLpRwA==",
+      "path": "sdcb.simdpaddleocr/2.0.0",
+      "hashPath": "sdcb.simdpaddleocr.2.0.0.nupkg.sha512"
+    },
+    "Sdcb.SimdPaddleOCR.ModelProvider/1.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-pVd52DFQ0J7Z6ThtCxrj3r0usMSmEUicKsTLsfhd658/eY8LhjFm9byagle9DlZeAghHI5KSaJZbS1p4To4+Zg==",
+      "path": "sdcb.simdpaddleocr.modelprovider/1.0.0",
+      "hashPath": "sdcb.simdpaddleocr.modelprovider.1.0.0.nupkg.sha512"
+    },
+    "Sdcb.SimdPaddleOCR.Models.ChineseV6Small/1.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Rvh/agKF/+NdblT1ku0B0dGaCWNnhdgdftTuiG4cfMYYLqJW4ELFCmK6kwumJTIhrt0oU+qBseD/vrZTzNf1ng==",
+      "path": "sdcb.simdpaddleocr.models.chinesev6small/1.0.0",
+      "hashPath": "sdcb.simdpaddleocr.models.chinesev6small.1.0.0.nupkg.sha512"
+    },
+    "Sdcb.SimdPaddleOCR.Models.TextLineOrientation/1.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-BYdvoOKPj4dmNrIdut8UZB76HyWWBIVYJoNmOoqmDA0dnUnw6niReXRox1WmXcxTZ/6jyijmOTJXmap1iWUTiw==",
+      "path": "sdcb.simdpaddleocr.models.textlineorientation/1.0.0",
+      "hashPath": "sdcb.simdpaddleocr.models.textlineorientation.1.0.0.nupkg.sha512"
+    },
+    "System.Management/11.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-8x+8Jt/ASauIThRh7yT+kwiR7xmWbPMtTJ3p36EalBuOQZsq6NCqVejO3tlXaYQGb337zOATzrBqAzLgLa86Cg==",
+      "path": "system.management/11.0.0",
+      "hashPath": "system.management.11.0.0.nupkg.sha512"
+    },
+    "WindowsInput/6.4.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-wfg9uu5xDvBcaNqvR1ZTFQqBf4bKzkxdd5WviTZPy4cAywEzLzofuYswZB3nGIEnnlwGLBGSgrNOEZH/w8JI9w==",
+      "path": "windowsinput/6.4.1",
+      "hashPath": "windowsinput.6.4.1.nupkg.sha512"
+    }
+  }
+}

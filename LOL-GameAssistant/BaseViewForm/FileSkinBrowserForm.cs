@@ -56,6 +56,15 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private readonly Dictionary<FileSkinArtTile, string> _heroTiles = [];
     private bool _loaded, _busy, _disposing;
     private readonly AntdUI.Select _resourceSource = new() { Name = "FileSkinResourceSource", Width = 120, Height = 38, List = true };
+    private readonly AntdUI.Button _downloadResources = new() { Name = "FileSkinDownloadResources", Text = "下载资源", Width = 110, Height = 38 };
+    private readonly AntdUI.Button _importResources = new() { Name = "FileSkinImportResources", Text = "导入资源包", Width = 130, Height = 38 };
+    private readonly AntdUI.Button _checkResources = new() { Name = "FileSkinCheckResourceUpdates", Text = "检查更新", Width = 110, Height = 38 };
+    private readonly Panel _header = new() { Name = "FileSkinHeader", Dock = DockStyle.Top, Height = 136, Padding = new Padding(20, 12, 20, 8) };
+    private readonly Panel _resourceProgressPanel = new() { Name = "FileSkinResourceProgressPanel", Dock = DockStyle.Top, Height = 44, Visible = false, Padding = new Padding(4, 0, 4, 4) };
+    private readonly AntdUI.Label _resourceProgressText = new() { Name = "FileSkinResourceProgressText", Dock = DockStyle.Fill, TextMultiLine = false };
+    private readonly AntdUI.Progress _resourceProgressBar = new() { Name = "FileSkinResourceProgressBar", Dock = DockStyle.Bottom, Height = 12, UseSystemText = false, Animation = 0 };
+    private FileSkinResourceDownloadProgress? _lastResourceProgress;
+    private bool _cancellingResource, _downloadingResource;
     private int _page;
     private readonly UiToolTip _resourceTips = new();
     private bool _checkingResources;
@@ -80,7 +89,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         _previous.Click += (_, _) => { _page--; RenderCards(); };
         _next.Click += (_, _) => { _page++; RenderCards(); };
         _apply.Click += async (_, _) => await ApplyAsync();
-        _stop.Click += async (_, _) => { if (_resourceRequest != null) _resourceRequest.Cancel(); else await ToggleEnabledAsync(false); };
+        _stop.Click += async (_, _) => { if (_resourceRequest != null) CancelResourceDownload(); else await ToggleEnabledAsync(false); };
         _enabled.CheckedChanged += async (_, _) => { if (!_syncingEnabled) await ToggleEnabledAsync(_enabled.Checked); };
         _engines.Changed += EngineChanged;
         _save.Click += (_, _) => SavePreset();
@@ -101,7 +110,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
 
     private void BuildLayout()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 136, Padding = new Padding(20, 12, 20, 8) };
+        var header = _header;
         var title = new TableLayoutPanel { Dock = DockStyle.Top, Height = 36, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         title.RowStyles.Add(new(SizeType.Percent, 100));
         title.ColumnStyles.Add(new(SizeType.Percent, 100)); title.ColumnStyles.Add(new(SizeType.Absolute, 210));
@@ -122,20 +131,23 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         {
             header.Height += 44;
             var resources = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, WrapContents = false };
-            var download = new AntdUI.Button { Name = "FileSkinDownloadResources", Text = "下载资源", Width = 110, Height = 38 };
-            var check = new AntdUI.Button { Name = "FileSkinCheckResourceUpdates", Text = "检查更新", Width = 110, Height = 38 };
+            var download = _downloadResources;
+            var check = _checkResources;
             check.Click += async (_, _) => await CheckResourceUpdatesAsync();
-            var import = new AntdUI.Button { Name = "FileSkinImportResources", Text = "导入资源包", Width = 130, Height = 38 };
-            download.Click += async (_, _) => await InstallResourcesAsync(installer, null);
+            var import = _importResources;
+            download.Click += async (_, _) => { if (_resourceRequest != null) CancelResourceDownload(); else await InstallResourcesAsync(installer, null); };
             import.Click += async (_, _) =>
             {
                 if (_busy) return;
                 using var dialog = new OpenFileDialog { Title = "选择独立换肤资源包", Filter = "换肤资源包 (*.zip)|*.zip" };
                 if (dialog.ShowDialog(FindForm()) == DialogResult.OK) await InstallResourcesAsync(installer, dialog.FileName);
             };
-            _resourceSource.Items.AddRange(["自动选源", "GitHub"]); _resourceSource.SelectedIndex = 0;
+            _resourceSource.Items.AddRange(["自动选源", "服务器", "GitHub"]); _resourceSource.SelectedIndex = 0;
             resources.Controls.Add(_resourceSource); resources.Controls.Add(download); resources.Controls.Add(import);
             resources.Controls.Add(check); resources.Controls.Add(_resourceUpdate);
+            _resourceProgressPanel.Controls.Add(_resourceProgressText);
+            _resourceProgressPanel.Controls.Add(_resourceProgressBar);
+            header.Controls.Add(_resourceProgressPanel);
             header.Controls.Add(resources);
         }
         header.Controls.Add(_status); header.Controls.Add(tools); header.Controls.Add(title);
@@ -186,20 +198,68 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private async Task InstallResourcesAsync(IFileSkinResourceInstaller installer, string? archive)
     {
         if (_busy || _disposing) return;
-        _busy = true; UpdateControls();
+        _busy = true;
         bool installed = false;
         using var request = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _resourceRequest = request;
+        _cancellingResource = false; _downloadingResource = archive == null;
+        _lastResourceProgress = null;
+        _resourceProgressPanel.Visible = _downloadingResource;
+        _header.Height = _downloadingResource ? 224 : 180;
+        _resourceProgressBar.Value = 0;
+        _resourceProgressText.Text = "正在获取资源总大小…";
+        UpdateControls();
         try
         {
-            if (archive == null) await installer.DownloadResourcesAsync(request.Token, _resourceSource.SelectedIndex == 1);
+            if (archive == null)
+            {
+                var progress = new Progress<FileSkinResourceDownloadProgress>(value =>
+                {
+                    if (!_disposing && ReferenceEquals(_resourceRequest, request) && !request.IsCancellationRequested)
+                        ShowResourceProgress(value);
+                });
+                await installer.DownloadResourcesAsync(request.Token, _resourceSource.SelectedIndex == 2, progress);
+            }
             else await Task.Run(() => installer.ImportResourcesAsync(archive, request.Token));
             installed = true;
+            if (!_disposing && _lastResourceProgress is { } finished)
+                ShowResourceProgress(finished with { Stage = "资源已安装" });
         }
-        catch (OperationCanceledException) { if (!_disposing) _status.Text = "已取消资源安装。"; }
-        catch (Exception error) { if (!_disposing) _status.Text = "资源安装失败：" + error.Message; }
-        finally { _resourceRequest = null; _busy = false; if (!_disposing) UpdateControls(); }
+        catch (OperationCanceledException)
+        {
+            if (!_disposing)
+            {
+                _status.Text = archive == null ? "下载已取消，已保留断点，再次点击下载可继续。" : "已取消资源安装。";
+                if (_lastResourceProgress is { } cancelled) ShowResourceProgress(cancelled with { Stage = "下载已取消" });
+                else _resourceProgressText.Text = "下载已取消";
+            }
+        }
+        catch (Exception error)
+        {
+            if (!_disposing)
+            {
+                _status.Text = "资源安装失败：" + error.Message;
+                if (_lastResourceProgress is { } failed) ShowResourceProgress(failed with { Stage = "资源获取失败" });
+            }
+        }
+        finally { _resourceRequest = null; _cancellingResource = false; _busy = false; if (!_disposing) UpdateControls(); }
         if (installed && !_disposing) { await LoadCatalogAsync(); await CheckResourceUpdatesAsync(); }
+    }
+
+    private void ShowResourceProgress(FileSkinResourceDownloadProgress value)
+    {
+        _lastResourceProgress = value;
+        _resourceProgressText.Text = value.Description;
+        _resourceProgressBar.Value = (float)((value.Percent ?? 0) / 100d);
+    }
+
+    private void CancelResourceDownload()
+    {
+        if (_resourceRequest == null || _cancellingResource) return;
+        _cancellingResource = true;
+        _status.Text = "正在取消，请稍候…";
+        _resourceRequest.Cancel();
+        UpdateControls();
     }
     internal async Task CheckResourceUpdatesAsync()
     {
@@ -277,7 +337,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         _count.Text = $"{(_champion is null ? "全部英雄" : _names.Champion(_champion))}  ·  {_filtered.Count} 个皮肤  ·  每个英雄可选一款";
         foreach (var entry in _filtered.Skip(_page * PageSize).Take(PageSize))
         {
-            var tile = new FileSkinArtTile { Name = "FileSkinCard_" + (entry.ChromaId ?? entry.SkinId.ToString()), Width = 184, Height = 300, Margin = new Padding(8),
+            var tile = new FileSkinArtTile { Name = "FileSkinCard_" + (entry.ChromaId ?? entry.SkinId.ToString()), Width = 184, Height = 200, Margin = new Padding(8),
                 Caption = _names.Display(entry), Badge = _names.Champion(entry.ChampionKey), Selected = _model.IsSelected(entry),
                 Favorite = _preferences.Favorites.Contains(entry.FileName), AccessibleName = _names.Display(entry), Tag = entry };
             tile.SelectedByUser += () => { if (_busy) return; _model.Toggle(entry); RefreshSelection(); if (_filter.SelectedIndex == 3) FilterCards();
@@ -293,10 +353,10 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     }
     private void ResizeCards()
     {
-        int available = Math.Max(190, _cards.ClientSize.Width - 30);
-        int columns = Math.Max(1, available / 218);
-        int width = Math.Min(245, available / columns - 16);
-        foreach (var tile in _skinTiles.Keys) tile.Size = new Size(width, (int)(width * 1.32) + 64);
+        int available = Math.Max(166, _cards.ClientSize.Width - 30);
+        int columns = Math.Max(1, available / 198);
+        int width = Math.Min(210, available / columns - 16);
+        foreach (var tile in _skinTiles.Keys) tile.Size = new Size(width, (int)Math.Ceiling((width - 16) * 9d / 16) + 104);
     }
     private async Task LoadArtAsync(FileSkinArtTile tile, CslolSkinEntry entry, bool hero, CancellationToken token)
     {
@@ -350,6 +410,9 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         _apply.Enabled = _engines.IsEnabled(SkinEngineMode.File) && _loaded && !_busy && !_switching && !running && _files.IsAvailable && _model.Selected.Count > 0;
         _enabled.Enabled = !_switching;
         _stop.Enabled = _busy || _files.IsRunning; _clear.Enabled = _save.Enabled = _presets.Enabled = !_busy;
+        _downloadResources.Text = _resourceRequest == null ? "下载资源" : _cancellingResource ? "正在取消…" : _downloadingResource ? "取消下载" : "取消安装";
+        _downloadResources.Enabled = _resourceRequest != null ? !_cancellingResource : !_busy;
+        _importResources.Enabled = _checkResources.Enabled = _resourceSource.Enabled = !_busy;
         _heroes.Enabled = _cards.Enabled = _path.Enabled = _filter.Enabled = _heroLane.Enabled = !_busy;
         if (running && !_busy) _status.Text = !CslolSkinService.HasGameWindow()
             ? "检测到游戏进程，但尚无游戏窗口。若持续无法进入，请点击停止 / 取消，退出游戏后重试。"
@@ -380,7 +443,12 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
     private void Progress(string text)
     {
         if (_disposing || !IsHandleCreated) return;
-        try { BeginInvoke(() => { if (!_disposing) _status.Text = _names.TranslateStatus(text, _model.Selected); }); } catch (InvalidOperationException) { }
+        var request = _resourceRequest;
+        try { BeginInvoke(() =>
+        {
+            if (!_disposing && (request == null || ReferenceEquals(request, _resourceRequest) && !request.IsCancellationRequested))
+                _status.Text = _names.TranslateStatus(text, _model.Selected);
+        }); } catch (InvalidOperationException) { }
     }
     public void ApplyTheme(ThemePalette palette)
     {

@@ -8,11 +8,18 @@ namespace LOL_GameAssistant.Infrastructure.Skins;
 
 /// <summary>小清单有界读取；资源按内容哈希续传，换源后仍校验完整包。</summary>
 internal sealed class FileSkinResourceTransfer(HttpClient http, bool allowHttp, Action<string> status,
-    TimeSpan? idleTimeout = null)
+    TimeSpan? idleTimeout = null, Action<FileSkinResourceDownloadProgress>? reportProgress = null)
 {
     internal const long MaxBytes = 2L * 1024 * 1024 * 1024;
     internal static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
     private readonly TimeSpan _idle = idleTimeout ?? TimeSpan.FromSeconds(40);
+
+    private void Report(long received, long? total, string stage = "正在下载")
+    {
+        var progress = new FileSkinResourceDownloadProgress(received, total, stage);
+        status(progress.Description);
+        reportProgress?.Invoke(progress);
+    }
 
     internal static bool ValidUri(Uri uri, bool allowHttp) => uri.IsAbsoluteUri && string.IsNullOrEmpty(uri.UserInfo)
         && string.IsNullOrEmpty(uri.Fragment) && (uri.Scheme == "https" || allowHttp && uri.Scheme == "http");
@@ -82,7 +89,11 @@ internal sealed class FileSkinResourceTransfer(HttpClient http, bool allowHttp, 
     internal async Task DownloadAsync(FileSkinResourceRelease release, string file, bool preferGitHub, CancellationToken token)
     {
         Validate(release, allowHttp);
-        if (await VerifyAsync(file, release, token).ConfigureAwait(false)) return;
+        if (await VerifyAsync(file, release, token).ConfigureAwait(false))
+        {
+            Report(new FileInfo(file).Length, new FileInfo(file).Length, "下载已完成");
+            return;
+        }
         if (File.Exists(file) && (new FileInfo(file).Length > MaxBytes || release.Size > 0 && new FileInfo(file).Length >= release.Size)) File.Delete(file);
         Exception? last = null;
         foreach (var url in release.Urls.OrderBy(url => new Uri(url).Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) == preferGitHub ? 0 : 1))
@@ -94,11 +105,16 @@ internal sealed class FileSkinResourceTransfer(HttpClient http, bool allowHttp, 
                     using var total = CancellationTokenSource.CreateLinkedTokenSource(token);
                     total.CancelAfter(TimeSpan.FromMinutes(30));
                     long offset = File.Exists(file) ? new FileInfo(file).Length : 0;
+                    Report(offset, release.Size > 0 ? release.Size : null, offset > 0 ? "继续下载" : "正在下载");
                     status(offset > 0 ? $"续传换肤资源（{new Uri(url).Host}）：已下载 {offset / 1048576d:F1} MB" : $"正在下载换肤资源（{new Uri(url).Host}）…");
                     using var response = await SendAsync(new Uri(url), offset, total.Token).ConfigureAwait(false);
                     if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
                     {
-                        if (await VerifyAsync(file, release, token).ConfigureAwait(false)) return;
+                        if (await VerifyAsync(file, release, token).ConfigureAwait(false))
+                        {
+                            Report(new FileInfo(file).Length, new FileInfo(file).Length, "下载已完成");
+                            return;
+                        }
                         File.Delete(file); throw new IOException("续传范围已失效，将重新下载。");
                     }
                     if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
@@ -112,7 +128,9 @@ internal sealed class FileSkinResourceTransfer(HttpClient http, bool allowHttp, 
                         throw new InvalidDataException("服务器返回的续传范围无效。");
                     long start = append ? offset : 0;
                     long? expectedEnd = append ? range!.To + 1 : response.Content.Headers.ContentLength;
+                    long? totalBytes = release.Size > 0 ? release.Size : append ? range!.Length : response.Content.Headers.ContentLength;
                     if (expectedEnd > MaxBytes) throw new InvalidDataException("资源下载超过大小限制。");
+                    Report(start, totalBytes);
                     await using (var output = new FileStream(file, append ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None))
                     await using (var input = await response.Content.ReadAsStreamAsync(total.Token).ConfigureAwait(false))
                     {
@@ -124,10 +142,11 @@ internal sealed class FileSkinResourceTransfer(HttpClient http, bool allowHttp, 
                             if (received > MaxBytes || expectedEnd.HasValue && received > expectedEnd || release.Size > 0 && received > release.Size)
                                 throw new InvalidDataException("资源长度超过声明大小。");
                             await output.WriteAsync(buffer.AsMemory(0, count), total.Token).ConfigureAwait(false);
-                            if (progress.ElapsedMilliseconds >= 500)
-                            { status($"正在下载换肤资源：{received / 1048576d:F1} MB"); progress.Restart(); }
+                            if (received == start + count || progress.ElapsedMilliseconds >= 500)
+                            { Report(received, totalBytes); progress.Restart(); }
                         }
                         if (expectedEnd.HasValue && received != expectedEnd) throw new IOException("资源传输中断，已保留断点。");
+                        Report(received, totalBytes, "正在校验下载文件");
                     }
                     if (!await VerifyAsync(file, release, token).ConfigureAwait(false))
                     {
@@ -135,6 +154,7 @@ internal sealed class FileSkinResourceTransfer(HttpClient http, bool allowHttp, 
                         if (append && range!.To + 1 < range.Length) throw new IOException("继续下载剩余资源。");
                         throw new InvalidDataException("下载的资源包校验失败，将重新下载。");
                     }
+                    Report(new FileInfo(file).Length, totalBytes ?? new FileInfo(file).Length, "下载已完成");
                     return;
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }

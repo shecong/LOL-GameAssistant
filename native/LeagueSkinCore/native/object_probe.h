@@ -69,6 +69,8 @@ static void independentObjectProbe(Writer* w,IndependentContext* c) {
                         }
                         BYTE* candidateOwner=*(BYTE**)(object+runtimeGame.owner_offset);
                         append(w,",\"owner_present_candidate\":%s,\"local_owner_candidate\":%s",candidateOwner?"true":"false",candidateOwner==c->player?"true":"false");
+                        // Raw component bytes for offset recovery (read-only evidence).
+                        if(n<96){append(w,",\"head\":");objectHex(w,object,0x200);}
                         if(!strcmp(model,"YellowTrinket")) {
                             append(w,",\"ownership_field\":");objectHex(w,object+runtimeGame.owner_offset,64);
                             MEMORY_BASIC_INFORMATION region{};
@@ -93,5 +95,7 @@ static void independentObjectProbe(Writer* w,IndependentContext* c) {
         if(method>0 && method+64<(intptr_t)runtimeGame.image_size){append(w,",\"code\":");objectHex(w,playerTable[j],64);}append(w,"}");
     }
     append(w,"]");
-    append(w,",\"player_address\":%llu,\"team_index\":%u}",(uint64_t)c->player,c->player[Game_team_offset]);
+    append(w,",\"player_head\":");objectHex(w,c->player,0x200);
+    unsigned teamIndex=runtimeGame.team_offset?c->player[runtimeGame.team_offset]:c->player[Game_team_offset];
+    append(w,",\"player_address\":%llu,\"team_offset\":%llu,\"team_index\":%u}",(uint64_t)c->player,(uint64_t)runtimeGame.team_offset,teamIndex);
 }

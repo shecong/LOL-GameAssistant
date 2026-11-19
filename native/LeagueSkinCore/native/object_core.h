@@ -30,6 +30,37 @@ static bool objectLocalWard(IndependentContext* c,BYTE* object) {
     BYTE* wrapper=*(BYTE**)(object+runtimeGame.owner_offset);
     return objectReadable(wrapper,64) && *(BYTE**)wrapper==c->player;
 }
+// 16.23 moved the team byte out of 0x158 (it now reads 59). The lane-minion
+// model name is ground truth for the team, so recover the offset from the
+// object list itself instead of trusting a stale constant: exactly one byte
+// offset may map Order* -> 1 / Chaos* -> 2 for every lane minion while the
+// local player object also holds a valid team at that offset.
+static int objectTeamOffset(IndependentContext* c,BYTE** objects,int count) {
+    int found=-1;
+    if(!objects || count<2)return -1;
+    for(int offset=0x40;offset<=0x400;offset++) {
+        unsigned local=c->player[offset];
+        if(local!=1 && local!=2)continue;
+        int matched=0;bool conflict=false;
+        for(int n=0;n<count;n++) {
+            BYTE* object=objects[n];char model[64];
+            if(!object || !objectReadable(object,runtimeGame.stack_offset+0xa0) ||
+                !cstring(*(const char**)(object+runtimeGame.stack_offset+0x18),model,sizeof(model))){conflict=true;break;}
+            bool lane=objectLaneModel(model);
+            if(!lane) {
+                if(objectWardModel(model) && objectLocalWard(c,object) && object[offset]!=local){conflict=true;break;}
+                continue;
+            }
+            unsigned expected=strstr(model,"Chaos")?2:1;
+            if(object[offset]!=expected){conflict=true;break;}
+            matched++;
+        }
+        if(conflict || matched<2)continue;
+        if(found>=0)return -2; // More than one offset fits: refuse to guess.
+        found=offset;
+    }
+    return found;
+}
 static bool objectWardName(IndependentContext* c,int skin,char* name,size_t size) {
     if(skin<0 || skin>1000)return false;
     char key[128];sprintf_s(key,"game_character_skin_displayname_SightWard_%d",skin);
@@ -42,8 +73,12 @@ static void independentObjects(Request* r,Writer* writer,IndependentContext* c,b
     BYTE** objects;int count;if(!objectList(c,&objects,&count)){fail(r,"object_list_not_verified");return;}
     if(r->command!=12 && strcmp(r->session,c->session)){fail(r,"stale_session");return;}
     if(r->command!=12 && (r->index < -1 || r->index>(r->command==13?10:10000) || r->gear < -1 || r->gear>1000)){fail(r,"invalid_object_selection");return;}
-    int playerTeam=c->player[Game_team_offset];
-    if(r->command==13 && r->index>=0 && playerTeam!=1 && playerTeam!=2){fail(r,"object_team_not_verified");return;}
+    int teamOffset=-1;
+    if(r->command==13 && r->index>=0) {
+        teamOffset=objectTeamOffset(c,objects,count);
+        if(teamOffset<0){fail(r,"object_team_not_verified");return;}
+        runtimeGame.team_offset=(uintptr_t)teamOffset;
+    }
     char wardName[1024];
     if(r->command!=12 && r->gear>=0 && !objectWardName(c,r->gear,wardName,sizeof(wardName))){fail(r,"ward_skin_not_in_catalog");return;}
     int lanes=0,wards=0,baselineMinion=-1,baselineWard=-1;bool mixedMinion=false,mixedWard=false;
@@ -62,7 +97,7 @@ static void independentObjects(Request* r,Writer* writer,IndependentContext* c,b
             if(r->command==12)continue;
             int selected=-1;
             if(r->command==14)selected=lane?r->index:r->gear;
-            else {ObjectSkinObservation observation{lane,ward,ward,playerTeam,skin,0,model,c->hero};
+            else {ObjectSkinObservation observation{lane,ward,ward,teamOffset>=0?(int)object[teamOffset]:0,skin,0,model,c->hero};
                 selected=selectObjectSkin(observation,{r->index,r->gear}).skin;}
             if(selected<0)continue;
             IndependentContext objectContext=*c;objectContext.player=object;objectContext.stack=object+runtimeGame.stack_offset;

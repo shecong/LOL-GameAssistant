@@ -228,6 +228,57 @@ public sealed class OptionalFileSkinResourcesTests
         finally { LOL_GameAssistant.Helper.UiTheme.SetMode(previous); }
     });
 
+    [Theory]
+    [InlineData(0, "server.test")]
+    [InlineData(1, "server.test")]
+    [InlineData(2, "github.com")]
+    public void SourceSelectionTriesRequestedHostBeforeFallback(int selected, string expectedHost) => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var fixture = new Fixture(); byte[] zip = File.ReadAllBytes(fixture.Archive()); fixture.Configure(zip);
+        var requested = new List<string>();
+        using var service = fixture.Service(handler: () => new Handler(request =>
+        {
+            requested.Add(request.RequestUri!.Host);
+            return new(HttpStatusCode.NotFound);
+        }));
+        using var page = new LOL_GameAssistant.BaseViewForm.FileSkinBrowserForm(service,
+            SecondPhaseRegressionTests.Service<LOL_GameAssistant.Application.Skins.ISkinEngineCoordinator>((method, _) => method.ReturnType == typeof(bool) ? false : null),
+            SecondPhaseRegressionTests.Service<LOL_GameAssistant.Application.Settings.IApplicationSettingsStore>((method, _) => method.Name == "Load" ? new LOL_GameAssistant.Domain.Settings.AssistantSettings() : null),
+            new FileSkinPreferencesStore(Path.Combine(fixture.Root, "preferences.json")),
+            SecondPhaseRegressionTests.Service<LOL_GameAssistant.Application.Skins.IFileSkinArtworkService>((_, _) => Task.FromResult<LOL_GameAssistant.Domain.GameData.GameAsset?>(null)), () => false);
+        var source = (AntdUI.Select)page.Controls.Find("FileSkinResourceSource", true).Single();
+        Assert.Equal(new[] { "自动选源", "服务器", "GitHub" }, source.Items.Cast<object>().Select(item => item.ToString()));
+        source.SelectedIndex = selected;
+        var installing = (Task)typeof(LOL_GameAssistant.BaseViewForm.FileSkinBrowserForm).GetMethod("InstallResourcesAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(page, [service, null])!;
+        SecondPhaseRegressionTests.Pump(installing);
+        Assert.Equal(expectedHost, requested.First());
+        Assert.Equal(2, requested.Count);
+        Assert.NotEqual(requested[0], requested[1]);
+    });
+
+    [Theory]
+    [InlineData("26.1109", "26.1116.1")]
+    [InlineData("26.1117.1", "26.1117.1")]
+    public async Task CachePreservesNewestVersionWhenOnlineCheckFails(string cachedVersion, string expectedVersion)
+    {
+        using var fixture = new Fixture(); byte[] zip = File.ReadAllBytes(fixture.Archive()); fixture.Configure(zip, remote: true);
+        string configPath = Path.Combine(fixture.Root, "source.json");
+        var config = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(configPath))!;
+        config["fileSkinResources"]!["version"] = "26.1116.1";
+        File.WriteAllText(configPath, config.ToJsonString());
+        Directory.CreateDirectory(Path.Combine(fixture.Root, "cache"));
+        File.WriteAllText(Path.Combine(fixture.Root, "cache", "latest-resource.json"), JsonSerializer.Serialize(new
+        {
+            version = cachedVersion, gamePatch = "", sha256 = Convert.ToHexString(SHA256.HashData(zip)),
+            urls = new[] { "https://server.test/resources.zip" }
+        }));
+        using var service = fixture.Service(handler: () => new Handler(_ => new(HttpStatusCode.NotFound)));
+        var update = await service.CheckForUpdatesAsync();
+        Assert.False(update!.CheckedOnline);
+        Assert.Equal(expectedVersion, update.Release.Version);
+    }
+
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(respond(request));

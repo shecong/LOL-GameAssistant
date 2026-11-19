@@ -8,6 +8,7 @@ struct RuntimeProfile {
     BYTE* base=nullptr;DWORD timestamp=0,image_size=(DWORD)Game_image_size;
     uintptr_t player_slot=Game_player_slot,champion_slot=Game_champion_slot,translate=Game_translate,update=Game_update,push=Game_push;
     uintptr_t stack_offset=Game_stack_offset,skin_offset=Game_skin_offset,object_list_slot=Game_object_list_slot,owner_offset=Game_owner_offset;
+    uintptr_t team_offset=0; // Recovered from the object list; 0 = not yet derived.
     uintptr_t camera_slot=0,camera_manager=0;
     RuntimeMatch matches[RuntimeRuleCount]{};
     bool ready=false,objects=false,camera=false,view=false,cacheHit=false;
@@ -94,25 +95,33 @@ static int runtimeFind(const RuntimeImage& image,const RuntimePattern& pattern,u
     return count;
 }
 static bool runtimeGroup(const RuntimeImage& image,RuntimeProfile* profile,unsigned first,unsigned last) {
+    // Report every locator that fails in this group, not only the first one:
+    // after a game update the maintainer needs the whole damaged set, and one
+    // spawn of the host should be enough to learn it.
+    const char* failure=nullptr;char failed[64]={0};
     for(unsigned key=first;key<=last;key++) {
         auto& selected=profile->matches[key];
+        const char* name="unknown";for(const auto& p:RuntimePatterns)if(p.key==key){name=p.name;break;}
         if(selected.pattern>=0 && runtimePatternAt(image,RuntimePatterns[selected.pattern],selected.rva))continue;
-        selected={};int candidates=0;
+        selected={};int candidates=0;const char* stage=nullptr;
         for(unsigned n=0;n<sizeof(RuntimePatterns)/sizeof(RuntimePatterns[0]);n++) {
             auto& rule=RuntimePatterns[n];if(rule.key!=key)continue;uintptr_t found=0;
             int count=runtimeFind(image,rule,&found);
-            if(count<0){profile->error="profile_code_not_ready";sprintf_s(profile->stage,"locator:%s",rule.name);return false;}
+            if(count<0){stage="profile_code_not_ready";candidates=0;break;}
             if(count>1 || (count==1 && candidates && found!=selected.rva)) {
-                profile->error="profile_signature_ambiguous";sprintf_s(profile->stage,"locator:%s",rule.name);return false;
+                stage="profile_signature_ambiguous";candidates=0;break;
             }
             if(count==1){candidates=1;selected={found,(int)n};}
         }
-        if(!candidates) {
-            profile->error="profile_signature_missing";
-            const char* name="unknown";for(const auto& p:RuntimePatterns)if(p.key==key){name=p.name;break;}
-            sprintf_s(profile->stage,"locator:%s",name);return false;
+        if(!candidates && !stage)stage="profile_signature_missing";
+        if(stage) {
+            if(!failure)failure=stage;
+            size_t used=strlen(failed);
+            if(used && used+1<sizeof(failed))failed[used++]='+';
+            if(used<sizeof(failed))strncpy_s(failed+used,sizeof(failed)-used,name,_TRUNCATE);
         }
     }
+    if(failure) {profile->error=failure;sprintf_s(profile->stage,"locator:%s",failed);return false;}
     return true;
 }
 static bool runtimeRelative(const RuntimeImage& image,uintptr_t at,unsigned displacement,unsigned size,bool executable,uintptr_t* result) {
@@ -150,7 +159,7 @@ static bool runtimeResolve(BYTE* base,RuntimeProfile* result) {
     uint32_t stack=0,decode=0,encode=0;
     memcpy(&stack,base+at(1)+3,4);memcpy(&decode,base+at(7)+2,4);
     memcpy(&encode,base+at(8)+(pattern(8).operandOffset?pattern(8).operandOffset:33),4);
-    valid=valid && pattern(7).schema==pattern(8).schema && (pattern(7).schema==1 || pattern(7).schema==2);
+    valid=valid && pattern(7).schema==pattern(8).schema && (pattern(7).schema==1 || pattern(7).schema==2 || pattern(7).schema==3);
     // Supported schema: layer +0x18/+0x38 and 0xa0 stride remain constrained
     // in the update/push patterns; only the containing object offsets can move.
     valid=valid && stack>=0x100 && stack<=0x10000 && stack%8==0 && decode==encode && decode>=0x100 && decode<=0x10000 && decode%4==0;

@@ -98,13 +98,37 @@ public sealed class FileSkinResourceTransferTests
     public async Task ExplicitCancelPreservesPartialForLaterResume()
     {
         using var fixture = new Fixture(); using var stop = new CancellationTokenSource();
+        var updates = new List<FileSkinResourceDownloadProgress>();
         using var http = new HttpClient(new Handler(_ =>
         {
             stop.CancelAfter(100);
             return new(HttpStatusCode.OK) { Content = new StreamContent(new InterruptedStream(fixture.Bytes[..700], true)) { Headers = { ContentLength = fixture.Bytes.Length } } };
         }));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new FileSkinResourceTransfer(http, false, _ => { }).DownloadAsync(fixture.Release(), fixture.File, false, stop.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new FileSkinResourceTransfer(http, false, _ => { }, reportProgress: updates.Add).DownloadAsync(fixture.Release(), fixture.File, false, stop.Token));
         Assert.Equal(700, new FileInfo(fixture.File).Length);
+        Assert.Equal(700, updates.Last().Downloaded);
+        Assert.Equal(fixture.Bytes.Length, updates.Last().Total);
+        Assert.InRange(updates.Last().Percent!.Value, 34, 35);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProgressUsesManifestOrHttpSizeAndAlwaysReportsCompletion(bool manifestHasSize)
+    {
+        using var fixture = new Fixture();
+        var updates = new List<FileSkinResourceDownloadProgress>();
+        var release = fixture.Release() with { Size = manifestHasSize ? fixture.Bytes.Length : 0 };
+        using var http = new HttpClient(new Handler(_ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(fixture.Bytes) }));
+        await new FileSkinResourceTransfer(http, false, _ => { }, reportProgress: updates.Add).DownloadAsync(release, fixture.File, false, default);
+        Assert.Contains(updates, p => p.Downloaded == 0 && p.Total == fixture.Bytes.Length);
+        Assert.Equal(fixture.Bytes.Length, updates.Last().Downloaded);
+        Assert.Equal(fixture.Bytes.Length, updates.Last().Total);
+        Assert.Equal(100d, updates.Last().Percent);
+        Assert.Equal("下载已完成", updates.Last().Stage);
+        Assert.Contains("/", updates.Last().Description);
+        Assert.Contains("MB", updates.Last().Description);
+        Assert.Contains("100", updates.Last().Description);
     }
     [Fact]
     public async Task OversizedManifestAndArchiveAreRejectedBeforeInstallation()

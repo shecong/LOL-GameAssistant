@@ -31,7 +31,7 @@ int main(int argc,char** argv) {
         assert(p.timestamp==fixture.timestamp && p.image_size==fixture.size && strlen(p.sha)==64);
         assert(p.player_slot==fixture.player && p.champion_slot==fixture.champions && p.translate==fixture.translate);
         assert(p.update==fixture.update && p.push==fixture.push && p.stack_offset==fixture.stack && p.skin_offset==fixture.skin);
-        assert(p.skinCodec==(fixture.timestamp==1793650179 ? 2u : 1u));
+        assert(p.skinCodec==(fixture.timestamp==1793650179 ? 2u : fixture.timestamp==1794962899 ? 3u : 1u));
         runtimeGame=p;
         for(int value=0;value<=10000;value++) {
             uint32_t encoded=skinEncoded(value);int decoded=-1;
@@ -76,6 +76,16 @@ int main(int argc,char** argv) {
         auto image=fixtureImage(fixture);RuntimeProfile p{};
         image[fixture.blocks[2].rva]^=1;
         assert(!runtimeResolve(image,&p) && !strcmp(p.error,"profile_signature_missing") && !strcmp(p.stage,"locator:update"));
+        VirtualFree(image,0,MEM_RELEASE);
+    }
+    {
+        // A build change usually breaks several locators at once. One request
+        // must report the whole damaged set, not only the first hit.
+        auto image=fixtureImage(fixture);RuntimeProfile p{};
+        image[fixture.blocks[2].rva]^=1; // update
+        image[fixture.blocks[7].rva]^=1; // skin_decode
+        assert(!runtimeResolve(image,&p) && !strcmp(p.error,"profile_signature_missing"));
+        assert(strstr(p.stage,"locator:update") && strstr(p.stage,"skin_decode") && strchr(p.stage,'+'));
         VirtualFree(image,0,MEM_RELEASE);
     }
     {
@@ -132,5 +142,5 @@ int main(int argc,char** argv) {
         }
         assert(checked);VirtualFree(image,0,MEM_RELEASE);UnmapViewOfFile(cache);CloseHandle(owner);
     }
-    puts("Runtime resolver: three saved builds (including 16.22), both codecs, isolated DWORD writes/restoration, mixed-codec rejection, synthetic relocation, ambiguity, missing code, invalid targets, unreadable pages and feature isolation passed.");
+    puts("Runtime resolver: four saved builds (16.21/16.22/16.23), three codecs, isolated DWORD writes/restoration, mixed-codec rejection, synthetic relocation, ambiguity, missing code, invalid targets, unreadable pages and feature isolation passed.");
 }

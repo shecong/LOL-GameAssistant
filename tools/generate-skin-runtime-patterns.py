@@ -14,6 +14,7 @@ native = root/'native/LeagueSkinCore/native'
 profile = json.loads((native.parent/'game-profile.json').read_text(encoding='utf-8-sig'))['profile']
 old = json.loads((native.parent/'profiles/2026-10-22.json').read_text(encoding='utf-8-sig'))['profile']
 current = json.loads((native.parent/'profiles/2026-11-05.json').read_text(encoding='utf-8-sig'))['profile']
+newest = json.loads((native.parent/'profiles/2026-11-19.json').read_text(encoding='utf-8-sig'))['profile']
 names = ['player','stack','update','push_call','champions','translate','push_body','skin_decode','skin_encode',
          'object_descriptor','object_owner','object_accessor','objects','camera_config','camera_defaults','camera_view','camera_init']
 md = Cs(CS_ARCH_X86,CS_MODE_64); md.detail=True
@@ -46,6 +47,13 @@ for key,name in enumerate(['CameraLookup','CameraDefault','CameraViewLookup','Ca
 for key in (0,3,5,7,8,9,11):
     c=current['checks'][key]
     rule(key,bytes.fromhex(c['hex']),c['rva'],{5:0x34,8:45}.get(key,0),2)
+# 16.23 moved the player access, the layer-stack offset, the caller of push and
+# the skin field, and re-rolled the id codec (schema 3). Rules whose bytes still
+# matched (update/push_body/champions/translate/objects/camera) keep their older
+# entries; adding duplicates would only create ambiguity.
+for key in (0,1,3,7,8,10,11):
+    c=newest['checks'][key]
+    rule(key,bytes.fromhex(c['hex']),c['rva'],{8:45}.get(key,0),3)
 schema=hashlib.sha256(b''.join(bytes([key,offset,family])+raw+mask for key,raw,mask,offset,family in rules)).hexdigest()
 lines=['// Generated from local game-code references. No external assistant is required.','#pragma once',
        f'constexpr char RuntimeRulesSha[]="{schema}";','constexpr unsigned RuntimeRuleCount=17;']
@@ -79,7 +87,7 @@ for key,c in enumerate(future['checks']):
     if key==7:raw[2:6]=future['skin_offset'].to_bytes(4,'little')
     if key==8:raw[33:37]=future['skin_offset'].to_bytes(4,'little')
     c['rva']+=code_delta;c['hex']=raw.hex()
-fixtures=[old,profile,future,current]
+fixtures=[old,profile,future,current,newest]
 test=['// Local reference fixtures and one synthetic relocated/layout-shifted update; no game execution.','#pragma once',
       'struct RuntimeFixtureBlock {uintptr_t rva;const BYTE* bytes;size_t size;};',
       'struct RuntimeFixture {DWORD timestamp,size;uintptr_t player,champions,translate,update,push,stack,skin;const RuntimeFixtureBlock* blocks;size_t count;};']

@@ -2,11 +2,13 @@
 
 程序打开“游戏外换肤”页面时检查在线版本，也可点击“检查更新”。检查失败会明确显示失败并使用上次有效清单或内置资源，不会把检查失败显示成“已是最新”。使用现有皮肤资源不依赖检查成功。
 
-发现更新后点击“下载资源”安装，不会自动在对局中替换资源。相同 ZIP 的 SHA256 已安装时，不重复下载；仅打开页面不会下载大资源包。
+发现更新后点击“下载资源”安装，下载时显示已下载/总 MB、百分比和进度条，原按钮变为“取消下载”；取消会保留断点，再次点击下载可继续，也可使用底部“停止 / 取消”。不会自动在对局中替换资源。相同 ZIP 的 SHA256 已安装时，不重复下载；仅打开页面不会下载大资源包。
 
 ## 更新清单
 
-客户端的 `update-source.json` 中，`fileSkinResources.manifestUrls` 指向固定清单地址。当前使用仓库 `master` 分支的 `build/file-skin-resources.json`，默认包下载源是可访问的 GitHub Release，已移除返回 404 的服务器 ZIP 地址。
+客户端的 `update-source.json` 中，`fileSkinResources.manifestUrls` 指向固定清单地址。当前配置优先读取服务器根目录 `file-skin-resources.json`，失败时读取仓库 `master` 分支的 `build/file-skin-resources.json`；两个清单应发布相同的资源版本。服务器资源 ZIP 使用根目录下带版本号的文件名，例如 `file-skin-resources-26.1116.1.zip`。
+
+页面提供“自动选源”“服务器”“GitHub”。自动选源与服务器选项优先下载服务器地址；GitHub 选项优先下载 GitHub 地址，首选失败仍会尝试备用下载源。新增较新版本的程序配置不会被旧的资源清单缓存覆盖。
 
 清单字段：
 

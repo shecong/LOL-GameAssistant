@@ -34,10 +34,16 @@ try {
     $Architecture = $Architecture.ToLowerInvariant()
     [xml]$releaseVersionConfig = Get-Content -LiteralPath (Join-Path $releaseRepository 'build\Version.props') -Raw
     $releaseVersion = [string]$releaseVersionConfig.Project.PropertyGroup.SoftwareVersion
-    $releaseIndex = New-UpdateIndexJson -Version $releaseVersion -ReleaseNotesFile $ReleaseNotesFile
     if ($releaseVersion -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
         throw '请先在 build/Version.props 设置正确的 SoftwareVersion，例如 1.0.2。'
     }
+    if (-not $ReleaseNotesFile) {
+        $defaultReleaseNotes = Join-Path $releaseRepository "build\release-notes\$releaseVersion.txt"
+        if (Test-Path -LiteralPath $defaultReleaseNotes -PathType Leaf) {
+            $ReleaseNotesFile = $defaultReleaseNotes
+        }
+    }
+    $releaseIndex = New-UpdateIndexJson -Version $releaseVersion -ReleaseNotesFile $ReleaseNotesFile
     $releaseSettings = Get-Content -LiteralPath (Join-Path $releaseRepository 'LOL-GameAssistant\update-source.json') -Raw | ConvertFrom-Json
     $releaseArchitectures = if ($Architecture -eq 'all') { @('x64','x86','arm64') } else { @($Architecture) }
     if ($PublishDirectory -and ($Architecture -eq 'all' -or $Mode -eq 'Build')) {
