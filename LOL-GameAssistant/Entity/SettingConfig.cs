@@ -281,9 +281,12 @@ namespace LOL_GameAssistant.Entity
         /// <summary>
         /// 从本地 JSON 文件加载设置。
         /// </summary>
-        public static SettingConfig Load()
+        public static SettingConfig Load() => Load(CacheFilePath, includeLegacy: true);
+
+        internal static SettingConfig Load(string file, bool includeLegacy)
         {
-            foreach (string path in new[] { CacheFilePath, CacheFilePath + ".bak", LegacyFilePath })
+            string[] candidates = includeLegacy ? [file, file + ".bak", LegacyFilePath] : [file, file + ".bak"];
+            foreach (string path in candidates)
             {
                 try { if (File.Exists(path)) return LoadFromFile(path); }
                 catch { /* 损坏或不可读时尝试下一份。 */ }
@@ -304,25 +307,27 @@ namespace LOL_GameAssistant.Entity
         /// <summary>
         /// 保存设置到本地 JSON 文件。
         /// </summary>
-        public static void Save(SettingConfig config)
+        public static void Save(SettingConfig config) => Save(config, CacheFilePath);
+
+        internal static void Save(SettingConfig config, string file)
         {
             config.Normalize();
             string json = JsonConvert.SerializeObject(config, Newtonsoft.Json.Formatting.Indented);
-            string directory = Path.GetDirectoryName(CacheFilePath) ?? AppDomain.CurrentDomain.BaseDirectory;
+            string directory = Path.GetDirectoryName(file) ?? AppDomain.CurrentDomain.BaseDirectory;
             Directory.CreateDirectory(directory);
-            string temporaryPath = CacheFilePath + ".tmp";
-            string backupPath = CacheFilePath + ".bak";
-
-            File.WriteAllText(temporaryPath, json);
-            if (File.Exists(CacheFilePath))
+            string temporaryPath = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
             {
-                // Replace keeps the last known good settings file available if a power loss or
-                // process termination happens while the new file is being committed.
-                File.Replace(temporaryPath, CacheFilePath, backupPath, ignoreMetadataErrors: true);
+                File.WriteAllText(temporaryPath, json);
+                if (File.Exists(file))
+                    File.Replace(temporaryPath, file, file + ".bak", ignoreMetadataErrors: true);
+                else
+                    File.Move(temporaryPath, file);
             }
-            else
+            finally
             {
-                File.Move(temporaryPath, CacheFilePath);
+                try { File.Delete(temporaryPath); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
             }
         }
 

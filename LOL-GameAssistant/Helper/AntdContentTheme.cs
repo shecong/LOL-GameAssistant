@@ -27,7 +27,7 @@ internal static class AntdContentTheme
     }
 }
 
-internal sealed class AntdContentWindow : AntdUI.Window, IThemeAware
+internal sealed class AntdContentWindow : BorderlessAntdWindow, IThemeAware
 {
     public void ApplyTheme(ThemePalette palette) => AntdContentTheme.Apply(this, palette);
 }

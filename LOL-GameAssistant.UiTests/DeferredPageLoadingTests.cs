@@ -134,7 +134,7 @@ public sealed class DeferredPageLoadingTests
             Service<ILeagueClientConnection>((_, _) => true),
             Service<IMatchHistoryService>((_, _) => { requests++; return history.Task; }),
             Service<IRankedStatsService>((_, _) => { requests++; return ranked.Task; }),
-            Service<IGameDataVersionService>((_, _) => version.Task));
+            _ => version.Task);
         Task loading = home.LoadPlayerAsync(null);
         PumpUntil(() => Field<AntdUI.Label>(home, "play_name").Text == "启动测试");
         Assert.Equal(3, requests); // Independent content must not wait for Data Dragon version discovery.

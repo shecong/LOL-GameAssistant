@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using LOL_GameAssistant.Application.Matches;
-using LOL_GameAssistant.Domain.MatchAnalysis;
 
 namespace LOL_GameAssistant.Infrastructure.Files;
 
@@ -22,7 +21,7 @@ public sealed class CompanionExperienceStore(string? directory = null) : ICompan
         try
         {
             var value = JsonSerializer.Deserialize<PlayerExperience>(await File.ReadAllTextAsync(path, token).ConfigureAwait(false)) ?? new();
-            value.PatchAssets ??= new(); value.FavoriteTeammates ??= new();
+            value.FavoriteTeammates ??= new();
             return value;
         }
         catch (FileNotFoundException) { return new(); }
@@ -36,8 +35,6 @@ public sealed class CompanionExperienceStore(string? directory = null) : ICompan
         try
         {
             var value = await LoadAsync(player, token).ConfigureAwait(false); update(value);
-            if (value.Goal is { } goal && (!Enum.IsDefined(goal.Metric) || !double.IsFinite(goal.Target) || goal.Target < 0 || (goal.Target == 0 && goal.Metric != PracticeMetric.Deaths) || goal.Games is < 1 or > 30 || string.IsNullOrWhiteSpace(goal.Mode) || goal.Mode == "全部"))
-                throw new ArgumentException("请为单一模式设置有效的练习目标");
             Directory.CreateDirectory(_directory);
             string temporary = path + ".tmp";
             await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(value), token).ConfigureAwait(false);

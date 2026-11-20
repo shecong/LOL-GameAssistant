@@ -6,7 +6,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>从招募到当前客户端大厅的手动组队入口，不按聊天昵称推断 PUUID。</summary>
-internal sealed class PartyHubForm : AntdUI.Window, IThemeAware
+internal sealed class PartyHubForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly IPartyService _service;
     private readonly UiRequestScope _requests = new();

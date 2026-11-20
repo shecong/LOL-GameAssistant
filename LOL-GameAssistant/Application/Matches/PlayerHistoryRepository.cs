@@ -10,6 +10,11 @@ public sealed class PlayerHistoryRepository
     private static readonly ConditionalWeakTable<IMatchHistoryService, PlayerHistoryRepository> Instances = new();
     public static PlayerHistoryRepository For(IMatchHistoryService source) => Instances.GetValue(source, value => new(value));
     public static void ClearAll() { foreach (var instance in Instances) instance.Value.Clear(); }
+    public static (int Entries, long Bytes) MeasureAll()
+    {
+        var sizes = Instances.Select(instance => instance.Value.Measure()).ToArray();
+        return (sizes.Sum(size => size.Entries), sizes.Sum(size => size.Bytes));
+    }
     private readonly IMatchHistoryService _source;
     private readonly TimeProvider _clock;
     private readonly Func<string> _context;
@@ -18,6 +23,8 @@ public sealed class PlayerHistoryRepository
     private readonly ConcurrentDictionary<(string Context, long Id), Lazy<Task<MatchDetail?>>> _details = new();
     private readonly SemaphoreSlim _detailGate = new(MatchDataPolicy.DetailConcurrency);
     private long _generation;
+    private readonly object _cacheGate = new();
+    private readonly Dictionary<(string Context, long Id), MatchDetail> _completedSelections = new();
     public PlayerHistoryRepository(IMatchHistoryService source, TimeProvider? clock = null, Func<string>? context = null)
     { _source = source; _clock = clock ?? TimeProvider.System; _context = context ?? (() => PlayerHistorySession.Key); }
     public event Action<string>? Diagnostic;
@@ -31,9 +38,14 @@ public sealed class PlayerHistoryRepository
         if (!refresh && _snapshots.TryGetValue(key, out var previous) && !previous.IsStale &&
             _clock.GetUtcNow() - previous.AcquiredAt < MatchDataPolicy.Freshness) return previous;
         Lazy<Task<PlayerHistorySnapshot>>? candidate = null;
-        long generation = Volatile.Read(ref _generation);
-        candidate = new(() => ReadBatchAsync(key, generation, candidate!));
-        return await _batches.GetOrAdd(key, candidate).Value.WaitAsync(token).ConfigureAwait(false);
+        Lazy<Task<PlayerHistorySnapshot>> pending;
+        lock (_cacheGate)
+        {
+            long generation = _generation;
+            candidate = new(() => ReadBatchAsync(key, generation, candidate!));
+            pending = _batches.GetOrAdd(key, candidate);
+        }
+        return await pending.Value.WaitAsync(token).ConfigureAwait(false);
     }
 
     private async Task<PlayerHistorySnapshot> ReadBatchAsync((string Context, string Puuid) key, long generation,
@@ -53,10 +65,17 @@ public sealed class PlayerHistoryRepository
                 result = new(key.Puuid, data, _clock.GetUtcNow(), data?.Games == null ? HistoryDataState.Unavailable : HistoryDataState.Ready);
             }
             if (!result.Available) throw new IOException(result.Error ?? "战绩摘要未返回有效数据");
-            if (generation == Volatile.Read(ref _generation))
+            lock (_cacheGate)
             {
-                if (_snapshots.Count >= 128) _snapshots.Clear();
-                _snapshots[key] = result;
+                if (generation == _generation && _batches.TryGetValue(key, out var pending) && pending == request)
+                {
+                    if (_snapshots.Count >= 128 && !_snapshots.ContainsKey(key))
+                    {
+                        var oldest = _snapshots.MinBy(entry => entry.Value.AcquiredAt);
+                        _snapshots.TryRemove(oldest.Key, out _);
+                    }
+                    _snapshots[key] = result;
+                }
             }
             Diagnostic?.Invoke($"摘要 {result.State} · 返回 {result.ReturnedCount}/{result.RequestedCount} · {timer.ElapsedMilliseconds}ms");
             return result;
@@ -69,6 +88,50 @@ public sealed class PlayerHistoryRepository
                 : new(key.Puuid, null, _clock.GetUtcNow(), HistoryDataState.Unavailable, error.Message);
         }
         finally { _batches.TryRemove(new KeyValuePair<(string, string), Lazy<Task<PlayerHistorySnapshot>>>(key, request)); }
+    }
+
+    public void InvalidatePlayer(string puuid)
+    {
+        var key = (_context(), puuid);
+        lock (_cacheGate)
+        {
+            _snapshots.TryRemove(key, out _);
+            _batches.TryRemove(key, out _);
+        }
+    }
+
+    // Production sources already retain details on disk. Keep only a bounded fallback
+    // for other sources that do not have their own completed-detail cache.
+    public async Task<MatchDetail?> GetSelectedDetailAsync(long id, Func<MatchDetail, bool> validate,
+        bool refresh, CancellationToken token)
+    {
+        var key = (_context(), id);
+        long generation;
+        lock (_cacheGate)
+        {
+            generation = _generation;
+            if (refresh) _completedSelections.Remove(key);
+            else if (_completedSelections.TryGetValue(key, out var existing) && validate(existing))
+                return existing;
+        }
+
+        var detail = await _source.GetDetailAsync(id, !refresh, token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        if (key.Item1 != _context()) throw new IOException("客户端会话已变化，请重新查询。");
+        if (detail == null || !validate(detail)) return null;
+        if (_source is not ICompletePlayerHistoryStore)
+        {
+            lock (_cacheGate)
+            {
+                if (generation == _generation)
+                {
+                    if (_completedSelections.Count >= 64 && !_completedSelections.ContainsKey(key))
+                        _completedSelections.Remove(_completedSelections.Keys.First());
+                    _completedSelections[key] = detail;
+                }
+            }
+        }
+        return detail;
     }
 
     public async Task<MatchDetail?> GetDetailAsync(long id, CancellationToken token = default, TimeSpan? requestTimeout = null)
@@ -101,11 +164,22 @@ public sealed class PlayerHistoryRepository
             _details.TryRemove(new KeyValuePair<(string, long), Lazy<Task<MatchDetail?>>>(key, request));
         }
     }
-    public (int Entries, long Bytes) Measure() => (_snapshots.Count, _snapshots.Values.Sum(value =>
-        (long)System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(value).Length));
+    public (int Entries, long Bytes) Measure()
+    {
+        object[] entries;
+        lock (_cacheGate) entries = _snapshots.Values.Cast<object>().Concat(_completedSelections.Values).ToArray();
+        return (entries.Length, entries.Sum(value => (long)System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(value).Length));
+    }
+
     public void Clear()
     {
-        Interlocked.Increment(ref _generation);
-        _snapshots.Clear(); _batches.Clear(); _details.Clear();
+        lock (_cacheGate)
+        {
+            _generation++;
+            _snapshots.Clear();
+            _batches.Clear();
+            _details.Clear();
+            _completedSelections.Clear();
+        }
     }
 }

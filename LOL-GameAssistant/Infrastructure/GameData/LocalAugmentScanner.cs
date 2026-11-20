@@ -34,13 +34,26 @@ public sealed class LocalAugmentScanner : IAugmentScanner
         await ScanGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            bool native = _overlay != null;
-            using var capture = !native ? null : await _overlay!.CaptureAsync(cancellationToken).ConfigureAwait(false);
-            if (native && capture == null)
+            using var capture = _overlay == null ? null : await CaptureWhenReadyAsync(_overlay, cancellationToken).ConfigureAwait(false);
+            if (_overlay != null && capture == null)
                 return new AugmentScanResult([], "游戏覆盖层尚未就绪，请查看运行诊断中的「游戏覆盖层」状态。");
             return await Task.Run(() => Scan(cancellationToken, capture), cancellationToken).ConfigureAwait(false);
         }
         finally { ScanGate.Release(); }
+    }
+
+    private static async Task<GameOverlayCapture?> CaptureWhenReadyAsync(
+        IGameOverlayBridge overlay, CancellationToken cancellationToken)
+    {
+        // Publishing the panel can precede the first DX11 frame after the assistant starts.
+        long deadline = Environment.TickCount64 + 1500;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var capture = await overlay.CaptureAsync(cancellationToken).ConfigureAwait(false);
+            if (capture != null || Environment.TickCount64 >= deadline) return capture;
+            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>截取游戏窗口中的强化卡片区域并在本机执行 OCR 识别。</summary>

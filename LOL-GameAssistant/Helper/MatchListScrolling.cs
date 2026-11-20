@@ -82,8 +82,14 @@ internal class MatchScrollPanel : Panel
     /// <summary>初始化 MatchScrollPanel 的实例状态。</summary>
     public MatchScrollPanel() => DoubleBuffered = true;
     /// <summary>将滚轮输入交给战绩区域的滚动规则处理。</summary>
-    protected override void OnMouseWheel(MouseEventArgs e) =>
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        int previous = -AutoScrollPosition.Y;
         MatchListScrolling.ScrollWheel(this, e, ref _wheelRemainder);
+        int current = -AutoScrollPosition.Y;
+        if (current != previous)
+            OnScroll(new ScrollEventArgs(ScrollEventType.ThumbPosition, previous, current, ScrollOrientation.VerticalScroll));
+    }
 }
 
 /// <summary>支持嵌套滚轮传递的战绩流式布局容器。</summary>

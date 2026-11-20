@@ -58,20 +58,24 @@ public sealed partial class SkinToolsForm
         (bool core, bool enabled, string previous, string next, string picker) original = (false, false, "", "", "Home");
         try
         {
-            config = _settings.Load(); bool coreEnabled = config.SkinCoreEnabled;
-            original = (coreEnabled, config.SkinHotkeysEnabled, config.SkinPreviousHotkey, config.SkinNextHotkey, config.SkinPickerHotkey);
-            if (new[] { _previousKey, _nextKey, _pickerKey }.Any(input => !WindowHoldController.TryParseGameHotkey(input.Text, out _)))
-                throw new InvalidOperationException("快捷键格式无效，请点击输入框重新录制。");
-            config.SkinPreviousHotkey = _previousKey.Text; config.SkinNextHotkey = _nextKey.Text;
-            config.SkinPickerHotkey = _pickerKey.Text;
-            config.SkinHotkeysEnabled = _hotkeyEnabled.Checked;
-            config.SkinCoreEnabled = true;
-            var bindings = WindowHoldController.CreateGameHotkeyBindings(config);
-            config.SkinCoreEnabled = coreEnabled;
-            if (!bindings.ContainsValue(QuickShoutHotkeyAction.SkinPicker) ||
-                config.SkinHotkeysEnabled && new[] { QuickShoutHotkeyAction.SkinPrevious, QuickShoutHotkeyAction.SkinNext }.Any(action => !bindings.ContainsValue(action)))
-                throw new InvalidOperationException("快捷键存在冲突，请更换后保存。");
-            _settings.Save(config); RenewHotkeyRequests(); HotkeySettingsChanged?.Invoke();
+            config = _settings.Update(settings =>
+            {
+                config = settings;
+                bool coreEnabled = settings.SkinCoreEnabled;
+                original = (coreEnabled, settings.SkinHotkeysEnabled, settings.SkinPreviousHotkey, settings.SkinNextHotkey, settings.SkinPickerHotkey);
+                if (new[] { _previousKey, _nextKey, _pickerKey }.Any(input => !WindowHoldController.TryParseGameHotkey(input.Text, out _)))
+                    throw new InvalidOperationException("快捷键格式无效，请点击输入框重新录制。");
+                settings.SkinPreviousHotkey = _previousKey.Text; settings.SkinNextHotkey = _nextKey.Text;
+                settings.SkinPickerHotkey = _pickerKey.Text;
+                settings.SkinHotkeysEnabled = _hotkeyEnabled.Checked;
+                settings.SkinCoreEnabled = true;
+                var bindings = WindowHoldController.CreateGameHotkeyBindings(settings);
+                settings.SkinCoreEnabled = coreEnabled;
+                if (!bindings.ContainsValue(QuickShoutHotkeyAction.SkinPicker) ||
+                    settings.SkinHotkeysEnabled && new[] { QuickShoutHotkeyAction.SkinPrevious, QuickShoutHotkeyAction.SkinNext }.Any(action => !bindings.ContainsValue(action)))
+                    throw new InvalidOperationException("快捷键存在冲突，请更换后保存。");
+            });
+            RenewHotkeyRequests(); HotkeySettingsChanged?.Invoke();
             _hotkeyStatus.Text = UiLanguage.T("快捷键已保存，仅游戏前台生效。") + $"\n{config.SkinPickerHotkey} 显示/隐藏英雄、眼位与小兵换肤窗（需启用独立核心）。";
             UpdateSkinPicker();
         }

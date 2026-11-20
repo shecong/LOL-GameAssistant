@@ -4,7 +4,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>Chinese directory browser for the original Wind-compatible Gitee mirror.</summary>
-public sealed class ResourceOnlineLibraryForm : AntdUI.Window, IThemeAware
+public sealed class ResourceOnlineLibraryForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly IResourceSkinRepository _repository;
     private readonly AntdUI.Input _repo = new() { Dock = DockStyle.Fill, Name = "ResourceRepository", PlaceholderText = "Gitee 仓库：owner/repository" };

@@ -46,7 +46,7 @@ public sealed partial class SkinToolsForm
             selector.SetMode(selected);
             try
             {
-                var settings = _settings.Load(); settings.SkinCoreMode = selected; _settings.Save(settings);
+                _settings.Update(settings => settings.SkinCoreMode = selected);
             }
             catch { selector.SetMode(previous); throw; }
             ResetSession();

@@ -15,7 +15,7 @@ using GameFlowPhase = LOL_GameAssistant.Domain.LeagueClient.GameFlowPhase;
 namespace LOL_GameAssistant
 {
     /// <summary>主窗口：管理页面切换、客户端阶段事件、托盘和自动操作。</summary>
-    public partial class GameMain : AntdUI.Window
+    public partial class GameMain : BorderlessAntdWindow
     {
         public readonly InfoMsgForm infoMsg = new InfoMsgForm();
         public readonly HomeForm home;
@@ -498,11 +498,19 @@ namespace LOL_GameAssistant
                 return;
             }
             if (expectedRevision.HasValue && expectedRevision.Value != GameFlowRevision) return;
-            gameFlowPhase = parsed;
-            liveGameForm.OnChampionSelectPhaseChanged(parsed == GameFlowPhase.ChampSelect);
-            _skinTools.OnGamePhaseChanged(parsed == GameFlowPhase.InProgress, parsed == GameFlowPhase.ChampSelect);
+            UpdatePhasePresentation(parsed);
             Interlocked.Increment(ref _gameFlowRevision);
-            gameFlowPhaseName.Text = parsed.GetChineseName();
+        }
+
+        private void UpdatePhasePresentation(GameFlowPhase phase)
+        {
+            if (gameFlowPhase != phase && _lobbyService is Infrastructure.LeagueClient.LegacyLobbyService lobby)
+                lobby.InvalidateSession();
+            gameFlowPhase = phase;
+            bool choosingChampion = phase == GameFlowPhase.ChampSelect;
+            liveGameForm.OnChampionSelectPhaseChanged(choosingChampion);
+            _skinTools.OnGamePhaseChanged(phase == GameFlowPhase.InProgress, choosingChampion);
+            gameFlowPhaseName.Text = phase.GetChineseName();
         }
 
         /// <summary>
@@ -611,10 +619,7 @@ namespace LOL_GameAssistant
         /// <summary>标题栏快捷切换明确写入浅色/深色，不改变用户在设置中选择的“跟随系统”之外的其它配置。</summary>
         private void btn_theme_toggle_Click(object sender, EventArgs e)
         {
-            AssistantSettings settings = _settingsStore.Load();
-            settings.ThemeMode = UiTheme.Palette.IsDark ? "Light" : "Dark";
-            settings.Normalize();
-            _settingsStore.Save(settings);
+            var settings = _settingsStore.Update(value => value.ThemeMode = UiTheme.Palette.IsDark ? "Light" : "Dark");
             UiTheme.SetMode(settings.ThemeMode);
             ApplyTheme();
             LOL_GameAssistant.Helper.UiMessage.success(this, settings.ThemeMode == "Dark" ? "已切换为深色主题" : "已切换为浅色主题");
@@ -848,9 +853,7 @@ namespace LOL_GameAssistant
             //修改主页状态
             if (Enum.TryParse(statustype, true, out GameFlowPhase parsedPhase))
             {
-                gameFlowPhase = parsedPhase;
-                liveGameForm.OnChampionSelectPhaseChanged(parsedPhase == GameFlowPhase.ChampSelect);
-                _skinTools.OnGamePhaseChanged(parsedPhase == GameFlowPhase.InProgress, parsedPhase == GameFlowPhase.ChampSelect);
+                UpdatePhasePresentation(parsedPhase);
                 // 离开结束状态后重置“已通知”标记，保证下一局还能再次提醒
                 if (parsedPhase != GameFlowPhase.WaitingForStats && parsedPhase != GameFlowPhase.EndOfGame)
                 {
@@ -862,8 +865,6 @@ namespace LOL_GameAssistant
                     CancelAutoAccept();
                     _readyCheckDeclinedByUser = false;
                 }
-                // 已在 UI 线程上，直接更新表头即可
-                this.gameFlowPhaseName.Text = $"{gameFlowPhase.GetChineseName()}";
             }
             _recommendationCoordinator.NotifyGamePhaseChanged(statustype);
             RefreshMayhemOverlaySetting();

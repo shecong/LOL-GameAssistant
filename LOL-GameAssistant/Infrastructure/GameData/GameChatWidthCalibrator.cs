@@ -39,10 +39,11 @@ public sealed class GameChatWidthCalibrator(IApplicationSettingsStore settingsSt
                 });
                 if (widths == null)
                     return new(false, "未可靠识别标尺换行，原校准保持不变。请保持游戏前台、聊天文字完整可见后重试。", 1);
-                var settings = settingsStore.Load();
-                settings.GameChatFirstLineWidth = widths.FirstLine;
-                settings.GameChatContinuationLineWidth = widths.ContinuationLine;
-                settingsStore.Save(settings);
+                settingsStore.Update(settings =>
+                {
+                    settings.GameChatFirstLineWidth = widths.FirstLine;
+                    settings.GameChatContinuationLineWidth = widths.ContinuationLine;
+                });
                 string message = $"自动校准完成：首行 {widths.FirstLine / 2} 个全角字，续行 {widths.ContinuationLine / 2} 个全角字；已保存并应用于 KDA 排版。";
                 RuntimeDiagnostics.Report("聊天行宽校准", "已校准", message);
                 return new(true, message, 1);

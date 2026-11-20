@@ -169,6 +169,10 @@ int main() {
     *(BYTE**)(cameraController+0x478)=cameraConfig;*(BYTE**)(cameraController+0x3b0)=cameraConfig;
     auto currentView=(CameraViewPair*)(cameraController+0x3c0);*currentView={2250.f,1800.f};
     cameraController[0x3bf]=0x75;cameraController[0x3c8]=0x26;
+    cameraRequest->command=15;cameraInvoked=false;cameraWriter.used=0;
+    independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
+    assert(!cameraInvoked && currentView->current==2250.f && currentView->target==1800.f);
+    assert(strstr(cameraRequest->result,"\"camera_view_distance\":2250") && strstr(cameraRequest->result,"\"camera_view_target\":1800"));
     cameraRequest->command=17;cameraRequest->index=cameraBits(600.f);cameraInvoked=false;cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
     assert(cameraInvoked && currentView->current==600.f && currentView->target==600.f);
@@ -177,9 +181,9 @@ int main() {
     CameraViewPair stale{2250.f,1800.f};assert(!cameraMove(currentView,stale,700.f));
     assert(!cameraMove(currentView,*currentView,NAN));
     assert(!cameraMove(currentView,*currentView,10001.f));
-    cameraRequest->index=cameraBits(2250.f);cameraWriter.used=0;
+    cameraRequest->index=cameraBits(1875.5f);cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
-    assert(currentView->current==2250.f && currentView->target==2250.f && strstr(cameraRequest->result,"\"camera_default_view_distance\":2250"));
+    assert(currentView->current==1875.5f && currentView->target==1875.5f && strstr(cameraRequest->result,"\"camera_default_view_distance\":2250"));
     cameraController[0x3e5]=1;cameraInvoked=false;cameraWriter.used=0;
     independentCamera(cameraRequest,&cameraWriter,&cameraContext,&cameraInvoked);
     assert(!cameraInvoked && strstr(cameraRequest->result,"camera_view_unavailable"));cameraController[0x3e5]=0;

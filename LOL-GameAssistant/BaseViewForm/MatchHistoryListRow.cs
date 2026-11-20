@@ -157,6 +157,10 @@ internal sealed class MatchHistoryListRow : UserControl, IThemeAware
     {
         base.OnHandleCreated(e);
         SetHonors(_honors);
+    }
+
+    internal void LoadIcons()
+    {
         if (IsDisposed || _mine == null) return;
         _ = _images.LoadAsync("champion", _mine.championId);
         _ = _images.LoadAsync("spell", _mine.Spell1Id); _ = _images.LoadAsync("spell", _mine.Spell2Id);

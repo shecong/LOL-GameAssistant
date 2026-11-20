@@ -6,7 +6,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class BuildComparisonForm : AntdUI.Window, IThemeAware
+internal sealed class BuildComparisonForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly CancellationTokenSource _lifetime = new();
     private readonly AntdUI.Input _text = new() { Name = "buildComparisonText", Dock = DockStyle.Fill, ReadOnly = true, Multiline = true, Text = "正在读取装备说明…" };

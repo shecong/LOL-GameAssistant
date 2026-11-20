@@ -11,7 +11,6 @@ using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Players;
 using LOL_GameAssistant.Helper;
-using System.Collections.Concurrent;
 using System.Drawing.Drawing2D;
 
 namespace LOL_GameAssistant.BaseViewForm
@@ -28,7 +27,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IMatchHistoryService _matchHistoryService;
         private readonly IGameAssetService _gameAssetService;
         private readonly IRankedStatsService? _rankedStatsService;
-        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<RankedOverview?> Value)> RankedCache = new(StringComparer.Ordinal);
         private readonly AntdUI.Label _rankLabel = new()
         {
             Name = "lblRank", BackColor = Color.Transparent, Visible = false,
@@ -46,19 +44,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private const int HistoryFetchCount = MatchDataPolicy.SummaryLimit;
         private static readonly TimeSpan MaximumLoadDuration = MatchDataPolicy.LoadTimeout;
         private string _loadingStage = "战绩列表";
-        private static readonly TimeSpan PlayerCacheTtl = TimeSpan.FromMinutes(2);
-        private static readonly ConcurrentDictionary<string, (DateTime CachedAt, Task<PlayerProfile?> Value)> PlayerProfileCache = new(StringComparer.Ordinal);
-        private static readonly object CacheSync = new();
-        internal static (int Entries, long Bytes) MeasureSharedCaches()
-        {
-            lock (CacheSync)
-                return CacheDataSize.Measure(RankedCache.Values.Select(value => value.Value.IsCompletedSuccessfully ? (object?)value.Value.Result : null)
-                    .Concat(PlayerProfileCache.Values.Select(value => value.Value.IsCompletedSuccessfully ? (object?)value.Value.Result : null)));
-        }
-        internal static void ClearSharedCaches()
-        {
-            lock (CacheSync) { RankedCache.Clear(); PlayerProfileCache.Clear(); PlayerHistoryRepository.ClearAll(); }
-        }
         private Image? _ownedProfileImage;
         private Image? _ownedChampionImage;
         private ToolTip? _premadeTip;
@@ -365,6 +350,7 @@ namespace LOL_GameAssistant.BaseViewForm
         }
 
         private Task? _initialLoad;
+        internal bool RefreshPlayerData;
         internal Task EnsureDataLoadedAsync() => _loadStarted ? _initialLoad ?? Task.CompletedTask : _initialLoad = StartLoadAsync();
 
         private async Task StartLoadAsync()
@@ -440,18 +426,9 @@ namespace LOL_GameAssistant.BaseViewForm
             string tooltip = text;
             try
             {
-                (DateTime CachedAt, Task<RankedOverview?> Value) cached;
-                lock (CacheSync)
-                {
-                    if (!RankedCache.TryGetValue(_playerPuuid, out cached) ||
-                        DateTime.UtcNow - cached.CachedAt > PlayerCacheTtl || cached.Value.IsFaulted || cached.Value.IsCanceled ||
-                        (cached.Value.IsCompletedSuccessfully && (cached.Value.Result == null || cached.Value.Result.Queues.Count == 0)))
-                    {
-                        cached = (DateTime.UtcNow, _rankedStatsService.GetAsync(_playerPuuid));
-                        RankedCache[_playerPuuid] = cached;
-                    }
-                }
-                var overview = await cached.Value.WaitAsync(cancellationToken);
+                var overview = !RefreshPlayerData && _rankedStatsService is LOL_GameAssistant.Infrastructure.LeagueClient.CachedRankedStatsService cached
+                    ? await cached.GetRecentAsync(_playerPuuid, cancellationToken)
+                    : await _rankedStatsService.GetAsync(_playerPuuid, cancellationToken: cancellationToken);
                 if (overview != null)
                 {
                     var solo = overview.GetQueue(RankedQueues.Solo5x5);
@@ -635,8 +612,9 @@ namespace LOL_GameAssistant.BaseViewForm
 
         /// <summary>读取指定玩家资料，供玩家卡片展示。</summary>
         private Task<PlayerProfile?> GetPlayerProfileAsync(string puuid, CancellationToken cancellationToken) =>
-            GetCachedAsync(PlayerProfileCache, puuid,
-                () => _playerProfileService.GetByPuuidAsync(puuid, cancellationToken)).WaitAsync(cancellationToken);
+            !RefreshPlayerData && _playerProfileService is LOL_GameAssistant.Infrastructure.LeagueClient.CachedPlayerProfileService cached
+                ? cached.GetRecentAsync(puuid, cancellationToken)
+                : _playerProfileService.GetByPuuidAsync(puuid, cancellationToken);
 
         /// <summary>读取指定玩家的近期战绩。</summary>
         private async Task<MatchHistoryResponse?> GetRecentHistoryAsync(string puuid, CancellationToken cancellationToken)
@@ -646,34 +624,6 @@ namespace LOL_GameAssistant.BaseViewForm
             _historySnapshot = snapshot;
             return snapshot.Data;
         }
-        /// <summary>优先使用缓存，并按需读取缺失数据。</summary>
-        private static Task<T?> GetCachedAsync<TKey, T>(
-            ConcurrentDictionary<TKey, (DateTime CachedAt, Task<T?> Value)> cache,
-            TKey key,
-            Func<Task<T?>> loader, Func<T, bool>? valid = null) where TKey : notnull
-        {
-            lock (CacheSync)
-            {
-            if (cache.TryGetValue(key, out var cached) &&
-                (!cached.Value.IsCompleted || DateTime.UtcNow - cached.CachedAt < PlayerCacheTtl) &&
-                !cached.Value.IsFaulted && !cached.Value.IsCanceled &&
-                !(cached.Value.IsCompletedSuccessfully && (cached.Value.Result is null ||
-                    (valid != null && !valid(cached.Value.Result)))))
-                return cached.Value;
-
-            Task<T?> task = loader();
-            DateTime cacheTime = DateTime.UtcNow;
-            cache[key] = (cacheTime, task);
-            _ = task.ContinueWith(completed =>
-            {
-                if (completed.IsFaulted || completed.IsCanceled || completed.Result is null ||
-                    (valid != null && !valid(completed.Result)))
-                    cache.TryRemove(new KeyValuePair<TKey, (DateTime CachedAt, Task<T?> Value)>(key, (cacheTime, task)));
-            }, TaskScheduler.Default);
-            return task;
-            }
-        }
-
         /// <summary>评分和胜负只读取已获取摘要，不随详情成功数量变化。</summary>
         private Task<RecentModePerformanceAssessment> ApplyLivePerformanceTagAsync(
             MatchHistoryResponse firstPage,

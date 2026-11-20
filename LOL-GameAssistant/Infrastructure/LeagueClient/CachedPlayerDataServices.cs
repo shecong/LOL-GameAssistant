@@ -47,32 +47,42 @@ internal sealed class CachedPlayerProfileService : IPlayerProfileService
         }
         // 尚未确认本次客户端登录身份时，不以其他账号的资料替代当前账号。
         var result = puuid == null ? player : await ReadWithMetadata(
-            $"puuid:{puuid}", () => Task.FromResult(player), cancellationToken).ConfigureAwait(false);
+            $"puuid:{puuid}", _ => Task.FromResult(player), cancellationToken, share: false).ConfigureAwait(false);
         return generation == Volatile.Read(ref _generation) ? result : null;
     }
 
     public Task<PlayerProfile?> GetByPuuidAsync(string puuid, CancellationToken cancellationToken = default) =>
         ReadWithMetadata($"puuid:{puuid}",
-            () => _inner.GetByPuuidAsync(puuid, cancellationToken), cancellationToken);
+            token => _inner.GetByPuuidAsync(puuid, token), cancellationToken);
+
+    internal Task<PlayerProfile?> GetRecentAsync(string puuid, CancellationToken token) =>
+        ReadWithMetadata($"puuid:{puuid}", request => _inner.GetByPuuidAsync(puuid, request), token,
+            freshness: TimeSpan.FromMinutes(2));
 
     public Task<PlayerProfile?> FindByRiotIdAsync(string gameName, string tagLine, CancellationToken cancellationToken = default) =>
         ReadWithMetadata($"riot:{gameName.Trim()}#{tagLine.Trim().TrimStart('#')}",
-            () => _inner.FindByRiotIdAsync(gameName, tagLine, cancellationToken), cancellationToken);
+            token => _inner.FindByRiotIdAsync(gameName, tagLine, token), cancellationToken);
 
     public Task<PlayerProfile?> FindByNameAsync(string gameName, CancellationToken cancellationToken = default) =>
         ReadWithMetadata($"name:{gameName.Trim()}",
-            () => _inner.FindByNameAsync(gameName, cancellationToken), cancellationToken);
-    private async Task<PlayerProfile?> ReadWithMetadata(string key, Func<Task<PlayerProfile?>> read, CancellationToken token)
+            token => _inner.FindByNameAsync(gameName, token), cancellationToken);
+    private async Task<PlayerProfile?> ReadWithMetadata(string key, Func<CancellationToken, Task<PlayerProfile?>> read,
+        CancellationToken token, bool share = true, TimeSpan? freshness = null)
     {
         long generation = Volatile.Read(ref _generation);
         string session = PlayerHistorySession.Key;
         string scope = await _context(token).ConfigureAwait(false);
         if (generation != Volatile.Read(ref _generation) || session != PlayerHistorySession.Key) return null;
-        var result = await _cache.GetLatestWithMetadataAsync($"v2:{scope}:{key}", async () =>
+        async Task<PlayerProfile?> Read(CancellationToken requestToken)
         {
-            var value = await read().ConfigureAwait(false);
+            var value = await read(requestToken).ConfigureAwait(false);
             return generation == Volatile.Read(ref _generation) && session == PlayerHistorySession.Key ? value : null;
-        }, token).ConfigureAwait(false);
+        }
+
+        string cacheKey = $"v2:{scope}:{key}";
+        var result = share
+            ? await _cache.GetSharedLatestWithMetadataAsync(cacheKey, $"{session}:{generation}", Read, token, freshness).ConfigureAwait(false)
+            : await _cache.GetLatestWithMetadataAsync(cacheKey, () => Read(token), token).ConfigureAwait(false);
         if (generation != Volatile.Read(ref _generation) || session != PlayerHistorySession.Key) return null;
         return result.Value is { } profile ? profile with { IsCached = result.Cached, AcquiredAt = result.AcquiredAt } : null;
     }
@@ -98,17 +108,25 @@ internal sealed class CachedRankedStatsService : IRankedStatsService
             TimeSpan.FromDays(30), value => value.Queues?.Count > 0 && value.SeasonEndsAt != null);
     }
 
-    public async Task<RankedOverview?> GetAsync(string puuid, bool isCurrentUser = false, CancellationToken cancellationToken = default)
+    public Task<RankedOverview?> GetAsync(string puuid, bool isCurrentUser = false, CancellationToken cancellationToken = default) =>
+        ReadAsync(puuid, isCurrentUser, cancellationToken);
+
+    internal Task<RankedOverview?> GetRecentAsync(string puuid, CancellationToken token) =>
+        ReadAsync(puuid, false, token, TimeSpan.FromMinutes(2));
+
+    private async Task<RankedOverview?> ReadAsync(string puuid, bool isCurrentUser, CancellationToken cancellationToken,
+        TimeSpan? freshness = null)
     {
         string session = PlayerHistorySession.Key;
         string scope = await _context(cancellationToken).ConfigureAwait(false);
         if (session != PlayerHistorySession.Key) return null;
         if (isCurrentUser) _currentPuuid = puuid;
-        var readResult = await _cache.GetLatestWithMetadataAsync($"record-v3:{scope}:{puuid}", async () =>
+        bool readCurrent = isCurrentUser || _currentPuuid == puuid;
+        var readResult = await _cache.GetSharedLatestWithMetadataAsync($"record-v3:{scope}:{puuid}", $"{session}:{readCurrent}", async token =>
         {
-            var ranked = await _inner.GetAsync(puuid, isCurrentUser || _currentPuuid == puuid, cancellationToken).ConfigureAwait(false);
+            var ranked = await _inner.GetAsync(puuid, readCurrent, token).ConfigureAwait(false);
             return ranked == null || session != PlayerHistorySession.Key ? null : new Snapshot(ranked.Queues, ranked.SeasonEndsAt);
-        }, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken, freshness).ConfigureAwait(false);
         var value = readResult.Value;
         if (value == null || session != PlayerHistorySession.Key) return null;
         var result = new RankedOverview { IsCached = readResult.Cached, AcquiredAt = readResult.AcquiredAt };

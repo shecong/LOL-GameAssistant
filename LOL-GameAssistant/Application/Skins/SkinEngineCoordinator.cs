@@ -33,7 +33,7 @@ public sealed class SkinEngineCoordinator(ISkinCoreService memory, ICslolSkinSer
                 if (mode == SkinEngineMode.Memory)
                 {
                     memory.SetEnabled(true);
-                    var config = settings.Load(); config.SkinCoreEnabled = true; settings.Save(config);
+                    settings.Update(config => config.SkinCoreEnabled = true);
                 }
             }
             else
@@ -90,9 +90,13 @@ public sealed class SkinEngineCoordinator(ISkinCoreService memory, ICslolSkinSer
     }
     private void SaveMode(SkinEngineMode mode)
     {
-        var config = settings.Load(); config.SkinEngineMode = mode;
-        config.SkinCoreEnabled = false; config.UnlimitedZoomEnabled = false; config.RankBorderAutoApplyEnabled = false;
-        settings.Save(config);
+        settings.Update(config =>
+        {
+            config.SkinEngineMode = mode;
+            config.SkinCoreEnabled = false;
+            config.UnlimitedZoomEnabled = false;
+            config.RankBorderAutoApplyEnabled = false;
+        });
     }
     private void Notify()
     {

@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class RewardSelectionForm : AntdUI.Window, IThemeAware
+internal sealed class RewardSelectionForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly IClientFeatureService _features;
     private readonly UiRequestScope _requests = new();

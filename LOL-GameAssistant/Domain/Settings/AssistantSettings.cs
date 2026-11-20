@@ -117,6 +117,21 @@ public sealed class AssistantSettings
     public string EnemyJungleRouteHotkey { get; set; } = "F10";
     public bool LaunchOnStartup { get; set; }
 
+    internal AssistantSettings Copy()
+    {
+        var copy = (AssistantSettings)MemberwiseClone();
+        copy.Ai = Ai.Copy();
+        copy.BanChampions = [.. BanChampions];
+        copy.PickChampions = [.. PickChampions];
+        copy.AramBenchPriorityChampions = [.. AramBenchPriorityChampions];
+        copy.QuickShoutSelectedPhrases = [.. QuickShoutSelectedPhrases];
+        copy.GameKdaCustomRemarks = new(GameKdaCustomRemarks, GameKdaCustomRemarks.Comparer);
+        copy.OpggManualBuildSelections = new(OpggManualBuildSelections, OpggManualBuildSelections.Comparer);
+        copy.RememberedHeroSkins = new(RememberedHeroSkins, RememberedHeroSkins.Comparer);
+        copy.PersonalRunePresets = PersonalRunePresets.Select(preset => preset.Copy()).ToList();
+        return copy;
+    }
+
     /// <summary>统一修正旧配置缺失或异常时的安全默认值。</summary>
     public void Normalize()
     {

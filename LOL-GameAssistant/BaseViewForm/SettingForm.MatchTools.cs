@@ -1,6 +1,8 @@
 using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Helper;
 
+using LOL_GameAssistant.Domain.Settings;
+
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>设置页：读取、编辑并保存助手各功能的配置。</summary>
@@ -74,23 +76,15 @@ public partial class SettingForm
         _returnAndSearch.Checked = _config.AutoReturnStartMatchmaking;
         _quickQueue.Value = Math.Clamp(_config.QuickLobbyQueueId, 1, 3000);
         if (_autoSaveEventsBound) return;
-        _acceptMin.ValueChanged += (_, _) => SaveSettings();
-        _acceptMax.ValueChanged += (_, _) => SaveSettings();
-        _quickQueue.ValueChanged += (_, _) => SaveSettings();
+        _acceptMin.ValueChanged += (_, _) => PersistValue(ReadAcceptDelay);
+        _acceptMax.ValueChanged += (_, _) => PersistValue(ReadAcceptDelay);
+        _quickQueue.ValueChanged += (_, _) => PersistValue(settings => settings.QuickLobbyQueueId = (int)_quickQueue.Value);
     }
 
     /// <summary>从设置界面读取匹配工具选项。</summary>
-    private void ReadMatchToolsSettings()
+    private void ReadAcceptDelay(AssistantSettings settings)
     {
-        // Treat either edit order as a valid range, without clearing the user's delay values.
-        _config.AutoAcceptDelayMinMilliseconds = (int)Math.Min(_acceptMin.Value, _acceptMax.Value);
-        _config.AutoAcceptDelayMaxMilliseconds = (int)Math.Max(_acceptMin.Value, _acceptMax.Value);
-        _config.AutoPickPreselectOnly = _preselectOnly.Checked;
-        _config.SkipAutoPickOnFill = _skipFill.Checked;
-        _config.AutoHonor = _autoHonor.Checked;
-        _config.HonorStrategy = _honorStrategy.SelectedIndex switch { 1 => "friends", 2 => "manual", _ => "random" };
-        _config.AutoReturnToLobby = _autoReturn.Checked;
-        _config.AutoReturnStartMatchmaking = _returnAndSearch.Checked;
-        _config.QuickLobbyQueueId = (int)_quickQueue.Value;
+        settings.AutoAcceptDelayMinMilliseconds = (int)Math.Min(_acceptMin.Value, _acceptMax.Value);
+        settings.AutoAcceptDelayMaxMilliseconds = (int)Math.Max(_acceptMin.Value, _acceptMax.Value);
     }
 }

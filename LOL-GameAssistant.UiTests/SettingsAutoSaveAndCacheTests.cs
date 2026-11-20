@@ -16,6 +16,40 @@ namespace LOL_GameAssistant.UiTests;
 public sealed class SettingsAutoSaveAndCacheTests
 {
     [Fact]
+    public async Task SettingsUpdatesMergeAndOnlyPublishSuccessfulWrites()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "lga-settings-" + Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(folder, "settings.json");
+        try
+        {
+            var store = new LOL_GameAssistant.Infrastructure.Settings.LegacyApplicationSettingsStore(path);
+            await Task.WhenAll(
+                Task.Run(() => store.Update(settings => settings.WindowOpacityPercent = 75)),
+                Task.Run(() => store.Update(settings => settings.Ai.Model = "test-model")));
+            Assert.Equal(75, store.Load().WindowOpacityPercent);
+            var copy = store.Load();
+            Assert.Equal("test-model", copy.Ai.Model);
+            copy.Ai.Model = "local draft";
+            Assert.Equal("test-model", store.Load().Ai.Model);
+            Assert.True(File.Exists(path + ".bak"));
+
+            Assert.Throws<InvalidOperationException>(() => store.Update(settings =>
+            {
+                settings.WindowOpacityPercent = 95;
+                throw new InvalidOperationException("invalid");
+            }));
+            Assert.Equal(75, store.Load().WindowOpacityPercent);
+            var reloaded = new LOL_GameAssistant.Infrastructure.Settings.LegacyApplicationSettingsStore(path).Load();
+            Assert.Equal("test-model", reloaded.Ai.Model);
+            Assert.Equal(75, reloaded.WindowOpacityPercent);
+        }
+        finally
+        {
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task MatchCacheIncludesSharedParticipantsAndClearsOnlyThatCategory()
     {
         using var folder = new TemporaryDirectory();

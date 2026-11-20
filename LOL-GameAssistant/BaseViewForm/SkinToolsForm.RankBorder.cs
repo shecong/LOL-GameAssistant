@@ -144,9 +144,13 @@ public sealed partial class SkinToolsForm
         }
         try
         {
-            var settings = _settings.Load();if (RankBorderPresets.IsValid(id)) settings.PreferredRankBorderId = id!;settings.PreferredRankBorderProfile = RankBorderPresets.Profile;
-            settings.RankBorderAutoApplyEnabled = _borderAutomatic.Checked;if (_borderAutomatic.Checked) settings.SkinCoreEnabled = true;
-            _settings.Save(settings);
+            _settings.Update(settings =>
+            {
+                if (RankBorderPresets.IsValid(id)) settings.PreferredRankBorderId = id!;
+                settings.PreferredRankBorderProfile = RankBorderPresets.Profile;
+                settings.RankBorderAutoApplyEnabled = _borderAutomatic.Checked;
+                if (_borderAutomatic.Checked) settings.SkinCoreEnabled = true;
+            });
             if (_borderAutomatic.Checked && !_enabled.Checked) _enabled.Checked = true;
             _borderStatus.Text = _borderAutomatic.Checked ? "已保存，下一局加载时自动应用。实际画面以加载卡片为准。" : "自动应用已关闭，当前外观不会自动恢复。";
         }

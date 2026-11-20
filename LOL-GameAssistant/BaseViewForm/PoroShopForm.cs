@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class PoroShopForm : AntdUI.Window, IThemeAware
+internal sealed class PoroShopForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly IClientFeatureService _features;
     private readonly PoroShopExchangeCoordinator _exchanges;

@@ -11,7 +11,8 @@ public sealed class LoungeStore : IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly int _retentionDays;
     private readonly TimeProvider _clock;
-    private DateTimeOffset _nextPrune;
+    private long _nextPruneUtcTicks;
+    private readonly string _connectionString;
 
     public LoungeStore(IOptions<LoungeOptions> settings, IWebHostEnvironment environment)
         : this(Path.GetFullPath(settings.Value.DatabasePath, environment.ContentRootPath), settings.Value.RetentionDays) { }
@@ -21,7 +22,8 @@ public sealed class LoungeStore : IDisposable
         _retentionDays = retentionDays;
         _clock = clock ?? TimeProvider.System;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        _db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path }.ToString());
+        _connectionString = new SqliteConnectionStringBuilder { DataSource = path }.ToString();
+        _db = new SqliteConnection(_connectionString);
         _db.Open();
         using var command = _db.CreateCommand();
         command.CommandText = """
@@ -42,67 +44,61 @@ public sealed class LoungeStore : IDisposable
 
     public async Task<LoungeMessage[]> ReadAsync(long after = 0, CancellationToken token = default)
     {
-        await _gate.WaitAsync(token);
-        try
-        {
-            await PruneAsync(token);
-            using var command = _db.CreateCommand();
-            command.CommandText = after == 0
-                ? "SELECT * FROM (SELECT * FROM messages WHERE kind <> 'online' ORDER BY id DESC LIMIT 40) ORDER BY id"
-                : "SELECT * FROM messages WHERE id > $after AND kind <> 'online' ORDER BY id LIMIT 200";
-            command.Parameters.AddWithValue("$after", Math.Max(0, after));
-            using var reader = await command.ExecuteReaderAsync(token);
-            var result = new List<LoungeMessage>();
-            while (await reader.ReadAsync(token)) result.Add(Read(reader));
-            return result.ToArray();
-        }
-        finally { _gate.Release(); }
+        await EnsurePrunedAsync(token);
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(token);
+        using var command = connection.CreateCommand();
+        command.CommandText = after == 0
+            ? "SELECT * FROM (SELECT * FROM messages WHERE kind <> 'online' ORDER BY id DESC LIMIT 40) ORDER BY id"
+            : "SELECT * FROM messages WHERE id > $after AND kind <> 'online' ORDER BY id LIMIT 200";
+        command.Parameters.AddWithValue("$after", Math.Max(0, after));
+        using var reader = await command.ExecuteReaderAsync(token);
+        var result = new List<LoungeMessage>();
+        while (await reader.ReadAsync(token)) result.Add(Read(reader));
+        return result.ToArray();
     }
 
     public async Task<LoungeHistoryPage> ReadBeforeAsync(long before, CancellationToken token = default)
     {
         if (before <= 0) throw new ArgumentOutOfRangeException(nameof(before));
-        await _gate.WaitAsync(token);
-        try
-        {
-            await PruneAsync(token);
-            using var command = _db.CreateCommand();
-            command.CommandText = "SELECT * FROM messages WHERE id < $before AND kind <> 'online' ORDER BY id DESC LIMIT $limit";
-            command.Parameters.AddWithValue("$before", before);
-            command.Parameters.AddWithValue("$limit", LoungeRules.HistoryPageSize + 1);
-            using var reader = await command.ExecuteReaderAsync(token);
-            var rows = new List<LoungeMessage>();
-            while (await reader.ReadAsync(token)) rows.Add(Read(reader));
-            bool hasMore = rows.Count > LoungeRules.HistoryPageSize;
-            return new(rows.Take(LoungeRules.HistoryPageSize).Reverse().ToArray(), hasMore);
-        }
-        finally { _gate.Release(); }
+        await EnsurePrunedAsync(token);
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(token);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM messages WHERE id < $before AND kind <> 'online' ORDER BY id DESC LIMIT $limit";
+        command.Parameters.AddWithValue("$before", before);
+        command.Parameters.AddWithValue("$limit", LoungeRules.HistoryPageSize + 1);
+        using var reader = await command.ExecuteReaderAsync(token);
+        var rows = new List<LoungeMessage>();
+        while (await reader.ReadAsync(token)) rows.Add(Read(reader));
+        bool hasMore = rows.Count > LoungeRules.HistoryPageSize;
+        return new(rows.Take(LoungeRules.HistoryPageSize).Reverse().ToArray(), hasMore);
     }
 
     public async Task<LoungeHistoryPage> ReadDayAsync(DateTimeOffset dayStart, long after = 0, CancellationToken token = default)
     {
-        await _gate.WaitAsync(token);
-        try
-        {
-            await PruneAsync(token);
-            using var command = _db.CreateCommand();
-            command.CommandText = after == 0
-                ? "SELECT * FROM (SELECT * FROM messages WHERE sentAt >= $start AND sentAt < $end AND kind <> 'online' ORDER BY id DESC LIMIT 40) ORDER BY id"
-                : "SELECT * FROM messages WHERE sentAt >= $start AND sentAt < $end AND id > $after AND kind <> 'online' ORDER BY id LIMIT 200";
-            command.Parameters.AddWithValue("$start", dayStart.ToUniversalTime().ToString("O"));
-            command.Parameters.AddWithValue("$end", dayStart.AddDays(1).ToUniversalTime().ToString("O"));
-            command.Parameters.AddWithValue("$after", Math.Max(0, after));
-            var rows = new List<LoungeMessage>();
-            using (var reader = await command.ExecuteReaderAsync(token))
-                while (await reader.ReadAsync(token)) rows.Add(Read(reader));
-            long before = rows.Count > 0 ? rows[0].Id : long.MaxValue;
-            using var older = _db.CreateCommand();
-            older.CommandText = "SELECT EXISTS(SELECT 1 FROM messages WHERE id < $before AND kind <> 'online')";
-            older.Parameters.AddWithValue("$before", before);
-            bool hasOlder = Convert.ToInt64(await older.ExecuteScalarAsync(token)) != 0;
-            return new(rows.ToArray(), hasOlder, before);
-        }
-        finally { _gate.Release(); }
+        await EnsurePrunedAsync(token);
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(token);
+        using var transaction = connection.BeginTransaction(deferred: true);
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = after == 0
+            ? "SELECT * FROM (SELECT * FROM messages WHERE sentAt >= $start AND sentAt < $end AND kind <> 'online' ORDER BY id DESC LIMIT 40) ORDER BY id"
+            : "SELECT * FROM messages WHERE sentAt >= $start AND sentAt < $end AND id > $after AND kind <> 'online' ORDER BY id LIMIT 200";
+        command.Parameters.AddWithValue("$start", dayStart.ToUniversalTime().ToString("O"));
+        command.Parameters.AddWithValue("$end", dayStart.AddDays(1).ToUniversalTime().ToString("O"));
+        command.Parameters.AddWithValue("$after", Math.Max(0, after));
+        var rows = new List<LoungeMessage>();
+        using (var reader = await command.ExecuteReaderAsync(token))
+            while (await reader.ReadAsync(token)) rows.Add(Read(reader));
+        long before = rows.Count > 0 ? rows[0].Id : long.MaxValue;
+        using var older = connection.CreateCommand();
+        older.Transaction = transaction;
+        older.CommandText = "SELECT EXISTS(SELECT 1 FROM messages WHERE id < $before AND kind <> 'online')";
+        older.Parameters.AddWithValue("$before", before);
+        bool hasOlder = Convert.ToInt64(await older.ExecuteScalarAsync(token)) != 0;
+        return new(rows.ToArray(), hasOlder, before);
     }
 
     public async Task<LoungeMessage?> AppendAsync(string dedup, string clientId, string senderId,
@@ -176,18 +172,15 @@ public sealed class LoungeStore : IDisposable
 
     public async Task<LoungeRecruitmentState[]> ReadRecruitmentsAsync(CancellationToken token = default)
     {
-        await _gate.WaitAsync(token);
-        try
-        {
-            using var command = _db.CreateCommand();
-            command.CommandText = "SELECT r.state FROM recruitments r JOIN messages m ON m.id=r.messageId WHERE m.kind='recruit' ORDER BY r.messageId DESC LIMIT 300";
-            using var reader = await command.ExecuteReaderAsync(token);
-            var result = new List<LoungeRecruitmentState>();
-            while (await reader.ReadAsync(token))
-                if (LoungeContent.Parse<LoungeRecruitmentState>(reader.GetString(0)) is { } state) result.Add(state);
-            return result.ToArray();
-        }
-        finally { _gate.Release(); }
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(token);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT r.state FROM recruitments r JOIN messages m ON m.id=r.messageId WHERE m.kind='recruit' ORDER BY r.messageId DESC LIMIT 300";
+        using var reader = await command.ExecuteReaderAsync(token);
+        var result = new List<LoungeRecruitmentState>();
+        while (await reader.ReadAsync(token))
+            if (LoungeContent.Parse<LoungeRecruitmentState>(reader.GetString(0)) is { } state) result.Add(state);
+        return result.ToArray();
     }
 
     // Serialize capacity checks and membership changes with persistence, including concurrent joins.
@@ -236,17 +229,14 @@ public sealed class LoungeStore : IDisposable
 
     public async Task<long[]> ReadDeletedIdsAsync(CancellationToken token = default)
     {
-        await _gate.WaitAsync(token);
-        try
-        {
-            using var command = _db.CreateCommand();
-            command.CommandText = "SELECT id FROM messages WHERE kind='deleted'";
-            using var reader = await command.ExecuteReaderAsync(token);
-            var result = new List<long>();
-            while (await reader.ReadAsync(token)) result.Add(reader.GetInt64(0));
-            return result.ToArray();
-        }
-        finally { _gate.Release(); }
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(token);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id FROM messages WHERE kind='deleted'";
+        using var reader = await command.ExecuteReaderAsync(token);
+        var result = new List<long>();
+        while (await reader.ReadAsync(token)) result.Add(reader.GetInt64(0));
+        return result.ToArray();
     }
 
     public async Task DeleteAsync(long id, CancellationToken token = default)
@@ -263,17 +253,25 @@ public sealed class LoungeStore : IDisposable
         finally { _gate.Release(); }
     }
 
+    private async Task EnsurePrunedAsync(CancellationToken token)
+    {
+        if (_clock.GetUtcNow().UtcTicks < Volatile.Read(ref _nextPruneUtcTicks)) return;
+        await _gate.WaitAsync(token);
+        try { await PruneAsync(token); }
+        finally { _gate.Release(); }
+    }
+
     private async Task PruneAsync(CancellationToken token)
     {
         var now = _clock.GetUtcNow();
-        if (now < _nextPrune) return;
+        if (now.UtcTicks < Volatile.Read(ref _nextPruneUtcTicks)) return;
         using var command = _db.CreateCommand();
         command.CommandText = "DELETE FROM messages WHERE sentAt < $cutoff; DELETE FROM victories WHERE createdAt < $wins; DELETE FROM recruitments WHERE messageId NOT IN (SELECT id FROM messages)";
         command.Parameters.AddWithValue("$cutoff", now.AddDays(-_retentionDays).ToString("O"));
         command.Parameters.AddWithValue("$wins", now.AddDays(-30).ToString("O"));
         await command.ExecuteNonQueryAsync(token);
         // All callers hold _gate. Failed/cancelled cleanup must remain eligible for retry.
-        _nextPrune = _clock.GetUtcNow().AddMinutes(1);
+        Volatile.Write(ref _nextPruneUtcTicks, _clock.GetUtcNow().AddMinutes(1).UtcTicks);
     }
 
     private static LoungeMessage Read(SqliteDataReader reader) => new(reader.GetInt64(0), reader.GetString(2),

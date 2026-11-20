@@ -1,14 +1,15 @@
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using FlaUI.Core.Input;
-using FlaUI.Core.WindowsAPI;
 using LOL_GameAssistant.Infrastructure.GameData;
 using Sdcb.SimdPaddleOCR;
 
 namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 
 internal sealed record TclsLoginText(string Text, Rectangle Bounds, float Confidence = 1);
-internal sealed record TclsRenderedLoginPlan(Point? QqLogin, Point? Account, Point? Password, Point? Submit, Rectangle? PasswordBounds = null);
+internal sealed record TclsRenderedLoginPlan(Point? QqLogin, Point? Account, Point? Password, Point? Submit,
+    Rectangle? PasswordBounds = null, Rectangle? AccountBounds = null);
 
 /// <summary>TPF renders its password field and buttons without UIA patterns. Recognize the
 /// launcher labels locally, then send input only while that verified launcher owns the foreground.</summary>
@@ -66,15 +67,39 @@ internal sealed class TclsRenderedLoginAutomation : IDisposable
             {
                 point = Screen(point);Guard(point);Mouse.Click(point, MouseButton.Left);
             }
-            void Fill(Point point, string value)
+            bool FocusEditor(Point point, bool allowWindowFocus = false)
             {
                 Click(point);
-                // Rendered fields apply mouse focus asynchronously, unlike native ValuePattern.
-                if (token.WaitHandle.WaitOne(150)) token.ThrowIfCancellationRequested();
-                Guard(Screen(point));
-                Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
-                // This path is only for the account field; passwords use the focused editor below.
-                foreach (char character in value) { Guard(Screen(point));Keyboard.Type(character); }
+                for (int attempt = 0; attempt < 10; attempt++)
+                {
+                    if (token.WaitHandle.WaitOne(100)) token.ThrowIfCancellationRequested();
+                    Guard(Screen(point));
+                    if (TclsLoginKeyboard.HasFocusedEditor(window, Screen(point), allowWindowFocus)) return true;
+                }
+                return false;
+            }
+            bool FillEditor(Point point, string value, bool allowWindowFocus = false)
+            {
+                void EditorGuard()
+                {
+                    Guard(Screen(point));
+                    if (!TclsLoginKeyboard.HasFocusedEditor(window, Screen(point), allowWindowFocus))
+                        throw new OperationCanceledException("登录输入框已失去焦点，停止输入。");
+                }
+                return TclsLoginKeyboard.Replace(window, value, EditorGuard, token);
+            }
+            bool ConfirmField(Point point, Rectangle field, Func<Bitmap, bool> matches)
+            {
+                for (int attempt = 0; attempt < 5; attempt++)
+                {
+                    if (token.WaitHandle.WaitOne(150)) token.ThrowIfCancellationRequested();
+                    Guard(Screen(point));
+                    using var feedback = new Bitmap(field.Width, field.Height, PixelFormat.Format24bppRgb);
+                    using (var graphics = Graphics.FromImage(feedback))
+                        graphics.CopyFromScreen(Screen(field.Location), Point.Empty, field.Size);
+                    if (matches(feedback)) return true;
+                }
+                return false;
             }
             if (plan.QqLogin is { } qq)
             {
@@ -84,46 +109,43 @@ internal sealed class TclsRenderedLoginAutomation : IDisposable
             }
             // Attempt and submission are different states. Empty/rejected input must never advance to regions.
             session.CredentialsAttempted = true;
-            Fill(plan.Account!.Value, username);
+            var accountPoint = plan.Account!.Value;
+            // TPF can render the account editor inside the main window, with no child HWND.
+            // Confirm the visible account text before moving to the separate password editor.
+            if (!FocusEditor(accountPoint, allowWindowFocus: true))
+                return new("QQ 账号框未取得输入焦点，请在登录器中手动填写。", true);
+            if (!FillEditor(accountPoint, username, allowWindowFocus: true))
+                return new("键盘暂不能可靠输入 QQ 账号，请松开修饰键并检查输入法后重试，或手动输入账号。", true);
+            if (!ConfirmField(accountPoint, plan.AccountBounds!.Value, feedback => AccountMatches(feedback, username)))
+                return new("未确认 QQ 账号框完整接收输入，请在登录器中手动填写。", true);
+
             var passwordPoint = plan.Password!.Value;
-            Click(passwordPoint);
-            for (int attempt = 0; attempt < 10; attempt++)
-            {
-                if (token.WaitHandle.WaitOne(100)) token.ThrowIfCancellationRequested();
-                Guard(Screen(passwordPoint));
-                if (TclsPasswordKeyboard.HasFocusedEditor(window, Screen(passwordPoint))) break;
-            }
-            if (!TclsPasswordKeyboard.HasFocusedEditor(window, Screen(passwordPoint)))
-            {
-                return new("密码框未取得输入焦点，已停止提交，请点击密码框后重新启动自动登录。", true);
-            }
-            void PasswordGuard()
-            {
-                Guard(Screen(passwordPoint));
-                if (!TclsPasswordKeyboard.HasFocusedEditor(window, Screen(passwordPoint)))
-                    throw new OperationCanceledException("密码框已失去输入焦点，停止输入。");
-            }
+            if (!FocusEditor(passwordPoint))
+                return new("QQ 密码框未取得输入焦点，请在登录器中手动填写。", true);
             if (token.WaitHandle.WaitOne(300)) token.ThrowIfCancellationRequested();
-            if (!TclsPasswordKeyboard.Replace(window, password, PasswordGuard, token))
+            if (!FillEditor(passwordPoint, password))
                 return new("键盘暂不能可靠输入密码，已停止提交。请松开修饰键并检查输入法后重试，或手动输入密码。", true);
-            var field = plan.PasswordBounds!.Value;
-            bool confirmed = false;
-            for (int attempt = 0; attempt < 5 && !confirmed; attempt++)
-            {
-                if (token.WaitHandle.WaitOne(150)) token.ThrowIfCancellationRequested();
-                Guard(Screen(passwordPoint));
-                using var feedback = new Bitmap(field.Width, field.Height, PixelFormat.Format24bppRgb);
-                using (var graphics = Graphics.FromImage(feedback))
-                    graphics.CopyFromScreen(Screen(field.Location), Point.Empty, field.Size);
-                confirmed = TclsPasswordFeedback.IsComplete(feedback, password.Length);
-            }
-            if (!confirmed)
+            if (!ConfirmField(passwordPoint, plan.PasswordBounds!.Value,
+                    feedback => TclsPasswordFeedback.IsComplete(feedback, password.Length)))
                 return new("未确认密码框完整接收输入，已停止提交。请检查密码框并手动完成登录；不会重复尝试密码。", true);
             session.Submitted = true;
             Click(plan.Submit!.Value);
             return new("已确认密码掩码完整并提交一次，等待登录结果或大区选择。");
         }
         return null;
+    }
+
+    internal bool AccountMatches(Bitmap field, string username)
+    {
+        using var enlarged = new Bitmap(field.Width * 2, field.Height * 2, PixelFormat.Format24bppRgb);
+        using (var graphics = Graphics.FromImage(enlarged))
+        {
+            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            graphics.DrawImage(field, new Rectangle(Point.Empty, enlarged.Size));
+        }
+        var lines = ReadLabels(enlarged);
+        return lines.Length == 1 && lines[0].Confidence >= .85f &&
+            string.Equals(lines[0].Text.Trim(), username, StringComparison.OrdinalIgnoreCase);
     }
 
     internal TclsLoginText[] ReadLabels(Bitmap image)
@@ -168,8 +190,12 @@ internal sealed class TclsRenderedLoginAutomation : IDisposable
             int left = account.Bounds.Left + inset;
             var passwordBounds = Rectangle.FromLTRB(left, passwordPoint.Y - halfHeight,
                 passwordPoint.X * 2 - left, passwordPoint.Y + halfHeight);
-            if (passwordBounds.Width <= 0 || !new Rectangle(Point.Empty, panel).Contains(passwordBounds)) return null;
-            return new(null, accountPoint, passwordPoint, Center(submit.Bounds), passwordBounds);
+            var accountBounds = Rectangle.FromLTRB(account.Bounds.Left, accountPoint.Y - halfHeight,
+                passwordBounds.Right, accountPoint.Y + halfHeight);
+            var panelBounds = new Rectangle(Point.Empty, panel);
+            if (passwordBounds.Width <= 0 || !panelBounds.Contains(passwordBounds) || !panelBounds.Contains(accountBounds))
+                return null;
+            return new(null, accountPoint, passwordPoint, Center(submit.Bounds), passwordBounds, accountBounds);
         }
         // The initial chooser contains both providers; don't click QQ again on the account form.
         var qq = Unique("QQ登录");var wechat = Unique("微信登录");

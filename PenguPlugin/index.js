@@ -18,6 +18,7 @@ let managedConfig = null;
 let managedText = '';
 let configTimer = 0;
 let configError = '';
+let visualFrame = null;
 
 function pollManagedConfig() {
   if (!context?.visualControl || !active) return;
@@ -144,12 +145,17 @@ export function load() {
   } else mountPanel();
   applyVisuals();
   observer = new MutationObserver(() => {
-    if (!context?.visualControl && document.getElementById(ROOT_ID) !== mountedRoot) mountPanel();
-    scheduleBadgeInjection();
-    schedulePlayerInjection();
-    scheduleWallpaperSync();
-    suppressNativeChampionPreview();
-    if (counterHost && (!counterHost.isConnected || resolveChampionId(counterHost) !== counterChampion)) closeCounter();
+    if (visualFrame !== null) return;
+    visualFrame = scheduleVisualFrame(() => {
+      visualFrame = null;
+      if (!active) return;
+      if (!context?.visualControl && document.getElementById(ROOT_ID) !== mountedRoot) mountPanel();
+      scheduleBadgeInjection();
+      schedulePlayerInjection();
+      scheduleWallpaperSync();
+      suppressNativeChampionPreview();
+      if (counterHost && (!counterHost.isConnected || resolveChampionId(counterHost) !== counterChampion)) closeCounter();
+    });
   });
   observeDom();
   if (context?.socket?.observe) {
@@ -192,6 +198,8 @@ export function unload() {
   window.removeEventListener('storage', onStorage);
   observer?.disconnect();
   observer = null;
+  visualFrame?.();
+  visualFrame = null;
   document.getElementById(ROOT_ID)?.remove();
   mountedRoot = null;
   document.getElementById(STYLE_ID)?.remove();
@@ -203,8 +211,17 @@ export function unload() {
 
 function onStorage(event) { if (event.key === STORAGE_KEY) { syncPanel(); applyVisuals(); } }
 
+function scheduleVisualFrame(callback) {
+  if (typeof window.requestAnimationFrame === 'function') {
+    const id = window.requestAnimationFrame(callback);
+    return () => window.cancelAnimationFrame(id);
+  }
+  const id = window.setTimeout(callback, 16);
+  return () => window.clearTimeout(id);
+}
+
 function observeDom() {
-  observer?.observe(document.documentElement, {
+  observer?.observe(document.body ?? document.documentElement, {
     childList: true, subtree: true, attributes: true,
     attributeFilter: ['class', 'src', 'style', 'data-champion-id', 'data-champion-id-value', 'data-champion-id-string', 'champion-id', 'data-cell-id', 'cell-id', 'data-summoner-id', 'data-puuid', 'puuid', 'data-id'],
   });

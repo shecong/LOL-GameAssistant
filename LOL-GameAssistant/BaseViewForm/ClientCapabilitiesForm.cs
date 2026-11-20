@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class ClientCapabilitiesForm : AntdUI.Window
+internal sealed class ClientCapabilitiesForm : BorderlessAntdWindow
 {
     private readonly UiRequestScope _requests = new();
     internal ClientCapabilitiesForm(IClientCapabilityService service)

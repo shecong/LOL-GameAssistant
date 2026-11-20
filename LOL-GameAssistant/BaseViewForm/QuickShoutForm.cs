@@ -54,6 +54,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
     private readonly AntdUI.Button _clientSend = new() { Text = "发送到客户端群聊", AutoSize = true };
     private readonly AntdUI.Button _gameSend = new() { Text = "一键发送到游戏", AutoSize = true };
     private readonly AntdUI.Button _testGameEnter = new() { Text = "测试游戏回车", AutoSize = true };
+    private readonly Func<Task<GameShoutSendResult>>? _calibrateGameChatWidth;
     private readonly AntdUI.Button _testGameWidth = new() { Name = "TestGameChatWidth", Text = "测试每行字数", AutoSize = true };
     private Dictionary<string, string> _kdaCustomRemarks = new();
     private DateTime _lastSentAtUtc = DateTime.MinValue;
@@ -63,7 +64,8 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         Func<string, bool, bool, bool, int, Task<GameShoutSendResult>> sendGameMessage,
         Func<IReadOnlyList<string>, bool, bool, bool, int, Task<GameShoutSendResult>> sendGameBatch,
         Func<Task<GameShoutSendResult>> testGameChatOpen, Action saveSettings,
-        Func<Action<AssistantSettings>, bool>? saveOption = null)
+        Func<Action<AssistantSettings>, bool>? saveOption = null,
+        Func<Task<GameShoutSendResult>>? calibrateGameChatWidth = null)
     {
         _clientChat = clientChat;
         _sendGameMessage = sendGameMessage;
@@ -71,6 +73,7 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
         _testGameChatOpen = testGameChatOpen;
         _saveSettings = saveSettings;
         _saveOption = saveOption;
+        _calibrateGameChatWidth = calibrateGameChatWidth;
         Dock = DockStyle.Fill;
 
         var header = new Panel { Dock = DockStyle.Top, Height = 44, Padding = new Padding(12, 2, 12, 2) };
@@ -607,14 +610,15 @@ public sealed class QuickShoutForm : UserControl, IThemeAware
 
     private async Task TestGameWidthAsync()
     {
+        if (_calibrateGameChatWidth == null) return;
         _testGameWidth.Enabled = false;
         _status.Text = "正在发送标尺并自动进行 OCR 校准，请保持游戏前台……";
         try
         {
-            var result = await Program.GameMain.TestGameChatWidthAsync();
-            _status.Text = result.Message;
+            var result = await _calibrateGameChatWidth();
+            if (!IsDisposed) _status.Text = result.Message;
         }
-        catch (Exception error) { _status.Text = "字数测试失败：" + error.Message; }
+        catch (Exception error) { if (!IsDisposed) _status.Text = "字数测试失败：" + error.Message; }
         finally { if (!IsDisposed) _testGameWidth.Enabled = true; }
     }
 

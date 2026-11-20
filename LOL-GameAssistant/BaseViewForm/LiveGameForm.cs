@@ -319,14 +319,22 @@ namespace LOL_GameAssistant.BaseViewForm
             }
         }
 
+        private bool _forcePlayerData;
+
         public async Task FetchAllPlayersAsync()
         {
             if (_refreshing || IsDisposed) return;
             // 名单一致时普通刷新会保留卡片；手动获取必须重新读取每位玩家。
             _lastSignature = "";
             ResetEncounterHistory();
-            LivePlayerForm.ClearSharedCaches();
-            await AddView(force: true);
+            if (_lobbyService is LOL_GameAssistant.Infrastructure.LeagueClient.LegacyLobbyService lobby)
+                lobby.InvalidateSession();
+            var histories = PlayerHistoryRepository.For(_matchHistoryService);
+            foreach (var card in panelTeam1.Controls.OfType<LivePlayerForm>().Concat(panelTeam2.Controls.OfType<LivePlayerForm>()))
+                if (!string.IsNullOrWhiteSpace(card.Puuid)) histories.InvalidatePlayer(card.Puuid);
+            _forcePlayerData = true;
+            try { await AddView(force: true); }
+            finally { _forcePlayerData = false; }
         }
 
         /// <summary>
@@ -624,7 +632,8 @@ namespace LOL_GameAssistant.BaseViewForm
             string? gameMode,
             CurrentPartyDetectionResult partyDetection)
         {
-            string signature = BuildRosterSignature(team1, team2);
+            string signature = CurrentRosterSnapshotCache.RosterSignature(
+                team1.Select(member => member.Puuid), team2.Select(member => member.Puuid));
             bool visualStatisticsChanged = PrepareVisualStatistics(team1, team2, myPuuid, queueId);
 
             _encounterSelfPuuid = myPuuid;
@@ -761,23 +770,6 @@ namespace LOL_GameAssistant.BaseViewForm
                 if (card.Puuid != null && champions.TryGetValue(card.Puuid, out int championId))
                     _ = card.UpdateCurrentChampionAsync(championId);
             }
-        }
-
-        /// <summary>
-        /// 生成阵容签名；队伍分开记录，避免换边后沿用旧卡片。
-        /// </summary>
-        private static string BuildRosterSignature(
-            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team1,
-            IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team2)
-        {
-            // 生成成员所属队伍的分组键。
-            static string TeamKey(IEnumerable<(string Puuid, string Name, int ChampionId, string Position, bool IsBot)> team) =>
-                string.Join(",", team
-                    .Select(member => member.Puuid)
-                    .Where(puuid => !string.IsNullOrWhiteSpace(puuid))
-                    .OrderBy(puuid => puuid, StringComparer.Ordinal));
-
-            return $"blue:{TeamKey(team1)}|red:{TeamKey(team2)}";
         }
 
         /// <summary>
@@ -1427,7 +1419,8 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     Width = PlayerCardPreferredWidth,
                     Height = PlayerCardHeight,
-                    Margin = new Padding(0, 0, PlayerCardHorizontalMargin, PlayerCardVerticalMargin)
+                    Margin = new Padding(0, 0, PlayerCardHorizontalMargin, PlayerCardVerticalMargin),
+                    RefreshPlayerData = _forcePlayerData
                 };
                 card.SetHistoryFilter(_historyFilter);
                 UiTheme.Apply(card);

@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class PenguPluginStatusForm : AntdUI.Window
+internal sealed class PenguPluginStatusForm : BorderlessAntdWindow
 {
     private readonly IPenguPluginService _service;
     private readonly Action<string> _report;

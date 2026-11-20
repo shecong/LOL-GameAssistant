@@ -44,7 +44,7 @@ internal sealed class AssetDetailToolTip : IDisposable
     {
         if (sender is not Control control || !_details.TryGetValue(control, out string? text)) return;
         _tip.Hide(control);
-        using var dialog = new AntdUI.Window
+        using var dialog = new AntdContentWindow
         {
             Text = text.Split('\n')[0], Size = new Size(480, 400), MinimumSize = new Size(360, 260),
             StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,

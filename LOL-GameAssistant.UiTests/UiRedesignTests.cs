@@ -28,7 +28,7 @@ public sealed class UiRedesignTests
     public void TenPlayerRosterUsesTwoColumnsAndShowsLoadedTeamOverview() => MatchListScrollingTests.OnUiThread(() =>
     {
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
-        LivePlayerForm.ClearSharedCaches();
+        LOL_GameAssistant.Application.Matches.PlayerHistoryRepository.ClearAll();
         using var live = new LiveGameForm { Size = new Size(1440, 850) };
         var first = Field<FlowLayoutPanel>(live, "panelTeam1");
         var second = Field<FlowLayoutPanel>(live, "panelTeam2");

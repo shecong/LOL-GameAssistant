@@ -103,7 +103,11 @@ public sealed class RealDpiAcceptanceTests
                             var filter = Field<AntdUI.Select>(page, "_modeSelect");
                             Assert.True(filter.Parent!.Parent!.ClientRectangle.Contains(filter.Parent.Bounds), "模式筛选器必须位于标题区域内");
                             Assert.True(filter.Parent.ClientRectangle.Contains(filter.Bounds), "模式筛选器不能被容器裁剪");
+                            var region = Field<AntdUI.Select>(page, "_regionSelect");
+                            Assert.Equal(language == "en-US" ? "Current region (auto)" : "当前大区（自动）", region.Text);
                         }
+                        if (name == "match-detail" && language == "en-US")
+                            Assert.StartsWith("Match details · ", window.Text);
                         using var bitmap = new Bitmap(window.Width, window.Height);
                         window.DrawToBitmap(bitmap, new Rectangle(Point.Empty, window.Size));
                         bitmap.Save(Path.Combine(directory, $"{name}-{theme}-{language}.png"), ImageFormat.Png);

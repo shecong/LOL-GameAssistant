@@ -662,9 +662,8 @@ public sealed partial class CoachForm : UserControl, IThemeAware
             }
             if (rememberSelection)
             {
-                AssistantSettings settings = _settingsStore.Load();
-                settings.OpggManualBuildSelections[BuildOpggSelectionKey(context.MyChampionId, option.Mode, position)] = option.Order;
-                _settingsStore.Save(settings);
+                _settingsStore.Update(settings =>
+                    settings.OpggManualBuildSelections[BuildOpggSelectionKey(context.MyChampionId, option.Mode, position)] = option.Order);
             }
         }
         return result;

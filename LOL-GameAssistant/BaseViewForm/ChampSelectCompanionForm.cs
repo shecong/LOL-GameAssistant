@@ -22,7 +22,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>选人阶段的伴随窗，跟随 LeagueClientUx 窗口移动、缩放和最小化。</summary>
-internal sealed class ChampSelectCompanionForm : AntdUI.Window, IThemeAware
+internal sealed class ChampSelectCompanionForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly IChampionSelectService _selection;
     private readonly ILobbyService _lobby;

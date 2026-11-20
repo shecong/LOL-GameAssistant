@@ -17,7 +17,7 @@ namespace LOL_GameAssistant.BaseViewForm
     /// 对局详情弹窗：完整展示本局 10 名玩家（我方/敌方、头像、英雄、KDA、伤害），
     /// 底部展示当前玩家详细数据。
     /// </summary>
-    public partial class MatchDetailForm : AntdUI.Window, IThemeAware
+    public partial class MatchDetailForm : BorderlessAntdWindow, IThemeAware
     {
         private readonly UiRequestScope _lifetime = new();
         private readonly MatchDetail _gameInfo;
@@ -275,12 +275,22 @@ namespace LOL_GameAssistant.BaseViewForm
                 {
                     AutoSize = false,
                     Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold),
-                    Location = new Point(270, 8),
-                    Size = new Size(82, 22),
+                    Location = new Point(255, 8),
+                    Size = new Size(106, 22),
+                    AutoEllipsis = true,
                     Text = "评估中",
                     TextAlign = ContentAlignment.MiddleCenter
                 };
+                void SizePerformanceTag()
+                {
+                    int width = Math.Min(106 * panel.DeviceDpi / 96,
+                        TextRenderer.MeasureText(performanceTag.Text, performanceTag.Font).Width + 8);
+                    performanceTag.Width = width;
+                }
+                performanceTag.TextChanged += (_, _) => SizePerformanceTag();
+                performanceTag.FontChanged += (_, _) => SizePerformanceTag();
                 panel.Controls.Add(performanceTag);
+                SizePerformanceTag();
                 _performanceTagsByPuuid[playerPuuid] = performanceTag;
             }
             panel.Controls.Add(new AntdUI.Label

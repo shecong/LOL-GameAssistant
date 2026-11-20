@@ -64,12 +64,12 @@ public partial class SettingForm
         if (_isLoading || IsDisposed) return false;
         try
         {
-            var latest = _settingsStore.Load();
-            update(latest);
-            if (WindowHoldController.HasGameHotkeyConflict(latest) || WindowHoldController.HasBattleOverlayHotkeyConflict(latest))
-                throw new InvalidOperationException("快捷键冲突，请更换按键。");
-            latest.Normalize();
-            _settingsStore.Save(latest);
+            var latest = _settingsStore.Update(settings =>
+            {
+                update(settings);
+                if (WindowHoldController.HasGameHotkeyConflict(settings) || WindowHoldController.HasBattleOverlayHotkeyConflict(settings))
+                    throw new InvalidOperationException("快捷键冲突，请更换按键。");
+            });
             _config = latest;
             ApplySideEffects(latest, applyStartup: false);
             Program.GameMain?.ConfigureQuickShoutHotkeys(latest);
@@ -94,13 +94,14 @@ public partial class SettingForm
         try
         {
             // 只更新当前开关；未提交的连接配置、词库或其他页面的新设置不能被覆盖。
-            AssistantSettings latest = _settingsStore.Load();
-            update(latest, value);
-            if (control == _enemyJungleRouteEnabled && WindowHoldController.HasGameHotkeyConflict(latest))
-                throw new InvalidOperationException("路线分析快捷键冲突，请先更换快捷键。");
-            if (control == _battleOverlayEnabled && WindowHoldController.HasBattleOverlayHotkeyConflict(latest))
-                throw new InvalidOperationException("对局面板快捷键与喊话或 KDA 快捷键冲突，请先更换快捷键。");
-            _settingsStore.Save(latest);
+            var latest = _settingsStore.Update(settings =>
+            {
+                update(settings, value);
+                if (control == _enemyJungleRouteEnabled && WindowHoldController.HasGameHotkeyConflict(settings))
+                    throw new InvalidOperationException("路线分析快捷键冲突，请先更换快捷键。");
+                if (control == _battleOverlayEnabled && WindowHoldController.HasBattleOverlayHotkeyConflict(settings))
+                    throw new InvalidOperationException("对局面板快捷键与喊话或 KDA 快捷键冲突，请先更换快捷键。");
+            });
             saved = true;
             _config = latest;
             ApplySideEffects(latest, applyStartup: control == swi_startup);

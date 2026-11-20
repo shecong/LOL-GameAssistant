@@ -66,7 +66,7 @@ public sealed class HomeCurrentRegionTests
             Service<ILeagueClientConnection>((_, _) => true),
             Service<IMatchHistoryService>((_, _) => Task.FromResult<MatchHistoryResponse?>(new() { Games = new() })),
             Service<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(null)),
-            Service<IGameDataVersionService>((_, _) => Task.CompletedTask), regionService: region);
+            _ => Task.CompletedTask, regionService: region);
         Pump(home.LoadPlayerAsync(null)); Assert.False(first.Task.IsCompleted);
         Pump(home.LoadPlayerAsync("queried-player"));
         Assert.Equal("黑色玫瑰", Field<AntdUI.Label>(home, "_regionName").Text);

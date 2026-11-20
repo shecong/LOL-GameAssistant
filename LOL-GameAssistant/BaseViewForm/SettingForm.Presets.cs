@@ -22,7 +22,7 @@ public partial class SettingForm
     {
         try
         {
-            var latest = _settingsStore.Load(); AssistantPresetPolicy.Apply(latest, preset); _settingsStore.Save(latest);
+            var latest = _settingsStore.Update(settings => AssistantPresetPolicy.Apply(settings, preset));
             bool loading = _isLoading; _isLoading = true;
             try
             {

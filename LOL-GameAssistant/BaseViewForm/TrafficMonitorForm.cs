@@ -79,8 +79,7 @@ public sealed class TrafficMonitorForm : UserControl, IThemeAware
         if (_updatingMonitoring) return;
         try
         {
-            var settings = _settings.Load(); settings.TrafficMonitoringEnabled = _monitoring.Checked;
-            _settings.Save(settings);
+            _settings.Update(settings => settings.TrafficMonitoringEnabled = _monitoring.Checked);
             _traffic.SetMonitoringEnabled(_monitoring.Checked);
             UpdateMonitoringActivity();
         }

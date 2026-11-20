@@ -9,8 +9,25 @@ public sealed partial class NativeSkinCoreService
     private string? _cameraSession, _cameraId;
     private float _cameraBaseline;
     private bool _cameraChanged, _cameraViewChanged;
+    private SkinCoreReply? _cameraActivation;
 
     public Task<SkinCoreReply> GetCameraAsync(CancellationToken token = default) => RunAsync(CameraStatusAsync, token);
+    public Task<SkinCoreReply> BeginCameraAsync(CancellationToken token = default) =>
+        RunAsync(async (revision, ct) =>
+        {
+            var state = await CameraStatusAsync(revision, ct).ConfigureAwait(false);
+            if (!Regex.IsMatch(state.CameraViewId, "\\A[0-9a-f]{16}\\z") ||
+                state.CameraViewDistance is not float view || !float.IsFinite(view) || view is < 100 or > 10000)
+                throw new SkinCoreException("camera_view_unavailable");
+            if (_cameraActivation == null)
+            {
+                _cameraActivation = state;
+                _cameraBaseline = state.CameraDistance;
+            }
+            return state;
+        }, token);
+    public Task<SkinCoreReply> EndCameraAsync(string session, CancellationToken token = default) =>
+        RunAsync((revision, ct) => RestoreCameraInternalAsync(revision, session, ct, endActivation: true), token);
     public Task<SkinCoreReply> SetCameraAsync(string session, float distance, CancellationToken token = default) =>
         RunAsync(async (revision, ct) =>
         {
@@ -39,7 +56,9 @@ public sealed partial class NativeSkinCoreService
         CheckObjectWriteRevision(revision); ValidateCamera(result, true);
         if (!result.Invoked || result.Session != state.Session || result.CameraId != state.CameraId ||
             result.ReferenceSha256 != state.ReferenceSha256 || result.CameraDistance != state.CameraDistance ||
-            !Regex.IsMatch(result.CameraViewId, "\\A[0-9a-f]{16}\\z") || result.CameraViewDistance != distance || result.CameraViewTarget != distance)
+            !Regex.IsMatch(result.CameraViewId, "\\A[0-9a-f]{16}\\z") ||
+            (!string.IsNullOrEmpty(state.CameraViewId) && result.CameraViewId != state.CameraViewId) ||
+            result.CameraViewDistance != distance || result.CameraViewTarget != distance)
             throw new SkinCoreException("camera_view_write_not_verified", true);
         Log(new { stage = "camera_view_result", result.Session, result.CameraViewDistance, result.StateVerified });
         return result;
@@ -62,23 +81,35 @@ public sealed partial class NativeSkinCoreService
         {
             _cameraSession = state.Session; _cameraId = state.CameraId;
             _cameraBaseline = state.CameraDistance; _cameraChanged = _cameraViewChanged = false;
+            _cameraActivation = null;
         }
         else if (_cameraId != state.CameraId)
         {
             // Never restore a previous configuration object's baseline into a new one.
-            if (_cameraChanged || _cameraViewChanged) throw new SkinCoreException("camera_state_changed");
+            if (_cameraChanged || _cameraViewChanged || _cameraActivation != null) throw new SkinCoreException("camera_state_changed");
             _cameraId = state.CameraId; _cameraBaseline = state.CameraDistance;
         }
         return state;
     }
-    private async Task<SkinCoreReply> RestoreCameraInternalAsync(long revision, string session, CancellationToken token)
+    private async Task<SkinCoreReply> RestoreCameraInternalAsync(long revision, string session, CancellationToken token, bool endActivation = false)
     {
         if (_cameraSession != session) throw new SkinCoreException("camera_baseline_unavailable");
         var state = await CameraStatusAsync(revision, token).ConfigureAwait(false);
         if (state.Session != session) throw new SkinCoreException("stale_session");
-        var restored = _cameraChanged ? await WriteCameraAsync(revision, state, _cameraBaseline, token).ConfigureAwait(false) : state;
-        restored = await MoveCameraViewAsync(revision, restored, state.CameraDefaultViewDistance, token).ConfigureAwait(false);
+        var activation = endActivation ? _cameraActivation : null;
+        if (activation != null && activation.CameraViewId != state.CameraViewId)
+            throw new SkinCoreException("camera_state_changed");
+        float view = activation?.CameraViewDistance ?? state.CameraDefaultViewDistance;
+        var restored = state;
+        if (_cameraChanged || (activation != null && state.CameraDistance != _cameraBaseline))
+        {
+            var limit = await WriteCameraAsync(revision, state, _cameraBaseline, token).ConfigureAwait(false);
+            restored = state with { CameraDistance = limit.CameraDistance };
+        }
+        if (activation == null || state.CameraViewDistance != view || state.CameraViewTarget != view)
+            restored = await MoveCameraViewAsync(revision, restored, view, token).ConfigureAwait(false);
         _cameraChanged = _cameraViewChanged = false;
+        if (endActivation) _cameraActivation = null;
         return restored;
     }
     private async Task<SkinCoreReply> WriteCameraAsync(long revision, SkinCoreReply state, float distance, CancellationToken token)

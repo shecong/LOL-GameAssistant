@@ -144,9 +144,9 @@ public sealed partial class NativeSkinCoreService(ISkinCoreTransport transport, 
                 catch (SkinCoreException error) { borderRestored = false; Log(new { stage = "stop_rank_border_restore_failed", error.Code, error.OutcomeUnknown }); }
             }
             bool cameraRestored = true;
-            if (_cameraSession == session && (_cameraChanged || _cameraViewChanged))
+            if (_cameraSession == session && (_cameraChanged || _cameraViewChanged || _cameraActivation != null))
             {
-                try { await RestoreCameraInternalAsync(revision, session, token).ConfigureAwait(false); }
+                try { await RestoreCameraInternalAsync(revision, session, token, endActivation: true).ConfigureAwait(false); }
                 catch (SkinCoreException error) { cameraRestored = false; Log(new { stage = "stop_camera_restore_failed", error.Code, error.OutcomeUnknown }); }
             }
             bool objectsRestored = true;

@@ -10,7 +10,7 @@ namespace LOL_GameAssistant.BaseViewForm;
 /// 从本机客户端资源目录分页浏览生涯背景或召唤师头像。
 /// 只在用户主动打开时读取，缩略图按当前可见页并发加载，避免一次占用大量 LCU 请求。
 /// </summary>
-internal sealed class ProfileAppearancePickerForm : AntdUI.Window, IThemeAware
+internal sealed class ProfileAppearancePickerForm : BorderlessAntdWindow, IThemeAware
 {
     private const int PageSize = 36;
     private readonly IClientFeatureService _features;

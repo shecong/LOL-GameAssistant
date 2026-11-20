@@ -74,8 +74,7 @@ public sealed class DiagnosticsForm : UserControl, IThemeAware
         if (_updatingEnabled) return;
         try
         {
-            var settings = _settings.Load(); settings.RuntimeDiagnosticsEnabled = _enabled.Checked;
-            _settings.Save(settings);
+            _settings.Update(settings => settings.RuntimeDiagnosticsEnabled = _enabled.Checked);
             RuntimeDiagnostics.SetEnabled(_enabled.Checked);
             if (_enabled.Checked) RuntimeDiagnostics.ReportStartup();
             UpdateDiagnosticsActivity();

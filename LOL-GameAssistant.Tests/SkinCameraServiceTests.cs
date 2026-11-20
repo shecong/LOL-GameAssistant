@@ -48,6 +48,33 @@ public sealed class SkinCameraServiceTests
         Assert.Equal(new[] { "camera-view", Session, "2250" }, transport.Calls.Last());
     }
     [Fact]
+    public async Task ToggleRestoresTheViewAndLimitCapturedForEachActivation()
+    {
+        var transport = new CameraTransport { ViewDistance = 1875.5f, ViewTarget = 1875.5f };
+        var core = new NativeSkinCoreService(transport);
+        core.SetEnabled(true);
+        await core.BeginCameraAsync();
+        Assert.Single(transport.Calls, call => call[0] == "camera-status");
+        await core.SetCameraAsync(Session, 1300);
+        transport.ViewDistance = transport.ViewTarget = 3000;
+        await core.EndCameraAsync(Session);
+        Assert.Equal(600.25f, transport.Distance);
+        Assert.Equal(1875.5f, transport.ViewDistance);
+        Assert.Equal(1875.5f, transport.ViewTarget);
+
+        transport.Distance = 625;
+        transport.ViewDistance = transport.ViewTarget = 2050;
+        await core.GetCameraAsync();
+        await core.BeginCameraAsync();
+        await core.SetCameraAsync(Session, 1200);
+        await core.RestoreCameraAsync(Session);
+        Assert.Equal(2250, transport.ViewDistance);
+        await core.EndCameraAsync(Session);
+        Assert.Equal(625, transport.Distance);
+        Assert.Equal(2050, transport.ViewDistance);
+    }
+
+    [Fact]
     public async Task MoveChangesCurrentAndTargetWithoutChangingConfiguration()
     {
         var transport = new CameraTransport(); var core = new NativeSkinCoreService(transport); core.SetEnabled(true);

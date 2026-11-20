@@ -13,7 +13,6 @@ using LOL_GameAssistant.Application.Skins;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.ApplicationInfo;
 using LOL_GameAssistant.Domain.LeagueClient;
-using LOL_GameAssistant.Domain.MatchAnalysis;
 using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Settings;
 using LOL_GameAssistant.Helper;
@@ -25,8 +24,6 @@ namespace LOL_GameAssistant.UiTests;
 [Collection("Window theme")]
 public sealed class WindowAuditTests
 {
-    private static PlayerGrowthSnapshot Growth() => new("audit", new GrowthReport([], [], 0, "暂无对局样本"), [],
-        ["召唤师峡谷"], DateTimeOffset.Now, false, "布局验收数据");
     private static T Empty<T>() where T : class => Service<T>((method, _) => Default(method.ReturnType));
     private static object? Default(Type type)
     {
@@ -77,8 +74,8 @@ public sealed class WindowAuditTests
             [typeof(PartyHubForm)] = () => new PartyHubForm(Service<IPartyService>((m, _) => m.Name == "GetSnapshotAsync"
                 ? Task.FromResult(new PartySnapshot(420, false, false, [new("audit", "测试玩家", true, "上路")], [], [], "当前队伍尚未准备就绪")) : Default(m.ReturnType))),
             [typeof(PlayerCandidatePickerForm)] = () => new PlayerCandidatePickerForm(new([new("audit", "测试玩家", "CN", "HN1", 100, "本机样本")], true, "请先选择玩家再查询")),
+            [typeof(PenguPluginStatusForm)] = () => new PenguPluginStatusForm(Empty<LOL_GameAssistant.Application.ClientFeatures.IPenguPluginService>(), _ => { }),
             [typeof(PoroShopForm)] = () => new PoroShopForm(features),
-            [typeof(PracticeGoalForm)] = () => new PracticeGoalForm(Growth(), catalog, null),
             [typeof(ProfileAppearancePickerForm)] = () => new ProfileAppearancePickerForm(features, Empty<IProfileIconService>(), true),
             [typeof(ReplayManagerForm)] = () => new ReplayManagerForm(1, features),
             [typeof(RewardSelectionForm)] = () => new RewardSelectionForm(features),
@@ -212,16 +209,6 @@ public sealed class WindowAuditTests
         Assert.Equal(new Size(900, 650), window.MinimumSize);
         WindowLayout.FitToWorkingArea(window, new Rectangle(0, 0, 2560, 1440), 144);
         Assert.Equal(new Size(1350, 975), window.MinimumSize);
-    });
-
-    [Fact]
-    public void EditingGoalPreservesHeroOutsideRecentSample() => MatchListScrollingTests.OnUiThread(() =>
-    {
-        var existing = new PracticeGoal(PracticeMetric.Cs, 6, "召唤师峡谷", 99, DateTimeOffset.UtcNow, 5);
-        using var window = new PracticeGoalForm(Growth(), Service<IChampionCatalog>((_, _) => "测试英雄"), existing);
-        window.Show();
-        Children(window).OfType<AntdUI.Button>().Single(b => b.Name == "saveGoal").PerformClick();
-        Assert.Equal(99, window.Goal!.ChampionId);
     });
 
     [Fact]

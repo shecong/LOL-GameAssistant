@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class ReplayManagerForm : AntdUI.Window, IThemeAware
+internal sealed class ReplayManagerForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly IClientFeatureService _features;
     private readonly long _gameId;

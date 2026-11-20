@@ -37,6 +37,22 @@ public sealed class TclsRenderedLoginTests
         Assert.Equal(new Point((int)(188 * scale), (int)(312 * scale)), plan.Account);
         Assert.Equal(new Point((int)(188 * scale), (int)(376 * scale)), plan.Password);
         Assert.Equal(new Point((int)(188 * scale), (int)(574 * scale)), plan.Submit);
+        Assert.True(plan.AccountBounds!.Value.Contains(plan.Account!.Value));
+        Assert.True(plan.AccountBounds.Value.Bottom < plan.PasswordBounds!.Value.Top);
+    }
+
+    [Fact]
+    public void RenderedAccount_RequiresTheSavedAccountToBeVisibleInTheEditor()
+    {
+        using var field = new Bitmap(190, 22, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+        using var graphics = Graphics.FromImage(field);
+        graphics.Clear(Color.FromArgb(6, 15, 31));
+        using var reader = new TclsRenderedLoginAutomation();
+        Assert.False(reader.AccountMatches(field, "123456789"));
+        using var font = new Font("Microsoft YaHei UI", 14, GraphicsUnit.Pixel);
+        graphics.DrawString("123456789", font, Brushes.White, 6, 1);
+        Assert.True(reader.AccountMatches(field, "123456789"));
+        Assert.False(reader.AccountMatches(field, "12345678"));
     }
 
     [Fact]

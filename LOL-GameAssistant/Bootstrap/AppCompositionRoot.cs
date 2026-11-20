@@ -36,6 +36,7 @@ namespace LOL_GameAssistant.Bootstrap;
 /// </summary>
 public static class AppCompositionRoot
 {
+    public static IApplicationSettingsStore ApplicationSettingsStore { get; } = new LegacyApplicationSettingsStore();
     // Capture eligibility before selecting a loader creates the persisted plugin path.
     public static Infrastructure.Pengu.PenguFirstRunSetup PenguFirstRun { get; } = new(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant"),
@@ -54,21 +55,13 @@ public static class AppCompositionRoot
     }
     public static IPenguLocalLoaderService PenguLocalLoader { get; } = new Infrastructure.Pengu.PenguLocalLoaderService(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "pengu-loader-local.json"));
-    public static IPenguPluginService PenguPlugin { get; } = CreatePenguPlugin();
-    private static IPenguPluginService CreatePenguPlugin()
-    {
-        var plugin = new Infrastructure.Pengu.PenguPluginService(
+    public static IPenguPluginService PenguPlugin { get; } = new Infrastructure.Pengu.PenguPluginService(
             Path.Combine(AppContext.BaseDirectory, "Tools", "PenguPlugin"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "pengu-plugin.json"),
             bundleProvider: () => Path.GetFullPath(PenguLocalLoader.SourceDirectory).Equals(
                 Path.GetFullPath(Infrastructure.Pengu.PenguReleaseInstaller.DefaultDirectory), StringComparison.OrdinalIgnoreCase)
                 ? Path.Combine(AppContext.BaseDirectory, "Tools", "PenguPlugin")
                 : Path.Combine(PenguLocalLoader.SourceDirectory, "extensions", "lol-game-assistant-visuals"));
-        try { plugin.SelectDirectory(PenguLocalLoader.Prepare().PluginsDirectory); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException)
-        { /* The settings card reports the missing local build and offers source selection. */ }
-        return plugin;
-    }
     static AppCompositionRoot()
     {
         System.Windows.Forms.Application.ApplicationExit += (_, _) => TclsLoginLauncher.Cancel();
@@ -96,16 +89,16 @@ public static class AppCompositionRoot
                     diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure, diagnosticsEnabled: () => RuntimeDiagnostics.Enabled),
                 new LOL_GameAssistant.Infrastructure.Skins.NativeSkinCoreTransport(Path.Combine(AppContext.BaseDirectory, "Tools", "SkinCoreHybrid"), kernelRelay: true,
                     diagnostic: LOL_GameAssistant.Helper.RuntimeDiagnostics.ReportSkinCoreFailure, diagnosticsEnabled: () => RuntimeDiagnostics.Enabled),
-                new LegacyApplicationSettingsStore().Load().SkinCoreMode),
+                ApplicationSettingsStore.Load().SkinCoreMode),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "SkinCore", "events.jsonl"),
             loggingEnabled: () => RuntimeDiagnostics.Enabled,
-            memoryAllowed: () => new LegacyApplicationSettingsStore().Load().SkinEngineMode == LOL_GameAssistant.Domain.Skins.SkinEngineMode.Memory && CslolSkins?.IsRunning != true);
+            memoryAllowed: () => ApplicationSettingsStore.Load().SkinEngineMode == LOL_GameAssistant.Domain.Skins.SkinEngineMode.Memory && CslolSkins?.IsRunning != true);
     public static ICslolSkinService CslolSkins { get; } = new LOL_GameAssistant.Infrastructure.Skins.OptionalCslolSkinService(
         AppContext.BaseDirectory,
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "FileSkinResources"),
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "Cslol"),
         Path.Combine(AppContext.BaseDirectory, "update-source.json"),
-        memoryEnabled: () => SkinCoreService.Enabled || new LegacyApplicationSettingsStore().Load().SkinEngineMode != LOL_GameAssistant.Domain.Skins.SkinEngineMode.File);
+        memoryEnabled: () => SkinCoreService.Enabled || ApplicationSettingsStore.Load().SkinEngineMode != LOL_GameAssistant.Domain.Skins.SkinEngineMode.File);
     private static readonly ILcuRequestSender LcuRequestSender = new LcuHttpRequestSender();
     public static IResourceSkinLoader ResourceSkinLoader { get; } = new LOL_GameAssistant.Infrastructure.Skins.ResourceSkinLoader(
         Path.Combine(AppContext.BaseDirectory, "Tools", "ResourceSkins", "HID.dll"), LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning);
@@ -114,16 +107,13 @@ public static class AppCompositionRoot
     public static IResourceSkinService ResourceSkins { get; } = new LOL_GameAssistant.Infrastructure.Skins.ResourceSkinService(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "ResourceSkins", "mounts.json"),
         LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning,
-        () => !SkinCoreService.Enabled && !CslolSkins.IsRunning && new LegacyApplicationSettingsStore().Load().SkinEngineMode == LOL_GameAssistant.Domain.Skins.SkinEngineMode.Resource);
+        () => !SkinCoreService.Enabled && !CslolSkins.IsRunning && ApplicationSettingsStore.Load().SkinEngineMode == LOL_GameAssistant.Domain.Skins.SkinEngineMode.Resource);
     public static ISkinEngineCoordinator SkinEngines { get; } = new SkinEngineCoordinator(SkinCoreService, CslolSkins,
-        new LegacyApplicationSettingsStore(), LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning, ResourceSkins, ResourceSkinLoader);
+        ApplicationSettingsStore, LOL_GameAssistant.Infrastructure.Skins.CslolSkinService.IsGameRunning, ResourceSkins, ResourceSkinLoader);
     public static IFileSkinPreferencesStore FileSkinPreferences { get; } = new LOL_GameAssistant.Infrastructure.Skins.FileSkinPreferencesStore(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "Cslol", "browser.json"));
     public static IFileSkinArtworkService FileSkinArtwork { get; } = new LOL_GameAssistant.Infrastructure.Skins.FileSkinArtworkService(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "Cslol", "artwork"));
-    public static IPlayerGrowthService CreateRegionalGrowthService(IMatchHistoryService matches, string platform) =>
-        new LcuPlayerGrowthService(matches, ChampionCatalog, LcuRequestSender,
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOL-GameAssistant", "training", string.Concat(platform.Where(char.IsLetterOrDigit))), allowInventory: false);
     public static IClientRegaliaService ClientRegaliaService { get; } = new LcuClientRegaliaService(LcuRequestSender);
     public static IClientIdentityService ClientIdentityService { get; } = new LcuClientIdentityService(LcuRequestSender,
         detail => LOL_GameAssistant.Helper.RuntimeDiagnostics.Report("身份装饰", "诊断", detail));
@@ -152,7 +142,6 @@ public static class AppCompositionRoot
     /// <summary>用户明确选择的文本导出服务。</summary>
     public static ITextExportService TextExportService { get; } = new TextExportService();
     public static ICompanionExperienceStore CompanionExperienceStore { get; } = new CompanionExperienceStore();
-    public static IPatchWatchService PatchWatchService { get; } = new DataDragonPatchWatchService();
 
     private static readonly LeagueClientConnection LeagueClientConnectionImplementation = new();
 
@@ -185,9 +174,6 @@ public static class AppCompositionRoot
     /// <summary>收藏召唤师列表存储。</summary>
     public static IFavoritePlayerStore FavoritePlayerStore { get; } = new LegacyFavoritePlayerStore();
 
-    /// <summary>助手设置存储与 API Key 保护服务。</summary>
-    public static IApplicationSettingsStore ApplicationSettingsStore { get; } = new LegacyApplicationSettingsStore();
-
     public static ISettingsSecretProtector SettingsSecretProtector { get; } = new DpapiSettingsSecretProtector();
     public static RankBorderLoadingCoordinator RankBorderLoading { get; } = new(SkinCoreService,
         () => ApplicationSettingsStore.Load(), () =>
@@ -210,7 +196,11 @@ public static class AppCompositionRoot
     public static IRankedStatsService RankedStatsService { get; } = new CachedRankedStatsService(new Infrastructure.Sgp.SgpRankedStatsService(Sgp), context: PlayerCacheScope.GetAsync);
 
     /// <summary>游戏数据版本初始化服务。</summary>
-    public static IGameDataVersionService GameDataVersionService { get; } = new LegacyGameDataVersionService();
+    public static Task EnsureGameDataVersionAsync(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        return LOL_GameAssistant.LoLApi.Game_Api.GetGameversion(token);
+    }
 
     /// <summary>英雄、装备和技能等只读游戏资源服务。</summary>
     public static IGameAssetService GameAssetService { get; } = new CachedGameAssetService(
@@ -257,13 +247,14 @@ public static class AppCompositionRoot
 
     private static void RememberAppliedRune(LOL_GameAssistant.Domain.Builds.PersonalRunePreset applied)
     {
-        var settings = ApplicationSettingsStore.Load();
-        var existing = settings.PersonalRunePresets.FirstOrDefault(preset => preset.ChampionId == applied.ChampionId &&
-            preset.Mode == applied.Mode && preset.Position == applied.Position && preset.PrimaryStyleId == applied.PrimaryStyleId &&
-            preset.SubStyleId == applied.SubStyleId && preset.RunePerkIds.SequenceEqual(applied.RunePerkIds));
-        if (existing == null) settings.PersonalRunePresets.Add(applied);
-        else { existing.LastAppliedAt = applied.LastAppliedAt; existing.ItemBlocks = applied.ItemBlocks; }
-        ApplicationSettingsStore.Save(settings);
+        ApplicationSettingsStore.Update(settings =>
+        {
+            var existing = settings.PersonalRunePresets.FirstOrDefault(preset => preset.ChampionId == applied.ChampionId &&
+                preset.Mode == applied.Mode && preset.Position == applied.Position && preset.PrimaryStyleId == applied.PrimaryStyleId &&
+                preset.SubStyleId == applied.SubStyleId && preset.RunePerkIds.SequenceEqual(applied.RunePerkIds));
+            if (existing == null) settings.PersonalRunePresets.Add(applied);
+            else { existing.LastAppliedAt = applied.LastAppliedAt; existing.ItemBlocks = applied.ItemBlocks; }
+        });
     }
 
     /// <summary>仅读取本机当前玩家实时状态的服务。</summary>
@@ -273,9 +264,8 @@ public static class AppCompositionRoot
         new(PlayerProfileService, RankedStatsService, MatchHistoryService);
 
     public static ILocalCacheManagementService LocalCacheManagementService { get; } = new LocalCacheManagementService(matchCaches:
-        [(BaseViewForm.LivePlayerForm.MeasureSharedCaches, BaseViewForm.LivePlayerForm.ClearSharedCaches),
-         (BaseViewForm.MatchHistoryCard.MeasureSharedCache, BaseViewForm.MatchHistoryCard.ClearSharedCache),
-         (PlayerHistoryRepository.For(MatchHistoryService).Measure, PlayerHistoryRepository.For(MatchHistoryService).Clear)]);
+        [(BaseViewForm.MatchHistoryCard.MeasureSharedCache, BaseViewForm.MatchHistoryCard.ClearSharedCache),
+         (PlayerHistoryRepository.MeasureAll, PlayerHistoryRepository.ClearAll)]);
 
     private static readonly ILaneKnowledgeService LaneKnowledgeService = new FileLaneKnowledgeService();
 
@@ -309,6 +299,5 @@ public static class AppCompositionRoot
     /// <summary>独立于页面生命周期的局内建议调度器。</summary>
     public static IRecommendationCoordinator RecommendationCoordinator { get; } =
         new RecommendationCoordinator(AiCoachingService, AiRecommendationProvider, laneKnowledge: LaneKnowledgeService);
-    public static IPlayerGrowthService PlayerGrowthService { get; } = new LcuPlayerGrowthService(MatchHistoryService, ChampionCatalog, LcuRequestSender);
     public static Application.Automation.PostGameAutomation Automation { get; } = new(ClientFeatureService, PartyService);
 }

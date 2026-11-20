@@ -28,7 +28,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly ILeagueClientConnection _leagueClientConnection;
         private readonly IMatchHistoryService _matchHistoryService;
         private readonly IRankedStatsService _rankedStatsService;
-        private readonly IGameDataVersionService _gameDataVersionService;
+        private readonly Func<CancellationToken, Task> _ensureGameDataVersion;
         private readonly Func<RecordForm> _recordFactory;
         private readonly ICurrentRegionService? _regionService;
         private readonly AntdUI.Panel _regionPanel = new() { Name = "currentRegionPanel", Radius = 10, BorderWidth = 1, Padding = new Padding(8) };
@@ -65,7 +65,7 @@ namespace LOL_GameAssistant.BaseViewForm
             AppCompositionRoot.LeagueClientConnection,
             AppCompositionRoot.MatchHistoryService,
             AppCompositionRoot.RankedStatsService,
-            AppCompositionRoot.GameDataVersionService, regionService: AppCompositionRoot.CurrentRegionService)
+            AppCompositionRoot.EnsureGameDataVersionAsync, regionService: AppCompositionRoot.CurrentRegionService)
         {
         }
 
@@ -77,7 +77,7 @@ namespace LOL_GameAssistant.BaseViewForm
             ILeagueClientConnection leagueClientConnection,
             IMatchHistoryService matchHistoryService,
             IRankedStatsService rankedStatsService,
-            IGameDataVersionService gameDataVersionService,
+            Func<CancellationToken, Task> ensureGameDataVersion,
             Func<RecordForm>? recordFactory = null, ICurrentRegionService? regionService = null)
         {
             InitializeComponent();
@@ -88,7 +88,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _leagueClientConnection = leagueClientConnection;
             _matchHistoryService = matchHistoryService;
             _rankedStatsService = rankedStatsService;
-            _gameDataVersionService = gameDataVersionService;
+            _ensureGameDataVersion = ensureGameDataVersion;
             _recordFactory = recordFactory ?? (() => new RecordForm(matchHistoryService, AppCompositionRoot.GameAssetService));
             _regionService = regionService;
             _regionPanel.Controls.Add(_regionName);
@@ -108,8 +108,6 @@ namespace LOL_GameAssistant.BaseViewForm
             playerCard.SizeChanged += (_, _) => LayoutPlayerSummary();
             flowSearch.SizeChanged += (_, _) => LayoutSummary();
             VisibleChanged += (_, _) => { if (Visible) LayoutSummary(); };
-            UiLanguage.Changed += LanguageChanged;
-            Disposed += (_, _) => UiLanguage.Changed -= LanguageChanged;
             game_pagin.Click -= game_pagin_Click;
             InitializeDashboardLayout();
             InitializeQuickActions();
@@ -119,11 +117,27 @@ namespace LOL_GameAssistant.BaseViewForm
             Disposed += (_, _) => { _loads.Dispose(); _pages.Dispose(); _regionLoads.Dispose(); _ownedProfileImage?.Dispose(); _historyTip.Dispose(); };
         }
 
-        private void LanguageChanged(object? sender, EventArgs args) => LayoutSummary();
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            UiLanguage.Changed += LanguageChanged;
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            UiLanguage.Changed -= LanguageChanged;
+            base.OnHandleDestroyed(e);
+        }
+
+        private void LanguageChanged(object? sender, EventArgs args)
+        {
+            if (FindForm() is { IsDisposed: false, Disposing: false })
+                LayoutSummary();
+        }
 
         private void LayoutSummary()
         {
-            if (IsDisposed) return;
+            if (IsDisposed || Disposing) return;
             int Scale(int value) => value * DeviceDpi / 96;
             rootGrid.ColumnStyles[0].Width = Math.Clamp(ClientSize.Width * .29F, Scale(260), Scale(410));
             rootGrid.RowStyles[0].Height = Scale(70);
@@ -152,7 +166,7 @@ namespace LOL_GameAssistant.BaseViewForm
             _regionPanel.Padding = new Padding(4);
             _regionCaption.Height = Scale(18);
             bool compact = playerCard.ClientSize.Width < Scale(350);
-            _regionCaption.Visible = !compact;
+            ((Control)_regionCaption).Visible = !compact;
             if (compact) _regionPanel.Bounds = new Rectangle(right - Scale(104), Scale(6), Scale(104), Scale(26));
             play_number.Width = compact ? Math.Max(1, right - left) : Math.Max(1, regionLeft - left - Scale(8));
             lblXpCap.Location = new Point(Scale(14), Scale(138));
@@ -620,7 +634,7 @@ namespace LOL_GameAssistant.BaseViewForm
         /// </summary>
         private async Task RefreshResourceVersionAsync(CancellationToken token)
         {
-            try { await _gameDataVersionService.EnsureCurrentVersionAsync(token); }
+            try { await _ensureGameDataVersion(token); }
             catch (OperationCanceledException) { }
             catch (Exception ex) { RuntimeDiagnostics.WriteException(ex); }
         }

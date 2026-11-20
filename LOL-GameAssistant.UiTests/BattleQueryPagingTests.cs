@@ -104,43 +104,6 @@ public sealed class BattleQueryPagingTests
         Assert.Equal(1, Field<int>(query, "_totalGameCount"));
     });
 
-    [Fact]
-    public void StatisticsUseTheSelectedModeAndEmptyModesKeepTheFilterAvailable() => MatchListScrollingTests.OnUiThread(() =>
-    {
-        bool statistics = false;
-        var games = new List<MatchHistoryGame>
-        {
-            new() { GameId = 1, QueueId = 450, GameCreation = 1 },
-            new() { GameId = 2, QueueId = 420, GameCreation = 2 },
-            new() { GameId = 3, QueueId = 450, GameCreation = 3 }
-        };
-        using var query = CreateQuery((method, _) => method.Name switch
-        {
-            "GetAllAsync" => Task.FromResult<MatchHistoryResponse?>(new() { Games = new() { GameCount = 3, Games = games } }),
-            "GetDetailAsync" => Task.FromResult<MatchDetail?>(statistics ? new()
-            {
-                participantIdentities = [new() { participantId = 1, player = new() { Puuid = "me" } }],
-                participants = [new() { participantId = 1, stats = new() { kills = 4, assists = 2, deaths = 2, Win = true } }]
-            } : null),
-            _ => throw new InvalidOperationException(method.Name)
-        });
-        query.ApplyModeFilterAsync("深渊大乱斗").GetAwaiter().GetResult();
-        statistics = true;
-        LoadStats(query).GetAwaiter().GetResult();
-        Assert.Contains("深渊大乱斗  最近 2 场", Field<AntdUI.Label>(query, "lblStatus").Text);
-        query.ApplyModeFilterAsync("斗魂竞技场").GetAwaiter().GetResult();
-        LoadStats(query).GetAwaiter().GetResult();
-        Assert.Contains("暂无有效统计数据", Field<AntdUI.Label>(query, "lblStatus").Text);
-        Assert.Equal("斗魂竞技场", Descendants(Field<Control>(query, "panelStats"))
-            .OfType<AntdUI.Select>().Single().SelectedValue?.ToString());
-    });
-
-    private static IEnumerable<Control> Descendants(Control parent) =>
-        new[] { parent }.Concat(parent.Controls.Cast<Control>().SelectMany(Descendants));
-    private static Task LoadStats(BattleQueryForm query) =>
-        (Task)typeof(BattleQueryForm).GetMethod("LoadAndShowStatsAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(query, null)!;
-
     private static BattleQueryForm CreateQuery(Func<MethodInfo, object?[], object?> history)
     {
         var query = new BattleQueryForm(Proxy<IPlayerProfileService>(), Proxy<IProfileIconService>(),

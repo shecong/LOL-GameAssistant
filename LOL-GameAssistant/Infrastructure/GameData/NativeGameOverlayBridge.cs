@@ -58,15 +58,16 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
         if (panel.Image is { } image)
         {
             if (image.Width > 1600 || image.Height > 1000) throw new ArgumentOutOfRangeException(nameof(panel));
-            using var copy = new Bitmap(image.Width, image.Height, PixelFormat.Format32bppArgb);
-            using (var graphics = Graphics.FromImage(copy)) graphics.DrawImageUnscaled(image, 0, 0);
-            var data = copy.LockBits(new Rectangle(Point.Empty, copy.Size), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-            try
+            if (image is Bitmap { PixelFormat: PixelFormat.Format32bppArgb } bitmap)
             {
-                pixels = new byte[copy.Width * copy.Height * 4];
-                for (int row = 0; row < copy.Height; row++) Marshal.Copy(data.Scan0 + row * data.Stride, pixels, row * copy.Width * 4, copy.Width * 4);
+                pixels = ReadPixels(bitmap);
             }
-            finally { copy.UnlockBits(data); }
+            else
+            {
+                using var converted = new Bitmap(image.Width, image.Height, PixelFormat.Format32bppArgb);
+                using (var graphics = Graphics.FromImage(converted)) graphics.DrawImageUnscaled(image, 0, 0);
+                pixels = ReadPixels(converted);
+            }
             panel = panel with { Image = null };
         }
         lock (_gate)
@@ -81,6 +82,24 @@ public sealed class NativeGameOverlayBridge : IGameOverlayBridge
             if (panel.Kind == GameOverlayPanelKind.JungleRoute) ++_jungleVersion;
             Flush();
         }
+    }
+
+    private static byte[] ReadPixels(Bitmap bitmap)
+    {
+        int rowBytes = bitmap.Width * 4;
+        var pixels = new byte[rowBytes * bitmap.Height];
+        var data = bitmap.LockBits(new Rectangle(Point.Empty, bitmap.Size), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            if (data.Stride == rowBytes) Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+            else
+            {
+                for (int row = 0; row < bitmap.Height; row++)
+                    Marshal.Copy(data.Scan0 + row * data.Stride, pixels, row * rowBytes, rowBytes);
+            }
+            return pixels;
+        }
+        finally { bitmap.UnlockBits(data); }
     }
 
     public void HidePanel(GameOverlayPanelKind kind)

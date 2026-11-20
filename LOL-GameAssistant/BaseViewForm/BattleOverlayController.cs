@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LiveGame;
 using LOL_GameAssistant.Application.Lobby;
@@ -21,6 +22,7 @@ internal sealed class BattleOverlayController : IDisposable
     private readonly IGameAssetService _assets;
     private readonly IChampionCatalog _champions;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
+    private readonly System.Windows.Forms.Timer _frameTimer = new() { Interval = 16 };
     private readonly Dictionary<string, BattleOverlayPlayer> _players = new();
     private readonly Dictionary<int, Image> _icons = new();
     private readonly HashSet<string> _loading = new();
@@ -46,7 +48,9 @@ internal sealed class BattleOverlayController : IDisposable
     {
         _overlay=overlay;
         _lobby = lobby; _details = details; _live = live; _assets = assets; _champions = champions;
-        _timer.Tick += (_,_)=>_=RefreshAsync();
+        _timer.Tick += (_, _) => _ = RefreshAsync();
+        _frameTimer.Tick += (_, _) => PublishFrame();
+        UiLanguage.Changed += LanguageChanged;
     }
     private readonly IGameOverlayBridge? _overlay;
     internal Size ClientSize { get; set; } = new(DesignWidth,DesignHeight);
@@ -84,27 +88,40 @@ internal sealed class BattleOverlayController : IDisposable
 
     public void ShowForGame(Rectangle gameBounds, string hotkey)
     {
+        var previousSize = ClientSize;
+        bool changed = _hotkeyText != hotkey;
         _hotkeyText = hotkey;
         var area = Rectangle.Intersect(gameBounds, Screen.FromRectangle(gameBounds).Bounds);
         if (area.Width <= 0 || area.Height <= 0) area = Screen.FromRectangle(gameBounds).Bounds;
         float scale = Math.Min(1.15f, Math.Min(area.Width * .90f / DesignWidth, area.Height * .85f / DesignHeight));
         ClientSize = new Size((int)(DesignWidth * scale), (int)(DesignHeight * scale));
+        bool firstFrame = !OverlayVisible;
         OverlayVisible = true;
-        RefreshOverlay();
+        if (firstFrame || changed || previousSize != ClientSize) PublishFrame();
         _ = RefreshAsync();
     }
 
     public void Hide()
     {
         OverlayVisible = false;
+        _frameTimer.Stop();
         _overlay?.HidePanel(GameOverlayPanelKind.Battle);
     }
+    private void LanguageChanged(object? sender, EventArgs args) => RefreshOverlay();
+
     private void RefreshOverlay()
     {
-        if(!OverlayVisible || IsDisposed || _overlay==null) return;
-        using var bitmap=new Bitmap(ClientSize.Width,ClientSize.Height);
-        DrawToBitmap(bitmap,new Rectangle(Point.Empty,ClientSize));
-        _overlay.PublishPanel(new(GameOverlayPanelKind.Battle,Image:bitmap));
+        if (OverlayVisible && !IsDisposed && _overlay != null && !_frameTimer.Enabled)
+            _frameTimer.Start();
+    }
+
+    private void PublishFrame()
+    {
+        _frameTimer.Stop();
+        if (!OverlayVisible || IsDisposed || _overlay == null) return;
+        using var bitmap = new Bitmap(ClientSize.Width, ClientSize.Height, PixelFormat.Format32bppArgb);
+        DrawToBitmap(bitmap, new Rectangle(Point.Empty, ClientSize));
+        _overlay.PublishPanel(new(GameOverlayPanelKind.Battle, Image: bitmap));
     }
 
     private async Task RefreshAsync()
@@ -130,10 +147,17 @@ internal sealed class BattleOverlayController : IDisposable
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        var previous = _scores;
         try
         {
             var liveScores = await _live.GetScoreboardAsync(timeout.Token).WaitAsync(timeout.Token);
             if (token.IsCancellationRequested || IsDisposed) return;
+            if (previous == null && liveScores == null ||
+                previous != null && liveScores != null && previous.SequenceEqual(liveScores))
+            {
+                if (previous != null) EnsureLoadoutIcons(previous, token);
+                return;
+            }
             _scores = liveScores;
             if (_scores != null)
             {
@@ -146,6 +170,7 @@ internal sealed class BattleOverlayController : IDisposable
             if (token.IsCancellationRequested || IsDisposed) return;
             _scores = null;
             RuntimeDiagnostics.Report("本局实时数据", "等待数据", ex.Message);
+            if (previous == null) return;
         }
         if (!token.IsCancellationRequested && !IsDisposed) RefreshOverlay();
     }
@@ -156,13 +181,14 @@ internal sealed class BattleOverlayController : IDisposable
         if (token.IsCancellationRequested || IsDisposed) return;
         if (session != null && session.TeamOne.Count + session.TeamTwo.Count > 0)
         {
-            string signature = $"{session.QueueId}:{session.GameMode}:" + string.Join("|",
-                session.TeamOne.Concat(session.TeamTwo).Select(m => $"{m.Puuid}:{m.SummonerName}:{m.ChampionId}"));
+            string signature = $"{session.GameId}:{session.QueueId}:{session.GameMode}:{session.TeamOne.Count}:" +
+                string.Join("|", session.TeamOne.Concat(session.TeamTwo).Select(m => $"{MemberKey(m)}:{m.IsBot}"));
             if (signature != _signature)
             {
                 _generation++;
                 _signature = signature;
                 _players.Clear(); _loading.Clear(); _retryAt.Clear();
+                RefreshOverlay();
             }
             _session = session;
             foreach (var member in session.TeamOne.Concat(session.TeamTwo))
@@ -178,7 +204,6 @@ internal sealed class BattleOverlayController : IDisposable
                     _ = LoadIconAsync(member.ChampionId, token);
             }
         }
-        RefreshOverlay();
     }
 
     private async Task<ActiveGameSnapshot?> ReadSessionAsync(CancellationToken token)
@@ -261,7 +286,6 @@ internal sealed class BattleOverlayController : IDisposable
                 player.NeedsRetry)
                 _retryAt[key] = DateTimeOffset.UtcNow.AddSeconds(30);
             else _retryAt.Remove(key);
-            RefreshOverlay();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -279,7 +303,12 @@ internal sealed class BattleOverlayController : IDisposable
     {
         if (token.IsCancellationRequested || generation != _generation || IsDisposed) return;
         string key = MemberKey(player.Member);
-        _players[key] = _players.TryGetValue(key, out var previous) ? player.Merge(previous) : player;
+        if (_players.TryGetValue(key, out var previous))
+        {
+            player = player.Merge(previous);
+            if (player == previous) return;
+        }
+        _players[key] = player;
         RefreshOverlay();
     }
 
@@ -500,7 +529,11 @@ internal sealed class BattleOverlayController : IDisposable
     public void Dispose()
     {
         if(IsDisposed) return;
-        StopTracking(); IsDisposed=true; _timer.Dispose();
+        StopTracking();
+        IsDisposed = true;
+        UiLanguage.Changed -= LanguageChanged;
+        _timer.Dispose();
+        _frameTimer.Dispose();
         foreach(var image in _icons.Values) image.Dispose(); _icons.Clear();
         foreach(var image in _loadoutIcons.Values) image.Dispose(); _loadoutIcons.Clear();
     }

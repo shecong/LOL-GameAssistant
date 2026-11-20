@@ -17,7 +17,7 @@ public sealed class ResourceSkinForm : UserControl, IThemeAware
     private readonly List<string> _packages = [];
     private readonly AntdUI.Input _path = new() { Name = "ResourceGamePath", Dock = DockStyle.Fill, PlaceholderText = "英雄联盟 Game 目录" };
     private readonly AntdUI.Label _status = new() { Name = "ResourceSkinStatus", Dock = DockStyle.Fill, Text = "功能尚未完善，暂不支持开启资源包换肤。" };
-    private readonly ListView _list = new() { Name = "ResourcePackages", Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false };
+    private readonly AntdUI.Table _list = new() { Name = "ResourcePackages", Dock = DockStyle.Fill, Bordered = true, MultipleRows = true, ShowTip = true };
     private readonly AntdUI.Button _add = Button("添加资源包", "ResourceAdd");
     private readonly AntdUI.Button _remove = Button("移除所选", "ResourceRemove");
     private readonly AntdUI.Button _apply = Button("挂载资源包", "ResourceApply");
@@ -56,7 +56,10 @@ public sealed class ResourceSkinForm : UserControl, IThemeAware
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false };
         actions.Controls.AddRange([_add, _online, _remove, _apply, _clear, _install]); layout.Controls.Add(actions, 0, 2);
         layout.Controls.Add(new AntdUI.Label { Dock = DockStyle.Fill, Text = "请在进入对局前准备资源，进入游戏后不能补挂。按资源包说明选择英雄及皮肤，替换基础皮肤的包请选默认皮肤。\n资源准备完成只代表文件已写入；效果以游戏内为准。对局结束后自动清理本助手准备的资源。" }, 0, 3);
-        _list.Columns.Add("资源包", 420); _list.Columns.Add("状态", 100); _list.Columns.Add("大小", 100); _list.Columns.Add("条目", 80);
+        _list.Columns.Add(new AntdUI.Column(nameof(PackageRow.Name), "资源包") { Width = "55%" });
+        _list.Columns.Add(new AntdUI.Column(nameof(PackageRow.State), "状态") { Width = "15%" });
+        _list.Columns.Add(new AntdUI.Column(nameof(PackageRow.Size), "大小") { Width = "15%" });
+        _list.Columns.Add(new AntdUI.Column(nameof(PackageRow.Entries), "条目") { Width = "15%" });
         layout.Controls.Add(_list, 0, 4); layout.Controls.Add(_status, 0, 5); Controls.Add(layout);
         var config = settings.Load();
         _path.Text = resources.State.Files.Count > 0 ? resources.State.GameDirectory :
@@ -75,7 +78,8 @@ public sealed class ResourceSkinForm : UserControl, IThemeAware
         };
         _remove.Click += (_, _) =>
         {
-            foreach (ListViewItem item in _list.SelectedItems) if (item.Tag is string path) _packages.Remove(path);
+            foreach (var row in _list.SelectedsReal().OfType<PackageRow>())
+                if (row.PendingPath != null) _packages.Remove(row.PendingPath);
             RefreshList();
         };
         _online.Click += (_, _) =>
@@ -91,7 +95,7 @@ public sealed class ResourceSkinForm : UserControl, IThemeAware
             if (!_engines.IsEnabled(SkinEngineMode.Resource)) throw new InvalidOperationException("请先开启资源包换肤开关，再安装加载组件");
             string game = ResourceSkinService.ResolveGame(_path.Text.Trim());
             await _loader.EnsureInstalledAsync(game, _lifetime.Token);
-            var latest = _settings.Load(); latest.CslolGamePath = game; _settings.Save(latest);
+            _settings.Update(settings => settings.CslolGamePath = game);
             _status.Text = "HID.dll 已安装并通过校验；下次启动游戏时加载。";
         });
         _apply.Type = AntdUI.TTypeMini.Primary;
@@ -102,7 +106,7 @@ public sealed class ResourceSkinForm : UserControl, IThemeAware
             if (_packages.Count == 0) throw new InvalidOperationException("请先添加资源包");
             await _loader.EnsureInstalledAsync(game, _lifetime.Token);
             await _resources.ApplyAsync(game, _packages.ToArray(), _lifetime.Token);
-            var latest = _settings.Load(); latest.CslolGamePath = game; _settings.Save(latest);
+            _settings.Update(settings => settings.CslolGamePath = game);
             _status.Text = $"已准备 {_resources.State.Files.Count} 个资源包，等待下一次游戏启动；尚未验证游戏内效果。";
         });
         _clear.Click += async (_, _) => await RunAsync(async () => { await Task.Run(() => _resources.ClearAsync(_lifetime.Token)); _status.Text = "已清理本助手挂载的资源包。"; });
@@ -168,13 +172,14 @@ public sealed class ResourceSkinForm : UserControl, IThemeAware
     }
     private void RefreshList()
     {
-        _shownState = _resources.State; _list.BeginUpdate(); _list.Items.Clear();
-        foreach (var file in _shownState.Files)
-            _list.Items.Add(new ListViewItem([file.Source, "已准备", $"{file.Bytes / 1048576d:F1} MB", file.Entries == 0 ? "加密包" : file.Entries.ToString()]));
-        foreach (var path in _packages)
-            _list.Items.Add(new ListViewItem([Path.GetFileName(path), "待挂载", "", ""]) { Tag = path, ToolTipText = path });
-        _list.EndUpdate();
+        _shownState = _resources.State;
+        _list.SelectedIndexs = [];
+        _list.DataSource = _shownState.Files.Select(file => new PackageRow(file.Source, "已准备",
+            $"{file.Bytes / 1048576d:F1} MB", file.Entries == 0 ? "加密包" : file.Entries.ToString()))
+            .Concat(_packages.Select(path => new PackageRow(path, "待挂载", "", "", path))).ToArray();
     }
+    private sealed record PackageRow(string Name, string State, string Size, string Entries, string? PendingPath = null);
+
     public void ApplyTheme(ThemePalette palette)
     {
         AntdContentTheme.Apply(this, palette); BackColor = palette.Surface; ForeColor = palette.TextPrimary;

@@ -5,7 +5,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class TclsAccountsForm : AntdUI.Window, IThemeAware
+internal sealed class TclsAccountsForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly ITclsAccountStore _store;
     private readonly AntdUI.Select _accounts = new() { List = true, DropDownArrow = true, Dock = DockStyle.Fill, Name = "tclsSavedAccounts", PlaceholderText = "请选择已保存账号" };

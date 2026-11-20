@@ -4,7 +4,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>不预选任何候选，防止按 Enter 或双击空白时误查第一个同名账号。</summary>
-internal sealed class PlayerCandidatePickerForm : AntdUI.Window, IThemeAware
+internal sealed class PlayerCandidatePickerForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly AntdUI.Table _players = new()
     {

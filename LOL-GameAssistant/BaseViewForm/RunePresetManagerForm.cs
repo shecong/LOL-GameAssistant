@@ -14,7 +14,7 @@ using LOL_GameAssistant.Infrastructure.LeagueClient;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>从客户端当前符文页与召唤师技能保存个人方案，按英雄及场景维护优先级。</summary>
-internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
+internal sealed class RunePresetManagerForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly IGameAssetService _assets;
     private readonly IApplicationSettingsStore _settings;
@@ -281,9 +281,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
             if (preset == null) { _status.Text = "无法读取完整的当前符文页或召唤师技能。"; return; }
             preset.Name = $"{context.MyChampion} · {mode}";
             preset.AutoApply = true;
-            var settings = _settings.Load();
-            settings.PersonalRunePresets.Add(preset);
-            _settings.Save(settings);
+            _settings.Update(settings => settings.PersonalRunePresets.Add(preset));
             Reload(preset.Id);
             _status.Text = "已捕获方案；可修改名称、场景和优先级。";
         }
@@ -297,9 +295,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         if (preset == null) return;
         string name = _name.Text.Trim();
         if (name.Length is < 1 or > 80) { _status.Text = "方案名称需为 1 至 80 个字符。"; return; }
-        var settings = _settings.Load();
-        var target = settings.PersonalRunePresets.FirstOrDefault(item => item.Id == preset.Id);
-        if (target == null) { _status.Text = "此项为客户端页面预览。请在选人时捕获后再保存为个人方案。"; return; }
+        if (!_settings.Load().PersonalRunePresets.Any(item => item.Id == preset.Id)) { _status.Text = "此项为客户端页面预览。请在选人时捕获后再保存为个人方案。"; return; }
         var blocks = new List<PersonalItemBlock>();
         foreach (string line in (_items.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -308,14 +304,23 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
             if (ids.Count is 0 or > 10 || blocks.Count >= 12) { _status.Text = "每组需有 1～10 件装备，最多 12 组"; return; }
             blocks.Add(new PersonalItemBlock(pieces[0].Trim(), ids));
         }
-        target.Name = name;
-        target.Mode = (_mode.SelectedValue as Choice)?.Key ?? target.Mode;
-        target.Position = (_position.SelectedValue as Choice)?.Key ?? target.Position;
-        target.ItemBlocks = blocks;
-        target.Priority = (int)_priority.Value;
-        target.AutoApply = _auto.Checked;
-        _settings.Save(settings);
-        Reload(target.Id);
+        var latest = _settings.Update(settings =>
+        {
+            var target = settings.PersonalRunePresets.FirstOrDefault(item => item.Id == preset.Id);
+            if (target == null) return;
+            target.Name = name;
+            target.Mode = (_mode.SelectedValue as Choice)?.Key ?? target.Mode;
+            target.Position = (_position.SelectedValue as Choice)?.Key ?? target.Position;
+            target.ItemBlocks = blocks;
+            target.Priority = (int)_priority.Value;
+            target.AutoApply = _auto.Checked;
+        });
+        Reload(preset.Id);
+        if (!latest.PersonalRunePresets.Any(item => item.Id == preset.Id))
+        {
+            _status.Text = "方案已被删除。";
+            return;
+        }
         _status.Text = "方案已保存。";
     }
 
@@ -337,9 +342,12 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
         _status.Text = result.Message;
         if (result.Succeeded)
         {
-            var saved = _settings.Load();
-            var applied = saved.PersonalRunePresets.FirstOrDefault(item => item.Id == preset.Id);
-            if (applied != null) { applied.LastAppliedAt = DateTimeOffset.Now; _settings.Save(saved); Reload(applied.Id); }
+            _settings.Update(settings =>
+            {
+                var applied = settings.PersonalRunePresets.FirstOrDefault(item => item.Id == preset.Id);
+                if (applied != null) applied.LastAppliedAt = DateTimeOffset.Now;
+            });
+            Reload(preset.Id);
         }
     }
 
@@ -370,9 +378,7 @@ internal sealed class RunePresetManagerForm : AntdUI.Window, IThemeAware
     {
         var preset = Selected;
         if (preset == null) return;
-        var settings = _settings.Load();
-        settings.PersonalRunePresets.RemoveAll(item => item.Id == preset.Id);
-        _settings.Save(settings);
+        _settings.Update(settings => settings.PersonalRunePresets.RemoveAll(item => item.Id == preset.Id));
         Reload();
         _status.Text = "方案已删除。";
     }

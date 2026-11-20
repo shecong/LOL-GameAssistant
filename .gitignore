@@ -372,6 +372,7 @@ FodyWeavers.xsd
 /docs/*
 !/docs/玩家使用指南.md
 !/docs/league-region-codes.md
+!/docs/match-layout-designs/
 
 # Public lounge runtime database (including SQLite WAL files).
 /LOL-GameApi/data/
@@ -405,6 +406,9 @@ output/
 
 # User-supplied pinned resource loader; prepared by tools/prepare-resource-skins.ps1.
 /LOL-GameAssistant/Tools/ResourceSkins/HID.dll
+
+# Local build, preview and diagnostic output.
+/tmp/
 
 # Local temporary publish output and resource cache.
 /tmp/kda-paced-publish/

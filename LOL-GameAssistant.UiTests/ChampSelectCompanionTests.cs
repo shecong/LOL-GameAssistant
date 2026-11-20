@@ -373,6 +373,19 @@ public sealed class ChampSelectCompanionTests
     public class ServiceProxy : DispatchProxy
     {
         public Func<MethodInfo, object?[], object?> Handler { get; set; } = null!;
-        protected override object? Invoke(MethodInfo? method, object?[]? args) => Handler(method!, args ?? []);
+        protected override object? Invoke(MethodInfo? method, object?[]? args)
+        {
+            if (method?.DeclaringType == typeof(LOL_GameAssistant.Application.Settings.IApplicationSettingsStore)
+                && method.Name == "Update")
+            {
+                var store = (LOL_GameAssistant.Application.Settings.IApplicationSettingsStore)this;
+                var settings = store.Load();
+                ((Action<LOL_GameAssistant.Domain.Settings.AssistantSettings>)args![0]!)(settings);
+                settings.Normalize();
+                store.Save(settings);
+                return settings;
+            }
+            return Handler(method!, args ?? []);
+        }
     }
 }

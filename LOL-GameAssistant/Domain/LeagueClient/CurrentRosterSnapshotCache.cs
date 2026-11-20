@@ -10,6 +10,13 @@ internal sealed class CurrentRosterSnapshotCache
     private ChampionSelectionSnapshot? _selection;
     private ActiveGameSnapshot? _session;
 
+    internal static string RosterSignature(IEnumerable<string> blue, IEnumerable<string> red)
+    {
+        static string TeamKey(IEnumerable<string> team) => string.Join(",", team
+            .Where(puuid => !string.IsNullOrWhiteSpace(puuid)).OrderBy(puuid => puuid, StringComparer.Ordinal));
+        return $"blue:{TeamKey(blue)}|red:{TeamKey(red)}";
+    }
+
     internal void ObservePhase(GameFlowPhase phase)
     {
         if (_phase == phase) return;

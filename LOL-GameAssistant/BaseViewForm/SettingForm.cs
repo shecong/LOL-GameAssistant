@@ -94,10 +94,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_isLoading) return;
             string mode = _languageMode.SelectedIndex switch { 1 => "en-US", 2 => "zh-TW", _ => "zh-CN" };
             if (_config.LanguageMode == mode) return;
-            _config.LanguageMode = mode;
-            AssistantSettings saved = _settingsStore.Load();
-            saved.LanguageMode = mode;
-            _settingsStore.Save(saved);
+            _config = _settingsStore.Update(settings => settings.LanguageMode = mode);
             UiLanguage.SetMode(mode);
             ApplyLanguage();
         }
@@ -105,6 +102,7 @@ namespace LOL_GameAssistant.BaseViewForm
         private readonly IGameClientLauncher _gameClientLauncher;
         private readonly IApplicationSettingsStore _settingsStore;
         private readonly ISettingsSecretProtector _settingsSecretProtector;
+        private readonly Func<Task<GameShoutSendResult>> _calibrateGameChatWidth;
         private readonly AntdUI.Segmented _settingsSegmented = new();
         private readonly AntdUI.Panel _settingsSegmentHost = new();
         private readonly Control[] _settingsSegments = new Control[6];
@@ -179,11 +177,14 @@ namespace LOL_GameAssistant.BaseViewForm
             IApplicationSettingsStore settingsStore,
             ISettingsSecretProtector settingsSecretProtector,
             LOL_GameAssistant.Application.ClientFeatures.IClientFeatureService? clientFeatures = null,
-            ITclsAccountStore? tclsAccounts = null)
+            ITclsAccountStore? tclsAccounts = null,
+            Func<Task<GameShoutSendResult>>? calibrateGameChatWidth = null)
         {
             _gameClientLauncher = gameClientLauncher;
             _settingsStore = settingsStore;
             _settingsSecretProtector = settingsSecretProtector;
+            _calibrateGameChatWidth = calibrateGameChatWidth ?? (() =>
+                Program.GameMain?.TestGameChatWidthAsync() ?? Task.FromResult(new GameShoutSendResult(false, "当前没有可校准的游戏窗口。")));
             _tclsAccountStore = tclsAccounts ?? AppCompositionRoot.TclsAccounts;
             _matchFeatures = clientFeatures ?? AppCompositionRoot.ClientFeatureService;
             InitializeComponent();
@@ -408,72 +409,20 @@ namespace LOL_GameAssistant.BaseViewForm
             if (_autoSaveEventsBound) return;
             _autoSaveEventsBound = true;
             // 每个实例只注册一次；初次填值由 _isLoading 抑制。
-            input_auto_refresh.ValueChanged += (_, _) => SaveSettings();
-            inputCheckInterval.ValueChanged += (_, _) => SaveSettings();
-            setting_select_jyx.SelectedValueChanged += (_, _) => { SaveSettings(); _ = UpdateBanPreviewAsync(); };
-            setting_select_xyx.SelectedValueChanged += (_, _) => { SaveSettings(); _ = UpdatePickPreviewAsync(); };
-            _aramBenchPriority.SelectedValueChanged += (_, _) => SaveSettings();
-        }
-
-        /// <summary>将当前设置界面的内容保存到配置存储。</summary>
-        private void SaveSettings()
-        {
-            if (_isLoading) return;
-
-            _config.AutoMatch = swi_open.Checked;
-            _config.AutoAccept = swi_gametrue.Checked;
-            ReadMatchToolsSettings();
-            _config.AutoBan = swi_jyyx.Checked;
-            _config.AutoPick = swi_xyx.Checked;
-            _config.MinimizeToTray = swi_tray.Checked;
-            _config.AutoRefresh = swi_auto_refresh.Checked;
-            _config.AutoRefreshIntervalSeconds = (int)input_auto_refresh.Value;
-            _config.NotifyOnGameEnd = swi_notify_end.Checked;
-            _config.LaunchOnStartup = swi_startup.Checked;
-            _config.CheckIntervalSeconds = (int)inputCheckInterval.Value;
-            _config.BanChampions = GetSelectedTexts(setting_select_jyx);
-            _config.PickChampions = GetSelectedTexts(setting_select_xyx);
-            _config.AutoSwapAramBench = _autoSwapAramBench.Checked;
-            _config.AramBenchPriorityChampions = GetSelectedTexts(_aramBenchPriority);
-
-            if (select_resolution.SelectedIndex >= 0 && select_resolution.SelectedIndex < ResolutionPresets.Length)
-                _config.Resolution = ResolutionPresets[select_resolution.SelectedIndex];
-
-            try
+            input_auto_refresh.ValueChanged += (_, _) => PersistValue(settings => settings.AutoRefreshIntervalSeconds = (int)input_auto_refresh.Value);
+            inputCheckInterval.ValueChanged += (_, _) => PersistValue(settings => settings.CheckIntervalSeconds = (int)inputCheckInterval.Value);
+            setting_select_jyx.SelectedValueChanged += (_, _) =>
             {
-                SaveConfigPreservingSelections();
-            }
-            catch (Exception ex)
+                PersistValue(settings => settings.BanChampions = GetSelectedTexts(setting_select_jyx));
+                _ = UpdateBanPreviewAsync();
+            };
+            setting_select_xyx.SelectedValueChanged += (_, _) =>
             {
-                LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, $"设置保存失败：{ex.Message}");
-                return;
-            }
-            ApplySideEffects(_config);
-            Program.GameMain?.RefreshMayhemOverlaySetting();
-            Program.GameMain?.RefreshChampSelectCompanionSetting();
-            label_cache_status.Text = $"已缓存: {_settingsStore.GetStoragePath()}";
-        }
-
-        // The rune editor and OP.GG picker save through the same store while this settings
-        // page remains open. Keep their newer data when an unrelated setting is changed.
-        private void SaveConfigPreservingSelections()
-        {
-            AssistantSettings latest = _settingsStore.Load();
-            _config.GameChatFirstLineWidth = latest.GameChatFirstLineWidth;
-            _config.GameChatContinuationLineWidth = latest.GameChatContinuationLineWidth;
-            _config.PersonalRunePresets = latest.PersonalRunePresets;
-            _config.LiveGameLayout = latest.LiveGameLayout;
-            _config.OpggManualBuildSelections = latest.OpggManualBuildSelections;
-            _config.RememberedHeroSkins = latest.RememberedHeroSkins;
-            _config.SkinCoreEnabled = latest.SkinCoreEnabled;
-            _config.SkinCoreMode = latest.SkinCoreMode;
-            _config.SkinEngineMode = latest.SkinEngineMode;
-            _config.CslolGamePath = latest.CslolGamePath;
-            _config.SkinHotkeysEnabled = latest.SkinHotkeysEnabled;
-            _config.SkinPickerHotkey = latest.SkinPickerHotkey;
-            _config.SkinPreviousHotkey = latest.SkinPreviousHotkey;
-            _config.SkinNextHotkey = latest.SkinNextHotkey;
-            _settingsStore.Save(_config);
+                PersistValue(settings => settings.PickChampions = GetSelectedTexts(setting_select_xyx));
+                _ = UpdatePickPreviewAsync();
+            };
+            _aramBenchPriority.SelectedValueChanged += (_, _) => PersistValue(settings =>
+                settings.AramBenchPriorityChampions = GetSelectedTexts(_aramBenchPriority));
         }
 
         /// <summary>
@@ -625,7 +574,7 @@ namespace LOL_GameAssistant.BaseViewForm
                     Program.GameMain.SendQuickShoutBatchToGameAsync(phrases, sendToAll, useClipboard,
                         perCharacter, interval),
                 () => Program.GameMain.TestGameChatOpenAsync(),
-                SaveShoutSettings, PersistValue);
+                SaveShoutSettings, PersistValue, _calibrateGameChatWidth);
             _quickShoutForm.LoadSettings(_settingsStore.Load());
             return _quickShoutForm;
         }
@@ -642,13 +591,13 @@ namespace LOL_GameAssistant.BaseViewForm
         private void SaveShoutSettings()
         {
             if (_isLoading || _quickShoutForm is null) return;
-            AssistantSettings latest = _settingsStore.Load();
-            _quickShoutForm.WriteSettings(latest);
-            if (WindowHoldController.HasGameHotkeyConflict(latest))
-                throw new InvalidOperationException("已启用的喊话、KDA 快捷键不能重复或与按住置顶键、对局面板快捷键相同。");
-            _settingsStore.Save(latest);
-            _config = latest;
-            Program.GameMain.ConfigureQuickShoutHotkeys(latest);
+            _config = _settingsStore.Update(settings =>
+            {
+                _quickShoutForm.WriteSettings(settings);
+                if (WindowHoldController.HasGameHotkeyConflict(settings))
+                    throw new InvalidOperationException("已启用的喊话、KDA 快捷键不能重复或与按住置顶键、对局面板快捷键相同。");
+            });
+            Program.GameMain?.ConfigureQuickShoutHotkeys(_config);
         }
 
         /// <summary>创建 AI 服务、模型及推荐显示设置区域。</summary>
@@ -788,11 +737,10 @@ namespace LOL_GameAssistant.BaseViewForm
                 widthTestStatus.Text = "正在发送标尺并自动进行 OCR 校准，请保持游戏前台……";
                 try
                 {
-                    if (Program.GameMain == null) return;
-                    var result = await Program.GameMain.TestGameChatWidthAsync();
-                    widthTestStatus.Text = result.Message;
+                    var result = await _calibrateGameChatWidth();
+                    if (!widthTestStatus.IsDisposed) widthTestStatus.Text = result.Message;
                 }
-                catch (Exception error) { widthTestStatus.Text = "字数测试失败：" + error.Message; }
+                catch (Exception error) { if (!widthTestStatus.IsDisposed) widthTestStatus.Text = "字数测试失败：" + error.Message; }
                 finally { if (!widthTest.IsDisposed) widthTest.Enabled = true; }
             };
             AddSegmentRow(performance, 6, "行宽校准：", widthTest);
@@ -994,25 +942,20 @@ namespace LOL_GameAssistant.BaseViewForm
         {
             if (_isLoading) return;
 
-            AssistantSettings latest = _settingsStore.Load();
-            CloudAiSettings ai = latest.Ai;
-            ai.Provider = _provider.SelectedValue is LOL_GameAssistant.Domain.Settings.AiProvider provider
-                ? provider
-                : LOL_GameAssistant.Domain.Settings.AiProvider.OpenAI;
-            ai.Model = _model.Text.Trim();
-            ai.BaseUrl = _baseUrl.Text.Trim().TrimEnd('/');
-            if (!ai.TryGetSafeBaseUri(out Uri? aiUri, out string addressError))
-            {
-                LOL_GameAssistant.Helper.UiMessage.error(Program.GameMain, addressError);
-                return;
-            }
             try
             {
-                if (_clearAiKey) ai.EncryptedApiKey = "";
-                else if (!string.IsNullOrWhiteSpace(_apiKey.Text)) ai.EncryptedApiKey = _settingsSecretProtector.Protect(_apiKey.Text);
-                latest.Normalize();
-                _settingsStore.Save(latest);
-                _config = latest;
+                _config = _settingsStore.Update(settings =>
+                {
+                    var ai = settings.Ai;
+                    ai.Provider = _provider.SelectedValue is AiProvider provider ? provider : AiProvider.OpenAI;
+                    ai.Model = _model.Text.Trim();
+                    ai.BaseUrl = _baseUrl.Text.Trim().TrimEnd('/');
+                    if (!ai.TryGetSafeBaseUri(out _, out string addressError))
+                        throw new InvalidOperationException(addressError);
+                    if (_clearAiKey) ai.EncryptedApiKey = "";
+                    else if (!string.IsNullOrWhiteSpace(_apiKey.Text))
+                        ai.EncryptedApiKey = _settingsSecretProtector.Protect(_apiKey.Text);
+                });
             }
             catch (Exception ex)
             {
@@ -1024,9 +967,9 @@ namespace LOL_GameAssistant.BaseViewForm
             _apiKey.Clear();
             Program.GameMain?.RefreshChampSelectCompanionSetting();
             _clearAiKey = false;
-            _apiKeyStatus.Text = string.IsNullOrWhiteSpace(ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
+            _apiKeyStatus.Text = string.IsNullOrWhiteSpace(_config.Ai.EncryptedApiKey) ? "未保存" : "已加密保存在当前 Windows 用户下";
             if (Program.GameMain is { } mainWindow) LOL_GameAssistant.Helper.UiMessage.success(mainWindow,
-                aiUri!.Scheme == Uri.UriSchemeHttp
+                _config.Ai.TryGetSafeBaseUri(out var aiUri, out _) && aiUri!.Scheme == Uri.UriSchemeHttp
                     ? "设置已保存。本机 HTTP 连接未加密，请只连接可信服务。"
                     : "设置已保存");
         }
@@ -1088,10 +1031,7 @@ namespace LOL_GameAssistant.BaseViewForm
             if (result.Started && !string.IsNullOrWhiteSpace(result.ExecutablePath))
             {
                 _clientPath.Text = _gameClientLauncher.NormalizeConfiguredDirectory(result.ExecutablePath);
-                _config.GameClientPath = _clientPath.Text;
-                AssistantSettings latest = _settingsStore.Load();
-                latest.GameClientPath = _clientPath.Text;
-                _settingsStore.Save(latest);
+                _config = _settingsStore.Update(settings => settings.GameClientPath = _clientPath.Text);
             }
 
             if (result.IsReady) LOL_GameAssistant.Helper.UiMessage.success(Program.GameMain, result.Message);
@@ -1315,8 +1255,7 @@ namespace LOL_GameAssistant.BaseViewForm
                 return;
 
             string selectedRes = ResolutionPresets[select_resolution.SelectedIndex];
-            _config.Resolution = selectedRes;
-            SaveSettings();
+            if (!_isLoading && !PersistValue(settings => settings.Resolution = selectedRes)) return;
 
             var parts = selectedRes.Split('x');
             if (parts.Length == 2 && int.TryParse(parts[0], out int width) && int.TryParse(parts[1], out int height))

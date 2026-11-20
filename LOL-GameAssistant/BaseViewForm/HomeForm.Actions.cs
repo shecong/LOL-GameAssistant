@@ -27,16 +27,6 @@ public partial class HomeForm
             if (!IsDisposed) UiMessage.info(FindForm()!, result.Message);
         });
         Add("配置当前英雄", "quickBuild", async () => { if (Program.GameMain is { } main) { main.ShowCoachPage(); await main.coachForm.ApplyCurrentBuildAsync(); } });
-        Add("上一局 / 成长", "quickReview", async () =>
-        {
-            if (Program.GameMain is not { } main || string.IsNullOrWhiteSpace(userinfo?.Puuid)) return;
-            main.ShowBattleQueryPage(); await main.battleQueryForm.OpenGrowthAsync(userinfo.Puuid, false);
-        });
-        Add("英雄池", "quickPool", async () =>
-        {
-            if (Program.GameMain is not { } main || string.IsNullOrWhiteSpace(userinfo?.Puuid)) return;
-            main.ShowBattleQueryPage(); await main.battleQueryForm.OpenGrowthAsync(userinfo.Puuid, true);
-        });
         Add("找队友", "quickLounge", () => { Program.GameMain?.ShowLoungePage(); return Task.CompletedTask; });
         Add("辅助预设", "quickPresets", () => { Program.GameMain?.ShowSettingsPage(); return Task.CompletedTask; });
         Controls.Add(actions);

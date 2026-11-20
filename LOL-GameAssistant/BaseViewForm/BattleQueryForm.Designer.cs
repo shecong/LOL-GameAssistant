@@ -17,17 +17,11 @@ namespace LOL_GameAssistant.BaseViewForm
 
         private void InitializeComponent()
         {
-            panelSearch = new FlowLayoutPanel();
-            cboFavorites = new ComboBox();
             btnLoadFavorite = new AntdUI.Button();
             inpSearch = new AntdUI.Input();
             btnSearch = new AntdUI.Button();
             btnFavorite = new AntdUI.Button();
             btnExport = new AntdUI.Button();
-            btnViewRecord = new AntdUI.Button();
-            btnViewStats = new AntdUI.Button();
-            lblPageSize = new AntdUI.Label();
-            cboPageSize = new ComboBox();
             panelPlayer = new Panel();
             avatarPlayer = new AntdUI.Avatar();
             panelPlayerInfo = new Panel();
@@ -43,43 +37,13 @@ namespace LOL_GameAssistant.BaseViewForm
             panelHistory = new Panel();
             stackMatches = new LOL_GameAssistant.Helper.MatchScrollPanel();
             pagination = new AntdUI.Pagination();
-            panelStats = new Panel();
             lblStatus = new AntdUI.Label();
-            panelSearch.SuspendLayout();
             panelPlayer.SuspendLayout();
             panelPlayerInfo.SuspendLayout();
             panelRanked.SuspendLayout();
             panelContent.SuspendLayout();
             panelHistory.SuspendLayout();
             SuspendLayout();
-            // 
-            // panelSearch
-            // 
-            panelSearch.Controls.Add(cboFavorites);
-            panelSearch.Controls.Add(btnLoadFavorite);
-            panelSearch.Controls.Add(inpSearch);
-            panelSearch.Controls.Add(btnSearch);
-            panelSearch.Controls.Add(btnFavorite);
-            panelSearch.Controls.Add(btnExport);
-            panelSearch.Controls.Add(btnViewRecord);
-            panelSearch.Controls.Add(btnViewStats);
-            panelSearch.Controls.Add(lblPageSize);
-            panelSearch.Controls.Add(cboPageSize);
-            panelSearch.Dock = DockStyle.Top;
-            panelSearch.Location = new Point(0, 0);
-            panelSearch.Name = "panelSearch";
-            panelSearch.Padding = new Padding(10, 10, 10, 8);
-            panelSearch.Size = new Size(1510, 62);
-            panelSearch.TabIndex = 0;
-            // 
-            // cboFavorites
-            // 
-            cboFavorites.List = false; cboFavorites.DropDownArrow = true;
-            cboFavorites.Location = new Point(10, 12);
-            cboFavorites.Margin = new Padding(0, 2, 6, 2);
-            cboFavorites.Name = "cboFavorites";
-            cboFavorites.Size = new Size(240, 25);
-            cboFavorites.TabIndex = 0;
             // 
             // btnLoadFavorite
             // 
@@ -132,49 +96,6 @@ namespace LOL_GameAssistant.BaseViewForm
             btnExport.TabIndex = 5;
             btnExport.Text = "导出战绩";
             btnExport.Click += BtnExport_Click;
-            // 
-            // btnViewRecord
-            // 
-            btnViewRecord.Location = new Point(1020, 11);
-            btnViewRecord.Margin = new Padding(0, 1, 6, 1);
-            btnViewRecord.Name = "btnViewRecord";
-            btnViewRecord.Size = new Size(70, 34);
-            btnViewRecord.TabIndex = 6;
-            btnViewRecord.Text = "记录";
-            btnViewRecord.Type = AntdUI.TTypeMini.Primary;
-            btnViewRecord.Click += BtnViewRecord_Click;
-            // 
-            // btnViewStats
-            // 
-            btnViewStats.Location = new Point(1096, 11);
-            btnViewStats.Margin = new Padding(0, 1, 6, 1);
-            btnViewStats.Name = "btnViewStats";
-            btnViewStats.Size = new Size(70, 34);
-            btnViewStats.TabIndex = 7;
-            btnViewStats.Text = "统计";
-            btnViewStats.Click += BtnViewStats_Click;
-            // 
-            // lblPageSize
-            // 
-            lblPageSize.AutoSize = true;
-            lblPageSize.Location = new Point(1172, 18);
-            lblPageSize.Margin = new Padding(6, 6, 2, 0);
-            lblPageSize.Name = "lblPageSize";
-            lblPageSize.Size = new Size(32, 17);
-            lblPageSize.TabIndex = 8;
-            lblPageSize.Text = "每页";
-            // 
-            // cboPageSize
-            // 
-            cboPageSize.List = true; cboPageSize.DropDownArrow = true;
-            cboPageSize.Items.AddRange(new object[] { 10, 20, 50 });
-            cboPageSize.Location = new Point(1206, 14);
-            cboPageSize.Margin = new Padding(0, 2, 6, 0);
-            cboPageSize.Name = "cboPageSize";
-            cboPageSize.Size = new Size(58, 25);
-            cboPageSize.TabIndex = 9;
-            cboPageSize.SelectedIndexChanged += CboPageSize_SelectedIndexChanged;
-            cboPageSize.SelectedIndex = 0;
             // 
             // panelPlayer
             // 
@@ -282,7 +203,6 @@ namespace LOL_GameAssistant.BaseViewForm
             // 
             // panelContent
             // 
-            panelContent.Controls.Add(panelStats);
             panelContent.Controls.Add(panelHistory);
             panelContent.Dock = DockStyle.Fill;
             panelContent.Location = new Point(0, 180);
@@ -319,15 +239,6 @@ namespace LOL_GameAssistant.BaseViewForm
             pagination.Visible = false;
             pagination.ValueChanged += Pagination_ValueChanged;
             // 
-            // panelStats
-            // 
-            panelStats.Dock = DockStyle.Fill;
-            panelStats.Location = new Point(0, 0);
-            panelStats.Name = "panelStats";
-            panelStats.Size = new Size(1510, 571);
-            panelStats.TabIndex = 1;
-            panelStats.Visible = false;
-            // 
             // lblStatus
             // 
             lblStatus.Dock = DockStyle.Bottom;
@@ -343,11 +254,9 @@ namespace LOL_GameAssistant.BaseViewForm
             Controls.Add(lblStatus);
             Controls.Add(panelContent);
             Controls.Add(panelPlayer);
-            Controls.Add(panelSearch);
             DoubleBuffered = true;
             Name = "BattleQueryForm";
             Size = new Size(1510, 781);
-            panelSearch.ResumeLayout(false);
             panelPlayer.ResumeLayout(false);
             panelPlayerInfo.ResumeLayout(false);
             panelRanked.ResumeLayout(false);
@@ -356,17 +265,11 @@ namespace LOL_GameAssistant.BaseViewForm
             ResumeLayout(false);
         }
 
-        private FlowLayoutPanel panelSearch;
-        private ComboBox cboFavorites;
         private AntdUI.Button btnLoadFavorite;
         private AntdUI.Input inpSearch;
         private AntdUI.Button btnSearch;
         private AntdUI.Button btnFavorite;
         private AntdUI.Button btnExport;
-        private AntdUI.Button btnViewRecord;
-        private AntdUI.Button btnViewStats;
-        private AntdUI.Label lblPageSize;
-        private ComboBox cboPageSize;
         private Panel panelPlayer;
         private AntdUI.Avatar avatarPlayer;
         private Panel panelPlayerInfo;
@@ -382,7 +285,6 @@ namespace LOL_GameAssistant.BaseViewForm
         private Panel panelHistory;
         private LOL_GameAssistant.Helper.MatchScrollPanel stackMatches;
         private AntdUI.Pagination pagination;
-        private Panel panelStats;
         private AntdUI.Label lblStatus;
     }
 }

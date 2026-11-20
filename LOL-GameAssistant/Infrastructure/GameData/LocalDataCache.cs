@@ -18,6 +18,8 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
     private readonly ConcurrentDictionary<(int Generation, string Key, string? Context), Lazy<Task<T?>>> _pending = new();
     private readonly object _sync = new();
     private readonly object _diskSync = new();
+    private long _nextCleanup;
+    private readonly ConcurrentDictionary<(int Generation, string Key, string Context), Lazy<Task<(T? Value, bool Cached, DateTimeOffset? AcquiredAt)>>> _latest = new();
     private int _generation;
     private sealed class RequestOrder { public long Latest; public int Active; }
     private readonly Dictionary<(int Generation, string Key), RequestOrder> _orders = new();
@@ -63,13 +65,57 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
         return ReadOrLoadAsync(key, load, generation, networkFirst: true, cancellationToken);
     }
 
-    internal async Task<(T? Value, bool Cached, DateTimeOffset? AcquiredAt)> GetLatestWithMetadataAsync(
+    internal Task<(T? Value, bool Cached, DateTimeOffset? AcquiredAt)> GetLatestWithMetadataAsync(
         string key, Func<Task<T?>> load, CancellationToken token = default)
     {
+        token.ThrowIfCancellationRequested();
+        int generation;
+        lock (_sync) generation = _generation;
+        return ReadLatestWithMetadataAsync(key, load, generation, token);
+    }
+
+    private async Task<(T? Value, bool Cached, DateTimeOffset? AcquiredAt)> ReadLatestWithMetadataAsync(
+        string key, Func<Task<T?>> load, int generation, CancellationToken token)
+    {
         bool fresh = false;
-        var value = await GetLatestOrCachedAsync(key, async () => { var result = await load().ConfigureAwait(false); fresh = result != null && _valid(result); return result; }, token).ConfigureAwait(false);
+        var value = await ReadOrLoadAsync(key, async () =>
+        {
+            var result = await load().ConfigureAwait(false);
+            fresh = result != null && _valid(result);
+            return result;
+        }, generation, networkFirst: true, cancellationToken: token).ConfigureAwait(false);
         DateTimeOffset? at; lock (_sync) at = _memory.TryGetValue(key, out var entry) ? entry.SavedAt : null;
         return (value, value != null && !fresh, at);
+    }
+
+    internal Task<(T? Value, bool Cached, DateTimeOffset? AcquiredAt)> GetSharedLatestWithMetadataAsync(
+        string key, string context, Func<CancellationToken, Task<T?>> load, CancellationToken token,
+        TimeSpan? freshness = null)
+    {
+        token.ThrowIfCancellationRequested();
+        Lazy<Task<(T? Value, bool Cached, DateTimeOffset? AcquiredAt)>> pending;
+        lock (_sync)
+        {
+            if (freshness is { } maxAge && _memory.TryGetValue(key, out var entry) &&
+                Fresh(entry) && _clock.GetUtcNow() - entry.SavedAt < maxAge)
+                return Task.FromResult<(T?, bool, DateTimeOffset?)>((entry.Value, true, entry.SavedAt));
+
+            int generation = _generation;
+            var identity = (generation, key, context);
+            Lazy<Task<(T? Value, bool Cached, DateTimeOffset? AcquiredAt)>>? candidate = null;
+            candidate = new(async () =>
+            {
+                try
+                {
+                    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                    return await ReadLatestWithMetadataAsync(key,
+                        () => load(deadline.Token).WaitAsync(deadline.Token), generation, deadline.Token).ConfigureAwait(false);
+                }
+                finally { _latest.TryRemove(new(identity, candidate!)); }
+            });
+            pending = _latest.GetOrAdd(identity, candidate);
+        }
+        return pending.Value.WaitAsync(token);
     }
 
     /// <summary>检查缓存时间和数据有效性，排除过期或时间异常的条目。</summary>
@@ -81,7 +127,7 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
         bool networkFirst = false, CancellationToken cancellationToken = default, string? pendingContext = null)
     {
         // 缓存键可能包含 URL 或版本分隔符；使用摘要作为文件名，避免非法字符及路径嵌套。
-        string file = Path.Combine(_directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) + ".json");
+        string file = Path.Combine(_directory, CacheFileName(key));
         RequestOrder order;
         long sequence;
         lock (_sync)
@@ -90,6 +136,7 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
             order.Active++;
             order.Latest = sequence = ++_requestSequence;
         }
+        ScheduleDiskCleanup();
         bool CanRemember() => generation == _generation && order.Latest == sequence;
         try
         {
@@ -196,6 +243,7 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
                 _generation++;
                 _memory.Clear();
                 _pending.Clear();
+                _latest.Clear();
                 _orders.Clear();
             }
             var result = LOL_GameAssistant.Infrastructure.Files.CacheFiles.Clear(_directory, CancellationToken.None);
@@ -203,10 +251,43 @@ internal sealed class LocalDataCache<T> : ILocalCacheStore where T : class
         }
     }
 
-    /// <summary>记录内存缓存条目，并在达到容量限制时清理旧集合。</summary>
+    private static string CacheFileName(string key) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) + ".json";
+
+    private void ScheduleDiskCleanup()
+    {
+        long now = Environment.TickCount64;
+        long next = Volatile.Read(ref _nextCleanup);
+        if (now < next || Interlocked.CompareExchange(ref _nextCleanup, now + (long)TimeSpan.FromDays(1).TotalMilliseconds, next) != next) return;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                if (!Directory.Exists(_directory)) return;
+                LOL_GameAssistant.Infrastructure.Files.CacheFiles.ValidateRoot(_directory);
+                var cutoff = _clock.GetUtcNow() - _ttl;
+                foreach (string file in Directory.EnumerateFiles(_directory, "*.json"))
+                {
+                    string name = Path.GetFileName(file);
+                    if (name.Length != 69 || !name.Take(64).All(Uri.IsHexDigit)) continue;
+                    lock (_diskSync)
+                    lock (_sync)
+                    {
+                        if (File.Exists(file) && (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0 &&
+                            File.GetLastWriteTimeUtc(file) < cutoff.UtcDateTime &&
+                            !_orders.Keys.Any(active => CacheFileName(active.Key) == name))
+                            File.Delete(file);
+                    }
+                }
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        });
+    }
+
+    /// <summary>记录内存缓存条目，达到容量时淘汰最旧条目。</summary>
     private void Remember(string key, Entry entry)
     {
-        if (_memory.Count >= 512) _memory.Clear();
+        if (_memory.Count >= 512 && !_memory.ContainsKey(key))
+            _memory.TryRemove(_memory.MinBy(item => item.Value.SavedAt).Key, out _);
         _memory[key] = entry;
     }
 }

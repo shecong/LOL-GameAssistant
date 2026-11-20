@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class BackupPreviewForm : AntdUI.Window
+internal sealed class BackupPreviewForm : BorderlessAntdWindow
 {
     private readonly UiRequestScope _requests = new();
     internal BackupPreviewForm(string name, IClientFeatureService features)

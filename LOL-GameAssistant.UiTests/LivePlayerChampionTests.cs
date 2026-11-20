@@ -148,16 +148,19 @@ public sealed class LivePlayerChampionTests
             var overview = new RankedOverview();
             overview.Queues[RankedQueues.Solo5x5] = new RankedQueue
             { QueueType = RankedQueues.Solo5x5, Tier = tier, Division = division, LeaguePoints = 25 };
-            var ranked = Service<IRankedStatsService>((_, _) =>
+            var source = Service<IRankedStatsService>((_, _) =>
             {
                 requests++;
                 return Task.FromResult<RankedOverview?>(overview);
             });
+            string cacheRoot = Path.Combine(Path.GetTempPath(), "lga-ranked-ui", puuid);
+            var ranked = new LOL_GameAssistant.Infrastructure.LeagueClient.CachedRankedStatsService(source, cacheRoot);
             var profile = new TaskCompletionSource<PlayerProfile?>().Task;
             var card = CreateCard(22, profile, _ => Task.FromResult<GameAsset?>(null), true, ranked, puuid);
             card.Width = 384;
             using var form = Mount(card);
             var rank = Child(card, "lblRank");
+            SecondPhaseRegressionTests.PumpUntil(() => rank.Visible);
             var name = Child(card, "lblName");
             Assert.True(rank.Visible);
             Assert.Equal(expected, rank.Text);
@@ -168,7 +171,9 @@ public sealed class LivePlayerChampionTests
             Assert.Equal(1, requests);
             var another = CreateCard(22, profile, _ => Task.FromResult<GameAsset?>(null), true, ranked, puuid);
             using var second = Mount(another);
-            Assert.Equal(expected, Child(another, "lblRank").Text);
+            var secondRank = Child(another, "lblRank");
+            SecondPhaseRegressionTests.PumpUntil(() => secondRank.Visible);
+            Assert.Equal(expected, secondRank.Text);
             Assert.Equal(1, requests);
         });
 

@@ -5,13 +5,10 @@ using LOL_GameAssistant.Application.ClientFeatures;
 using LOL_GameAssistant.Application.GameData;
 using LOL_GameAssistant.Application.LeagueClient;
 using LOL_GameAssistant.Application.Lobby;
-using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Application.Players;
 using LOL_GameAssistant.BaseViewForm;
 using LOL_GameAssistant.Domain.Builds;
 using LOL_GameAssistant.Domain.GameData;
-using LOL_GameAssistant.Domain.MatchAnalysis;
-using LOL_GameAssistant.Domain.Matches;
 using LOL_GameAssistant.Domain.Players;
 using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.Infrastructure.GameData;
@@ -31,17 +28,6 @@ public sealed class CompanionWorkflowTests
         public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "companion-tests", Guid.NewGuid().ToString("N"));
         public void Dispose() { if (Directory.Exists(Path)) Directory.Delete(Path, true); }
     }
-    private static MatchHistoryGame Game(long id, bool? win, int duration = 1200) => new()
-    {
-        GameId = id, GameCreation = id, QueueId = 420, GameMode = "CLASSIC", GameDuration = duration,
-        Participants = [new() { championId = 1, participantId = 1, stats = new() { Win = win ?? false, HasWinResult = win.HasValue,
-            HasKdaResult = true, kills = 4, deaths = 2, assists = 6, totalMinionsKilled = 100 } }]
-    };
-    private static IChampionCatalog Catalog() => Service<IChampionCatalog>((m, a) => m.Name switch
-    {
-        "GetAll" => (IReadOnlyList<ChampionReference>)new[] { new ChampionReference(1, "安妮"), new ChampionReference(2, "奥拉夫") },
-        "GetDisplayName" => (int)a[0]! == 1 ? "安妮" : "奥拉夫", _ => null
-    });
     private static ILcuRequestSender Sender(Func<string, string?> read, Action<string, string, string?>? write = null) =>
         Service<ILcuRequestSender>((m, a) =>
         {
@@ -49,20 +35,6 @@ public sealed class CompanionWorkflowTests
             if (m.Name == "GetBytesAsync") return Task.FromResult<byte[]?>(null);
             write?.Invoke(m.Name, (string)a[0]!, a.Length > 2 ? a[1] as string : null); return Task.FromResult(true);
         });
-
-    [Fact]
-    public void GrowthUsesKnownDenominatorsAndDoesNotInventMissingMetrics()
-    {
-        var known = Game(1, true); known.Participants[0].stats!.HasFarmResult = true;
-        var remake = Game(3, false, 100); var other = Game(4, false); other.QueueId = 450; other.GameMode = "ARAM";
-        var ambiguous = Game(5, false); ambiguous.Participants.Add(new() { championId = 2 });
-        var report = PlayerGrowthCalculator.Calculate([known, known, Game(2, null), remake, other, ambiguous], "target", known.GetModeText());
-        Assert.Equal(2, report.Matches.Count); Assert.Equal(2, report.ExcludedGames);
-        Assert.Equal(1, report.ResultSamples); Assert.Equal(100d, report.WinRate);
-        Assert.Equal(5d, report.Champions.Single().CsPerMinute);
-        Assert.Null(report.Matches.Single(m => m.GameId == 2).CsPerMinute);
-        Assert.All(report.Matches, m => Assert.Null(m.DamagePerMinute));
-    }
 
     [Fact]
     public async Task CapabilitiesMatchParametersAndNeverProbeByWriting()
@@ -175,19 +147,6 @@ public sealed class CompanionWorkflowTests
     }
 
     [Fact]
-    public async Task GrowthTrainingAndNotesAreIsolatedByQueriedPlayer()
-    {
-        using var folder = new Folder(); var routes = new List<string>();
-        var matches = Service<IMatchHistoryService>((m, _) => m.Name == "GetDetailAsync" ? Task.FromResult<MatchDetail?>(null) : Task.FromResult<MatchHistoryResponse?>(new() { Games = new() { Games = [Game(1, true)] } }));
-        var growth = new LcuPlayerGrowthService(matches, Catalog(), Sender(p => { routes.Add(p); return "{}"; }), folder.Path);
-        await growth.SetTrainingAsync("a", 1, true); await growth.SetReviewNoteAsync("a", 1, "十分钟回城决策");
-        var a = await growth.LoadAsync("a", "全部"); var b = await growth.LoadAsync("b", "全部");
-        Assert.True(a.Champions.Single(c => c.ChampionId == 1).Training); Assert.Equal("十分钟回城决策", a.ReviewNotes[1]);
-        Assert.All(b.Champions, c => { Assert.False(c.Training); Assert.Null(c.Owned); }); Assert.Empty(b.ReviewNotes);
-        Assert.DoesNotContain(routes, p => p.Contains("current-summoner") || p.Contains("owned-champions"));
-    }
-
-    [Fact]
     public async Task PostGameRetriesFailedStepsWithoutRepeatingAcceptedHonor()
     {
         int honors = 0, returns = 0;
@@ -209,14 +168,6 @@ public sealed class CompanionWorkflowTests
         automation.Reset(); pending.SetResult(ClientFeatureResult.Success("accepted old request")); await old;
         Assert.Empty(automation.Snapshot());
     }
-
-    [Fact]
-    public void BattleQueryIncludesBothGrowthTabs() => MatchListScrollingTests.OnUiThread(() =>
-    {
-        using var query = new BattleQueryForm();
-        var tabs = Field<AntdUI.Segmented>(query, "_viewSwitch");
-        Assert.Equal(new[] { "对局记录", "数据统计", "英雄池档案", "个人复盘中心" }, tabs.Items.Cast<AntdUI.SegmentedItem>().Select(t => t.Text));
-    });
 
     [Fact]
     public async Task ResetDiscardsLateCurrentAccountResponse()
@@ -313,34 +264,6 @@ public sealed class CompanionWorkflowTests
             Assert.Contains(pages, p => p.Value<long>("id") == 3 && p.Value<string>("name") == "manual");
         }
     }
-
-    [Theory]
-    [InlineData(1100, false)]
-    [InlineData(760, false)]
-    [InlineData(1100, true)]
-    [InlineData(760, true)]
-    public void GrowthTabsRenderAndClearWhenSwitchingPlayer(int width, bool dark) => MatchListScrollingTests.OnUiThread(() =>
-    {
-        string original = UiTheme.Mode;
-        bool originalAntd = AntdUI.Config.IsDark;
-        try
-        {
-        UiTheme.SetMode(dark ? "Dark" : "Light");
-        AntdUI.Config.IsDark = dark;
-        var report = PlayerGrowthCalculator.Calculate([Game(1, true), Game(2, false)], "a");
-        var service = Service<IPlayerGrowthService>((_, a) => Task.FromResult(new PlayerGrowthSnapshot((string)a[0]!, report,
-            [new(1, "安妮", true, 32000, 7, true, report.Champions.Single())], ["全部", "召唤师峡谷"], DateTimeOffset.Now, false, "测试样本 · 非实际客户端画面")));
-        using var window = new Form { ClientSize = new(width, 700) };
-        using var control = new PlayerGrowthControl(service, Service<IMatchHistoryService>((_, _) => Task.FromResult<MatchDetail?>(null)), Catalog());
-        window.Controls.Add(control); window.Show(); Pump(control.ShowAsync("a", true, "全部"));
-        Assert.NotNull(Field<AntdUI.Table>(control, "_table").DataSource);
-        string? previews = Environment.GetEnvironmentVariable("COMPANION_UI_PREVIEWS");
-        void Save(string name) { window.PerformLayout(); System.Windows.Forms.Application.DoEvents(); if (previews == null) return; Directory.CreateDirectory(previews); using var image = new Bitmap(window.Width, window.Height); window.DrawToBitmap(image, new Rectangle(Point.Empty, window.Size)); image.Save(System.IO.Path.Combine(previews, $"{name}-{width}{(dark ? "-dark" : "")}.png")); }
-        Save("hero-pool"); Pump(control.ShowAsync("a", false, "全部")); Save("review");
-        control.ResetPlayer(); Assert.Null(Field<AntdUI.Table>(control, "_table").DataSource); window.Close();
-        }
-        finally { AntdUI.Config.IsDark = originalAntd; UiTheme.SetMode(original); }
-    });
 
     [Theory]
     [InlineData(820)]

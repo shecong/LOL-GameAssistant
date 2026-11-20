@@ -78,7 +78,7 @@ public sealed class StartupReliabilityTests
             Service<ILeagueClientConnection>((_, _) => true),
             Service<IMatchHistoryService>((_, _) => { historyRequests++; return Task.FromResult<MatchHistoryResponse?>(null); }),
             Service<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(null)),
-            Service<IGameDataVersionService>((_, _) => version.Task));
+            _ => version.Task);
         try
         {
             var loading = home.LoadPlayerAsync(null);

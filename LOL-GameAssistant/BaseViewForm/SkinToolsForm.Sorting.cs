@@ -22,7 +22,7 @@ public sealed partial class SkinToolsForm
         _skinSort.SelectedIndex = communityFirst ? 1 : 0;
         _skinSort.SelectedIndexChanged += async (_, _) =>
         {
-            try { var settings = _settings.Load(); settings.SkinCommunitySortEnabled = CommunitySort; _settings.Save(settings); }
+            try { _settings.Update(settings => settings.SkinCommunitySortEnabled = CommunitySort); }
             catch (Exception error) { _status.Text = $"排序设置保存失败：{error.Message}"; }
             FilterEntries();
             if (!CommunitySort) ResetSkinPopularity();

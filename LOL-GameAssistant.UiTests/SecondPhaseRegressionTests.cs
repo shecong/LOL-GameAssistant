@@ -307,7 +307,7 @@ public sealed class SecondPhaseRegressionTests
         Service<ILeagueClientConnection>((_, _) => true),
         matches ?? Service<IMatchHistoryService>((_, _) => Task.FromResult<MatchHistoryResponse?>(null)),
         Service<IRankedStatsService>((_, _) => Task.FromResult<RankedOverview?>(null)),
-        Service<IGameDataVersionService>((_, _) => Task.CompletedTask), recordFactory);
+        _ => Task.CompletedTask, recordFactory);
     internal static PlayerProfile Player(string name) => new(name, name, "test", 0, 30, 10, 100);
     internal static T Service<T>(Func<MethodInfo, object?[], object?> handler) where T : class
     {

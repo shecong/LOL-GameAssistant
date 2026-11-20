@@ -6,7 +6,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class EnemyJungleRouteForm : AntdUI.Window, IThemeAware
+internal sealed class EnemyJungleRouteForm : BorderlessAntdWindow, IThemeAware
 {
     private readonly EnemyJungleRouteController _controller;
     private readonly AntdUI.PageHeader _header;

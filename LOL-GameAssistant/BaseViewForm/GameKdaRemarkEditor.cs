@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>逐人 KDA 文案编辑弹窗，保存各表现档位的候选文案。</summary>
-internal sealed class GameKdaRemarkEditor : AntdUI.Window, IThemeAware
+internal sealed class GameKdaRemarkEditor : BorderlessAntdWindow, IThemeAware
 {
     private readonly Dictionary<string, AntdUI.Input> _inputs = new();
     private readonly AntdUI.Label _note;

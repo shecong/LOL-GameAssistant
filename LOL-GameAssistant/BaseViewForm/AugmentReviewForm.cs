@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class AugmentReviewForm : AntdUI.Window
+internal sealed class AugmentReviewForm : BorderlessAntdWindow
 {
     private readonly UiRequestScope _requests = new();
     internal AugmentReviewForm(IAugmentScanner scanner, IAugmentReviewService review)

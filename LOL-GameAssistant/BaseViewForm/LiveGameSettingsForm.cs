@@ -3,7 +3,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-internal sealed class LiveGameSettingsForm : AntdUI.Window, IThemeAware
+internal sealed class LiveGameSettingsForm : BorderlessAntdWindow, IThemeAware
 {
     internal LiveGameSettingsForm(LiveHistoryFilter initial, Action<LiveHistoryFilter> save)
     {

@@ -65,7 +65,7 @@ public sealed class DenseBattleQueryTests
         query.GetType().GetField("_currentPlayer", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(query, new PlayerProfile("me", "预览玩家", "123", 0, 411, 0, 0));
         return query;
     }
-    private static Task Render(BattleQueryForm query) => (Task)query.GetType().GetMethod("RenderMatchPageAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(query, [Page()])!;
+    private static Task Render(BattleQueryForm query, int count = 20) => (Task)query.GetType().GetMethod("RenderMatchPageAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(query, [Page(count)])!;
 
     [Fact]
     public void InitialListMakesZeroDetailCallsAndContainsTwentyDenseRows() => MatchListScrollingTests.OnUiThread(() =>
@@ -76,6 +76,34 @@ public sealed class DenseBattleQueryTests
         Assert.True(Field<SplitContainer>(query, "_matchWorkspace").Panel2Collapsed);
         var rows = Field<Control>(query, "stackMatches").Controls.OfType<MatchHistoryListRow>().ToArray();
         Assert.Equal(20, rows.Length); Assert.All(rows, r => Assert.InRange(r.Height, 45, 55));
+    });
+
+    [Fact]
+    public void FiftyRowsLoadIconsOnlyNearTheViewportAndKeepDetailsOnDemand() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        int details = 0, icons = 0;
+        using var query = Create((id, _, _) => { details++; return Task.FromResult<MatchDetail?>(Detail(id)); });
+        var assets = Service<IGameAssetService>((method, _) =>
+        {
+            if (method.Name == "GetChampionIconAsync") icons++;
+            return Task.FromResult<GameAsset?>(null);
+        });
+        typeof(BattleQueryForm).GetField("_listAssets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(query, assets);
+        using var host = new Form { ClientSize = new Size(1100, 650), ShowInTaskbar = false, Opacity = 0 };
+        host.Controls.Add(query);
+        query.Dock = DockStyle.Fill;
+        host.Show();
+        Field<AntdUI.Select>(query, "_pageSizeSelect").SelectedIndex = 2;
+        Pump(Render(query, 50));
+        var list = Field<MatchScrollPanel>(query, "stackMatches");
+        Assert.Equal(50, list.Controls.OfType<MatchHistoryListRow>().Count());
+        Assert.InRange(icons, 1, 49);
+        Assert.Equal(0, details);
+        int initialIcons = icons;
+        list.AutoScrollPosition = new Point(0, 1800);
+        var onScroll = typeof(ScrollableControl).GetMethod("OnScroll", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        onScroll.Invoke(list, [new ScrollEventArgs(ScrollEventType.ThumbPosition, 1800, ScrollOrientation.VerticalScroll)]);
+        Assert.True(icons > initialIcons);
     });
 
     [Fact]
@@ -179,8 +207,8 @@ public sealed class DenseBattleQueryTests
     {
         var pending = new TaskCompletionSource<MatchDetail?>(); int calls = 0;
         using var query = Create((id, _, _) => ++calls == 1 ? pending.Task : Task.FromResult<MatchDetail?>(Detail(id)));
-        Pump(Render(query)); var first = query.SelectMatchAsync(Game(1)); var cache = (ILocalCacheStore)query;
-        cache.Clear(); pending.SetResult(Detail(1)); Pump(first); Assert.Equal(0, cache.MeasureMemory().Entries);
+        Pump(Render(query)); var first = query.SelectMatchAsync(Game(1)); var cache = PlayerHistoryRepository.For(Field<IMatchHistoryService>(query, "_matchHistoryService"));
+        cache.Clear(); pending.SetResult(Detail(1)); Pump(first); Assert.Equal(0, cache.Measure().Entries);
         Pump(query.SelectMatchAsync(Game(1))); Assert.Equal(2, calls);
     });
 
@@ -255,6 +283,16 @@ public sealed class DenseBattleQueryTests
             using var host = new Form { ClientSize = new(width, height) }; query.Dock = DockStyle.Fill; host.Controls.Add(query); host.Show(); UiTheme.Apply(query);
             Pump(query.PerformSearchAsync("11111111-1111-1111-1111-111111111111")); System.Windows.Forms.Application.DoEvents();
             var list = Field<Panel>(query, "stackMatches");
+            Assert.True(list.Visible);
+            var toolbar = Field<Control>(query, "_viewBar");
+            var records = Field<AntdUI.Label>(query, "_recordsLabel");
+            var filters = Field<FlowLayoutPanel>(query, "_listFilters");
+            Assert.DoesNotContain(toolbar.Controls.Cast<Control>(), control => control is AntdUI.Segmented);
+            Assert.True(records.Visible && filters.Visible);
+            Assert.All(toolbar.Controls.Cast<Control>().Where(control => control.Visible),
+                control => Assert.True(toolbar.ClientRectangle.Contains(control.Bounds), $"Toolbar clips {control.GetType().Name} at {width}"));
+            Assert.All(filters.Controls.Cast<Control>(),
+                control => Assert.True(filters.ClientRectangle.Contains(control.Bounds), $"Filters clip {control.GetType().Name} at {width}"));
             Assert.True(list.Height >= 190, $"Insufficient list height {list.Height} at {width}");
             Assert.False(list.HorizontalScroll.Visible);
             Save(host, $"dense-query-list-{width}");
@@ -269,57 +307,6 @@ public sealed class DenseBattleQueryTests
         }
         finally { UiTheme.SetMode(previous); }
     });
-    [Theory]
-    [InlineData(1600, 900)]
-    [InlineData(900, 820)]
-    [InlineData(520, 820)]
-    public void StatisticsChartsAndAllSummaryTilesFitTheViewport(int width, int height) => MatchListScrollingTests.OnUiThread(() =>
-    {
-        using var query = Create((id, _, _) => Task.FromResult<MatchDetail?>(Detail(id)));
-        using var host = new Form { ClientSize = new(width, height) };
-        query.Dock = DockStyle.Fill; host.Controls.Add(query); host.Show();
-        Pump(query.PerformSearchAsync("11111111-1111-1111-1111-111111111111"));
-        typeof(BattleQueryForm).GetMethod("BtnViewStats_Click", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(query, [null, EventArgs.Empty]);
-        PumpUntil(() => Field<bool>(query, "_statsLoaded"));
-        System.Windows.Forms.Application.DoEvents();
-        var stats = Field<Control>(query, "panelStats");
-        var viewport = stats.Controls.OfType<AntdUI.Panel>().Single(control => control.Dock == DockStyle.Fill);
-        var content = viewport.Controls.OfType<FlowLayoutPanel>().Single();
-        var summaries = content.Controls.OfType<FlowLayoutPanel>().Single();
-        Save(host, $"dense-query-stats-{width}");
-        Assert.True(content.Width <= viewport.ClientSize.Width);
-          Assert.Equal(9, summaries.Controls.Count);
-        foreach (Control tile in summaries.Controls)
-        {
-            Assert.True(summaries.ClientRectangle.Contains(tile.Bounds), $"Tile {tile.Bounds} clipped by {summaries.ClientRectangle}");
-            Assert.Equal(2, tile.Controls.Count);
-        }
-        Assert.All(content.Controls.Cast<Control>(), chart => Assert.InRange(chart.Width, viewport.ClientSize.Width - 50, viewport.ClientSize.Width));
-        Assert.True(content.Height >= content.Controls.Cast<Control>().Sum(chart => chart.Height));
-        foreach (Control chart in content.Controls.Cast<Control>().Where(control => control != summaries))
-        {
-            using var bitmap = new Bitmap(chart.Width, chart.Height);
-            chart.DrawToBitmap(bitmap, chart.ClientRectangle);
-            var colors = new HashSet<int>();
-            for (int y = 0; y < bitmap.Height; y += 5)
-                for (int x = 0; x < bitmap.Width; x += 5) colors.Add(bitmap.GetPixel(x, y).ToArgb());
-            Assert.True(colors.Count > 5, "Chart must render data and axes, not just a blank panel background.");
-        }
-        host.Close();
-    });
-
-    [Fact]
-    public void KdaTrendExcludesOlderMatchesAndEndsWithTheMostRecentResult()
-    {
-        var history = Enumerable.Range(1, 40).Reverse().Select(day => ((double)day, day % 2 == 0)).ToList();
-        var trend = ChartDrawer.RecentKdaTrend(history);
-        Assert.Equal(30, trend.Count);
-        Assert.Equal((11d, false), trend[0]);
-        Assert.Equal((40d, true), trend[^1]);
-        Assert.DoesNotContain(trend, result => result.kda <= 10);
-        Assert.Equal(new[] { (3d, false), (8d, true) }, ChartDrawer.RecentKdaTrend([(8d, true), (3d, false)]));
-    }
-
     [Fact]
     public void AllThreeLayoutsKeepCompletePlayersAndRememberSelectionWithoutFetchingAgain() => MatchListScrollingTests.OnUiThread(() =>
     {

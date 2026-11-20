@@ -7,7 +7,7 @@ using LOL_GameAssistant.Helper;
 
 namespace LOL_GameAssistant.BaseViewForm;
 
-public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData.ILocalCacheStore
+public partial class BattleQueryForm
 {
     private static void ApplyListWorkspaceTheme(Control root, ThemePalette palette)
     {
@@ -23,7 +23,6 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
                     break;
                 case AntdUI.Select select: select.ColorScheme = scheme; select.ForeColor = palette.TextPrimary; select.BackColor = palette.SurfaceRaised; break;
                 case AntdUI.Input input: input.ColorScheme = scheme; input.BackColor = palette.SurfaceRaised; break;
-                case AntdUI.Segmented tabs: tabs.ColorScheme = scheme; tabs.BackColor = palette.Surface; break;
                 case AntdUI.Pagination pages: pages.ColorScheme = scheme; break;
                 case AntdUI.Label label: label.ColorScheme = scheme; break;
                 case AntdUI.Avatar avatar: avatar.ColorScheme = scheme; break;
@@ -37,12 +36,6 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
     private MatchHistoryDetailPane _detailPane = null!;
     private MatchHistoryListHeader _columnHeader = null!;
     private readonly UiRequestScope _detailScope = new();
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<(object Source, string Session, string Puuid, long Id), MatchDetail> _selectedDetails = [];
-    private long _detailCacheGeneration;
-    string LOL_GameAssistant.Infrastructure.GameData.ILocalCacheStore.DirectoryPath => Path.Combine(
-        LOL_GameAssistant.Infrastructure.GameData.LocalDataCache<MatchDetail>.Root, "player-data", "details", "query-selection");
-    (int Entries, long Bytes) LOL_GameAssistant.Infrastructure.GameData.ILocalCacheStore.MeasureMemory() => CacheDataSize.Measure(_selectedDetails.Values.ToArray());
-    void LOL_GameAssistant.Infrastructure.GameData.ILocalCacheStore.Clear() { Interlocked.Increment(ref _detailCacheGeneration); _selectedDetails.Clear(); }
     private MatchHistoryGame? _selectedGame;
     private readonly AntdUI.Select _championFilter = new() { Width = 150, Height = UiMetrics.ControlHeight };
     private readonly AntdUI.Select _resultFilter = new() { Width = 112, Height = UiMetrics.ControlHeight };
@@ -65,8 +58,7 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         if (InvokeRequired) { BeginInvoke(() => RefreshFilterLanguage(sender, args)); return; }
         foreach (var select in new[] { _modeSelect, _championFilter, _resultFilter })
             select.Text = select.SelectedValue?.ToString() ?? "";
-        foreach (var select in panelStats.Controls.Find("matchStatsModeFilter", true).OfType<AntdUI.Select>())
-            select.Text = select.SelectedValue?.ToString() ?? "";
+        RefreshRegionChoices();
         _columnHeader.Invalidate();
         stackMatches.Invalidate(true);
         UpdateResponsiveLayout();
@@ -74,7 +66,6 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
 
     private void InitializeListWorkspace()
     {
-        LOL_GameAssistant.Infrastructure.GameData.LocalCacheRegistry.Register(this);
         _detailPane = new(_listAssets, _listChampions) { Dock = DockStyle.None, Visible = false };
         _detailPane.PreferredHeightChanged += ResizeMatchRows;
         _detailPane.CloseRequested += CloseSelectedDetail;
@@ -118,7 +109,7 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
             _suppressListFilters = _suppressModeEvents = true;
             try { _selectedMode = "全部"; _modeSelect.SelectedIndex = 0; _selectedChampion = null; _championFilter.SelectedIndex = 0; _selectedResult = "全部结果"; _resultFilter.SelectedIndex = 0; }
             finally { _suppressListFilters = _suppressModeEvents = false; }
-            _currentPage = 1; _statsLoaded = false; if (_currentPlayer != null) await RenderMatchPageAsync();
+            _currentPage = 1; if (_currentPlayer != null) await RenderMatchPageAsync();
         };
         _listFilters.Controls.Add(_championFilter); _listFilters.Controls.Add(_resultFilter); _listFilters.Controls.Add(reset);
         _viewBar!.Controls.Add(_listFilters);
@@ -148,35 +139,40 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         _layingOutFilters = true;
         try
         {
-        int S(int n) => n * DeviceDpi / 96;
-        int w = _viewBar.ClientSize.Width;
-        bool records = _viewSwitch.SelectIndex == 0;
-        _viewSwitch.Dock = _spectateButton.Dock = DockStyle.None;
-        _pageSizeArea!.Dock = _backToTopButton!.Dock = DockStyle.None;
-        _viewSwitch.SetBounds(0, 0, Math.Min(S(UiLanguage.IsEnglish ? 560 : 390), Math.Max(S(250), w - S(140))), S(37));
-        int right = w - S(4);
-        _spectateButton.SetBounds(right - S(130), 0, S(130), S(37)); right -= S(134);
-        bool extraActions = records && w >= S(UiLanguage.IsEnglish ? 1500 : 1300);
-        _backToTopButton.Visible = _pageSizeArea.Visible = extraActions;
-        if (extraActions)
-        {
-            _backToTopButton.SetBounds(right - S(110), 0, S(110), S(37)); right -= S(114);
-            _pageSizeArea.SetBounds(right - S(155), 0, S(155), S(37)); right -= S(159);
-        }
-        _listFilters.Visible = records;
-        int left = _viewSwitch.Right + S(4);
-        bool compact = right - left < S(520);
-        _modeSelect.Width = S(compact ? 116 : 170);
-        _championFilter.Width = S(compact ? 112 : 150);
-        _resultFilter.Width = S(compact ? 85 : 112);
-        _listFilters.Controls[3].Width = S(60);
-        _listFilters.Controls[3].Visible = true;
-        int width = _listFilters.Controls.Cast<Control>().Sum(c => c.Width + c.Margin.Horizontal);
-        bool wrap = records && right - left < width;
-        int available = wrap ? w : right - left;
-        _listFilters.SetBounds((wrap ? 0 : left) + Math.Max(0, (available - width) / 2), wrap ? S(40) : 0, Math.Min(width, w), S(38));
-        if (_rootLayout != null) _rootLayout.RowStyles[2].Height = S(wrap ? 86 : 46);
-        _sourceLabel.Visible = panelHistory.ClientSize.Width >= S(650);
+            int S(int n) => n * DeviceDpi / 96;
+            int w = _viewBar.ClientSize.Width;
+            _spectateButton.Dock = _pageSizeArea!.Dock = _backToTopButton!.Dock = DockStyle.None;
+            var filterControls = _listFilters.Controls.Cast<Control>();
+            int filterHeight = filterControls.Max(control => control.Height + control.Margin.Vertical);
+            int rowHeight = Math.Max(filterHeight, _pageSizeArea.Controls.Cast<Control>().Max(control => control.Height + control.Margin.Vertical));
+            _recordsLabel.SetBounds(0, 0, S(UiLanguage.IsEnglish ? 120 : 84), rowHeight);
+            int right = w - S(4);
+            _spectateButton.SetBounds(right - S(130), 0, S(130), rowHeight);
+            right -= S(134);
+            bool extraActions = w >= S(UiLanguage.IsEnglish ? 980 : 920);
+            _backToTopButton.Visible = _pageSizeArea.Visible = extraActions;
+            if (extraActions)
+            {
+                _backToTopButton.SetBounds(right - S(110), 0, S(110), rowHeight);
+                right -= S(114);
+                int pageSizeWidth = _pageSizeArea.Controls.Cast<Control>().Sum(control => control.Width + control.Margin.Horizontal);
+                _pageSizeArea.SetBounds(right - pageSizeWidth, 0, pageSizeWidth, rowHeight);
+                right -= pageSizeWidth + S(4);
+            }
+            int left = _recordsLabel.Right + S(4);
+            bool compact = right - left < S(520);
+            _modeSelect.Width = S(compact ? 116 : 170);
+            _championFilter.Width = S(compact ? 112 : 150);
+            _resultFilter.Width = S(compact ? 85 : 112);
+            _listFilters.Controls[3].Width = S(60);
+            int width = filterControls.Sum(control => control.Width + control.Margin.Horizontal);
+            bool wrap = right - left < width;
+            int available = wrap ? w : right - left;
+            int filterTop = wrap ? rowHeight + S(3) : 0;
+            _listFilters.SetBounds((wrap ? 0 : left) + Math.Max(0, (available - width) / 2), filterTop, Math.Min(width, w), filterHeight);
+            if (_rootLayout != null)
+                _rootLayout.RowStyles[2].Height = Math.Max(rowHeight, filterTop + filterHeight) + _viewBar.Margin.Vertical;
+            _sourceLabel.Visible = panelHistory.ClientSize.Width >= S(650);
         }
         finally { _layingOutFilters = false; }
     }
@@ -200,24 +196,18 @@ public partial class BattleQueryForm : LOL_GameAssistant.Infrastructure.GameData
         _detailPane.SetLoading(game, puuid);
         ResizeMatchRows();
         stackMatches.AutoScrollPosition = new Point(0, previousScroll);
-        var key = (Source: (object)source, Session: PlayerHistorySession.Key, Puuid: puuid, Id: game.GameId);
-        long generation = Volatile.Read(ref _detailCacheGeneration);
         try
         {
-            if (refresh) _selectedDetails.TryRemove(key, out _);
-            if (!_selectedDetails.TryGetValue(key, out var detail))
+            var detail = await PlayerHistoryRepository.For(source).GetSelectedDetailAsync(game.GameId, detail =>
             {
-                detail = await source.GetDetailAsync(game.GameId, !refresh, request.Token);
-                if (!request.IsCurrent || IsDisposed || !ReferenceEquals(source, _matchHistoryService) || _currentPlayer?.Puuid != puuid) return;
-                if (key.Session != PlayerHistorySession.Key) throw new IOException("客户端会话已变化，请重新查询。");
-                if (detail == null || detail.GameId != game.GameId || detail.GetParticipant(puuid) == null)
+                if (detail.GameId != game.GameId || detail.GetParticipant(puuid) == null)
                     throw new IOException("接口未返回这局的完整玩家统计。");
                 if (game.PlatformId.Length > 0 && detail.PlatformId.Length > 0 && game.PlatformId != detail.PlatformId)
                     throw new IOException("返回的大区与所选对局不一致。");
-                if (_selectedDetails.Count >= 64) _selectedDetails.Clear();
-                if (generation == Volatile.Read(ref _detailCacheGeneration)) _selectedDetails[key] = detail;
-            }
-            if (!request.IsCurrent) return;
+                return true;
+            }, refresh, request.Token);
+            if (!request.IsCurrent || IsDisposed || !ReferenceEquals(source, _matchHistoryService) || _currentPlayer?.Puuid != puuid) return;
+            if (detail == null) throw new IOException("接口未返回这局的完整玩家统计。");
             foreach (var row in stackMatches.Controls.OfType<MatchHistoryListRow>().Where(row => row.Game.GameId == detail.GameId))
                 row.ApplyDetailHonors(detail, puuid);
             _detailPane.SetDetail(detail, puuid);

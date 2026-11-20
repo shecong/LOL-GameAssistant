@@ -1,4 +1,5 @@
 using LOL_GameAssistant.Application.Lobby;
+using LOL_GameAssistant.Application.Matches;
 using LOL_GameAssistant.Domain.LeagueClient;
 using LOL_GameAssistant.Entity;
 using LOL_GameAssistant.LoLApi;
@@ -8,6 +9,22 @@ namespace LOL_GameAssistant.Infrastructure.LeagueClient;
 /// <summary>旧大厅 LCU 实现的基础设施适配器。</summary>
 public sealed class LegacyLobbyService : ILobbyService
 {
+    private readonly object _sessionGate = new();
+    private Task<ActiveGameSnapshot?>? _sessionRequest;
+    private long _sessionExpires;
+    private string? _sessionContext;
+    private long _sessionGeneration;
+
+    internal void InvalidateSession()
+    {
+        lock (_sessionGate)
+        {
+            _sessionGeneration++;
+            _sessionRequest = null;
+            _sessionExpires = 0;
+        }
+    }
+
     /// <summary>向客户端提交开始匹配的请求。</summary>
     public Task StartMatchmakingAsync(CancellationToken cancellationToken = default)
     {
@@ -63,8 +80,32 @@ public sealed class LegacyLobbyService : ILobbyService
     public async Task<ActiveGameSnapshot?> GetCurrentSessionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        GameSessionResponse? legacy = await Game_Api.GameLineInfoServer(cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
+        string context = PlayerHistorySession.Key;
+        Task<ActiveGameSnapshot?> request;
+        long generation;
+        lock (_sessionGate)
+        {
+            if (_sessionContext != context || _sessionRequest == null ||
+                (_sessionRequest.IsCompleted && (!_sessionRequest.IsCompletedSuccessfully ||
+                    _sessionRequest.Result == null || Environment.TickCount64 >= _sessionExpires)))
+            {
+                _sessionContext = context;
+                _sessionExpires = Environment.TickCount64 + 750;
+                _sessionRequest = ReadSessionAsync();
+            }
+            request = _sessionRequest;
+            generation = _sessionGeneration;
+        }
+
+        var result = await request.WaitAsync(cancellationToken).ConfigureAwait(false);
+        lock (_sessionGate)
+            return generation == _sessionGeneration && context == PlayerHistorySession.Key ? result : null;
+    }
+
+    private static async Task<ActiveGameSnapshot?> ReadSessionAsync()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var legacy = await Game_Api.GameLineInfoServer(deadline.Token).ConfigureAwait(false);
         return legacy == null ? null : MapCurrentSession(legacy);
     }
 

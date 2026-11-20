@@ -340,6 +340,25 @@ public sealed class BattleOverlayTests
     });
 
     [Fact]
+    public void SameDisplayDoesNotPublishAndChangesInOneTickShareAFrame() => MatchListScrollingTests.OnUiThread(() =>
+    {
+        using var bridge = new RecordingGameOverlay();
+        using var overlay = CreateOverlay(bridge: bridge);
+        var bounds = new Rectangle(10, 10, 1000, 600);
+        overlay.ShowForGame(bounds, "·");
+        overlay.ShowForGame(bounds, "·");
+        Assert.Equal(1, bridge.PublishedPanels);
+
+        overlay.SetPreviewData(new ActiveGameSnapshot { GameId = 1 }, []);
+        overlay.SetPreviewData(new ActiveGameSnapshot { GameId = 2 }, []);
+        overlay.SetPreviewData(new ActiveGameSnapshot { GameId = 3 }, []);
+        Assert.Equal(1, bridge.PublishedPanels);
+        SecondPhaseRegressionTests.PumpUntil(() => bridge.PublishedPanels == 2);
+        overlay.Hide();
+        Assert.Empty(bridge.Panels);
+    });
+
+    [Fact]
     public void RenderBothTeamsAtMultipleSizesAndExportOptionalPreview() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var overlay = CreateOverlay();

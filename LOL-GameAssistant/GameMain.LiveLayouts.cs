@@ -31,9 +31,7 @@ public partial class GameMain
         {
             using var dialog = new LiveGameSettingsForm(_settingsStore.Load().LiveHistoryFilter, filter =>
             {
-                var latest = _settingsStore.Load();
-                latest.LiveHistoryFilter = filter;
-                _settingsStore.Save(latest);
+                _settingsStore.Update(settings => settings.LiveHistoryFilter = filter);
                 liveGameForm.SetHistoryFilter(filter);
             });
             dialog.ShowDialog(this);
@@ -46,9 +44,7 @@ public partial class GameMain
             var previous = liveGameForm.DisplayLayout;
             try
             {
-                var latest = _settingsStore.Load();
-                latest.LiveGameLayout = (LiveGameLayout)_liveLayoutSelector.SelectedIndex;
-                _settingsStore.Save(latest);
+                var latest = _settingsStore.Update(settings => settings.LiveGameLayout = (LiveGameLayout)_liveLayoutSelector.SelectedIndex);
                 liveGameForm.SetDisplayLayout(latest.LiveGameLayout);
             }
             catch (Exception error)

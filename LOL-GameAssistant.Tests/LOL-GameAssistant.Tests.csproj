@@ -22,6 +22,7 @@
     <Compile Include="..\LOL-GameAssistant\Helper\TrafficWebSocket.cs" Link="Helper\TrafficWebSocket.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\MatchDataPolicy.cs" Link="Application\Matches\MatchDataPolicy.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\PlayerHistorySnapshot.cs" Link="Application\Matches\PlayerHistorySnapshot.cs" />
+    <Compile Include="..\LOL-GameAssistant\Application\Matches\ICompletePlayerHistoryStore.cs" Link="Application\Matches\ICompletePlayerHistoryStore.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\PlayerHistoryRepository.cs" Link="Application\Matches\PlayerHistoryRepository.cs" />
     <Compile Include="..\LOL-GameAssistant\Application\Matches\PlayerAnalysisCoordinator.cs" Link="Application\Matches\PlayerAnalysisCoordinator.cs" />
     <Compile Include="..\LOL-GameAssistant\Domain\MatchAnalysis\MatchStatisticsCalculator.cs" Link="Domain\MatchStatisticsCalculator.cs" />

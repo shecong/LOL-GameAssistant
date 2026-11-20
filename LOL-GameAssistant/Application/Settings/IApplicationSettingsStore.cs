@@ -11,6 +11,15 @@ public interface IApplicationSettingsStore
     /// <summary>将当前模块的数据保存到持久化存储。</summary>
     void Save(AssistantSettings settings);
 
+    AssistantSettings Update(Action<AssistantSettings> update)
+    {
+        var settings = Load();
+        update(settings);
+        settings.Normalize();
+        Save(settings);
+        return settings;
+    }
+
     /// <summary>返回当前持久化配置的文件位置。</summary>
     string GetStoragePath();
 }

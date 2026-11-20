@@ -20,6 +20,8 @@ public interface ISkinCoreService
     Task<SkinCoreReply> ApplyObjectsAsync(string session, int minionIndex, int wardSkin, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("objects_not_supported"));
     Task<SkinCoreReply> RestoreObjectsAsync(string session, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("objects_not_supported"));
     Task<SkinCoreReply> GetCameraAsync(CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("camera_not_supported"));
+    Task<SkinCoreReply> BeginCameraAsync(CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("camera_not_supported"));
+    Task<SkinCoreReply> EndCameraAsync(string session, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("camera_not_supported"));
     Task<SkinCoreReply> SetCameraAsync(string session, float distance, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("camera_not_supported"));
     Task<SkinCoreReply> RestoreCameraAsync(string session, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("camera_not_supported"));
     Task<SkinCoreReply> MoveCameraAsync(string session, float distance, CancellationToken token = default) => Task.FromException<SkinCoreReply>(new SkinCoreException("camera_view_not_supported"));

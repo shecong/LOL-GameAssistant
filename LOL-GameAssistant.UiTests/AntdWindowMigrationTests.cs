@@ -16,7 +16,7 @@ public sealed class AntdWindowMigrationTests
             .Where(type => !type.IsAbstract && typeof(Form).IsAssignableFrom(type)).ToArray();
         Assert.NotEmpty(windows);
         Assert.All(windows,
-            type => Assert.Equal(typeof(AntdUI.Window), type.BaseType));
+            type => Assert.True(typeof(BorderlessAntdWindow).IsAssignableFrom(type), type.FullName));
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class AntdWindowMigrationTests
         Assert.True(window.ClientRectangle.Contains(header.Bounds));
     }
 
-    private sealed class TestWindow : AntdUI.Window
+    private sealed class TestWindow : BorderlessAntdWindow
     {
         public TestWindow() => AntdWindowChrome.Configure(this);
         public void RebuildHandle() => RecreateHandle();

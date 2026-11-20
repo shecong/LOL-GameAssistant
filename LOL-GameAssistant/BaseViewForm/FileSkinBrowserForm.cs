@@ -209,41 +209,68 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         _resourceProgressBar.Value = 0;
         _resourceProgressText.Text = "正在获取资源总大小…";
         UpdateControls();
+        Exception? failure = null;
         try
         {
             if (archive == null)
             {
                 var progress = new Progress<FileSkinResourceDownloadProgress>(value =>
                 {
-                    if (!_disposing && ReferenceEquals(_resourceRequest, request) && !request.IsCancellationRequested)
-                        ShowResourceProgress(value);
+                    if (_disposing || !IsHandleCreated) return;
+                    void UpdateProgress()
+                    {
+                        if (!_disposing && ReferenceEquals(_resourceRequest, request) && !request.IsCancellationRequested)
+                            ShowResourceProgress(value);
+                    }
+                    if (!InvokeRequired) UpdateProgress();
+                    else
+                    {
+                        try { BeginInvoke(UpdateProgress); }
+                        catch (InvalidOperationException) when (_disposing || !IsHandleCreated) { }
+                    }
                 });
                 await installer.DownloadResourcesAsync(request.Token, _resourceSource.SelectedIndex == 2, progress);
             }
             else await Task.Run(() => installer.ImportResourcesAsync(archive, request.Token));
             installed = true;
-            if (!_disposing && _lastResourceProgress is { } finished)
-                ShowResourceProgress(finished with { Stage = "资源已安装" });
         }
-        catch (OperationCanceledException)
+        catch (Exception error) { failure = error; }
+
+        async Task CompleteAsync()
         {
-            if (!_disposing)
+            if (_disposing || IsDisposed) return;
+            _resourceRequest = null;
+            _cancellingResource = false;
+            _busy = false;
+            if (installed && _lastResourceProgress is { } finished)
+                ShowResourceProgress(finished with { Stage = "资源已安装" });
+            else if (failure is OperationCanceledException)
             {
                 _status.Text = archive == null ? "下载已取消，已保留断点，再次点击下载可继续。" : "已取消资源安装。";
                 if (_lastResourceProgress is { } cancelled) ShowResourceProgress(cancelled with { Stage = "下载已取消" });
                 else _resourceProgressText.Text = "下载已取消";
             }
-        }
-        catch (Exception error)
-        {
-            if (!_disposing)
+            else if (failure != null)
             {
-                _status.Text = "资源安装失败：" + error.Message;
+                _status.Text = "资源安装失败：" + failure.Message;
                 if (_lastResourceProgress is { } failed) ShowResourceProgress(failed with { Stage = "资源获取失败" });
             }
+            UpdateControls();
+            if (installed)
+            {
+                await LoadCatalogAsync();
+                if (!_disposing) await CheckResourceUpdatesAsync();
+            }
         }
-        finally { _resourceRequest = null; _cancellingResource = false; _busy = false; if (!_disposing) UpdateControls(); }
-        if (installed && !_disposing) { await LoadCatalogAsync(); await CheckResourceUpdatesAsync(); }
+
+        if (_disposing || IsDisposed) return;
+        if (!InvokeRequired) await CompleteAsync();
+        else
+        {
+            try { await this.InvokeAsync(async _ => await CompleteAsync(), _lifetime.Token); }
+            catch (OperationCanceledException) when (_disposing) { }
+            catch (InvalidOperationException) when (_disposing || !IsHandleCreated) { }
+        }
     }
 
     private void ShowResourceProgress(FileSkinResourceDownloadProgress value)
@@ -395,7 +422,7 @@ public sealed class FileSkinBrowserForm : UserControl, IThemeAware
         try
         {
             if (!_engines.IsEnabled(SkinEngineMode.File)) throw new InvalidOperationException("请先开启游戏外换肤开关");
-            var config = _settings.Load(); config.CslolGamePath = _path.Text.Trim(); _settings.Save(config);
+            var config = _settings.Update(settings => settings.CslolGamePath = _path.Text.Trim());
             var result = await _files.ApplyAsync(config.CslolGamePath, picks, cancellationToken: _applyRequest.Token);
             if (!_disposing) _status.Text = result.Ok ? "已准备完成，请进入游戏。" : $"应用失败（{result.Stage}）：{_names.TranslateStatus(result.Message, picks)}";
         }

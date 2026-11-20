@@ -6,7 +6,7 @@ using LOL_GameAssistant.Helper;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>Full identity catalog browser, using the same preview-before-apply flow as profile backgrounds.</summary>
-internal sealed class ClientIdentityForm : AntdUI.Window, IThemeAware
+internal sealed class ClientIdentityForm : BorderlessAntdWindow, IThemeAware
 {
     private const int PageSize = 36;
     private readonly IClientIdentityService _service;

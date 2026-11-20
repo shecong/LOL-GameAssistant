@@ -14,7 +14,7 @@ using LOL_GameAssistant.Infrastructure.GameData;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>当前对局的推荐列表；只有明确应用方案后才由调用方写入客户端。</summary>
-internal sealed class OpggBuildPickerForm : AntdUI.Window, IThemeAware
+internal sealed class OpggBuildPickerForm : BorderlessAntdWindow, IThemeAware
 {
     private static readonly Color Navy = Color.FromArgb(3, 23, 33);
     private static readonly Color SelectedNavy = Color.FromArgb(7, 35, 47);

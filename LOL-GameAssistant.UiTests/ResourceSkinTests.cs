@@ -129,7 +129,24 @@ public sealed class ResourceSkinTests : IDisposable
         await Assert.ThrowsAsync<InvalidDataException>(() => service.ApplyAsync(Game, [Package("bad.wad.client", corrupt)]));
         Assert.Equal(first, Assert.Single(service.State.Files)); Assert.Single(Directory.GetFiles(Mount));
     }
-    [Fact]
+    private sealed class DirectorySymlinkFactAttribute : FactAttribute
+    {
+        public DirectorySymlinkFactAttribute()
+        {
+            string link = Path.Combine(Path.GetTempPath(), $"lga-link-test-{Guid.NewGuid():N}");
+            try
+            {
+                Directory.CreateSymbolicLink(link, Path.GetTempPath());
+                Directory.Delete(link);
+            }
+            catch (IOException error) when ((error.HResult & 0xffff) == 1314)
+            {
+                Skip = "The Windows test process lacks permission to create directory symbolic links.";
+            }
+        }
+    }
+
+    [DirectorySymlinkFact]
     public async Task GameAliasUsesCanonicalOwnershipButNestedMountLinksAreRejected()
     {
         string alias = Path.Combine(_root, "Alias");

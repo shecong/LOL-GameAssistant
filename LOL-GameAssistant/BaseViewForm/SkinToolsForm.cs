@@ -84,8 +84,7 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         InitializeSkinSort(initialSettings.SkinCommunitySortEnabled);
         if (initialSettings.SkinEngineMode == SkinEngineMode.Memory && initialSettings.UnlimitedZoomEnabled && !initialSettings.SkinCoreEnabled)
         {
-            initialSettings.SkinCoreEnabled = true;
-            settings.Save(initialSettings);
+            initialSettings = settings.Update(config => config.SkinCoreEnabled = true);
         }
         _enabled.Checked = initialSettings.SkinEngineMode == SkinEngineMode.Memory && initialSettings.SkinCoreEnabled;
         _core.SetEnabled(_enabled.Checked);
@@ -345,10 +344,11 @@ public sealed partial class SkinToolsForm : UserControl, IThemeAware
         _rememberedSessions.Add(catalog.Session);
         try
         {
-            var settings = _settings.Load();
-            if (entry == null) settings.RememberedHeroSkins.Remove(catalog.Model);
-            else settings.RememberedHeroSkins[catalog.Model] = entry;
-            _settings.Save(settings);
+            _settings.Update(settings =>
+            {
+                if (entry == null) settings.RememberedHeroSkins.Remove(catalog.Model);
+                else settings.RememberedHeroSkins[catalog.Model] = entry;
+            });
         }
         catch (Exception error) { _status.Text += $"\n皮肤记忆保存失败：{error.Message}"; }
     }

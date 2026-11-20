@@ -18,6 +18,16 @@ public sealed class PersonalRunePreset
     public List<int> SummonerSpellIds { get; set; } = new();
     public List<PersonalItemBlock> ItemBlocks { get; set; } = new();
 
+    internal PersonalRunePreset Copy()
+    {
+        var copy = (PersonalRunePreset)MemberwiseClone();
+        copy.RunePerkIds = [.. RunePerkIds];
+        copy.SummonerSpellIds = [.. SummonerSpellIds];
+        copy.ItemBlocks = (ItemBlocks ?? []).Where(block => block != null)
+            .Select(block => block with { ItemIds = [.. block.ItemIds ?? []] }).ToList();
+        return copy;
+    }
+
     /// <summary>检查符文方案是否包含应用所需的有效字段。</summary>
     public bool IsValid => ChampionId > 0 && PrimaryStyleId > 0 && SubStyleId > 0 &&
         RunePerkIds?.Count >= 6 && (SummonerSpellIds?.Count == 2 || Source == "应用记录" && SummonerSpellIds?.Count == 0) &&

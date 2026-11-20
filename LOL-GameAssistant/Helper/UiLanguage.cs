@@ -153,7 +153,29 @@ internal static class UiLanguage
         if (_mode == normalized) return;
         _mode = normalized;
         ApplyOpenForms(true);
-        Changed?.Invoke(null, EventArgs.Empty);
+        if (Changed is not { } changed) return;
+        foreach (EventHandler handler in changed.GetInvocationList())
+        {
+            if (handler.Target is not Control control)
+            {
+                handler(null, EventArgs.Empty);
+                continue;
+            }
+
+            if (!control.IsHandleCreated || control.IsDisposed || control.Disposing) continue;
+            void Notify()
+            {
+                if (control.IsHandleCreated && !control.IsDisposed && !control.Disposing)
+                    handler(null, EventArgs.Empty);
+            }
+
+            if (!control.InvokeRequired) Notify();
+            else
+            {
+                try { control.BeginInvoke(Notify); }
+                catch (InvalidOperationException) when (control.IsDisposed || !control.IsHandleCreated) { }
+            }
+        }
     }
 
     /// <summary>将原始界面文本转换为当前语言的文本。</summary>
@@ -165,6 +187,8 @@ internal static class UiLanguage
         if (!IsEnglish) return source;
         if (Overrides.TryGetValue(source, out string? corrected)) return corrected;
         if (English.TryGetValue(source, out string? exact)) return exact;
+        if (source.StartsWith("对局详情 · ", StringComparison.Ordinal))
+            return string.Join(" · ", source.Split(" · ").Select(T));
         if (!source.Any(IsChinese)) return source;
         foreach (var (pattern, tokens, translated) in Dynamic)
         {

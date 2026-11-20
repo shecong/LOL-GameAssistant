@@ -105,7 +105,7 @@ public sealed class SettingsDescriptionLayoutTests
     });
 
     [Fact]
-    public void AiDescriptionsUseAvailableWidthAndRewrapAfterResizing() => MatchListScrollingTests.OnUiThread(() =>
+    public void AiSettingsKeepControlsAndHelpReachableAfterResizing() => MatchListScrollingTests.OnUiThread(() =>
     {
         using var settings = new SettingForm(Service<IGameClientLauncher>((_, _) => null),
             Service<IApplicationSettingsStore>((method, _) => method.Name == "GetStoragePath"
@@ -115,40 +115,24 @@ public sealed class SettingsDescriptionLayoutTests
         settings.Dock = DockStyle.Fill;
         host.Controls.Add(settings);
         host.Show();
-        var navigation = (AntdUI.Segmented)typeof(SettingForm)
-            .GetField("_settingsSegmented", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
-        navigation.SelectIndex = 4;
+        settings.ShowAiRecommendationSettings();
         System.Windows.Forms.Application.DoEvents();
-        var notes = Children(settings).OfType<AntdUI.Label>()
-            .Where(note => note.Name == "aiDescription" && note.Parent is TableLayoutPanel table && table.ColumnCount == 2).ToArray();
-        Assert.True(notes.Length >= 6);
-        var opgg = notes.Single(note => note.Parent?.Parent?.Name == "aiSelectionCard");
-        int narrowWidth = opgg.Width;
-        int narrowHeight = opgg.Height;
-        LOL_GameAssistant.Helper.UiTheme.Apply(settings);
+        var selection = Children(settings).Single(control => control.Name == "aiSelectionCard");
+        var rows = Assert.Single(selection.Controls.OfType<TableLayoutPanel>());
+        var option = Assert.Single(rows.Controls.OfType<AntdUI.Checkbox>(), control =>
+            rows.GetRow(control) == 1);
+        var tip = (LOL_GameAssistant.Helper.UiToolTip)typeof(SettingForm)
+            .GetField("_featureTip", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
+        string help = tip.GetToolTip(option);
+        Assert.NotEmpty(help);
+        int initialWidth = rows.Width;
         foreach (int width in new[] { 1600, 900, 1600 })
         {
             host.ClientSize = new Size(width, 760);
             System.Windows.Forms.Application.DoEvents();
-            foreach (var note in notes)
-            {
-                var table = (TableLayoutPanel)note.Parent!;
-                Assert.InRange(table.ClientSize.Width - note.Right - note.Margin.Right, 0, 4);
-                Assert.True(note.Width > 220, $"Description remained narrow beside the fixed directory: {note.Bounds}");
-                Assert.True(note.Height >= note.GetPreferredSize(new Size(note.Width, 0)).Height);
-            }
-            if (width == 1600)
-            {
-                Assert.True(opgg.Width > narrowWidth + 400);
-                Assert.True(opgg.Height <= narrowHeight);
-                if (Environment.GetEnvironmentVariable("ANTD_UI_PREVIEWS") is string folder)
-                {
-                    Directory.CreateDirectory(folder);
-                    using var image = new Bitmap(settings.Width, settings.Height);
-                    settings.DrawToBitmap(image, settings.ClientRectangle);
-                    image.Save(Path.Combine(folder, "settings-ai.png"));
-                }
-            }
+            Assert.True(rows.ClientRectangle.Contains(option.Bounds));
+            Assert.Equal(help, tip.GetToolTip(option));
+            if (width == 1600) Assert.True(rows.Width > initialWidth + 400);
         }
     });
 

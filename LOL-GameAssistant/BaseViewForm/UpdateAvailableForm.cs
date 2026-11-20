@@ -10,7 +10,7 @@ using LOL_GameAssistant.Infrastructure.ApplicationInfo;
 namespace LOL_GameAssistant.BaseViewForm;
 
 /// <summary>非模态更新提示：用户可选择下载、加入 QQ 群，或继续使用当前版本。</summary>
-internal sealed class UpdateAvailableForm : AntdUI.Window
+internal sealed class UpdateAvailableForm : BorderlessAntdWindow
 {
     private readonly CancellationTokenSource _downloadLifetime = new();
     private PreparedUpdate? _prepared;

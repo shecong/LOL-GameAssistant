@@ -122,6 +122,42 @@ public sealed class LoungeReliabilityTests
         Assert.Equal("fresh", Assert.Single(await store.ReadAsync()).Text);
     }
 
+    [Fact]
+    public async Task ReadDayCompletesWhileWriterWaitsForCommit()
+    {
+        using var folder = new Folder();
+        string path = Path.Combine(folder.Path, "concurrent.db");
+        using var store = new LoungeStore(path);
+        await store.AppendAsync("committed", "", "sender", "name", "region", "chat", "first");
+
+        using var db = new SqliteConnection("Data Source=" + path);
+        await db.OpenAsync();
+        using var transaction = db.BeginTransaction();
+        using var command = db.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "UPDATE messages SET text='pending'";
+        await command.ExecuteNonQueryAsync();
+
+        // The writer holds the store gate while waiting for SQLite's write lock.
+        var writing = Task.Run(() => store.AppendAsync("next", "", "sender", "name", "region", "chat", "second"));
+        try
+        {
+            var gate = (SemaphoreSlim)typeof(LoungeStore)
+                .GetField("_gate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(store)!;
+            Assert.True(SpinWait.SpinUntil(() => gate.CurrentCount == 0, TimeSpan.FromSeconds(3)));
+            var day = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+            var page = await Task.Run(() => store.ReadDayAsync(day)).WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal("first", Assert.Single(page.Messages).Text);
+            Assert.False(writing.IsCompleted);
+        }
+        finally
+        {
+            transaction.Rollback();
+            await writing;
+        }
+        Assert.Equal(2, (await store.ReadAsync()).Length);
+    }
+
     private static HubConnection Connect(string address)
     {
         string token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
