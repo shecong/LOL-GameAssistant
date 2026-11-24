@@ -49,8 +49,16 @@ public sealed partial class SkinToolsForm
             if (entryId == "group:back") { _overlaySkinGroup = null; UpdateSkinPicker(); return; }
             if (entryId.StartsWith("group:", StringComparison.Ordinal))
             {
-                if (int.TryParse(entryId.AsSpan(6), out int group) && SkinGroupEntries(group).Count > 1)
-                { _overlaySkinGroup = group; UpdateSkinPicker(); }
+                if (int.TryParse(entryId.AsSpan(6), out int group) && SkinGroupEntries(group) is [var first, _, ..])
+                {
+                    _overlaySkinGroup = group;
+                    if (CurrentSkinEntry()?.EntryId == first.EntryId)
+                    {
+                        UpdateSkinPicker();
+                        _skinPicker?.ShowFirstSubmenuPage();
+                    }
+                    else await SelectOverlaySkinAsync(first.EntryId);
+                }
                 return;
             }
             await SelectOverlaySkinAsync(entryId); return;

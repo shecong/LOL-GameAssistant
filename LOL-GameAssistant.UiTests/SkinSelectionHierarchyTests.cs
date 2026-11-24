@@ -67,7 +67,7 @@ public sealed class SkinSelectionHierarchyTests
     });
 
     [Fact]
-    public void OverlayNavigatesChildrenAndReopensAtActualChromaWithoutApplyingOnNavigation() => MatchListScrollingTests.OnUiThread(() =>
+    public void OverlaySelectsFirstChildOnParentClickAndReopensAtActualChroma() => MatchListScrollingTests.OnUiThread(() =>
     {
         var core = new Core(9); using var page = Create(core, new Settings());
         using var bridge = new RecordingGameOverlay();
@@ -88,9 +88,14 @@ public sealed class SkinSelectionHierarchyTests
         bridge.Command = new(1, panel.Selected, panel.Version); picker.PollCommands();
         panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
         Assert.Equal(2, panel.Items!.Count); Assert.Equal(3, panel.Submenu!.Items.Count);
+        Assert.Equal(0, panel.Submenu.Selected);
+        Assert.Equal("parent", Assert.Single(core.Applied));
+        bridge.Command = new(1, panel.Selected, panel.Version); picker.PollCommands();
+        Assert.Equal("parent", Assert.Single(core.Applied));
+        panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
         bridge.Command = new(8, 2, panel.Version); picker.PollCommands();
         panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
-        Assert.Contains("绿色", panel.Submenu!.Items[panel.Submenu.Selected]); Assert.Equal("green", Assert.Single(core.Applied));
+        Assert.Contains("绿色", panel.Submenu!.Items[panel.Submenu.Selected]); Assert.Equal(new[] { "parent", "green" }, core.Applied);
         int version = panel.Version; picker.Hide(); picker.ShowOverGame(Rectangle.Empty);
         panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
         Assert.True(panel.Version > version); Assert.Contains("绿色", panel.Submenu!.Items[panel.Submenu.Selected]);
@@ -109,9 +114,11 @@ public sealed class SkinSelectionHierarchyTests
         Assert.Null(panel.Submenu);
         bridge.Command = new(1, 1, panel.Version); picker.PollCommands();
         panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
-        Assert.Equal(3, panel.Submenu!.Items.Count); Assert.Empty(core.Applied);
+        Assert.Equal(3, panel.Submenu!.Items.Count);
+        Assert.Equal(0, panel.Submenu.Selected);
+        Assert.Equal("parent", Assert.Single(core.Applied));
         bridge.Command = new(8, 2, panel.Version); picker.PollCommands();
-        Assert.Equal("green", Assert.Single(core.Applied));
+        Assert.Equal(new[] { "parent", "green" }, core.Applied);
         Assert.Equal(10, core.State.ActiveSkin);
         panel = bridge.Panels[GameOverlayPanelKind.SkinPicker];
         Assert.Contains("绿色", panel.Submenu!.Items[panel.Submenu.Selected]);

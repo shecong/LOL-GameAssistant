@@ -84,6 +84,12 @@ internal sealed class SkinPickerOverlayController : IDisposable
         _children = items.ToArray(); _childSelected = selected; _childParent = parent; _childTitle = title;
         PublishOverlay();
     }
+    internal void ShowFirstSubmenuPage()
+    {
+        if (_childPage == 0) return;
+        _childPage = 0; ++_version;
+        PublishOverlay();
+    }
     internal void ShowOverGame(Rectangle bounds)
     {
         int selectedIndex = Array.FindIndex(_items, item => item.Id == _selected);
